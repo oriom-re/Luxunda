@@ -262,6 +262,134 @@ async def update_being(sid, data):
     except Exception as e:
         await sio.emit('error', {'message': str(e)}, room=sid)
 
+@sio.event
+async def process_intention(sid, data):
+    """Przetwarza intencję użytkownika"""
+    try:
+        intention = data.get('intention', '').lower()
+        context = data.get('context', {})
+        
+        print(f"Otrzymano intencję od {sid}: {intention}")
+        
+        # Proste przetwarzanie intencji - w przyszłości można dodać AI
+        response = await analyze_intention(intention, context)
+        
+        await sio.emit('intention_response', response, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd przetwarzania intencji: {str(e)}'}, room=sid)
+
+async def analyze_intention(intention: str, context: dict) -> dict:
+    """Analizuje intencję i zwraca odpowiedz z akcjami"""
+    
+    # Słowa kluczowe dla różnych akcji
+    create_keywords = ['utwórz', 'stwórz', 'dodaj', 'nowy', 'nowa', 'nowe']
+    connect_keywords = ['połącz', 'zwiąż', 'relacja', 'łącz']
+    find_keywords = ['znajdź', 'pokaż', 'gdzie', 'szukaj']
+    
+    actions = []
+    message = "Intencja została przetworzona."
+    
+    # Rozpoznawanie intencji tworzenia
+    if any(keyword in intention for keyword in create_keywords):
+        if 'funkcj' in intention:
+            # Ekstraktuj nazwę z intencji
+            words = intention.split()
+            name = "Nowa_Funkcja"
+            for i, word in enumerate(words):
+                if word in ['funkcj', 'funkcję', 'funkcji'] and i < len(words) - 1:
+                    name = words[i + 1].replace(',', '').replace('.', '')
+                    break
+            
+            actions.append({
+                'type': 'create_being',
+                'data': {
+                    'genesis': {
+                        'name': name,
+                        'type': 'function',
+                        'source': f'def {name}():\n    """Funkcja utworzona przez intencję"""\n    pass',
+                        'created_by': 'intention'
+                    },
+                    'tags': ['function', 'intention'],
+                    'energy_level': 75,
+                    'attributes': {'created_via': 'intention', 'intention_text': intention},
+                    'memories': [{'type': 'creation', 'data': intention}],
+                    'self_awareness': {'trust_level': 0.8, 'confidence': 0.9}
+                }
+            })
+            message = f"Utworzono funkcję: {name}"
+            
+        elif 'klas' in intention:
+            words = intention.split()
+            name = "Nowa_Klasa"
+            for i, word in enumerate(words):
+                if word in ['klas', 'klasę', 'klasy'] and i < len(words) - 1:
+                    name = words[i + 1].replace(',', '').replace('.', '')
+                    break
+            
+            actions.append({
+                'type': 'create_being',
+                'data': {
+                    'genesis': {
+                        'name': name,
+                        'type': 'class',
+                        'source': f'class {name}:\n    """Klasa utworzona przez intencję"""\n    pass',
+                        'created_by': 'intention'
+                    },
+                    'tags': ['class', 'intention'],
+                    'energy_level': 80,
+                    'attributes': {'created_via': 'intention', 'intention_text': intention},
+                    'memories': [{'type': 'creation', 'data': intention}],
+                    'self_awareness': {'trust_level': 0.8, 'confidence': 0.9}
+                }
+            })
+            message = f"Utworzono klasę: {name}"
+    
+    # Rozpoznawanie intencji łączenia
+    elif any(keyword in intention for keyword in connect_keywords):
+        selected_nodes = context.get('selected_nodes', [])
+        if len(selected_nodes) >= 2:
+            relationship_type = 'calls'
+            if 'dziedzicz' in intention:
+                relationship_type = 'inherits'
+            elif 'zawier' in intention:
+                relationship_type = 'contains'
+            elif 'zależ' in intention:
+                relationship_type = 'depends'
+            
+            actions.append({
+                'type': 'create_relationship',
+                'data': {
+                    'source_soul': selected_nodes[0],
+                    'target_soul': selected_nodes[1],
+                    'genesis': {
+                        'type': relationship_type,
+                        'created_via': 'intention',
+                        'description': f'Relacja utworzona przez intencję: {intention}'
+                    },
+                    'tags': [relationship_type, 'intention'],
+                    'energy_level': 60,
+                    'attributes': {'created_via': 'intention', 'intention_text': intention}
+                }
+            })
+            message = f"Utworzono relację typu {relationship_type}"
+        else:
+            message = "Aby połączyć byty, wybierz najpierw co najmniej 2 węzły w grafie."
+    
+    # Rozpoznawanie intencji wyszukiwania
+    elif any(keyword in intention for keyword in find_keywords):
+        message = "Funkcja wyszukiwania zostanie wkrótce dodana."
+    
+    else:
+        message = "Nie rozpoznano intencji. Spróbuj opisać co chcesz zrobić używając słów: utwórz, połącz, znajdź."
+    
+    return {
+        'message': message,
+        'actions': actions,
+        'intention': intention,
+        'context': context
+    }
+
 async def send_graph_data(sid):
     """Wysyła dane grafu do konkretnego klienta"""
     beings = await BaseBeing.get_all()

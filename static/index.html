@@ -153,6 +153,89 @@
         .status-disconnected {
             color: #ff4444;
         }
+
+        /* System intencji */
+        .intention-system {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 300px; /* Uwzględniając szerokość sidebara */
+            background: rgba(26, 26, 26, 0.95);
+            border-top: 2px solid #00ff88;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+
+        .intention-input {
+            width: 100%;
+            min-height: 40px;
+            max-height: 200px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 8px;
+            color: white;
+            padding: 12px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            resize: none;
+            overflow-y: auto;
+            line-height: 1.4;
+            box-sizing: border-box;
+        }
+
+        .intention-input:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+
+        .intention-input::placeholder {
+            color: #888;
+        }
+
+        .intention-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .intention-counter {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .intention-counter.warning {
+            color: #ff9800;
+        }
+
+        .intention-counter.danger {
+            color: #f44336;
+        }
+
+        .send-button {
+            background: #00ff88;
+            color: black;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #00cc6a;
+            transform: translateY(-1px);
+        }
+
+        .send-button:disabled {
+            background: #555;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+        }
     </style>
 </head>
 <body>
@@ -161,6 +244,19 @@
     <div id="container">
         <div id="graph-container">
             <svg id="graph"></svg>
+            
+            <!-- System intencji -->
+            <div class="intention-system">
+                <textarea 
+                    id="intentionInput" 
+                    class="intention-input" 
+                    placeholder="Opisz swoją intencję... (np. 'Utwórz funkcję do przetwarzania danych' lub 'Połącz te byty relacją dziedziczenia')"
+                    maxlength="500"></textarea>
+                <div class="intention-controls">
+                    <span id="charCounter" class="intention-counter">0/500</span>
+                    <button id="sendIntention" class="send-button" disabled>Wyślij Intencję</button>
+                </div>
+            </div>
         </div>
         
         <div id="sidebar">

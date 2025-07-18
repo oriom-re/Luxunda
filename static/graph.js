@@ -14,6 +14,7 @@ class LuxOSGraph {
         this.initSocket();
         this.initGraph();
         this.setupEventListeners();
+        this.initIntentionSystem();
     }
     
     initSocket() {
@@ -48,6 +49,16 @@ class LuxOSGraph {
         this.socket.on('error', (error) => {
             console.error('Błąd:', error.message);
             alert('Błąd: ' + error.message);
+        });
+        
+        this.socket.on('intention_response', (response) => {
+            console.log('Odpowiedź na intencję:', response);
+            this.showIntentionFeedback(response.message || 'Intencja przetworzona');
+            
+            if (response.actions) {
+                // Automatyczne wykonanie akcji na podstawie intencji
+                this.executeIntentionActions(response.actions);
+            }
         });
     }
     
@@ -286,6 +297,179 @@ ${JSON.stringify(node.attributes, null, 2)}</pre>`;
             this.simulation.force('center', d3.forceCenter(width / 2, height / 2));
             this.simulation.alpha(1).restart();
         });
+    }
+    
+    initIntentionSystem() {
+        const intentionInput = document.getElementById('intentionInput');
+        const sendButton = document.getElementById('sendIntention');
+        const charCounter = document.getElementById('charCounter');
+        
+        // Auto-resize textarea
+        intentionInput.addEventListener('input', () => {
+            this.autoResizeTextarea(intentionInput);
+            this.updateCharCounter(intentionInput, charCounter, sendButton);
+            this.processEmoticons(intentionInput);
+        });
+        
+        // Send intention on button click
+        sendButton.addEventListener('click', () => {
+            this.sendIntention();
+        });
+        
+        // Send intention on Ctrl+Enter
+        intentionInput.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                this.sendIntention();
+            }
+        });
+    }
+    
+    autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto';
+        const newHeight = Math.min(Math.max(textarea.scrollHeight, 40), 200);
+        textarea.style.height = newHeight + 'px';
+    }
+    
+    updateCharCounter(input, counter, button) {
+        const length = input.value.length;
+        const maxLength = 500;
+        
+        counter.textContent = `${length}/${maxLength}`;
+        
+        if (length > maxLength * 0.9) {
+            counter.className = 'intention-counter danger';
+        } else if (length > maxLength * 0.7) {
+            counter.className = 'intention-counter warning';
+        } else {
+            counter.className = 'intention-counter';
+        }
+        
+        button.disabled = length === 0 || length > maxLength;
+    }
+    
+    processEmoticons(input) {
+        const cursorPos = input.selectionStart;
+        let text = input.value;
+        
+        // Mapa emotikonów
+        const emoticonMap = {
+            ':D': '😃',
+            ':)': '😊',
+            ':(': '😞',
+            ':P': '😛',
+            ';)': '😉',
+            ':o': '😮',
+            ':O': '😲',
+            ':|': '😐',
+            ':/': '😕',
+            '<3': '❤️',
+            '</3': '💔',
+            ':*': '😘'
+        };
+        
+        let replaced = false;
+        for (const [emoticon, emoji] of Object.entries(emoticonMap)) {
+            if (text.includes(emoticon)) {
+                text = text.replaceAll(emoticon, emoji);
+                replaced = true;
+            }
+        }
+        
+        if (replaced) {
+            input.value = text;
+            input.setSelectionRange(cursorPos, cursorPos);
+        }
+    }
+    
+    sendIntention() {
+        const intentionInput = document.getElementById('intentionInput');
+        const intention = intentionInput.value.trim();
+        
+        if (!intention) return;
+        
+        // Wyślij intencję przez Socket.IO
+        this.socket.emit('process_intention', {
+            intention: intention,
+            context: {
+                selected_nodes: this.selectedNodes.map(n => n.soul),
+                timestamp: new Date().toISOString(),
+                graph_state: {
+                    nodes_count: this.nodes.length,
+                    links_count: this.links.length
+                }
+            }
+        });
+        
+        console.log('Wysłano intencję:', intention);
+        
+        // Wyczyść pole i zresetuj wysokość
+        intentionInput.value = '';
+        intentionInput.style.height = '40px';
+        document.getElementById('charCounter').textContent = '0/500';
+        document.getElementById('charCounter').className = 'intention-counter';
+        document.getElementById('sendIntention').disabled = true;
+        
+        // Pokaż feedback
+        this.showIntentionFeedback('Intencja wysłana...');
+    }
+    
+    showIntentionFeedback(message) {
+        // Tymczasowe powiadomienie w prawym górnym rogu
+        const feedback = document.createElement('div');
+        feedback.style.position = 'fixed';
+        feedback.style.top = '60px';
+        feedback.style.right = '10px';
+        feedback.style.background = '#00ff88';
+        feedback.style.color = 'black';
+        feedback.style.padding = '10px 15px';
+        feedback.style.borderRadius = '5px';
+        feedback.style.zIndex = '1001';
+        feedback.style.fontSize = '14px';
+        feedback.textContent = message;
+        
+        document.body.appendChild(feedback);
+        
+        setTimeout(() => {
+            feedback.remove();
+        }, 3000);
+    }
+    
+    executeIntentionActions(actions) {
+        actions.forEach(action => {
+            switch (action.type) {
+                case 'create_being':
+                    this.socket.emit('create_being', action.data);
+                    break;
+                case 'create_relationship':
+                    this.socket.emit('create_relationship', action.data);
+                    break;
+                case 'select_nodes':
+                    action.data.souls.forEach(soul => {
+                        const node = this.nodes.find(n => n.soul === soul);
+                        if (node) this.selectNode(node);
+                    });
+                    break;
+                case 'highlight_path':
+                    this.highlightPath(action.data.from, action.data.to);
+                    break;
+                default:
+                    console.log('Nieznana akcja intencji:', action);
+            }
+        });
+    }
+    
+    highlightPath(fromSoul, toSoul) {
+        // Proste podświetlenie ścieżki między węzłami
+        this.linkGroup.selectAll('.link')
+            .classed('highlighted', d => 
+                (d.source.soul === fromSoul && d.target.soul === toSoul) ||
+                (d.source.soul === toSoul && d.target.soul === fromSoul)
+            );
+        
+        setTimeout(() => {
+            this.linkGroup.selectAll('.link').classed('highlighted', false);
+        }, 3000);
     }
     
     updateStatus(message, type) {
