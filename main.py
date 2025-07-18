@@ -27,24 +27,48 @@ sio.attach(app)
 @dataclass
 class BaseBeing:
     soul: str
-    tags: List[str]
-    energy_level: int
     genesis: Dict[str, Any]
     attributes: Dict[str, Any]
     memories: List[Dict[str, Any]]
     self_awareness: Dict[str, Any]
     created_at: Optional[datetime] = None
 
+    @property
+    def tags(self) -> List[str]:
+        """Pobiera tagi z atrybutów"""
+        return self.attributes.get('tags', [])
+    
+    @tags.setter
+    def tags(self, value: List[str]):
+        """Ustawia tagi w atrybutach"""
+        self.attributes['tags'] = value
+
+    @property
+    def energy_level(self) -> int:
+        """Pobiera poziom energii z atrybutów"""
+        return self.attributes.get('energy_level', 0)
+    
+    @energy_level.setter
+    def energy_level(self, value: int):
+        """Ustawia poziom energii w atrybutach"""
+        self.attributes['energy_level'] = value
+
     @classmethod
     async def create(cls, genesis: Dict[str, Any], **kwargs):
         """Tworzy nowy byt w bazie danych"""
         soul = str(uuid.uuid4())
+        
+        # Przygotuj atrybuty z tags i energy_level
+        attributes = kwargs.get('attributes', {})
+        if 'tags' in kwargs:
+            attributes['tags'] = kwargs['tags']
+        if 'energy_level' in kwargs:
+            attributes['energy_level'] = kwargs['energy_level']
+        
         being = cls(
             soul=soul,
-            tags=kwargs.get('tags', []),
-            energy_level=kwargs.get('energy_level', 0),
             genesis=genesis,
-            attributes=kwargs.get('attributes', {}),
+            attributes=attributes,
             memories=kwargs.get('memories', []),
             self_awareness=kwargs.get('self_awareness', {})
         )
@@ -56,17 +80,14 @@ class BaseBeing:
         global db_pool
         async with db_pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO base_beings (soul, tags, energy_level, genesis, attributes, memories, self_awareness)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO base_beings (soul, genesis, attributes, memories, self_awareness)
+                VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (soul) DO UPDATE SET
-                tags = EXCLUDED.tags,
-                energy_level = EXCLUDED.energy_level,
                 genesis = EXCLUDED.genesis,
                 attributes = EXCLUDED.attributes,
                 memories = EXCLUDED.memories,
                 self_awareness = EXCLUDED.self_awareness
-            """, self.soul, self.tags, self.energy_level, 
-                json.dumps(self.genesis), json.dumps(self.attributes),
+            """, self.soul, json.dumps(self.genesis), json.dumps(self.attributes),
                 json.dumps(self.memories), json.dumps(self.self_awareness))
 
     @classmethod
@@ -78,8 +99,6 @@ class BaseBeing:
             if row:
                 return cls(
                     soul=str(row['soul']),
-                    tags=row['tags'],
-                    energy_level=row['energy_level'],
                     genesis=row['genesis'],
                     attributes=row['attributes'],
                     memories=row['memories'],
@@ -97,8 +116,6 @@ class BaseBeing:
                 rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
                 return [cls(
                     soul=str(row['soul']),
-                    tags=row['tags'],
-                    energy_level=row['energy_level'],
                     genesis=row['genesis'],
                     attributes=row['attributes'],
                     memories=row['memories'],
@@ -106,13 +123,11 @@ class BaseBeing:
                     created_at=row['created_at']
                 ) for row in rows]
         else:
-            # SQLite fallback
+            # SQLite fallback - pozostaw zgodne ze starym schematem dla lokalnego rozwoju
             async with db_pool.execute("SELECT * FROM base_beings LIMIT ?", (limit,)) as cursor:
                 rows = await cursor.fetchall()
                 return [cls(
                     soul=row[0],
-                    tags=json.loads(row[1]) if row[1] else [],
-                    energy_level=row[2],
                     genesis=json.loads(row[3]),
                     attributes=json.loads(row[4]),
                     memories=json.loads(row[5]),
@@ -123,26 +138,50 @@ class BaseBeing:
 @dataclass
 class Relationship:
     id: str
-    tags: List[str]
-    energy_level: int
     source_soul: str
     target_soul: str
     genesis: Dict[str, Any]
     attributes: Dict[str, Any]
     created_at: Optional[datetime] = None
 
+    @property
+    def tags(self) -> List[str]:
+        """Pobiera tagi z atrybutów"""
+        return self.attributes.get('tags', [])
+    
+    @tags.setter
+    def tags(self, value: List[str]):
+        """Ustawia tagi w atrybutach"""
+        self.attributes['tags'] = value
+
+    @property
+    def energy_level(self) -> int:
+        """Pobiera poziom energii z atrybutów"""
+        return self.attributes.get('energy_level', 0)
+    
+    @energy_level.setter
+    def energy_level(self, value: int):
+        """Ustawia poziom energii w atrybutach"""
+        self.attributes['energy_level'] = value
+
     @classmethod
     async def create(cls, source_soul: str, target_soul: str, genesis: Dict[str, Any], **kwargs):
         """Tworzy nową relację"""
         rel_id = str(uuid.uuid4())
+        
+        # Przygotuj atrybuty z tags i energy_level
+        attributes = kwargs.get('attributes', {})
+        if 'tags' in kwargs:
+            attributes['tags'] = kwargs['tags']
+        if 'energy_level' in kwargs:
+            attributes['energy_level'] = kwargs['energy_level']
+        
         relationship = cls(
             id=rel_id,
-            tags=kwargs.get('tags', []),
-            energy_level=kwargs.get('energy_level', 0),
             source_soul=source_soul,
             target_soul=target_soul,
             genesis=genesis,
-            attributes=kwargs.get('attributes', {})
+            attributes=attributes
         )
         await relationship.save()
         return relationship
@@ -152,15 +191,13 @@ class Relationship:
         global db_pool
         async with db_pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO relationships (id, tags, energy_level, source_soul, target_soul, genesis, attributes)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO relationships (id, source_soul, target_soul, genesis, attributes)
+                VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (id) DO UPDATE SET
-                tags = EXCLUDED.tags,
-                energy_level = EXCLUDED.energy_level,
                 genesis = EXCLUDED.genesis,
                 attributes = EXCLUDED.attributes
-            """, self.id, self.tags, self.energy_level, self.source_soul, 
-                self.target_soul, json.dumps(self.genesis), json.dumps(self.attributes))
+            """, self.id, self.source_soul, self.target_soul, 
+                json.dumps(self.genesis), json.dumps(self.attributes))
 
     @classmethod
     async def get_all(cls, limit: int = 100):
@@ -171,8 +208,6 @@ class Relationship:
                 rows = await conn.fetch("SELECT * FROM relationships LIMIT $1", limit)
                 return [cls(
                     id=str(row['id']),
-                    tags=row['tags'],
-                    energy_level=row['energy_level'],
                     source_soul=str(row['source_soul']),
                     target_soul=str(row['target_soul']),
                     genesis=row['genesis'],
@@ -180,13 +215,11 @@ class Relationship:
                     created_at=row['created_at']
                 ) for row in rows]
         else:
-            # SQLite fallback
+            # SQLite fallback - pozostaw zgodne ze starym schematem dla lokalnego rozwoju
             async with db_pool.execute("SELECT * FROM relationships LIMIT ?", (limit,)) as cursor:
                 rows = await cursor.fetchall()
                 return [cls(
                     id=row[0],
-                    tags=json.loads(row[1]) if row[1] else [],
-                    energy_level=row[2],
                     source_soul=row[3],
                     target_soul=row[4],
                     genesis=json.loads(row[5]),
@@ -513,8 +546,6 @@ async def setup_postgresql_tables():
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS base_beings (
                 soul UUID PRIMARY KEY,
-                tags TEXT[] DEFAULT '{}',
-                energy_level INTEGER DEFAULT 0,
                 genesis JSONB NOT NULL,
                 attributes JSONB NOT NULL,
                 memories JSONB NOT NULL,
@@ -527,16 +558,43 @@ async def setup_postgresql_tables():
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS relationships (
                 id UUID PRIMARY KEY,
-                tags TEXT[] DEFAULT '{}',
-                energy_level INTEGER DEFAULT 0,
                 source_soul UUID NOT NULL,
                 target_soul UUID NOT NULL,
                 genesis JSONB NOT NULL,
                 attributes JSONB NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (source_soul) REFERENCES base_beings (soul),
-                FOREIGN KEY (target_soul) REFERENCES base_beings (soul)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        """)
+
+        # Constraints dla relationships
+        await conn.execute("""
+            ALTER TABLE relationships 
+            DROP CONSTRAINT IF EXISTS valid_source_soul
+        """)
+        await conn.execute("""
+            ALTER TABLE relationships 
+            ADD CONSTRAINT valid_source_soul 
+            FOREIGN KEY (source_soul) REFERENCES base_beings (soul)
+        """)
+        
+        await conn.execute("""
+            ALTER TABLE relationships 
+            DROP CONSTRAINT IF EXISTS valid_target_soul
+        """)
+        await conn.execute("""
+            ALTER TABLE relationships 
+            ADD CONSTRAINT valid_target_soul 
+            FOREIGN KEY (target_soul) REFERENCES base_beings (soul)
+        """)
+        
+        await conn.execute("""
+            ALTER TABLE relationships 
+            DROP CONSTRAINT IF EXISTS no_self_relationship
+        """)
+        await conn.execute("""
+            ALTER TABLE relationships 
+            ADD CONSTRAINT no_self_relationship 
+            CHECK (source_soul <> target_soul)
         """)
 
         # Indeksy
@@ -544,15 +602,11 @@ async def setup_postgresql_tables():
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_attributes ON base_beings USING gin (attributes)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_memories ON base_beings USING gin (memories)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_self_awareness ON base_beings USING gin (self_awareness)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_energy_level ON base_beings (energy_level)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_being_tags ON base_beings USING gin (tags)")
 
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_genesis ON relationships USING gin (genesis)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_attributes ON relationships USING gin (attributes)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_source ON relationships (source_soul)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships (target_soul)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_energy_level ON relationships (energy_level)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_rel_tags ON relationships USING gin (tags)")
 
 async def setup_sqlite_tables():
     """Tworzy tabele w SQLite"""
