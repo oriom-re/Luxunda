@@ -278,11 +278,11 @@ async def init_database():
     # Próba połączenia z PostgreSQL, fallback na SQLite
     try:
         db_pool = await asyncpg.create_pool(
-            host='localhost',
+            host='ep-odd-tooth-a2zcp5by-pooler.eu-central-1.aws.neon.tech',
             port=5432,
-            user='postgres',
-            password='password',
-            database='luxos',
+            user='neondb_owner',
+            password='npg_aY8K9pijAnPI',
+            database='neondb',
             min_size=5,
             max_size=20
         )
