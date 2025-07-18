@@ -35,7 +35,7 @@ class SafeCodeExecutor:
     
     # Zabronione wyrażenia AST
     FORBIDDEN_NODES = {
-        ast.Import, ast.ImportFrom, ast.Exec, ast.Eval,
+        ast.Import, ast.ImportFrom,
         ast.Call  # Będziemy sprawdzać wywołania funkcji osobno
     }
     
