@@ -314,7 +314,12 @@ async def create_being(sid, data):
             memories=data.get('memories', []),
             self_awareness=data.get('self_awareness', {})
         )
-        await sio.emit('being_created', asdict(being))
+        # Konwertuj UUID na string przed wysłaniem
+        being_dict = asdict(being)
+        being_dict['soul'] = str(being_dict['soul'])
+        if being_dict.get('created_at'):
+            being_dict['created_at'] = being_dict['created_at'].isoformat()
+        await sio.emit('being_created', being_dict)
         await broadcast_graph_update()
     except Exception as e:
         await sio.emit('error', {'message': str(e)}, room=sid)
@@ -331,7 +336,14 @@ async def create_relationship(sid, data):
             energy_level=data.get('energy_level', 0),
             attributes=data.get('attributes', {})
         )
-        await sio.emit('relationship_created', asdict(relationship))
+        # Konwertuj UUID na string przed wysłaniem
+        rel_dict = asdict(relationship)
+        rel_dict['id'] = str(rel_dict['id'])
+        rel_dict['source_soul'] = str(rel_dict['source_soul'])
+        rel_dict['target_soul'] = str(rel_dict['target_soul'])
+        if rel_dict.get('created_at'):
+            rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+        await sio.emit('relationship_created', rel_dict)
         await broadcast_graph_update()
     except Exception as e:
         await sio.emit('error', {'message': str(e)}, room=sid)
@@ -347,7 +359,12 @@ async def update_being(sid, data):
                 if hasattr(being, key) and key != 'soul':
                     setattr(being, key, value)
             await being.save()
-            await sio.emit('being_updated', asdict(being))
+            # Konwertuj UUID na string przed wysłaniem
+            being_dict = asdict(being)
+            being_dict['soul'] = str(being_dict['soul'])
+            if being_dict.get('created_at'):
+                being_dict['created_at'] = being_dict['created_at'].isoformat()
+            await sio.emit('being_updated', being_dict)
             await broadcast_graph_update()
         else:
             await sio.emit('error', {'message': 'Byt nie znaleziony'}, room=sid)
