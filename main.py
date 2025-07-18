@@ -333,12 +333,8 @@ async def init_database():
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_energy_level ON relationships (energy_level)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_rel_tags ON relationships USING gin (tags)")
 
-# Konfiguracja CORS
+# Konfiguracja aplikacji
 async def init_app():
-    # API routes
-    app.router.add_route('*', '/api/beings', api_beings)
-    app.router.add_route('*', '/api/relationships', api_relationships)
-    
     # Redirect root to landing page
     async def serve_landing(request):
         return web.FileResponse('static/landing.html')
@@ -348,7 +344,7 @@ async def init_app():
     # Serwowanie plików statycznych
     app.router.add_static('/', 'static', name='static')
     
-    # Dodaj CORS tylko do API routes
+    # Konfiguracja CORS
     cors = aiohttp_cors.setup(app, defaults={
         "*": aiohttp_cors.ResourceOptions(
             allow_credentials=True,
@@ -358,10 +354,11 @@ async def init_app():
         )
     })
     
-    # Dodaj CORS tylko do API routes, nie do Socket.IO
-    for route in list(app.router.routes()):
-        if route.resource.canonical.startswith('/api/'):
-            cors.add(route)
+    # Dodaj CORS do konkretnych tras API
+    cors.add(app.router.add_route('GET', '/api/beings', api_beings))
+    cors.add(app.router.add_route('POST', '/api/beings', api_beings))
+    cors.add(app.router.add_route('GET', '/api/relationships', api_relationships))
+    cors.add(app.router.add_route('POST', '/api/relationships', api_relationships))
     
     await init_database()
 
