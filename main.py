@@ -71,7 +71,7 @@ class BaseBeing:
             row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
             if row:
                 return cls(
-                    soul=row['soul'],
+                    soul=str(row['soul']),
                     tags=row['tags'],
                     energy_level=row['energy_level'],
                     genesis=row['genesis'],
@@ -90,7 +90,7 @@ class BaseBeing:
             async with db_pool.acquire() as conn:
                 rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
                 return [cls(
-                    soul=row['soul'],
+                    soul=str(row['soul']),
                     tags=row['tags'],
                     energy_level=row['energy_level'],
                     genesis=row['genesis'],
@@ -164,11 +164,11 @@ class Relationship:
             async with db_pool.acquire() as conn:
                 rows = await conn.fetch("SELECT * FROM relationships LIMIT $1", limit)
                 return [cls(
-                    id=row['id'],
+                    id=str(row['id']),
                     tags=row['tags'],
                     energy_level=row['energy_level'],
-                    source_soul=row['source_soul'],
-                    target_soul=row['target_soul'],
+                    source_soul=str(row['source_soul']),
+                    target_soul=str(row['target_soul']),
                     genesis=row['genesis'],
                     attributes=row['attributes'],
                     created_at=row['created_at']
