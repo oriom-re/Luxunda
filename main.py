@@ -335,7 +335,20 @@ async def init_database():
 
 # Konfiguracja CORS
 async def init_app():
-    # Dodaj CORS
+    # API routes
+    app.router.add_route('*', '/api/beings', api_beings)
+    app.router.add_route('*', '/api/relationships', api_relationships)
+    
+    # Redirect root to landing page
+    async def serve_landing(request):
+        return web.FileResponse('static/landing.html')
+    
+    app.router.add_get('/', serve_landing)
+    
+    # Serwowanie plików statycznych
+    app.router.add_static('/', 'static', name='static')
+    
+    # Dodaj CORS tylko do API routes
     cors = aiohttp_cors.setup(app, defaults={
         "*": aiohttp_cors.ResourceOptions(
             allow_credentials=True,
@@ -345,16 +358,10 @@ async def init_app():
         )
     })
     
-    # API routes
-    app.router.add_route('*', '/api/beings', api_beings)
-    app.router.add_route('*', '/api/relationships', api_relationships)
-    
-    # Dodaj CORS do wszystkich routes
+    # Dodaj CORS tylko do API routes, nie do Socket.IO
     for route in list(app.router.routes()):
-        cors.add(route)
-    
-    # Serwowanie plików statycznych
-    app.router.add_static('/', 'static', name='static')
+        if route.resource.canonical.startswith('/api/'):
+            cors.add(route)
     
     await init_database()
 
