@@ -425,57 +425,80 @@ async def analyze_intention(intention: str, context: dict) -> dict:
 
 async def send_graph_data(sid):
     """Wysyła dane grafu do konkretnego klienta"""
-    beings = await BaseBeing.get_all()
-    relationships = await Relationship.get_all()
+    try:
+        beings = await BaseBeing.get_all()
+        relationships = await Relationship.get_all()
 
-    # Konwertuj datetime na string
-    nodes = []
-    for being in beings:
-        being_dict = asdict(being)
-        if being_dict.get('created_at'):
-            being_dict['created_at'] = being_dict['created_at'].isoformat()
-        nodes.append(being_dict)
-    
-    links = []
-    for rel in relationships:
-        rel_dict = asdict(rel)
-        if rel_dict.get('created_at'):
-            rel_dict['created_at'] = rel_dict['created_at'].isoformat()
-        links.append(rel_dict)
+        # Konwertuj datetime i UUID na string
+        nodes = []
+        for being in beings:
+            being_dict = asdict(being)
+            # Konwersja datetime
+            if being_dict.get('created_at'):
+                being_dict['created_at'] = being_dict['created_at'].isoformat()
+            # Upewnij się, że soul jest stringiem
+            being_dict['soul'] = str(being_dict['soul'])
+            nodes.append(being_dict)
+        
+        links = []
+        for rel in relationships:
+            rel_dict = asdict(rel)
+            # Konwersja datetime
+            if rel_dict.get('created_at'):
+                rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+            # Upewnij się, że UUID są stringami
+            rel_dict['id'] = str(rel_dict['id'])
+            rel_dict['source_soul'] = str(rel_dict['source_soul'])
+            rel_dict['target_soul'] = str(rel_dict['target_soul'])
+            links.append(rel_dict)
 
-    graph_data = {
-        'nodes': nodes,
-        'links': links
-    }
+        graph_data = {
+            'nodes': nodes,
+            'links': links
+        }
 
-    await sio.emit('graph_data', graph_data, room=sid)
+        await sio.emit('graph_data', graph_data, room=sid)
+    except Exception as e:
+        print(f"Błąd w send_graph_data: {e}")
+        await sio.emit('error', {'message': f'Błąd ładowania danych: {str(e)}'}, room=sid)
 
 async def broadcast_graph_update():
     """Rozgłasza aktualizację grafu do wszystkich klientów"""
-    beings = await BaseBeing.get_all()
-    relationships = await Relationship.get_all()
+    try:
+        beings = await BaseBeing.get_all()
+        relationships = await Relationship.get_all()
 
-    # Konwertuj datetime na string
-    nodes = []
-    for being in beings:
-        being_dict = asdict(being)
-        if being_dict.get('created_at'):
-            being_dict['created_at'] = being_dict['created_at'].isoformat()
-        nodes.append(being_dict)
-    
-    links = []
-    for rel in relationships:
-        rel_dict = asdict(rel)
-        if rel_dict.get('created_at'):
-            rel_dict['created_at'] = rel_dict['created_at'].isoformat()
-        links.append(rel_dict)
+        # Konwertuj datetime i UUID na string
+        nodes = []
+        for being in beings:
+            being_dict = asdict(being)
+            # Konwersja datetime
+            if being_dict.get('created_at'):
+                being_dict['created_at'] = being_dict['created_at'].isoformat()
+            # Upewnij się, że soul jest stringiem
+            being_dict['soul'] = str(being_dict['soul'])
+            nodes.append(being_dict)
+        
+        links = []
+        for rel in relationships:
+            rel_dict = asdict(rel)
+            # Konwersja datetime
+            if rel_dict.get('created_at'):
+                rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+            # Upewnij się, że UUID są stringami
+            rel_dict['id'] = str(rel_dict['id'])
+            rel_dict['source_soul'] = str(rel_dict['source_soul'])
+            rel_dict['target_soul'] = str(rel_dict['target_soul'])
+            links.append(rel_dict)
 
-    graph_data = {
-        'nodes': nodes,
-        'links': links
-    }
+        graph_data = {
+            'nodes': nodes,
+            'links': links
+        }
 
-    await sio.emit('graph_updated', graph_data)
+        await sio.emit('graph_updated', graph_data)
+    except Exception as e:
+        print(f"Błąd w broadcast_graph_update: {e}")
 
 # HTTP API endpoints
 async def api_beings(request):
@@ -487,6 +510,7 @@ async def api_beings(request):
             being_dict = asdict(being)
             if being_dict.get('created_at'):
                 being_dict['created_at'] = being_dict['created_at'].isoformat()
+            being_dict['soul'] = str(being_dict['soul'])
             beings_data.append(being_dict)
         return web.json_response(beings_data)
     elif request.method == 'POST':
@@ -495,6 +519,7 @@ async def api_beings(request):
         being_dict = asdict(being)
         if being_dict.get('created_at'):
             being_dict['created_at'] = being_dict['created_at'].isoformat()
+        being_dict['soul'] = str(being_dict['soul'])
         return web.json_response(being_dict)
 
 async def api_relationships(request):
@@ -506,6 +531,9 @@ async def api_relationships(request):
             rel_dict = asdict(rel)
             if rel_dict.get('created_at'):
                 rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+            rel_dict['id'] = str(rel_dict['id'])
+            rel_dict['source_soul'] = str(rel_dict['source_soul'])
+            rel_dict['target_soul'] = str(rel_dict['target_soul'])
             relationships_data.append(rel_dict)
         return web.json_response(relationships_data)
     elif request.method == 'POST':
@@ -514,6 +542,9 @@ async def api_relationships(request):
         rel_dict = asdict(relationship)
         if rel_dict.get('created_at'):
             rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+        rel_dict['id'] = str(rel_dict['id'])
+        rel_dict['source_soul'] = str(rel_dict['source_soul'])
+        rel_dict['target_soul'] = str(rel_dict['target_soul'])
         return web.json_response(rel_dict)
 
 async def init_database():
@@ -528,8 +559,11 @@ async def init_database():
             user='neondb_owner',
             password='npg_aY8K9pijAnPI',
             database='neondb',
-            min_size=5,
-            max_size=20
+            min_size=1,
+            max_size=5,
+            server_settings={
+                'statement_cache_size': '0'  # Wyłącz cache statementów
+            }
         )
         print("Połączono z PostgreSQL")
         await setup_postgresql_tables()
