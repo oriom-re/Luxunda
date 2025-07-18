@@ -153,12 +153,12 @@ class LuxOSGraph {
         const nodeEnter = node.enter()
             .append('circle')
             .attr('class', 'node')
-            .attr('r', d => Math.max(15, d.energy_level / 2))
+            .attr('r', d => Math.max(15, (d.energy_level || d.attributes?.energy_level || 50) / 2))
             .attr('fill', d => this.getNodeColor(d))
             .call(this.drag());
         
         const nodeUpdate = nodeEnter.merge(node)
-            .attr('r', d => Math.max(15, d.energy_level / 2))
+            .attr('r', d => Math.max(15, (d.energy_level || d.attributes?.energy_level || 50) / 2))
             .attr('fill', d => this.getNodeColor(d));
         
         // Event listenery dla węzłów
@@ -176,7 +176,7 @@ class LuxOSGraph {
         const labelEnter = label.enter()
             .append('text')
             .attr('class', 'node-label')
-            .text(d => d.genesis.name || d.soul.substring(0, 8));
+            .text(d => (d.genesis && d.genesis.name) || (d.soul ? d.soul.substring(0, 8) : 'Węzeł'));
         
         const labelUpdate = labelEnter.merge(label);
         
@@ -204,7 +204,7 @@ class LuxOSGraph {
     }
     
     getNodeColor(node) {
-        const type = node.genesis.type || 'unknown';
+        const type = (node.genesis && node.genesis.type) || 'unknown';
         const colors = {
             'function': '#4CAF50',
             'class': '#2196F3',
@@ -238,32 +238,47 @@ class LuxOSGraph {
         // Wyświetlanie szczegółów
         this.showNodeDetails(node);
         
-        console.log('Wybrane węzły:', this.selectedNodes.map(n => n.genesis.name || n.soul));
+        console.log('Wybrane węzły:', this.selectedNodes.map(n => (n.genesis && n.genesis.name) || n.soul || 'Nieznany'));
     }
     
     showNodeDetails(node) {
         const panel = document.getElementById('selectedInfo');
         const details = document.getElementById('beingDetails');
         
+        // Bezpieczne pobieranie wartości
+        const soul = node.soul || 'Nieznane';
+        const name = (node.genesis && node.genesis.name) || 'Brak';
+        const type = (node.genesis && node.genesis.type) || 'Nieznany';
+        const energyLevel = node.energy_level || node.attributes?.energy_level || 0;
+        const tags = node.tags || node.attributes?.tags || [];
+        
         let html = `
-            <strong>Soul:</strong> ${node.soul}<br>
-            <strong>Nazwa:</strong> ${node.genesis.name || 'Brak'}<br>
-            <strong>Typ:</strong> ${node.genesis.type || 'Nieznany'}<br>
+            <strong>Soul:</strong> ${soul}<br>
+            <strong>Nazwa:</strong> ${name}<br>
+            <strong>Typ:</strong> ${type}<br>
             <strong>Energia:</strong> 
             <div class="energy-bar">
-                <div class="energy-fill" style="width: ${node.energy_level}%"></div>
+                <div class="energy-fill" style="width: ${energyLevel}%"></div>
             </div>
-            ${node.energy_level}/100<br>
+            ${energyLevel}/100<br>
             <strong>Tagi:</strong><br>
         `;
         
-        node.tags.forEach(tag => {
-            html += `<span class="tag">${tag}</span>`;
-        });
+        if (Array.isArray(tags)) {
+            tags.forEach(tag => {
+                html += `<span class="tag">${tag}</span>`;
+            });
+        }
         
         html += `<br><br><strong>Atrybuty:</strong><br>
             <pre style="font-size: 10px; background: #333; padding: 5px; border-radius: 3px; overflow-x: auto;">
-${JSON.stringify(node.attributes, null, 2)}</pre>`;
+${JSON.stringify(node.attributes || {}, null, 2)}</pre>`;
+        
+        if (node.memories && node.memories.length > 0) {
+            html += `<br><strong>Wspomnienia:</strong><br>
+                <pre style="font-size: 10px; background: #333; padding: 5px; border-radius: 3px; overflow-x: auto;">
+${JSON.stringify(node.memories, null, 2)}</pre>`;
+        }
         
         details.innerHTML = html;
         panel.style.display = 'block';
