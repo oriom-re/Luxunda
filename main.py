@@ -10,6 +10,12 @@ from aiohttp import web
 import aiohttp_cors
 import aiosqlite
 
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
 # Globalna pula połączeń do bazy danych
 db_pool = None
 
@@ -190,7 +196,7 @@ class Relationship:
 
 # Socket.IO event handlers
 @sio.event
-async def connect(sid, environ):
+async def connect(sid, environ, auth):
     print(f"Klient połączony: {sid}")
     # Wyślij aktualny stan grafu
     await send_graph_data(sid)
@@ -261,9 +267,24 @@ async def send_graph_data(sid):
     beings = await BaseBeing.get_all()
     relationships = await Relationship.get_all()
 
+    # Konwertuj datetime na string
+    nodes = []
+    for being in beings:
+        being_dict = asdict(being)
+        if being_dict.get('created_at'):
+            being_dict['created_at'] = being_dict['created_at'].isoformat()
+        nodes.append(being_dict)
+    
+    links = []
+    for rel in relationships:
+        rel_dict = asdict(rel)
+        if rel_dict.get('created_at'):
+            rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+        links.append(rel_dict)
+
     graph_data = {
-        'nodes': [asdict(being) for being in beings],
-        'links': [asdict(rel) for rel in relationships]
+        'nodes': nodes,
+        'links': links
     }
 
     await sio.emit('graph_data', graph_data, room=sid)
@@ -273,9 +294,24 @@ async def broadcast_graph_update():
     beings = await BaseBeing.get_all()
     relationships = await Relationship.get_all()
 
+    # Konwertuj datetime na string
+    nodes = []
+    for being in beings:
+        being_dict = asdict(being)
+        if being_dict.get('created_at'):
+            being_dict['created_at'] = being_dict['created_at'].isoformat()
+        nodes.append(being_dict)
+    
+    links = []
+    for rel in relationships:
+        rel_dict = asdict(rel)
+        if rel_dict.get('created_at'):
+            rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+        links.append(rel_dict)
+
     graph_data = {
-        'nodes': [asdict(being) for being in beings],
-        'links': [asdict(rel) for rel in relationships]
+        'nodes': nodes,
+        'links': links
     }
 
     await sio.emit('graph_updated', graph_data)
@@ -285,21 +321,39 @@ async def api_beings(request):
     """REST API dla bytów"""
     if request.method == 'GET':
         beings = await BaseBeing.get_all()
-        return web.json_response([asdict(being) for being in beings])
+        beings_data = []
+        for being in beings:
+            being_dict = asdict(being)
+            if being_dict.get('created_at'):
+                being_dict['created_at'] = being_dict['created_at'].isoformat()
+            beings_data.append(being_dict)
+        return web.json_response(beings_data)
     elif request.method == 'POST':
         data = await request.json()
         being = await BaseBeing.create(**data)
-        return web.json_response(asdict(being))
+        being_dict = asdict(being)
+        if being_dict.get('created_at'):
+            being_dict['created_at'] = being_dict['created_at'].isoformat()
+        return web.json_response(being_dict)
 
 async def api_relationships(request):
     """REST API dla relacji"""
     if request.method == 'GET':
         relationships = await Relationship.get_all()
-        return web.json_response([asdict(rel) for rel in relationships])
+        relationships_data = []
+        for rel in relationships:
+            rel_dict = asdict(rel)
+            if rel_dict.get('created_at'):
+                rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+            relationships_data.append(rel_dict)
+        return web.json_response(relationships_data)
     elif request.method == 'POST':
         data = await request.json()
         relationship = await Relationship.create(**data)
-        return web.json_response(asdict(relationship))
+        rel_dict = asdict(relationship)
+        if rel_dict.get('created_at'):
+            rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+        return web.json_response(rel_dict)
 
 async def init_database():
     """Inicjalizuje połączenie z bazą danych i tworzy tabele"""
