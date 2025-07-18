@@ -1,4 +1,3 @@
-
 import asyncio
 import asyncpg
 import json
@@ -9,6 +8,7 @@ from dataclasses import dataclass, asdict
 import socketio
 from aiohttp import web
 import aiohttp_cors
+import aiosqlite
 
 # Socket.IO serwer
 sio = socketio.AsyncServer(cors_allowed_origins="*")
@@ -28,7 +28,7 @@ class BaseBeing:
     memories: List[Dict[str, Any]]
     self_awareness: Dict[str, Any]
     created_at: Optional[datetime] = None
-    
+
     @classmethod
     async def create(cls, genesis: Dict[str, Any], **kwargs):
         """Tworzy nowy byt w bazie danych"""
@@ -44,7 +44,7 @@ class BaseBeing:
         )
         await being.save()
         return being
-    
+
     async def save(self):
         """Zapisuje byt do bazy danych"""
         global db_pool
@@ -62,7 +62,7 @@ class BaseBeing:
             """, self.soul, self.tags, self.energy_level, 
                 json.dumps(self.genesis), json.dumps(self.attributes),
                 json.dumps(self.memories), json.dumps(self.self_awareness))
-    
+
     @classmethod
     async def load(cls, soul: str):
         """Ładuje byt z bazy danych"""
@@ -81,7 +81,7 @@ class BaseBeing:
                     created_at=row['created_at']
                 )
         return None
-    
+
     @classmethod
     async def get_all(cls, limit: int = 100):
         """Pobiera wszystkie byty"""
@@ -109,7 +109,7 @@ class Relationship:
     genesis: Dict[str, Any]
     attributes: Dict[str, Any]
     created_at: Optional[datetime] = None
-    
+
     @classmethod
     async def create(cls, source_soul: str, target_soul: str, genesis: Dict[str, Any], **kwargs):
         """Tworzy nową relację"""
@@ -125,7 +125,7 @@ class Relationship:
         )
         await relationship.save()
         return relationship
-    
+
     async def save(self):
         """Zapisuje relację do bazy danych"""
         global db_pool
@@ -140,7 +140,7 @@ class Relationship:
                 attributes = EXCLUDED.attributes
             """, self.id, self.tags, self.energy_level, self.source_soul, 
                 self.target_soul, json.dumps(self.genesis), json.dumps(self.attributes))
-    
+
     @classmethod
     async def get_all(cls, limit: int = 100):
         """Pobiera wszystkie relacje"""
@@ -230,24 +230,24 @@ async def send_graph_data(sid):
     """Wysyła dane grafu do konkretnego klienta"""
     beings = await BaseBeing.get_all()
     relationships = await Relationship.get_all()
-    
+
     graph_data = {
         'nodes': [asdict(being) for being in beings],
         'links': [asdict(rel) for rel in relationships]
     }
-    
+
     await sio.emit('graph_data', graph_data, room=sid)
 
 async def broadcast_graph_update():
     """Rozgłasza aktualizację grafu do wszystkich klientów"""
     beings = await BaseBeing.get_all()
     relationships = await Relationship.get_all()
-    
+
     graph_data = {
         'nodes': [asdict(being) for being in beings],
         'links': [asdict(rel) for rel in relationships]
     }
-    
+
     await sio.emit('graph_updated', graph_data)
 
 # HTTP API endpoints
@@ -274,19 +274,28 @@ async def api_relationships(request):
 async def init_database():
     """Inicjalizuje połączenie z bazą danych i tworzy tabele"""
     global db_pool
-    
-    # Połączenie z PostgreSQL
-    db_pool = await asyncpg.create_pool(
-        host='localhost',
-        port=5432,
-        user='postgres',
-        password='password',
-        database='luxos',
-        min_size=5,
-        max_size=20
-    )
-    
-    # Tworzenie tabel
+
+    # Próba połączenia z PostgreSQL, fallback na SQLite
+    try:
+        db_pool = await asyncpg.create_pool(
+            host='localhost',
+            port=5432,
+            user='postgres',
+            password='password',
+            database='luxos',
+            min_size=5,
+            max_size=20
+        )
+        print("Połączono z PostgreSQL")
+        await setup_postgresql_tables()
+    except Exception as e:
+        print(f"Nie udało się połączyć z PostgreSQL: {e}")
+        print("Używam SQLite jako fallback")
+        db_pool = await aiosqlite.connect('luxos.db')
+        await setup_sqlite_tables()
+
+async def setup_postgresql_tables():
+    """Tworzy tabele w PostgreSQL"""
     async with db_pool.acquire() as conn:
         # Tabela base_beings
         await conn.execute("""
@@ -301,7 +310,7 @@ async def init_database():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # Tabela relationships
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS relationships (
@@ -317,7 +326,7 @@ async def init_database():
                 FOREIGN KEY (target_soul) REFERENCES base_beings (soul)
             )
         """)
-        
+
         # Indeksy
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_genesis ON base_beings USING gin (genesis)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_attributes ON base_beings USING gin (attributes)")
@@ -325,7 +334,7 @@ async def init_database():
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_self_awareness ON base_beings USING gin (self_awareness)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_energy_level ON base_beings (energy_level)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_being_tags ON base_beings USING gin (tags)")
-        
+
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_genesis ON relationships USING gin (genesis)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_attributes ON relationships USING gin (attributes)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_source ON relationships (source_soul)")
@@ -333,17 +342,47 @@ async def init_database():
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_energy_level ON relationships (energy_level)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_rel_tags ON relationships USING gin (tags)")
 
+async def setup_sqlite_tables():
+    """Tworzy tabele w SQLite"""
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS base_beings (
+            soul TEXT PRIMARY KEY,
+            tags TEXT DEFAULT '[]',
+            energy_level INTEGER DEFAULT 0,
+            genesis TEXT NOT NULL,
+            attributes TEXT NOT NULL,
+            memories TEXT NOT NULL,
+            self_awareness TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS relationships (
+            id TEXT PRIMARY KEY,
+            tags TEXT DEFAULT '[]',
+            energy_level INTEGER DEFAULT 0,
+            source_soul TEXT NOT NULL,
+            target_soul TEXT NOT NULL,
+            genesis TEXT NOT NULL,
+            attributes TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    await db_pool.commit()
+
 # Konfiguracja aplikacji
 async def init_app():
     # Redirect root to landing page
     async def serve_landing(request):
         return web.FileResponse('static/landing.html')
-    
+
     app.router.add_get('/', serve_landing)
-    
+
     # Serwowanie plików statycznych
     app.router.add_static('/', 'static', name='static')
-    
+
     # Konfiguracja CORS
     cors = aiohttp_cors.setup(app, defaults={
         "*": aiohttp_cors.ResourceOptions(
@@ -353,13 +392,13 @@ async def init_app():
             allow_methods="*"
         )
     })
-    
+
     # Dodaj CORS do konkretnych tras API
     cors.add(app.router.add_route('GET', '/api/beings', api_beings))
     cors.add(app.router.add_route('POST', '/api/beings', api_beings))
     cors.add(app.router.add_route('GET', '/api/relationships', api_relationships))
     cors.add(app.router.add_route('POST', '/api/relationships', api_relationships))
-    
+
     await init_database()
 
 if __name__ == '__main__':
