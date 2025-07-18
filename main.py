@@ -10,13 +10,13 @@ from aiohttp import web
 import aiohttp_cors
 import aiosqlite
 
+# Globalna pula połączeń do bazy danych
+db_pool = None
+
 # Socket.IO serwer
 sio = socketio.AsyncServer(cors_allowed_origins="*")
 app = web.Application()
 sio.attach(app)
-
-# Globalna pula połączeń do bazy danych
-db_pool = None
 
 @dataclass
 class BaseBeing:
@@ -86,18 +86,33 @@ class BaseBeing:
     async def get_all(cls, limit: int = 100):
         """Pobiera wszystkie byty"""
         global db_pool
-        async with db_pool.acquire() as conn:
-            rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
-            return [cls(
-                soul=row['soul'],
-                tags=row['tags'],
-                energy_level=row['energy_level'],
-                genesis=row['genesis'],
-                attributes=row['attributes'],
-                memories=row['memories'],
-                self_awareness=row['self_awareness'],
-                created_at=row['created_at']
-            ) for row in rows]
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
+                return [cls(
+                    soul=row['soul'],
+                    tags=row['tags'],
+                    energy_level=row['energy_level'],
+                    genesis=row['genesis'],
+                    attributes=row['attributes'],
+                    memories=row['memories'],
+                    self_awareness=row['self_awareness'],
+                    created_at=row['created_at']
+                ) for row in rows]
+        else:
+            # SQLite fallback
+            async with db_pool.execute("SELECT * FROM base_beings LIMIT ?", (limit,)) as cursor:
+                rows = await cursor.fetchall()
+                return [cls(
+                    soul=row[0],
+                    tags=json.loads(row[1]) if row[1] else [],
+                    energy_level=row[2],
+                    genesis=json.loads(row[3]),
+                    attributes=json.loads(row[4]),
+                    memories=json.loads(row[5]),
+                    self_awareness=json.loads(row[6]),
+                    created_at=row[7]
+                ) for row in rows]
 
 @dataclass
 class Relationship:
@@ -145,18 +160,33 @@ class Relationship:
     async def get_all(cls, limit: int = 100):
         """Pobiera wszystkie relacje"""
         global db_pool
-        async with db_pool.acquire() as conn:
-            rows = await conn.fetch("SELECT * FROM relationships LIMIT $1", limit)
-            return [cls(
-                id=row['id'],
-                tags=row['tags'],
-                energy_level=row['energy_level'],
-                source_soul=row['source_soul'],
-                target_soul=row['target_soul'],
-                genesis=row['genesis'],
-                attributes=row['attributes'],
-                created_at=row['created_at']
-            ) for row in rows]
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM relationships LIMIT $1", limit)
+                return [cls(
+                    id=row['id'],
+                    tags=row['tags'],
+                    energy_level=row['energy_level'],
+                    source_soul=row['source_soul'],
+                    target_soul=row['target_soul'],
+                    genesis=row['genesis'],
+                    attributes=row['attributes'],
+                    created_at=row['created_at']
+                ) for row in rows]
+        else:
+            # SQLite fallback
+            async with db_pool.execute("SELECT * FROM relationships LIMIT ?", (limit,)) as cursor:
+                rows = await cursor.fetchall()
+                return [cls(
+                    id=row[0],
+                    tags=json.loads(row[1]) if row[1] else [],
+                    energy_level=row[2],
+                    source_soul=row[3],
+                    target_soul=row[4],
+                    genesis=json.loads(row[5]),
+                    attributes=json.loads(row[6]),
+                    created_at=row[7]
+                ) for row in rows]
 
 # Socket.IO event handlers
 @sio.event
@@ -383,7 +413,13 @@ async def init_app():
     # Serwowanie plików statycznych
     app.router.add_static('/', 'static', name='static')
 
-    # Konfiguracja CORS
+    # Dodaj trasy API
+    app.router.add_route('GET', '/api/beings', api_beings)
+    app.router.add_route('POST', '/api/beings', api_beings)
+    app.router.add_route('GET', '/api/relationships', api_relationships)
+    app.router.add_route('POST', '/api/relationships', api_relationships)
+
+    # Konfiguracja CORS tylko dla tras API
     cors = aiohttp_cors.setup(app, defaults={
         "*": aiohttp_cors.ResourceOptions(
             allow_credentials=True,
@@ -393,14 +429,28 @@ async def init_app():
         )
     })
 
-    # Dodaj CORS do konkretnych tras API
-    cors.add(app.router.add_route('GET', '/api/beings', api_beings))
-    cors.add(app.router.add_route('POST', '/api/beings', api_beings))
-    cors.add(app.router.add_route('GET', '/api/relationships', api_relationships))
-    cors.add(app.router.add_route('POST', '/api/relationships', api_relationships))
+    # Dodaj CORS tylko do tras API (pomiń Socket.IO)
+    for route in list(app.router.routes()):
+        if hasattr(route, 'resource') and route.resource.canonical.startswith('/api/'):
+            cors.add(route)
 
     await init_database()
 
+async def main():
+    await init_app()
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 5000)
+    await site.start()
+    print("Serwer uruchomiony na http://0.0.0.0:5000")
+    
+    # Trzymaj serwer żywy
+    try:
+        await asyncio.Event().wait()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        await runner.cleanup()
+
 if __name__ == '__main__':
-    asyncio.run(init_app())
-    web.run_app(app, host='0.0.0.0', port=5000)
+    asyncio.run(main())
