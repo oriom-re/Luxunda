@@ -14,6 +14,8 @@ class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
         return super().default(obj)
 
 # Globalna pula połączeń do bazy danych
@@ -88,8 +90,10 @@ class BaseBeing:
                     attributes = EXCLUDED.attributes,
                     memories = EXCLUDED.memories,
                     self_awareness = EXCLUDED.self_awareness
-                """, str(self.soul), json.dumps(self.genesis), json.dumps(self.attributes),
-                    json.dumps(self.memories), json.dumps(self.self_awareness))
+                """, str(self.soul), json.dumps(self.genesis, cls=DateTimeEncoder), 
+                    json.dumps(self.attributes, cls=DateTimeEncoder),
+                    json.dumps(self.memories, cls=DateTimeEncoder), 
+                    json.dumps(self.self_awareness, cls=DateTimeEncoder))
         else:
             # SQLite fallback
             await db_pool.execute("""
@@ -97,8 +101,10 @@ class BaseBeing:
                 (soul, tags, energy_level, genesis, attributes, memories, self_awareness)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (str(self.soul), json.dumps(self.tags), self.energy_level, 
-                  json.dumps(self.genesis), json.dumps(self.attributes),
-                  json.dumps(self.memories), json.dumps(self.self_awareness)))
+                  json.dumps(self.genesis, cls=DateTimeEncoder), 
+                  json.dumps(self.attributes, cls=DateTimeEncoder),
+                  json.dumps(self.memories, cls=DateTimeEncoder), 
+                  json.dumps(self.self_awareness, cls=DateTimeEncoder)))
             await db_pool.commit()
 
     @classmethod
@@ -229,7 +235,8 @@ class Relationship:
                     genesis = EXCLUDED.genesis,
                     attributes = EXCLUDED.attributes
                 """, str(self.id), str(self.source_soul), str(self.target_soul), 
-                    json.dumps(self.genesis), json.dumps(self.attributes))
+                    json.dumps(self.genesis, cls=DateTimeEncoder), 
+                    json.dumps(self.attributes, cls=DateTimeEncoder))
         else:
             # SQLite fallback
             await db_pool.execute("""
@@ -238,7 +245,8 @@ class Relationship:
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (str(self.id), json.dumps(self.tags), self.energy_level,
                   str(self.source_soul), str(self.target_soul),
-                  json.dumps(self.genesis), json.dumps(self.attributes)))
+                  json.dumps(self.genesis, cls=DateTimeEncoder), 
+                  json.dumps(self.attributes, cls=DateTimeEncoder)))
             await db_pool.commit()
 
     @classmethod
@@ -314,11 +322,8 @@ async def create_being(sid, data):
             memories=data.get('memories', []),
             self_awareness=data.get('self_awareness', {})
         )
-        # Konwertuj UUID na string przed wysłaniem
-        being_dict = asdict(being)
-        being_dict['soul'] = str(being_dict['soul'])
-        if being_dict.get('created_at'):
-            being_dict['created_at'] = being_dict['created_at'].isoformat()
+        # Konwertuj do JSON-safe format
+        being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
         await sio.emit('being_created', being_dict)
         await broadcast_graph_update()
     except Exception as e:
@@ -336,13 +341,8 @@ async def create_relationship(sid, data):
             energy_level=data.get('energy_level', 0),
             attributes=data.get('attributes', {})
         )
-        # Konwertuj UUID na string przed wysłaniem
-        rel_dict = asdict(relationship)
-        rel_dict['id'] = str(rel_dict['id'])
-        rel_dict['source_soul'] = str(rel_dict['source_soul'])
-        rel_dict['target_soul'] = str(rel_dict['target_soul'])
-        if rel_dict.get('created_at'):
-            rel_dict['created_at'] = rel_dict['created_at'].isoformat()
+        # Konwertuj do JSON-safe format
+        rel_dict = json.loads(json.dumps(asdict(relationship), cls=DateTimeEncoder))
         await sio.emit('relationship_created', rel_dict)
         await broadcast_graph_update()
     except Exception as e:
@@ -359,11 +359,8 @@ async def update_being(sid, data):
                 if hasattr(being, key) and key != 'soul':
                     setattr(being, key, value)
             await being.save()
-            # Konwertuj UUID na string przed wysłaniem
-            being_dict = asdict(being)
-            being_dict['soul'] = str(being_dict['soul'])
-            if being_dict.get('created_at'):
-                being_dict['created_at'] = being_dict['created_at'].isoformat()
+            # Konwertuj do JSON-safe format
+            being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
             await sio.emit('being_updated', being_dict)
             await broadcast_graph_update()
         else:
@@ -505,28 +502,9 @@ async def send_graph_data(sid):
         beings = await BaseBeing.get_all()
         relationships = await Relationship.get_all()
 
-        # Konwertuj datetime i UUID na string
-        nodes = []
-        for being in beings:
-            being_dict = asdict(being)
-            # Konwersja datetime
-            if being_dict.get('created_at'):
-                being_dict['created_at'] = being_dict['created_at'].isoformat()
-            # Upewnij się, że soul jest stringiem
-            being_dict['soul'] = str(being_dict['soul'])
-            nodes.append(being_dict)
-        
-        links = []
-        for rel in relationships:
-            rel_dict = asdict(rel)
-            # Konwersja datetime
-            if rel_dict.get('created_at'):
-                rel_dict['created_at'] = rel_dict['created_at'].isoformat()
-            # Upewnij się, że UUID są stringami
-            rel_dict['id'] = str(rel_dict['id'])
-            rel_dict['source_soul'] = str(rel_dict['source_soul'])
-            rel_dict['target_soul'] = str(rel_dict['target_soul'])
-            links.append(rel_dict)
+        # Konwertuj do JSON-safe format
+        nodes = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
+        links = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
 
         graph_data = {
             'nodes': nodes,
@@ -544,28 +522,9 @@ async def broadcast_graph_update():
         beings = await BaseBeing.get_all()
         relationships = await Relationship.get_all()
 
-        # Konwertuj datetime i UUID na string
-        nodes = []
-        for being in beings:
-            being_dict = asdict(being)
-            # Konwersja datetime
-            if being_dict.get('created_at'):
-                being_dict['created_at'] = being_dict['created_at'].isoformat()
-            # Upewnij się, że soul jest stringiem
-            being_dict['soul'] = str(being_dict['soul'])
-            nodes.append(being_dict)
-        
-        links = []
-        for rel in relationships:
-            rel_dict = asdict(rel)
-            # Konwersja datetime
-            if rel_dict.get('created_at'):
-                rel_dict['created_at'] = rel_dict['created_at'].isoformat()
-            # Upewnij się, że UUID są stringami
-            rel_dict['id'] = str(rel_dict['id'])
-            rel_dict['source_soul'] = str(rel_dict['source_soul'])
-            rel_dict['target_soul'] = str(rel_dict['target_soul'])
-            links.append(rel_dict)
+        # Konwertuj do JSON-safe format
+        nodes = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
+        links = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
 
         graph_data = {
             'nodes': nodes,
@@ -581,46 +540,24 @@ async def api_beings(request):
     """REST API dla bytów"""
     if request.method == 'GET':
         beings = await BaseBeing.get_all()
-        beings_data = []
-        for being in beings:
-            being_dict = asdict(being)
-            if being_dict.get('created_at'):
-                being_dict['created_at'] = being_dict['created_at'].isoformat()
-            being_dict['soul'] = str(being_dict['soul'])
-            beings_data.append(being_dict)
+        beings_data = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
         return web.json_response(beings_data)
     elif request.method == 'POST':
         data = await request.json()
         being = await BaseBeing.create(**data)
-        being_dict = asdict(being)
-        if being_dict.get('created_at'):
-            being_dict['created_at'] = being_dict['created_at'].isoformat()
-        being_dict['soul'] = str(being_dict['soul'])
+        being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
         return web.json_response(being_dict)
 
 async def api_relationships(request):
     """REST API dla relacji"""
     if request.method == 'GET':
         relationships = await Relationship.get_all()
-        relationships_data = []
-        for rel in relationships:
-            rel_dict = asdict(rel)
-            if rel_dict.get('created_at'):
-                rel_dict['created_at'] = rel_dict['created_at'].isoformat()
-            rel_dict['id'] = str(rel_dict['id'])
-            rel_dict['source_soul'] = str(rel_dict['source_soul'])
-            rel_dict['target_soul'] = str(rel_dict['target_soul'])
-            relationships_data.append(rel_dict)
+        relationships_data = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
         return web.json_response(relationships_data)
     elif request.method == 'POST':
         data = await request.json()
         relationship = await Relationship.create(**data)
-        rel_dict = asdict(relationship)
-        if rel_dict.get('created_at'):
-            rel_dict['created_at'] = rel_dict['created_at'].isoformat()
-        rel_dict['id'] = str(rel_dict['id'])
-        rel_dict['source_soul'] = str(rel_dict['source_soul'])
-        rel_dict['target_soul'] = str(rel_dict['target_soul'])
+        rel_dict = json.loads(json.dumps(asdict(relationship), cls=DateTimeEncoder))
         return web.json_response(rel_dict)
 
 async def init_database():
