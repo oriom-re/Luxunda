@@ -78,17 +78,28 @@ class BaseBeing:
     async def save(self):
         """Zapisuje byt do bazy danych"""
         global db_pool
-        async with db_pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO base_beings (soul, genesis, attributes, memories, self_awareness)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (soul) DO UPDATE SET
-                genesis = EXCLUDED.genesis,
-                attributes = EXCLUDED.attributes,
-                memories = EXCLUDED.memories,
-                self_awareness = EXCLUDED.self_awareness
-            """, self.soul, json.dumps(self.genesis), json.dumps(self.attributes),
-                json.dumps(self.memories), json.dumps(self.self_awareness))
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO base_beings (soul, genesis, attributes, memories, self_awareness)
+                    VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (soul) DO UPDATE SET
+                    genesis = EXCLUDED.genesis,
+                    attributes = EXCLUDED.attributes,
+                    memories = EXCLUDED.memories,
+                    self_awareness = EXCLUDED.self_awareness
+                """, str(self.soul), json.dumps(self.genesis), json.dumps(self.attributes),
+                    json.dumps(self.memories), json.dumps(self.self_awareness))
+        else:
+            # SQLite fallback
+            await db_pool.execute("""
+                INSERT OR REPLACE INTO base_beings 
+                (soul, tags, energy_level, genesis, attributes, memories, self_awareness)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (str(self.soul), json.dumps(self.tags), self.energy_level, 
+                  json.dumps(self.genesis), json.dumps(self.attributes),
+                  json.dumps(self.memories), json.dumps(self.self_awareness)))
+            await db_pool.commit()
 
     @classmethod
     async def load(cls, soul: str):
@@ -189,15 +200,26 @@ class Relationship:
     async def save(self):
         """Zapisuje relację do bazy danych"""
         global db_pool
-        async with db_pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO relationships (id, source_soul, target_soul, genesis, attributes)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (id) DO UPDATE SET
-                genesis = EXCLUDED.genesis,
-                attributes = EXCLUDED.attributes
-            """, self.id, self.source_soul, self.target_soul, 
-                json.dumps(self.genesis), json.dumps(self.attributes))
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO relationships (id, source_soul, target_soul, genesis, attributes)
+                    VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (id) DO UPDATE SET
+                    genesis = EXCLUDED.genesis,
+                    attributes = EXCLUDED.attributes
+                """, str(self.id), str(self.source_soul), str(self.target_soul), 
+                    json.dumps(self.genesis), json.dumps(self.attributes))
+        else:
+            # SQLite fallback
+            await db_pool.execute("""
+                INSERT OR REPLACE INTO relationships 
+                (id, tags, energy_level, source_soul, target_soul, genesis, attributes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (str(self.id), json.dumps(self.tags), self.energy_level,
+                  str(self.source_soul), str(self.target_soul),
+                  json.dumps(self.genesis), json.dumps(self.attributes)))
+            await db_pool.commit()
 
     @classmethod
     async def get_all(cls, limit: int = 100):
