@@ -1,0 +1,245 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxOS - Graf Bytów</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            height: 100vh;
+        }
+
+        #graph-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #sidebar {
+            width: 300px;
+            background: #1a1a1a;
+            border-left: 1px solid #333;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .node {
+            stroke: #fff;
+            stroke-width: 2px;
+            cursor: pointer;
+        }
+
+        .node.selected {
+            stroke: #00ff88;
+            stroke-width: 4px;
+        }
+
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
+        }
+
+        .link.highlighted {
+            stroke: #00ff88;
+            stroke-width: 4px;
+        }
+
+        .node-label {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            fill: white;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #ccc;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            background: #333;
+            border: 1px solid #555;
+            color: white;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #00ff88;
+            color: black;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px 5px 5px 0;
+        }
+
+        button:hover {
+            background: #00cc6a;
+        }
+
+        .info-panel {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .tag {
+            display: inline-block;
+            background: #444;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin: 2px;
+        }
+
+        .energy-bar {
+            width: 100%;
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+
+        .energy-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4444, #ffff44, #44ff44);
+            transition: width 0.3s ease;
+        }
+
+        #status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #333;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+
+        .status-connected {
+            color: #00ff88;
+        }
+
+        .status-disconnected {
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">Łączenie...</div>
+    
+    <div id="container">
+        <div id="graph-container">
+            <svg id="graph"></svg>
+        </div>
+        
+        <div id="sidebar">
+            <div class="controls">
+                <h3>Zarządzanie Grafem Bytów</h3>
+                
+                <div class="control-group">
+                    <label>Typ filtra:</label>
+                    <select id="filterType">
+                        <option value="all">Wszystkie</option>
+                        <option value="energy">Poziom energii</option>
+                        <option value="tag">Tag</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>Wartość filtra:</label>
+                    <input type="text" id="filterValue" placeholder="np. funkcja, 50">
+                </div>
+                
+                <button onclick="applyFilter()">Zastosuj Filtr</button>
+                <button onclick="clearFilter()">Wyczyść</button>
+            </div>
+            
+            <div class="controls">
+                <h4>Nowy Byt</h4>
+                
+                <div class="control-group">
+                    <label>Nazwa:</label>
+                    <input type="text" id="newBeingName" placeholder="Nazwa bytu">
+                </div>
+                
+                <div class="control-group">
+                    <label>Typ:</label>
+                    <select id="newBeingType">
+                        <option value="function">Funkcja</option>
+                        <option value="class">Klasa</option>
+                        <option value="runtime">Runtime</option>
+                        <option value="kernel">Kernel</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>Energia (0-100):</label>
+                    <input type="number" id="newBeingEnergy" min="0" max="100" value="50">
+                </div>
+                
+                <div class="control-group">
+                    <label>Tagi (oddzielone przecinkami):</label>
+                    <input type="text" id="newBeingTags" placeholder="ai, core, experimental">
+                </div>
+                
+                <button onclick="createBeing()">Utwórz Byt</button>
+            </div>
+            
+            <div class="controls">
+                <h4>Nowa Relacja</h4>
+                <p style="font-size: 12px; color: #ccc;">Wybierz dwa byty w grafie, a następnie kliknij przycisk.</p>
+                
+                <div class="control-group">
+                    <label>Typ relacji:</label>
+                    <select id="relationshipType">
+                        <option value="calls">Wywołuje</option>
+                        <option value="inherits">Dziedziczy</option>
+                        <option value="contains">Zawiera</option>
+                        <option value="depends">Zależy od</option>
+                    </select>
+                </div>
+                
+                <button onclick="createRelationship()">Utwórz Relację</button>
+            </div>
+            
+            <div id="selectedInfo" class="info-panel" style="display: none;">
+                <h4>Szczegóły Bytu</h4>
+                <div id="beingDetails"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="graph.js"></script>
+</body>
+</html>
