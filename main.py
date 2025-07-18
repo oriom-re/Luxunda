@@ -9,6 +9,11 @@ import socketio
 from aiohttp import web
 import aiohttp_cors
 import aiosqlite
+import ast
+import builtins
+import sys
+from io import StringIO
+import traceback
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -18,6 +23,185 @@ class DateTimeEncoder(json.JSONEncoder):
             return str(obj)
         return super().default(obj)
 
+class SafeCodeExecutor:
+    """Bezpieczny executor kodu z ograniczeniami"""
+    
+    # Dozwolone built-in funkcje
+    ALLOWED_BUILTINS = {
+        'abs', 'all', 'any', 'bool', 'dict', 'enumerate', 'filter', 'float',
+        'int', 'len', 'list', 'max', 'min', 'range', 'reversed', 'round',
+        'sorted', 'str', 'sum', 'tuple', 'zip', 'print'
+    }
+    
+    # Zabronione wyrażenia AST
+    FORBIDDEN_NODES = {
+        ast.Import, ast.ImportFrom, ast.Exec, ast.Eval,
+        ast.Call  # Będziemy sprawdzać wywołania funkcji osobno
+    }
+    
+    @classmethod
+    def validate_code(cls, code: str) -> tuple[bool, str]:
+        """Waliduje kod przed wykonaniem"""
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            return False, f"Błąd składni: {str(e)}"
+        
+        for node in ast.walk(tree):
+            # Sprawdź zabronione typy węzłów
+            if type(node) in cls.FORBIDDEN_NODES:
+                if isinstance(node, ast.Call):
+                    # Sprawdź czy wywołanie funkcji jest dozwolone
+                    if hasattr(node.func, 'id') and node.func.id not in cls.ALLOWED_BUILTINS:
+                        return False, f"Zabronione wywołanie funkcji: {node.func.id}"
+                else:
+                    return False, f"Zabroniona operacja: {type(node).__name__}"
+            
+            # Sprawdź dostęp do atrybutów
+            if isinstance(node, ast.Attribute):
+                attr_name = node.attr
+                if attr_name.startswith('_') or attr_name in ['__import__', 'exec', 'eval']:
+                    return False, f"Zabroniony dostęp do atrybutu: {attr_name}"
+        
+        return True, "Kod jest bezpieczny"
+    
+    @classmethod
+    async def execute_function(cls, code: str, function_name: str, *args, **kwargs) -> dict:
+        """Wykonuje funkcję z kodu w bezpiecznym środowisku"""
+        is_valid, validation_msg = cls.validate_code(code)
+        if not is_valid:
+            return {
+                'success': False,
+                'error': validation_msg,
+                'output': '',
+                'result': None
+            }
+        
+        # Przygotuj bezpieczne środowisko wykonania
+        safe_globals = {
+            '__builtins__': {name: getattr(builtins, name) for name in cls.ALLOWED_BUILTINS}
+        }
+        safe_locals = {}
+        
+        # Przekieruj stdout do przechwycenia print
+        old_stdout = sys.stdout
+        sys.stdout = captured_output = StringIO()
+        
+        try:
+            # Wykonaj kod
+            exec(code, safe_globals, safe_locals)
+            
+            # Sprawdź czy funkcja została zdefiniowana
+            if function_name not in safe_locals:
+                return {
+                    'success': False,
+                    'error': f"Funkcja '{function_name}' nie została znaleziona w kodzie",
+                    'output': captured_output.getvalue(),
+                    'result': None
+                }
+            
+            # Wykonaj funkcję
+            func = safe_locals[function_name]
+            if not callable(func):
+                return {
+                    'success': False,
+                    'error': f"'{function_name}' nie jest funkcją",
+                    'output': captured_output.getvalue(),
+                    'result': None
+                }
+            
+            result = func(*args, **kwargs)
+            
+            return {
+                'success': True,
+                'error': None,
+                'output': captured_output.getvalue(),
+                'result': result
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Błąd wykonania: {str(e)}",
+                'output': captured_output.getvalue(),
+                'result': None,
+                'traceback': traceback.format_exc()
+            }
+        finally:
+            sys.stdout = old_stdout
+
+class FunctionRouter:
+    """Router dla funkcji z bytów"""
+    
+    def __init__(self):
+        self.registered_functions = {}
+    
+    async def register_function_from_being(self, soul: str) -> dict:
+        """Rejestruje funkcję z bytu"""
+        being = await BaseBeing.load(soul)
+        if not being:
+            return {'success': False, 'error': 'Byt nie znaleziony'}
+        
+        if being.genesis.get('type') != 'function':
+            return {'success': False, 'error': 'Byt nie jest funkcją'}
+        
+        source = being.genesis.get('source', '')
+        name = being.genesis.get('name', 'unknown_function')
+        
+        if not source:
+            return {'success': False, 'error': 'Brak kodu źródłowego w bycie'}
+        
+        # Waliduj kod
+        is_valid, validation_msg = SafeCodeExecutor.validate_code(source)
+        if not is_valid:
+            return {'success': False, 'error': validation_msg}
+        
+        self.registered_functions[soul] = {
+            'name': name,
+            'source': source,
+            'being': being
+        }
+        
+        return {'success': True, 'message': f'Funkcja {name} została zarejestrowana'}
+    
+    async def execute_function(self, soul: str, *args, **kwargs) -> dict:
+        """Wykonuje funkcję z zarejestrowanego bytu"""
+        if soul not in self.registered_functions:
+            return {'success': False, 'error': 'Funkcja nie jest zarejestrowana'}
+        
+        func_info = self.registered_functions[soul]
+        result = await SafeCodeExecutor.execute_function(
+            func_info['source'], 
+            func_info['name'], 
+            *args, **kwargs
+        )
+        
+        # Zapisz wykonanie w pamięci bytu
+        if result['success']:
+            being = func_info['being']
+            memory_entry = {
+                'type': 'execution',
+                'timestamp': datetime.now().isoformat(),
+                'args': str(args),
+                'kwargs': str(kwargs),
+                'result': str(result['result']),
+                'output': result['output']
+            }
+            being.memories.append(memory_entry)
+            await being.save()
+        
+        return result
+    
+    def get_registered_functions(self) -> dict:
+        """Zwraca listę zarejestrowanych funkcji"""
+        return {
+            soul: {
+                'name': info['name'],
+                'source_preview': info['source'][:200] + '...' if len(info['source']) > 200 else info['source']
+            }
+            for soul, info in self.registered_functions.items()
+        }
+
 # Globalna pula połączeń do bazy danych
 db_pool = None
 
@@ -25,6 +209,9 @@ db_pool = None
 sio = socketio.AsyncServer(cors_allowed_origins="*")
 app = web.Application()
 sio.attach(app)
+
+# Router funkcji
+function_router = FunctionRouter()
 
 @dataclass
 class BaseBeing:
@@ -384,6 +571,76 @@ async def process_intention(sid, data):
         
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd przetwarzania intencji: {str(e)}'}, room=sid)
+
+@sio.event
+async def register_function(sid, data):
+    """Rejestruje funkcję z bytu"""
+    try:
+        soul = data.get('soul')
+        if not soul:
+            await sio.emit('error', {'message': 'Brak soul bytu'}, room=sid)
+            return
+        
+        result = await function_router.register_function_from_being(soul)
+        await sio.emit('function_registered', result, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd rejestracji funkcji: {str(e)}'}, room=sid)
+
+@sio.event
+async def execute_function(sid, data):
+    """Wykonuje zarejestrowaną funkcję"""
+    try:
+        soul = data.get('soul')
+        args = data.get('args', [])
+        kwargs = data.get('kwargs', {})
+        
+        if not soul:
+            await sio.emit('error', {'message': 'Brak soul funkcji'}, room=sid)
+            return
+        
+        result = await function_router.execute_function(soul, *args, **kwargs)
+        await sio.emit('function_executed', result, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd wykonania funkcji: {str(e)}'}, room=sid)
+
+@sio.event
+async def get_registered_functions(sid, data):
+    """Zwraca listę zarejestrowanych funkcji"""
+    try:
+        functions = function_router.get_registered_functions()
+        await sio.emit('registered_functions', functions, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd pobierania funkcji: {str(e)}'}, room=sid)
+
+@sio.event
+async def get_being_source(sid, data):
+    """Zwraca kod źródłowy bytu"""
+    try:
+        soul = data.get('soul')
+        if not soul:
+            await sio.emit('error', {'message': 'Brak soul bytu'}, room=sid)
+            return
+        
+        being = await BaseBeing.load(soul)
+        if not being:
+            await sio.emit('error', {'message': 'Byt nie znaleziony'}, room=sid)
+            return
+        
+        source_data = {
+            'soul': soul,
+            'name': being.genesis.get('name', 'Nieznana'),
+            'type': being.genesis.get('type', 'unknown'),
+            'source': being.genesis.get('source', ''),
+            'created_by': being.genesis.get('created_by', 'unknown')
+        }
+        
+        await sio.emit('being_source', source_data, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd pobierania kodu: {str(e)}'}, room=sid)
 
 async def analyze_intention(intention: str, context: dict) -> dict:
     """Analizuje intencję i zwraca odpowiedz z akcjami"""

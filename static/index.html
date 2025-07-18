@@ -236,6 +236,143 @@
             cursor: not-allowed;
             transform: none;
         }
+
+        /* Modal styles */
+        .modal {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-content {
+            background-color: #1a1a1a;
+            margin: 5% auto;
+            padding: 0;
+            border: 1px solid #333;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80%;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            background-color: #2a2a2a;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #00ff88;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close:hover {
+            color: #fff;
+        }
+
+        .modal-body {
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .source-info {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 12px;
+        }
+
+        .source-container {
+            background: #0d0d0d;
+            border: 1px solid #333;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow: auto;
+            margin-bottom: 15px;
+        }
+
+        .source-container pre {
+            margin: 0;
+            padding: 15px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .source-container code {
+            color: #f8f8f2;
+        }
+
+        .source-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .execution-result {
+            margin-top: 15px;
+            padding: 10px;
+            background: #2a2a2a;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .execution-result.success {
+            border-left: 4px solid #00ff88;
+        }
+
+        .execution-result.error {
+            border-left: 4px solid #ff4444;
+        }
+
+        .function-item {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .function-item:hover {
+            background: #333;
+        }
+
+        .function-name {
+            font-weight: bold;
+            color: #00ff88;
+            margin-bottom: 5px;
+        }
+
+        .function-preview {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #ccc;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
@@ -332,6 +469,64 @@
             <div id="selectedInfo" class="info-panel" style="display: none;">
                 <h4>Szczegóły Bytu</h4>
                 <div id="beingDetails"></div>
+            </div>
+            
+            <div class="controls">
+                <h4>Wykonanie Funkcji</h4>
+                <button onclick="registerSelectedFunction()">Zarejestruj Funkcję</button>
+                <button onclick="showRegisteredFunctions()">Pokaż Funkcje</button>
+                <button onclick="showSourceCode()">Pokaż Kod</button>
+            </div>
+            
+            <div id="registeredFunctions" class="info-panel" style="display: none;">
+                <h4>Zarejestrowane Funkcje</h4>
+                <div id="functionsList"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Okno wyświetlania kodu źródłowego -->
+    <div id="sourceModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="sourceTitle">Kod Źródłowy</h3>
+                <span class="close" onclick="closeSourceModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="source-info">
+                    <strong>Nazwa:</strong> <span id="sourceName"></span><br>
+                    <strong>Typ:</strong> <span id="sourceType"></span><br>
+                    <strong>Soul:</strong> <span id="sourceSoul"></span>
+                </div>
+                <div class="source-container">
+                    <pre><code id="sourceCode"></code></pre>
+                </div>
+                <div class="source-actions">
+                    <button onclick="executeCurrentFunction()">Wykonaj Funkcję</button>
+                    <button onclick="registerCurrentFunction()">Zarejestruj</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Okno wykonania funkcji -->
+    <div id="executionModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Wykonanie Funkcji</h3>
+                <span class="close" onclick="closeExecutionModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="control-group">
+                    <label>Argumenty (JSON array):</label>
+                    <textarea id="functionArgs" placeholder='["arg1", "arg2"]'></textarea>
+                </div>
+                <div class="control-group">
+                    <label>Argumenty nazwane (JSON object):</label>
+                    <textarea id="functionKwargs" placeholder='{"key": "value"}'></textarea>
+                </div>
+                <button onclick="executeFunctionWithArgs()">Wykonaj</button>
+                <div id="executionResult" class="execution-result"></div>
             </div>
         </div>
     </div>
