@@ -123,6 +123,7 @@ class BaseBeing:
         """Pobiera wszystkie byty"""
         global db_pool
         if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
             async with db_pool.acquire() as conn:
                 rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
                 return [cls(
@@ -134,17 +135,36 @@ class BaseBeing:
                     created_at=row['created_at']
                 ) for row in rows]
         else:
-            # SQLite fallback - pozostaw zgodne ze starym schematem dla lokalnego rozwoju
-            async with db_pool.execute("SELECT * FROM base_beings LIMIT ?", (limit,)) as cursor:
+            # SQLite fallback
+            async with db_pool.execute("SELECT soul, tags, energy_level, genesis, attributes, memories, self_awareness, created_at FROM base_beings LIMIT ?", (limit,)) as cursor:
                 rows = await cursor.fetchall()
-                return [cls(
-                    soul=row[0],
-                    genesis=json.loads(row[3]),
-                    attributes=json.loads(row[4]),
-                    memories=json.loads(row[5]),
-                    self_awareness=json.loads(row[6]),
-                    created_at=row[7]
-                ) for row in rows]
+                beings = []
+                for row in rows:
+                    # row[0]=soul, row[1]=tags, row[2]=energy_level, row[3]=genesis, row[4]=attributes, row[5]=memories, row[6]=self_awareness, row[7]=created_at
+                    try:
+                        genesis = json.loads(row[3]) if row[3] else {}
+                        attributes = json.loads(row[4]) if row[4] else {}
+                        memories = json.loads(row[5]) if row[5] else []
+                        self_awareness = json.loads(row[6]) if row[6] else {}
+                        
+                        # Dodaj tags i energy_level do attributes jeśli nie ma
+                        if 'tags' not in attributes and row[1]:
+                            attributes['tags'] = json.loads(row[1])
+                        if 'energy_level' not in attributes and row[2]:
+                            attributes['energy_level'] = row[2]
+                        
+                        beings.append(cls(
+                            soul=row[0],
+                            genesis=genesis,
+                            attributes=attributes,
+                            memories=memories,
+                            self_awareness=self_awareness,
+                            created_at=row[7]
+                        ))
+                    except Exception as e:
+                        print(f"Błąd parsowania wiersza: {e}, wiersz: {row}")
+                        continue
+                return beings
 
 @dataclass
 class Relationship:
@@ -226,6 +246,7 @@ class Relationship:
         """Pobiera wszystkie relacje"""
         global db_pool
         if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
             async with db_pool.acquire() as conn:
                 rows = await conn.fetch("SELECT * FROM relationships LIMIT $1", limit)
                 return [cls(
@@ -237,17 +258,33 @@ class Relationship:
                     created_at=row['created_at']
                 ) for row in rows]
         else:
-            # SQLite fallback - pozostaw zgodne ze starym schematem dla lokalnego rozwoju
-            async with db_pool.execute("SELECT * FROM relationships LIMIT ?", (limit,)) as cursor:
+            # SQLite fallback
+            async with db_pool.execute("SELECT id, tags, energy_level, source_soul, target_soul, genesis, attributes, created_at FROM relationships LIMIT ?", (limit,)) as cursor:
                 rows = await cursor.fetchall()
-                return [cls(
-                    id=row[0],
-                    source_soul=row[3],
-                    target_soul=row[4],
-                    genesis=json.loads(row[5]),
-                    attributes=json.loads(row[6]),
-                    created_at=row[7]
-                ) for row in rows]
+                relationships = []
+                for row in rows:
+                    try:
+                        genesis = json.loads(row[5]) if row[5] else {}
+                        attributes = json.loads(row[6]) if row[6] else {}
+                        
+                        # Dodaj tags i energy_level do attributes jeśli nie ma
+                        if 'tags' not in attributes and row[1]:
+                            attributes['tags'] = json.loads(row[1])
+                        if 'energy_level' not in attributes and row[2]:
+                            attributes['energy_level'] = row[2]
+                        
+                        relationships.append(cls(
+                            id=row[0],
+                            source_soul=row[3],
+                            target_soul=row[4],
+                            genesis=genesis,
+                            attributes=attributes,
+                            created_at=row[7]
+                        ))
+                    except Exception as e:
+                        print(f"Błąd parsowania relacji: {e}, wiersz: {row}")
+                        continue
+                return relationships
 
 # Socket.IO event handlers
 @sio.event
