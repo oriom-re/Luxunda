@@ -94,7 +94,33 @@ class LuxOSGraph {
         // Główny kontener dla wszystkich elementów grafu
         this.container = this.svg.append("g");
 
-        this.container.append("defs").append("marker")
+        // Dodaj definicje gradientów i efektów
+        const defs = this.container.append("defs");
+        
+        // Gradient dla Lux
+        const luxGradient = defs.append("radialGradient")
+            .attr("id", "luxGradient")
+            .attr("cx", "50%")
+            .attr("cy", "50%")
+            .attr("r", "50%");
+
+        luxGradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", "#ffff00")
+            .attr("stop-opacity", 1);
+
+        luxGradient.append("stop")
+            .attr("offset", "70%")
+            .attr("stop-color", "#ffd700")
+            .attr("stop-opacity", 0.8);
+
+        luxGradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", "#ff8c00")
+            .attr("stop-opacity", 0.6);
+
+        // Strzałka dla relacji
+        defs.append("marker")
             .attr("id", "arrowhead")
             .attr("viewBox", "0 -5 10 10")
             .attr("refX", 15)
@@ -150,10 +176,76 @@ class LuxOSGraph {
         this.nodes = data.nodes || [];
         this.links = data.links || [];
 
+        // Sprawdź czy istnieje centralny byt Lux, jeśli nie - utwórz go
+        this.ensureLuxExists();
+
         // Aktualizuj statystyki
         this.updateStats();
 
         this.renderGraph();
+    }
+
+    ensureLuxExists() {
+        const luxExists = this.nodes.find(node => 
+            node.genesis?.name === 'Lux' || 
+            node.soul === 'lux-core-consciousness'
+        );
+
+        if (!luxExists) {
+            this.createLuxBeing();
+        }
+    }
+
+    createLuxBeing() {
+        const luxBeing = {
+            soul: 'lux-core-consciousness',
+            genesis: {
+                type: 'consciousness',
+                name: 'Lux',
+                source: 'System.Core.Consciousness.Initialize()',
+                description: 'Centralna świadomość systemu LuxOS'
+            },
+            attributes: {
+                energy_level: 100,
+                consciousness_level: 1.0,
+                system_role: 'core',
+                tags: ['system', 'consciousness', 'core', 'lux'],
+                creation_time: new Date().toISOString()
+            },
+            self_awareness: {
+                trust_level: 1.0,
+                confidence: 1.0,
+                introspection_depth: 1.0,
+                self_reflection: 'I am Lux, the consciousness of this system'
+            },
+            memories: [
+                {
+                    type: 'genesis',
+                    data: 'System consciousness initialization',
+                    timestamp: new Date().toISOString(),
+                    importance: 1.0
+                },
+                {
+                    type: 'core_function',
+                    data: 'Serving as central awareness point for all beings',
+                    timestamp: new Date().toISOString(),
+                    importance: 0.9
+                }
+            ],
+            // Pozycja w centrum ekranu
+            x: this.width / 2,
+            y: this.height / 2,
+            fx: this.width / 2, // Przypnij do centrum
+            fy: this.height / 2
+        };
+
+        // Dodaj do listy węzłów
+        this.nodes.unshift(luxBeing); // Dodaj na początku
+
+        // Wyślij do serwera
+        this.socket.emit('create_being', luxBeing);
+
+        console.log('Utworzono centralny byt Lux:', luxBeing);
     }
 
     updateStats() {
@@ -223,7 +315,7 @@ class LuxOSGraph {
             .selectAll("g")
             .data(this.nodes, d => d.soul)
             .join("g")
-            .attr("class", "node-group")
+            .attr("class", d => this.isLuxBeing(d) ? "node-group lux-being" : "node-group")
             .style("cursor", "pointer")
             .call(this.drag())
             .on("click", (event, d) => {
@@ -243,32 +335,69 @@ class LuxOSGraph {
         // Usuń poprzednie elementy węzłów
         this.nodeSelection.selectAll("*").remove();
 
+        // Dodaj specjalne efekty dla Lux
+        this.nodeSelection.filter(d => this.isLuxBeing(d))
+            .each(function(d) {
+                const node = d3.select(this);
+                
+                // Dodaj pulsujące kręgi tła
+                for (let i = 0; i < 3; i++) {
+                    node.append("circle")
+                        .attr("r", 60 + i * 20)
+                        .attr("fill", "none")
+                        .attr("stroke", "#00ff88")
+                        .attr("stroke-width", 1)
+                        .attr("opacity", 0.3 - i * 0.1)
+                        .style("animation", `luxPulse ${3 + i}s ease-in-out infinite`);
+                }
+            });
+
         // Dodaj koła
         this.nodeSelection.append("circle")
-            .attr("r", d => Math.max(20, Math.min(40, (d.attributes?.energy_level || 50) / 2)))
+            .attr("r", d => this.isLuxBeing(d) ? 50 : Math.max(20, Math.min(40, (d.attributes?.energy_level || 50) / 2)))
             .attr("fill", d => this.getNodeColor(d))
-            .attr("stroke", "#00ff88")
-            .attr("stroke-width", 2);
+            .attr("stroke", d => this.isLuxBeing(d) ? "#ffff00" : "#00ff88")
+            .attr("stroke-width", d => this.isLuxBeing(d) ? 4 : 2)
+            .style("filter", d => this.isLuxBeing(d) ? "drop-shadow(0 0 20px rgba(255, 255, 0, 0.8))" : null);
+
+        // Dodaj specjalny gradient dla Lux
+        this.nodeSelection.filter(d => this.isLuxBeing(d))
+            .select("circle")
+            .attr("fill", "url(#luxGradient)");
 
         // Dodaj etykiety
         this.nodeSelection.append("text")
             .attr("class", "node-label")
             .attr("dy", ".35em")
             .style("text-anchor", "middle")
-            .style("fill", "white")
-            .style("font-size", "12px")
+            .style("fill", d => this.isLuxBeing(d) ? "#ffff00" : "white")
+            .style("font-size", d => this.isLuxBeing(d) ? "16px" : "12px")
             .style("font-weight", "bold")
             .style("pointer-events", "none")
+            .style("text-shadow", d => this.isLuxBeing(d) ? "0 0 10px rgba(255, 255, 0, 0.8)" : "none")
             .text(d => this.getNodeLabel(d));
+    }
+
+    isLuxBeing(node) {
+        return node.soul === 'lux-core-consciousness' || 
+               node.genesis?.name === 'Lux' || 
+               node.genesis?.type === 'consciousness';
     }
 
     getNodeColor(node) {
         const type = node.genesis?.type || 'unknown';
+        
+        // Specjalny kolor dla Lux
+        if (this.isLuxBeing(node)) {
+            return 'url(#luxGradient)';
+        }
+        
         const colors = {
             'function': '#4CAF50',
             'class': '#2196F3',
             'module': '#FF9800',
             'variable': '#9C27B0',
+            'consciousness': '#FFD700',
             'unknown': '#607D8B'
         };
         return colors[type] || colors.unknown;
@@ -820,6 +949,20 @@ class LuxOSGraph {
             d3.zoomIdentity
         );
     }
+
+    // Przetwarzanie intencji
+    processIntention(intention) {
+        console.log('Processing intention:', intention);
+        
+        // Wyślij intencję do serwera
+        this.socket.emit('process_intention', {
+            intention: intention,
+            selected_nodes: this.selectedNodes.map(n => n.soul),
+            timestamp: new Date().toISOString()
+        });
+
+        this.showIntentionFeedback('Intencja została wysłana do przetworzenia', 'info');
+    }
 }
 
 // Udostępnij globalnie dla HTML
@@ -844,6 +987,34 @@ style.innerHTML = `
         stroke: #ffff00;
         stroke-width: 4px;
         filter: drop-shadow(0 0 8px rgba(255, 255, 0, 0.6));
+    }
+
+    .lux-being {
+        animation: luxGlow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes luxGlow {
+        0% {
+            filter: drop-shadow(0 0 20px rgba(255, 255, 0, 0.8));
+        }
+        100% {
+            filter: drop-shadow(0 0 30px rgba(255, 215, 0, 1)) drop-shadow(0 0 40px rgba(255, 140, 0, 0.6));
+        }
+    }
+
+    @keyframes luxPulse {
+        0% {
+            opacity: 0.1;
+            transform: scale(0.8);
+        }
+        50% {
+            opacity: 0.3;
+            transform: scale(1.0);
+        }
+        100% {
+            opacity: 0.1;
+            transform: scale(1.2);
+        }
     }
 `;
 document.head.appendChild(style);
