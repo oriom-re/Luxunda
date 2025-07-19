@@ -102,7 +102,7 @@ class LuxOSGraph {
                 // Sprawdź czy zoom jest na wysokim poziomie i czy jest blisko węzła
                 if (event.transform.k > 5) { // Zwiększony próg zoom
                     this.checkForNodeProximity(event.transform);
-                } else if (event.transform.k <= 4) {
+                } else if (event.transform.k <= 50) {
                     // Zamknij panel szczegółów przy oddaleniu
                     this.closeNodeDetails();
                     this.proximityLocked = false;
