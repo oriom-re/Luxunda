@@ -69,7 +69,19 @@ class LuxOSGraph {
             .attr("height", this.height)
             .attr("viewBox", [0, 0, this.width, this.height]);
 
-        this.svg.append("defs").append("marker")
+        // Dodaj zoom i pan
+        this.zoom = d3.zoom()
+            .scaleExtent([0.1, 10])
+            .on("zoom", (event) => {
+                this.container.attr("transform", event.transform);
+            });
+
+        this.svg.call(this.zoom);
+
+        // Główny kontener dla wszystkich elementów grafu
+        this.container = this.svg.append("g");
+
+        this.container.append("defs").append("marker")
             .attr("id", "arrowhead")
             .attr("viewBox", "0 -5 10 10")
             .attr("refX", 15)
@@ -81,8 +93,8 @@ class LuxOSGraph {
             .attr("d", "M0,-5L10,0L0,5")
             .attr("fill", "#555");
 
-        this.linkGroup = this.svg.append("g").attr("class", "links");
-        this.nodeGroup = this.svg.append("g").attr("class", "nodes");
+        this.linkGroup = this.container.append("g").attr("class", "links");
+        this.nodeGroup = this.container.append("g").attr("class", "nodes");
 
         this.simulation = d3.forceSimulation()
             .force("link", d3.forceLink().id(d => d.soul).distance(100))
@@ -278,6 +290,26 @@ class LuxOSGraph {
                 this.socket.emit('create_relationship', action.data);
             }
         });
+    }
+
+    // Funkcje zoom
+    zoomIn() {
+        this.svg.transition().duration(300).call(
+            this.zoom.scaleBy, 1.2
+        );
+    }
+
+    zoomOut() {
+        this.svg.transition().duration(300).call(
+            this.zoom.scaleBy, 1 / 1.2
+        );
+    }
+
+    resetZoom() {
+        this.svg.transition().duration(500).call(
+            this.zoom.transform,
+            d3.zoomIdentity
+        );
     }
 
     showIntentionFeedback(message, type = 'success') {

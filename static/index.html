@@ -248,6 +248,38 @@
             transform: translateY(0);
             opacity: 1;
         }
+
+        .zoom-controls {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(26, 26, 26, 0.9);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .zoom-btn:hover {
+            background: #00ff88;
+            color: #1a1a1a;
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
@@ -271,6 +303,12 @@
                 <div class="stat-value" id="linksCount">0</div>
                 <div class="stat-label">Relacje</div>
             </div>
+        </div>
+
+        <div class="zoom-controls">
+            <button class="zoom-btn" id="zoomIn">+</button>
+            <button class="zoom-btn" id="zoomOut">-</button>
+            <button class="zoom-btn" id="zoomReset">⌂</button>
         </div>
 
         <div class="intention-system">
@@ -302,6 +340,11 @@
                 
                 const graphManager = new LuxOSGraph();
                 const intentionComponent = new IntentionComponent(graphManager);
+                
+                // Dodaj obsługę kontrolek zoom
+                document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
+                document.getElementById('zoomOut').addEventListener('click', () => graphManager.zoomOut());
+                document.getElementById('zoomReset').addEventListener('click', () => graphManager.resetZoom());
                 
                 // Make sure input is visible
                 console.log('Intention input:', document.getElementById('intentionInput'));
