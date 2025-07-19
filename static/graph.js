@@ -35,13 +35,12 @@ class LuxOSGraph {
             this.updateGraph(data);
         });
 
-        this.socket.on('graph_updated', (data) => {
+        this.socket.on('graph_update', (data) => {
             this.updateGraph(data);
         });
 
         this.socket.on('intention_response', (response) => {
             this.handleIntentionResponse(response);
-        });
         });
 
         this.socket.on('error', (error) => {
@@ -129,118 +128,6 @@ class LuxOSGraph {
             .attr("class", "node")
             .attr("r", 20)
             .attr("fill", d => this.getNodeColor(d));
-
-        nodeEnter.append("text")
-            .attr("class", "node-label")
-            .attr("dy", "0.35em")
-            .text(d => d.genesis?.name || 'Byt');
-
-        nodeEnter.on("click", (event, d) => this.selectNode(d));
-
-        // Merge selections
-        const nodeUpdate = node.merge(nodeEnter);
-
-        // Update simulation
-        this.simulation.nodes(this.nodes);
-        this.simulation.force("link").links(this.links.map(d => ({
-            source: d.source_soul,
-            target: d.target_soul,
-            ...d
-        })));
-
-        this.simulation.restart();
-
-        // Update positions on tick
-        this.simulation.on("tick", () => {
-            this.linkGroup.selectAll(".link")
-                .attr("x1", d => d.source.x)
-                .attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x)
-                .attr("y2", d => d.target.y);
-
-            this.nodeGroup.selectAll(".node-group")
-                .attr("transform", d => `translate(${d.x},${d.y})`);
-        });
-    }
-
-    getNodeColor(node) {
-        const type = node.genesis?.type || 'default';
-        const colors = {
-            'function': '#00ff88',
-            'class': '#ffaa00',
-            'variable': '#ff6600',
-            'default': '#666666'
-        };
-        return colors[type] || colors.default;
-    }
-
-    handleIntentionResponse(response) {
-        console.log('Intention response:', response);
-        
-        if (response.message) {
-            this.showIntentionFeedback(response.message, 'success');
-        }
-
-        if (response.actions) {
-            response.actions.forEach(action => {
-                if (action.type === 'create_being') {
-                    this.socket.emit('create_being', action.data);
-                } else if (action.type === 'create_relationship') {
-                    this.socket.emit('create_relationship', action.data);
-                }
-            });
-        }
-    }
-
-    showIntentionFeedback(message, type = 'success') {
-        // Remove existing feedback
-        const existing = document.querySelector('.intention-feedback');
-        if (existing) {
-            existing.remove();
-        }
-
-        // Create new feedback
-        const feedback = document.createElement('div');
-        feedback.className = `intention-feedback ${type}`;
-        feedback.textContent = message;
-        
-        // Apply styles
-        feedback.style.position = 'fixed';
-        feedback.style.top = '80px';
-        feedback.style.right = '20px';
-        feedback.style.padding = '12px 18px';
-        feedback.style.borderRadius = '8px';
-        feedback.style.zIndex = '1001';
-        feedback.style.fontSize = '14px';
-        feedback.style.fontWeight = 'bold';
-        feedback.style.transform = 'translateX(100%)';
-        feedback.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-        feedback.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-        
-        if (type === 'error') {
-            feedback.style.background = '#ff4444';
-            feedback.style.color = 'white';
-        } else {
-            feedback.style.background = '#00ff88';
-            feedback.style.color = '#1a1a1a';
-        }
-
-        document.body.appendChild(feedback);
-
-        // Show animation
-        setTimeout(() => {
-            feedback.style.transform = 'translateX(0)';
-        }, 10);
-
-        // Auto remove after 3 seconds
-        setTimeout(() => {
-            feedback.style.transform = 'translateX(100%)';
-            setTimeout(() => {
-                if (feedback.parentNode) {
-                    feedback.remove();
-                }
-            }, 300);
-        }, 3000);deColor(d));
 
         nodeEnter.append("text")
             .attr("class", "node-label")
@@ -356,7 +243,6 @@ class LuxOSGraph {
         this.socket.emit('process_intention', {
             intention: intention,
             context: context
-        });ext
         });
 
         console.log('Wysłano intencję:', intention);

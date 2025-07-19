@@ -493,7 +493,7 @@ async def disconnect(sid):
     print(f"Klient rozłączony: {sid}")
 
 @sio.event
-async def get_graph_data(sid, data=None):
+async def get_graph_data(sid, data):
     """Wysyła dane grafu do klienta"""
     await send_graph_data(sid)
 
