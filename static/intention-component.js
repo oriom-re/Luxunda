@@ -168,6 +168,118 @@ class IntentionComponent {
         const feedback = document.createElement('div');
         feedback.className = `intention-feedback ${type}`;
         feedback.textContent = message;
+        feedback.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        `;
+
+        const colors = {
+            'success': '#00ff88',
+            'error': '#ff4444',
+            'info': '#4ecdc4'
+        };
+
+        feedback.style.backgroundColor = colors[type] || colors.info;
+        document.body.appendChild(feedback);
+
+        // Animuj pojawienie się
+        setTimeout(() => {
+            feedback.style.opacity = '1';
+        }, 100);
+
+        // Usuń po 3 sekundach
+        setTimeout(() => {
+            feedback.style.opacity = '0';
+            setTimeout(() => {
+                if (feedback.parentNode) {
+                    feedback.parentNode.removeChild(feedback);
+                }
+            }, 300);
+        }, 3000);
+    }
+
+    updateCharacterCounter() {
+        const length = this.intentionInput.value.length;
+        this.intentionCounter.textContent = length;
+        
+        if (length > 400) {
+            this.intentionCounter.style.color = '#ff4444';
+        } else if (length > 300) {
+            this.intentionCounter.style.color = '#ffe66d';
+        } else {
+            this.intentionCounter.style.color = '#888';
+        }
+
+        this.sendButton.disabled = length === 0;
+    }
+
+    initCharacterCounter() {
+        this.updateCharacterCounter();
+    }
+
+    autoResizeTextarea() {
+        this.intentionInput.style.height = '40px';
+        this.intentionInput.style.height = Math.min(this.intentionInput.scrollHeight, 120) + 'px';
+    }
+
+    processEmoticons() {
+        // Prostą zamiana emotikonów - można rozszerzyć
+        const emoticonMap = {
+            ':)': '😊',
+            ':D': '😄',
+            ':P': '😛',
+            ':rocket:': '🚀',
+            ':heart:': '❤️'
+        };
+
+        let value = this.intentionInput.value;
+        Object.keys(emoticonMap).forEach(key => {
+            value = value.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), emoticonMap[key]);
+        });
+
+        if (value !== this.intentionInput.value) {
+            const cursorPos = this.intentionInput.selectionStart;
+            this.intentionInput.value = value;
+            this.intentionInput.setSelectionRange(cursorPos, cursorPos);
+        }
+    }
+
+    enableEmoticonSupport() {
+        // Dodaj tooltipsy dla popularnych emotikonów
+        this.intentionInput.title = 'Możesz używać emotikonów: :) :D :P :rocket: :heart:';
+    }
+
+    setupKeyboardShortcuts() {
+        this.intentionInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendIntention();
+            }
+            
+            // Ctrl+Enter również wysyła intencję
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                this.sendIntention();
+            }
+        });
+    }n-feedback');
+        if (existing) {
+            existing.remove();
+        }
+
+        // Utwórz nowe powiadomienie
+        const feedback = document.createElement('div');
+        feedback.className = `intention-feedback ${type}`;
+        feedback.textContent = message;
         
         // Style dla powiadomienia
         feedback.style.position = 'fixed';

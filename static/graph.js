@@ -22,7 +22,7 @@ class LuxOSGraph {
             console.log('Połączono z serwerem');
             document.getElementById('connectionStatus').textContent = 'Połączono';
             document.getElementById('connectionDot').classList.add('connected');
-            this.socket.emit('get_graph_data');
+            this.socket.emit('get_graph_data', {});
         });
 
         this.socket.on('disconnect', () => {
@@ -35,12 +35,18 @@ class LuxOSGraph {
             this.updateGraph(data);
         });
 
-        this.socket.on('graph_update', (data) => {
+        this.socket.on('graph_updated', (data) => {
             this.updateGraph(data);
         });
 
         this.socket.on('intention_response', (response) => {
             this.handleIntentionResponse(response);
+        });
+
+        this.socket.on('error', (error) => {
+            console.error('Socket error:', error);
+            this.showIntentionFeedback(error.message || 'Wystąpił błąd', 'error');
+        });
         });
 
         this.socket.on('error', (error) => {
@@ -75,7 +81,7 @@ class LuxOSGraph {
             .force("link", d3.forceLink().id(d => d.soul).distance(100))
             .force("charge", d3.forceManyBody().strength(-300))
             .force("center", d3.forceCenter(this.width / 2, this.height / 2))
-            .force("collision", d3.forceCollide().radius(30));
+            .force("collision", d3.forceCollide().radius(25))(30));
     }
 
     setupEventListeners() {
@@ -127,7 +133,32 @@ class LuxOSGraph {
         nodeEnter.append("circle")
             .attr("class", "node")
             .attr("r", 20)
-            .attr("fill", d => this.getNodeColor(d));
+            .attr("fill", d => this.getNodeColor(d))
+            .on("click", (event, d) => this.selectNode(event, d));
+
+        nodeEnter.append("text")
+            .attr("dy", "0.35em")
+            .attr("text-anchor", "middle")
+            .attr("fill", "white")
+            .attr("font-size", "10px")
+            .text(d => d.genesis.name || "Node");
+
+        // Update simulation
+        this.simulation.nodes(this.nodes);
+        this.simulation.force("link").links(this.links);
+        this.simulation.restart();
+
+        // Handle tick events
+        this.simulation.on("tick", () => {
+            this.linkGroup.selectAll(".link")
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            this.nodeGroup.selectAll(".node-group")
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+        });deColor(d));
 
         nodeEnter.append("text")
             .attr("class", "node-label")
@@ -243,6 +274,94 @@ class LuxOSGraph {
         this.socket.emit('process_intention', {
             intention: intention,
             context: context
+        });
+
+        this.showIntentionFeedback('Przetwarzanie intencji...', 'info');
+    }
+
+    getNodeColor(node) {
+        const type = node.genesis.type || 'unknown';
+        const colors = {
+            'function': '#00ff88',
+            'class': '#ff6b6b',
+            'variable': '#4ecdc4',
+            'module': '#ffe66d',
+            'unknown': '#95a5a6'
+        };
+        return colors[type] || colors.unknown;
+    }
+
+    selectNode(event, node) {
+        event.stopPropagation();
+
+        if (this.selectedNodes.includes(node.soul)) {
+            this.selectedNodes = this.selectedNodes.filter(s => s !== node.soul);
+        } else {
+            this.selectedNodes.push(node.soul);
+        }
+
+        // Update visual selection
+        this.nodeGroup.selectAll(".node")
+            .classed("selected", d => this.selectedNodes.includes(d.soul));
+
+        console.log('Selected nodes:', this.selectedNodes);
+    }
+
+    handleIntentionResponse(response) {
+        console.log('Intention response:', response);
+        
+        // Execute actions if any
+        if (response.actions && response.actions.length > 0) {
+            response.actions.forEach(action => {
+                if (action.type === 'create_being') {
+                    this.socket.emit('create_being', action.data);
+                } else if (action.type === 'create_relationship') {
+                    this.socket.emit('create_relationship', action.data);
+                }
+            });
+        }
+
+        this.showIntentionFeedback(response.message, 'success');
+    }
+
+    showIntentionFeedback(message, type = 'info') {
+        console.log(`${type.toUpperCase()}: ${message}`);
+        
+        // Create or update feedback element
+        let feedback = document.getElementById('intentionFeedback');
+        if (!feedback) {
+            feedback = document.createElement('div');
+            feedback.id = 'intentionFeedback';
+            feedback.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 500;
+                z-index: 1000;
+                max-width: 300px;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            `;
+            document.body.appendChild(feedback);
+        }
+
+        const colors = {
+            'success': '#00ff88',
+            'error': '#ff4444',
+            'info': '#4ecdc4'
+        };
+
+        feedback.style.backgroundColor = colors[type] || colors.info;
+        feedback.textContent = message;
+        feedback.style.opacity = '1';
+
+        // Auto hide after 3 seconds
+        setTimeout(() => {
+            feedback.style.opacity = '0';
+        }, 3000);ext
         });
 
         console.log('Wysłano intencję:', intention);

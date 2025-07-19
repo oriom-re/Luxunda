@@ -243,7 +243,17 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">LuxOS - Eksperymentator Intencji</div>
+            <div class="logo">LuxOS Graph Interface</div>
+            <div class="stats">
+                <div class="stat-item">
+                    <span>Nodes:</span>
+                    <span id="nodesCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Links:</span>
+                    <span id="linksCount">0</span>
+                </div>
+            </div>
             <div class="connection-status">
                 <div class="status-dot" id="connectionDot"></div>
                 <span id="connectionStatus">Łączenie...</span>
@@ -252,44 +262,34 @@
 
         <svg id="graph"></svg>
 
-        <div class="stats-overlay">
-            <div class="stat-item">
-                <div class="stat-value" id="nodesCount">0</div>
-                <div class="stat-label">Byty</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value" id="linksCount">0</div>
-                <div class="stat-label">Relacje</div>
-            </div>
-        </div>
-
-        <div class="intention-system">
+        <div class="intention-panel">
             <textarea 
                 class="intention-input" 
                 id="intentionInput" 
-                placeholder="🚀 Opisz swoją intencję... (np. 'utwórz funkcję calculate_sum', 'połącz wybrane byty')"
-                maxlength="500"
-            ></textarea>
-            <div class="intention-controls">
-                <div class="intention-counter">
+                placeholder="🚀 Opisz swoją intencję... (np. 'utwórz funkcję calculate_sum', 'połącz wybrane byty')" 
+                maxlength="500">
+            </textarea>
+            <div class="intention-meta">
+                <div class="char-counter">
                     <span id="charCounter">0</span>/500
                 </div>
-                <button class="btn" id="sendIntention">🎯 Przetwórz Intencję</button>
+                <button class="send-button" id="sendIntention" disabled>
+                    Wyślij
+                </button>
             </div>
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="graph.js"></script>
     <script src="intention-component.js"></script>
     <script>
-        // Inicjalizacja aplikacji
-        document.addEventListener('DOMContentLoaded', function() {
-            const graphManager = new LuxOSGraph();
-            const intentionComponent = new IntentionComponent(graphManager);
-            
-            // Make sure input is visible
-            console.log('Intention input:', document.getElementById('intentionInput'));
-        });
+        // Initialize the application
+        const graph = new LuxOSGraph();
+        const intentionComponent = new IntentionComponent(graph);
+
+        console.log('Intention input:', document.getElementById('intentionInput'));
     </script>
 </body>
 </html>
