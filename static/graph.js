@@ -184,7 +184,7 @@ class LuxOSGraph {
         linkEnter.append("line")
             .attr("class", "link-hit-area")
             .attr("stroke", "transparent")
-            .attr("stroke-width", 15) // Szerszy obszar wykrywania
+            .attr("stroke-width", 25) // Znacznie szerszy obszar wykrywania
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.handleLinkSelection(event, d);
@@ -491,21 +491,24 @@ class LuxOSGraph {
         return d3.drag()
             .on("start", (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0.3).restart();
-                // Oznacz węzeł jako przeciągany w metadanych, ale zachowaj fizyczność
                 d.isDragging = true;
                 d.dragStartTime = Date.now();
+                // Zatrzymaj fizyczną symulację dla tego węzła
+                d.fx = d.x;
+                d.fy = d.y;
             })
             .on("drag", (event, d) => {
-                // Aktualizuj pozycję bez blokowania fizyki
-                d.x = event.x;
-                d.y = event.y;
+                // Bezpośrednio ustaw pozycję fiksowaną
+                d.fx = event.x;
+                d.fy = event.y;
             })
             .on("end", (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0);
-                // Usuń oznaczenie przeciągania, zachowując pozycję
                 d.isDragging = false;
                 d.lastDragTime = Date.now();
-                // Nie blokuj pozycji - pozwól fizyce działać normalnie
+                // Uwolnij węzeł od fiksacji po przeciągnięciu
+                d.fx = null;
+                d.fy = null;
             });
     }
 
@@ -651,7 +654,7 @@ class LuxOSGraph {
         linkEnter.append("line")
             .attr("class", "link-hit-area")
             .attr("stroke", "transparent")
-            .attr("stroke-width", 15)
+            .attr("stroke-width", 25)
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.handleLinkSelection(event, d);

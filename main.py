@@ -312,7 +312,7 @@ class BaseBeing:
         return None
 
     @classmethod
-    async def get_all(cls, limit: int = 100):
+    async defget_all(cls, limit: int = 100):
         """Pobiera wszystkie byty"""
         global db_pool
         if hasattr(db_pool, 'acquire'):
@@ -645,6 +645,42 @@ async def get_being_source(sid, data):
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd pobierania kodu: {str(e)}'}, room=sid)
 
+@sio.event
+async def delete_being(sid, data):
+    soul = data.get('soul')
+    if soul:
+        try:
+            query = """
+            DELETE FROM base_beings WHERE soul = $1
+            """
+            await db_pool.execute(query, soul)
+
+            # Wyślij aktualizację do wszystkich klientów
+            updated_data = await get_graph_data()
+            await sio.emit('graph_updated', updated_data)
+
+        except Exception as e:
+            logger.error(f"Błąd podczas usuwania bytu: {e}")
+            await sio.emit('error', {'message': str(e)}, room=sid)
+
+@sio.event
+async def delete_relationship(sid, data):
+    relationship_id = data.get('id')
+    if relationship_id:
+        try:
+            query = """
+            DELETE FROM relationships WHERE id = $1
+            """
+            await db_pool.execute(query, relationship_id)
+
+            # Wyślij aktualizację do wszystkich klientów
+            updated_data = await get_graph_data()
+            await sio.emit('graph_updated', updated_data)
+
+        except Exception as e:
+            logger.error(f"Błąd podczas usuwania relacji: {e}")
+            await sio.emit('error', {'message': str(e)}, room=sid)
+
 async def analyze_intention(intention: str, context: dict) -> dict:
     """Analizuje intencję i zwraca odpowiedz z akcjami"""
 
@@ -797,7 +833,7 @@ async def broadcast_graph_update():
 
 # HTTP API endpoints
 async def api_beings(request):
-    """REST API dla bytów"""
+        """REST API dla bytów"""
     if request.method == 'GET':
         beings = await BaseBeing.get_all()
         beings_data = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
