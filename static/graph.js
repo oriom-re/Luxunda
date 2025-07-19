@@ -1,8 +1,9 @@
+
 class LuxOSGraph {
     constructor() {
         this.svg = d3.select("#graph");
         this.width = window.innerWidth;
-        this.height = window.innerHeight - 190; // Account for header and intention panel
+        this.height = window.innerHeight - 190;
         this.nodes = [];
         this.links = [];
         this.selectedNodes = [];
@@ -55,7 +56,6 @@ class LuxOSGraph {
             .attr("height", this.height)
             .attr("viewBox", [0, 0, this.width, this.height]);
 
-        // Add arrow marker for directed links
         this.svg.append("defs").append("marker")
             .attr("id", "arrowhead")
             .attr("viewBox", "0 -5 10 10")
@@ -91,7 +91,6 @@ class LuxOSGraph {
         this.nodes = data.nodes || [];
         this.links = data.links || [];
 
-        // Update statistics
         document.getElementById('nodesCount').textContent = this.nodes.length;
         document.getElementById('linksCount').textContent = this.links.length;
 
@@ -99,7 +98,6 @@ class LuxOSGraph {
     }
 
     renderGraph() {
-        // Update links
         const link = this.linkGroup
             .selectAll(".link")
             .data(this.links, d => `${d.source_soul}-${d.target_soul}`);
@@ -112,7 +110,6 @@ class LuxOSGraph {
 
         link.merge(linkEnter);
 
-        // Update nodes
         const node = this.nodeGroup
             .selectAll(".node-group")
             .data(this.nodes, d => d.soul);
@@ -142,12 +139,10 @@ class LuxOSGraph {
         nodeUpdate.select(".node-label")
             .text(d => d.genesis?.name || "Unnamed");
 
-        // Add click handlers
         nodeUpdate.on("click", (event, d) => {
             this.handleNodeClick(event, d);
         });
 
-        // Update simulation
         this.simulation.nodes(this.nodes);
         this.simulation.force("link").links(this.links.map(d => ({
             source: d.source_soul,
@@ -201,7 +196,6 @@ class LuxOSGraph {
             this.selectedNodes.push(node.soul);
         }
 
-        // Update visual selection
         this.nodeGroup.selectAll(".node")
             .classed("selected", d => this.selectedNodes.includes(d.soul));
 
@@ -253,24 +247,20 @@ class LuxOSGraph {
         console.log('Odpowiedź na intencję:', response);
         this.showIntentionFeedback(response.message || 'Intencja przetworzona', 'success');
 
-        // Clear selection after processing
         this.selectedNodes = [];
         this.nodeGroup.selectAll(".node").classed("selected", false);
     }
 
     showIntentionFeedback(message, type = 'success') {
-        // Remove existing feedback
         const existing = document.querySelector('.intention-feedback');
         if (existing) {
             existing.remove();
         }
 
-        // Create new feedback
         const feedback = document.createElement('div');
         feedback.className = `intention-feedback ${type}`;
         feedback.textContent = message;
 
-        // Styles
         feedback.style.position = 'fixed';
         feedback.style.top = '80px';
         feedback.style.right = '20px';
@@ -296,12 +286,10 @@ class LuxOSGraph {
 
         document.body.appendChild(feedback);
 
-        // Animate in
         setTimeout(() => {
             feedback.style.transform = 'translateX(0)';
         }, 10);
 
-        // Auto remove after 3 seconds
         setTimeout(() => {
             feedback.style.transform = 'translateX(100%)';
             setTimeout(() => {
