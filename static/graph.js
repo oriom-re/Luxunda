@@ -72,6 +72,15 @@ class LuxOSUniverse {
             }
         });
 
+        this.socket.on('component_created', (componentData) => {
+            try {
+                console.log('Nowy komponent D3.js utworzony:', componentData);
+                this.handleNewComponent(componentData);
+            } catch (error) {
+                console.error('Błąd obsługi nowego komponentu:', error);
+            }
+        });
+
         this.socket.on('error', (error) => {
             console.error('Błąd wszechświata:', error);
             this.showErrorMessage('Błąd połączenia z wszechświatem: ' + (error.message || error));
@@ -721,6 +730,128 @@ class LuxOSUniverse {
         );
     }
 
+    handleNewComponent(componentData) {
+        try {
+            const containerId = componentData.config.container;
+            
+            // Utwórz kontener dla komponentu jeśli nie istnieje
+            if (!document.getElementById(containerId)) {
+                const componentContainer = document.createElement('div');
+                componentContainer.id = containerId;
+                componentContainer.className = 'lux-component-container';
+                componentContainer.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    z-index: 1500;
+                    background: rgba(26, 26, 26, 0.95);
+                    border: 2px solid #00ff88;
+                    border-radius: 10px;
+                    padding: 20px;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+                `;
+                
+                // Dodaj nagłówek
+                const header = document.createElement('div');
+                header.className = 'component-header';
+                header.style.cssText = `
+                    color: #00ff88;
+                    font-weight: bold;
+                    margin-bottom: 15px;
+                    text-align: center;
+                    font-size: 18px;
+                `;
+                header.textContent = `Komponent: ${componentData.genesis.name}`;
+                
+                // Dodaj przycisk zamknięcia
+                const closeBtn = document.createElement('button');
+                closeBtn.innerHTML = '×';
+                closeBtn.style.cssText = `
+                    position: absolute;
+                    top: 10px;
+                    right: 15px;
+                    background: none;
+                    border: none;
+                    color: #00ff88;
+                    font-size: 24px;
+                    cursor: pointer;
+                    z-index: 10;
+                `;
+                closeBtn.onclick = () => {
+                    componentContainer.remove();
+                };
+                
+                componentContainer.appendChild(header);
+                componentContainer.appendChild(closeBtn);
+                document.body.appendChild(componentContainer);
+            }
+            
+            // Wykonaj kod D3.js komponenta
+            this.executeComponentCode(componentData.genesis.d3_code, componentData);
+            
+            // Pokaż komunikat o powodzeniu
+            this.showSuccessMessage(`Komponent ${componentData.genesis.name} został utworzony!`);
+            
+        } catch (error) {
+            console.error('Błąd tworzenia komponentu:', error);
+            this.showErrorMessage('Błąd tworzenia komponentu D3.js');
+        }
+    }
+
+    executeComponentCode(d3Code, componentData) {
+        try {
+            // Bezpieczne wykonanie kodu D3.js
+            const scriptElement = document.createElement('script');
+            scriptElement.textContent = d3Code;
+            
+            // Dodaj kod do head
+            document.head.appendChild(scriptElement);
+            
+            // Usuń script po wykonaniu (opcjonalnie)
+            setTimeout(() => {
+                if (scriptElement.parentNode) {
+                    scriptElement.parentNode.removeChild(scriptElement);
+                }
+            }, 1000);
+            
+            console.log('Kod D3.js komponenta wykonany pomyślnie');
+            
+        } catch (error) {
+            console.error('Błąd wykonania kodu D3.js:', error);
+            throw error;
+        }
+    }
+
+    showSuccessMessage(message) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success-message';
+        successDiv.textContent = message;
+        successDiv.style.cssText = `
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            background: #00ff88;
+            color: #1a1a1a;
+            padding: 10px 15px;
+            border-radius: 5px;
+            z-index: 2000;
+            max-width: 300px;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+        `;
+
+        document.body.appendChild(successDiv);
+
+        // Usuń po 4 sekundach
+        setTimeout(() => {
+            if (successDiv.parentNode) {
+                successDiv.parentNode.removeChild(successDiv);
+            }
+        }, 4000);
+    }
+
     showErrorMessage(message) {
         // Pokaż komunikat błędu w interfejsie
         const errorDiv = document.createElement('div');
@@ -796,6 +927,45 @@ universeStyle.innerHTML = `
         0% { transform: scale(1); opacity: 0.6; }
         50% { transform: scale(1.5); opacity: 0.3; }
         100% { transform: scale(1); opacity: 0.6; }
+    }
+
+    .lux-component-container {
+        animation: componentAppear 0.5s ease-out;
+    }
+
+    @keyframes componentAppear {
+        from { 
+            opacity: 0; 
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+        to { 
+            opacity: 1; 
+            transform: translate(-50%, -50%) scale(1);
+        }
+    }
+
+    .lux-component-container:hover {
+        box-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
+        border-color: #00cc66;
+    }
+
+    .component-header {
+        text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
+    }
+
+    .success-message {
+        animation: messageSlide 0.3s ease-out;
+    }
+
+    @keyframes messageSlide {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
     }
 `;
 document.head.appendChild(universeStyle);

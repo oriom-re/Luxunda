@@ -1637,6 +1637,18 @@ async def process_intention(sid, data):
             print(f"Błąd tworzenia message being: {e}")
             message_being = None
 
+        # Sprawdź czy intencja dotyczy wizualizacji/komponentów
+        if any(word in intention for word in ['wizualizacja', 'wykres', 'graf', 'komponent', 'animacja', 'd3']):
+            component_being = await create_visual_component(intention, context, sid)
+            if component_being:
+                await sio.emit('component_created', {
+                    'soul_uid': component_being.soul_uid,
+                    'genesis': component_being._soul.genesis,
+                    'attributes': component_being._soul.attributes,
+                    'd3_code': component_being._soul.genesis.get('d3_code', ''),
+                    'config': component_being._soul.attributes.get('d3_config', {})
+                }, room=sid)
+
         # Przetwórz intencję
         response = await analyze_intention(intention, context)
 
@@ -2211,6 +2223,352 @@ class BeingFactory:
                 self_awareness=self_awareness,
                 created_at=row[7]
             )
+
+async def create_visual_component(intention: str, context: dict, sid: str):
+    """Tworzy ComponentBeing z kodem D3.js na podstawie intencji"""
+    try:
+        # Określ typ komponentu na podstawie intencji
+        component_type = 'basic'
+        if 'wykres' in intention or 'chart' in intention:
+            component_type = 'chart'
+        elif 'graf' in intention or 'graph' in intention or 'sieć' in intention:
+            component_type = 'force_graph'
+        elif 'animacja' in intention or 'animation' in intention:
+            component_type = 'animation'
+        elif 'particle' in intention or 'cząstki' in intention:
+            component_type = 'particles'
+
+        # Generuj konfigurację D3
+        d3_config = {
+            'type': component_type,
+            'width': 800,
+            'height': 600,
+            'container': f'component_{datetime.now().strftime("%H%M%S")}',
+            'animation_duration': 1000,
+            'interactive': True
+        }
+
+        # Generuj kod D3.js
+        d3_code = generate_d3_component_code(component_type, d3_config, intention)
+
+        # Utwórz ComponentBeing
+        component_being = await BeingFactory.create_being(
+            being_type='component',
+            genesis={
+                'type': 'component',
+                'name': f'Visual_Component_{component_type}_{datetime.now().strftime("%H%M%S")}',
+                'created_by': 'intention_system',
+                'source': 'auto_generated',
+                'd3_code': d3_code,
+                'intention_source': intention
+            },
+            attributes={
+                'd3_config': d3_config,
+                'render_data': {
+                    'nodes': [],
+                    'links': [],
+                    'particles': []
+                },
+                'interactive_features': {
+                    'zoom': True,
+                    'pan': True,
+                    'hover_effects': True,
+                    'click_events': True
+                },
+                'visual_effects': {
+                    'glow': True,
+                    'particles': component_type == 'particles',
+                    'animations': True
+                }
+            },
+            memories=[{
+                'type': 'creation',
+                'data': f'Created visual component from intention: {intention}',
+                'timestamp': datetime.now().isoformat(),
+                'creator_sid': sid
+            }],
+            tags=['component', 'visual', 'd3js', component_type],
+            energy_level=90
+        )
+
+        print(f"Utworzono ComponentBeing: {component_being.soul_uid} typu {component_type}")
+        return component_being
+
+    except Exception as e:
+        print(f"Błąd tworzenia komponentu wizualnego: {e}")
+        return None
+
+def generate_d3_component_code(component_type: str, config: dict, intention: str) -> str:
+    """Generuje kod D3.js dla różnych typów komponentów"""
+    
+    base_template = f"""
+// Automatycznie wygenerowany komponent D3.js
+// Typ: {component_type}
+// Intencja: {intention}
+// Utworzony: {datetime.now().isoformat()}
+
+class LuxVisualComponent {{
+    constructor(containerId = '{config['container']}') {{
+        this.container = d3.select(`#${{containerId}}`);
+        this.width = {config['width']};
+        this.height = {config['height']};
+        this.svg = null;
+        this.data = [];
+        
+        this.init();
+    }}
+    
+    init() {{
+        this.svg = this.container
+            .append('svg')
+            .attr('width', this.width)
+            .attr('height', this.height)
+            .attr('viewBox', [0, 0, this.width, this.height]);
+            
+        this.setupGradients();
+        this.setupFilters();
+        {get_component_specific_code(component_type, config)}
+    }}
+    
+    setupGradients() {{
+        const defs = this.svg.append('defs');
+        
+        // Gradient dla efektów świetlnych
+        const luxGradient = defs.append('radialGradient')
+            .attr('id', 'luxGlow')
+            .attr('cx', '50%')
+            .attr('cy', '50%')
+            .attr('r', '50%');
+            
+        luxGradient.append('stop')
+            .attr('offset', '0%')
+            .attr('stop-color', '#ffffff')
+            .attr('stop-opacity', 1);
+            
+        luxGradient.append('stop')
+            .attr('offset', '100%')
+            .attr('stop-color', '#00ff88')
+            .attr('stop-opacity', 0);
+    }}
+    
+    setupFilters() {{
+        const defs = this.svg.select('defs');
+        
+        // Filter dla efektu świecenia
+        const glowFilter = defs.append('filter')
+            .attr('id', 'glow')
+            .attr('width', '200%')
+            .attr('height', '200%');
+            
+        glowFilter.append('feGaussianBlur')
+            .attr('stdDeviation', '4')
+            .attr('result', 'coloredBlur');
+            
+        const feMerge = glowFilter.append('feMerge');
+        feMerge.append('feMergeNode').attr('in', 'coloredBlur');
+        feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+    }}
+    
+    updateData(newData) {{
+        this.data = newData;
+        this.render();
+    }}
+    
+    render() {{
+        // Implementacja renderowania specyficzna dla typu komponentu
+        {get_render_method(component_type)}
+    }}
+    
+    animate() {{
+        // Animacje specyficzne dla typu komponentu
+        {get_animation_method(component_type)}
+    }}
+}}
+
+// Auto-inicjalizacja komponentu
+document.addEventListener('DOMContentLoaded', () => {{
+    if (document.getElementById('{config['container']}')) {{
+        window.luxComponent_{config['container']} = new LuxVisualComponent('{config['container']}');
+    }}
+}});
+"""
+    
+    return base_template
+
+def get_component_specific_code(component_type: str, config: dict) -> str:
+    """Zwraca kod specyficzny dla typu komponentu"""
+    
+    if component_type == 'force_graph':
+        return """
+        // Inicjalizacja symulacji force graph
+        this.simulation = d3.forceSimulation()
+            .force('link', d3.forceLink().id(d => d.id).distance(100))
+            .force('charge', d3.forceManyBody().strength(-300))
+            .force('center', d3.forceCenter(this.width / 2, this.height / 2))
+            .force('collision', d3.forceCollide().radius(20));
+            
+        this.linkGroup = this.svg.append('g').attr('class', 'links');
+        this.nodeGroup = this.svg.append('g').attr('class', 'nodes');
+        """
+    
+    elif component_type == 'particles':
+        return """
+        // Inicjalizacja systemu cząstek
+        this.particles = [];
+        this.particleGroup = this.svg.append('g').attr('class', 'particles');
+        
+        // Generuj początkowe cząstki
+        for (let i = 0; i < 100; i++) {
+            this.particles.push({
+                x: Math.random() * this.width,
+                y: Math.random() * this.height,
+                vx: (Math.random() - 0.5) * 2,
+                vy: (Math.random() - 0.5) * 2,
+                size: Math.random() * 3 + 1,
+                opacity: Math.random() * 0.8 + 0.2
+            });
+        }
+        """
+    
+    elif component_type == 'chart':
+        return """
+        // Inicjalizacja wykresu
+        this.margin = {top: 20, right: 30, bottom: 40, left: 50};
+        this.chartWidth = this.width - this.margin.left - this.margin.right;
+        this.chartHeight = this.height - this.margin.top - this.margin.bottom;
+        
+        this.chartGroup = this.svg.append('g')
+            .attr('transform', `translate(${this.margin.left},${this.margin.top})`);
+            
+        // Skale
+        this.xScale = d3.scaleLinear().range([0, this.chartWidth]);
+        this.yScale = d3.scaleLinear().range([this.chartHeight, 0]);
+        """
+    
+    else:  # basic
+        return """
+        // Podstawowa inicjalizacja
+        this.mainGroup = this.svg.append('g').attr('class', 'main-group');
+        """
+
+def get_render_method(component_type: str) -> str:
+    """Zwraca metodę renderowania dla typu komponentu"""
+    
+    if component_type == 'force_graph':
+        return """
+        // Renderowanie grafu sił
+        const links = this.linkGroup.selectAll('.link')
+            .data(this.data.links || [])
+            .join('line')
+            .attr('class', 'link')
+            .attr('stroke', '#00ff88')
+            .attr('stroke-width', 2)
+            .style('filter', 'url(#glow)');
+            
+        const nodes = this.nodeGroup.selectAll('.node')
+            .data(this.data.nodes || [])
+            .join('circle')
+            .attr('class', 'node')
+            .attr('r', d => d.size || 8)
+            .attr('fill', 'url(#luxGlow)')
+            .style('filter', 'url(#glow)')
+            .call(d3.drag()
+                .on('start', this.dragstarted.bind(this))
+                .on('drag', this.dragged.bind(this))
+                .on('end', this.dragended.bind(this)));
+                
+        this.simulation.nodes(this.data.nodes || []);
+        this.simulation.force('link').links(this.data.links || []);
+        this.simulation.alpha(1).restart();
+        
+        this.simulation.on('tick', () => {
+            links
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+                
+            nodes
+                .attr('cx', d => d.x)
+                .attr('cy', d => d.y);
+        });
+        """
+    
+    elif component_type == 'particles':
+        return """
+        // Renderowanie cząstek
+        const particleElements = this.particleGroup.selectAll('.particle')
+            .data(this.particles)
+            .join('circle')
+            .attr('class', 'particle')
+            .attr('r', d => d.size)
+            .attr('fill', '#00ff88')
+            .attr('opacity', d => d.opacity)
+            .style('filter', 'url(#glow)');
+            
+        // Animacja cząstek
+        this.animateParticles();
+        """
+    
+    else:
+        return """
+        // Podstawowe renderowanie
+        this.mainGroup.selectAll('.element')
+            .data(this.data)
+            .join('circle')
+            .attr('class', 'element')
+            .attr('cx', (d, i) => (i % 10) * 80 + 40)
+            .attr('cy', (d, i) => Math.floor(i / 10) * 80 + 40)
+            .attr('r', 20)
+            .attr('fill', 'url(#luxGlow)')
+            .style('filter', 'url(#glow)')
+            .on('mouseover', function() {
+                d3.select(this).transition().attr('r', 25);
+            })
+            .on('mouseout', function() {
+                d3.select(this).transition().attr('r', 20);
+            });
+        """
+
+def get_animation_method(component_type: str) -> str:
+    """Zwraca metodę animacji dla typu komponentu"""
+    
+    if component_type == 'particles':
+        return """
+        // Animacja cząstek
+        setInterval(() => {
+            this.particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                
+                // Odbicie od ścian
+                if (p.x <= 0 || p.x >= this.width) p.vx *= -1;
+                if (p.y <= 0 || p.y >= this.height) p.vy *= -1;
+                
+                // Utrzymaj w granicach
+                p.x = Math.max(0, Math.min(this.width, p.x));
+                p.y = Math.max(0, Math.min(this.height, p.y));
+            });
+            
+            this.particleGroup.selectAll('.particle')
+                .attr('cx', d => d.x)
+                .attr('cy', d => d.y);
+        }, 50);
+        """
+    
+    else:
+        return """
+        // Podstawowa animacja pulsowania
+        setInterval(() => {
+            this.svg.selectAll('.element, .node')
+                .transition()
+                .duration(1000)
+                .style('filter', 'url(#glow) brightness(1.5)')
+                .transition()
+                .duration(1000)
+                .style('filter', 'url(#glow)');
+        }, 2000);
+        """
 
 async def create_lux_agent():
     """Tworzy Lux jako głównego agenta wszechświata"""
