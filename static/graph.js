@@ -10,6 +10,8 @@ class LuxOSGraph {
         this.simulation = null;
         this.socket = null;
         this.mouseDownTime = 0;
+        this.proximityLocked = false;
+        this.lastProximityNode = null;
 
         // Globalna referencja dla przycisków w panelu szczegółów
         window.luxosGraph = this;
@@ -91,14 +93,18 @@ class LuxOSGraph {
             .attr("height", this.height)
             .attr("viewBox", [0, 0, this.width, this.height]);
 
-        // Dodaj zoom i pan
+        // Dodaj zoom i pan (tylko scroll i lewym przyciskiem)
         this.zoom = d3.zoom()
             .scaleExtent([0.1, 10])
+            .filter((event) => {
+                // Blokuj środkowy przycisk dla zoom, pozwól tylko na scroll i lewy przycisk
+                return event.type !== 'mousedown' || event.button !== 1;
+            })
             .on("zoom", (event) => {
                 this.container.attr("transform", event.transform);
                 
                 // Sprawdź czy zoom jest na wysokim poziomie i czy jest blisko węzła
-                if (event.transform.k > 3) {
+                if (event.transform.k > 5) { // Zwiększony próg zoom
                     this.checkForNodeProximity(event.transform);
                 }
             });
@@ -146,6 +152,14 @@ class LuxOSGraph {
         // Obsługa kliknięcia lewym przyciskiem w puste miejsce - ukryj menu
         this.svg.on('click', () => {
             this.hideContextMenu();
+        });
+
+        // Obsługa środkowego przycisku myszy do przesuwania
+        this.svg.on('mousedown', (event) => {
+            if (event.button === 1) { // Środkowy przycisk
+                event.preventDefault();
+                this.startMiddleMousePan(event);
+            }
         });
     }
 
@@ -205,7 +219,7 @@ class LuxOSGraph {
             this.mouseDownTime = Date.now();
         })
         .on("click", (event, d) => {
-            this.handleNodeClick(event, d);
+            this.handleNodeSelection(event, d);
         })
         .on("dblclick", (event, d) => {
             event.preventDefault();
@@ -261,10 +275,10 @@ class LuxOSGraph {
         return colors[type] || colors.unknown;
     }
 
-    handleNodeClick(event, node) {
+    handleNodeSelection(event, node) {
         event.stopPropagation();
 
-        // Sprawdź czy to było przeciąganie - jeśli tak, nie otwieraj węzła
+        // Sprawdź czy to było przeciąganie
         if (node.isDragging || (node.lastDragTime && Date.now() - node.lastDragTime < 200)) {
             return;
         }
@@ -275,8 +289,21 @@ class LuxOSGraph {
             return; // To było przeciąganie
         }
 
-        // Otwórz szczegóły węzła
-        this.openNodeDetails(node);
+        // Obsługa selekcji węzła
+        const nodeElement = this.nodeGroup.selectAll(".node").filter(d => d.soul === node.soul);
+        const isSelected = this.selectedNodes.includes(node.soul);
+
+        if (isSelected) {
+            // Usuń z selekcji
+            this.selectedNodes = this.selectedNodes.filter(id => id !== node.soul);
+            nodeElement.classed("selected", false);
+        } else {
+            // Dodaj do selekcji
+            this.selectedNodes.push(node.soul);
+            nodeElement.classed("selected", true);
+        }
+
+        console.log('Selected nodes:', this.selectedNodes);
     }
 
     drag() {
@@ -809,7 +836,37 @@ class LuxOSGraph {
         }
     }
 
+    startMiddleMousePan(event) {
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const currentTransform = d3.zoomTransform(this.svg.node());
+        
+        const mouseMoveHandler = (e) => {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            const newTransform = d3.zoomIdentity
+                .scale(currentTransform.k)
+                .translate(currentTransform.x + deltaX, currentTransform.y + deltaY);
+            
+            this.svg.call(this.zoom.transform, newTransform);
+        };
+        
+        const mouseUpHandler = () => {
+            document.removeEventListener('mousemove', mouseMoveHandler);
+            document.removeEventListener('mouseup', mouseUpHandler);
+        };
+        
+        document.addEventListener('mousemove', mouseMoveHandler);
+        document.addEventListener('mouseup', mouseUpHandler);
+    }
+
     checkForNodeProximity(transform) {
+        // Jeśli użytkownik nie opuścił strefy od ostatniego otwarcia
+        if (this.proximityLocked) {
+            return;
+        }
+
         const centerX = this.width / 2;
         const centerY = this.height / 2;
         
@@ -828,7 +885,7 @@ class LuxOSGraph {
                     Math.pow(node.y - graphCenterY, 2)
                 );
                 
-                if (distance < minDistance && distance < 50) { // 50 jednostek promień
+                if (distance < minDistance && distance < 25) { // Zmniejszony obszar wykrywania do 25 jednostek
                     minDistance = distance;
                     closestNode = node;
                 }
@@ -836,15 +893,48 @@ class LuxOSGraph {
         });
         
         // Jeśli znaleziono bliski węzeł i zoom jest wystarczająco duży, otwórz szczegóły
-        if (closestNode && transform.k > 4 && !this.nodeDetailsOpen) {
+        if (closestNode && transform.k > 5 && !this.nodeDetailsOpen && !this.proximityLocked) {
             this.nodeDetailsOpen = true;
+            this.proximityLocked = true;
+            this.lastProximityNode = closestNode;
             this.openNodeDetails(closestNode);
             
-            // Zresetuj flagę po chwili
-            setTimeout(() => {
-                this.nodeDetailsOpen = false;
-            }, 1000);
+            // Rozpocznij monitorowanie opuszczenia strefy
+            this.startProximityMonitoring(transform);
         }
+    }
+
+    startProximityMonitoring(transform) {
+        const checkExit = () => {
+            if (!this.proximityLocked) return;
+            
+            const currentTransform = d3.zoomTransform(this.svg.node());
+            const centerX = this.width / 2;
+            const centerY = this.height / 2;
+            
+            const graphCenterX = (centerX - currentTransform.x) / currentTransform.k;
+            const graphCenterY = (centerY - currentTransform.y) / currentTransform.k;
+            
+            if (this.lastProximityNode && this.lastProximityNode.x !== undefined && this.lastProximityNode.y !== undefined) {
+                const distance = Math.sqrt(
+                    Math.pow(this.lastProximityNode.x - graphCenterX, 2) + 
+                    Math.pow(this.lastProximityNode.y - graphCenterY, 2)
+                );
+                
+                // Jeśli oddalił się poza strefę (większy obszar do wyjścia)
+                if (distance > 40 || currentTransform.k <= 5) {
+                    this.proximityLocked = false;
+                    this.lastProximityNode = null;
+                    this.nodeDetailsOpen = false;
+                    return;
+                }
+            }
+            
+            // Kontynuuj monitorowanie
+            requestAnimationFrame(checkExit);
+        };
+        
+        requestAnimationFrame(checkExit);
     }
 
     showIntentionFeedback(message, type = 'success') {
