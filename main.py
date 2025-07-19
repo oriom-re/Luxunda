@@ -787,8 +787,7 @@ class {self.__class__.__name__}(ClassBeing):
                 return (row['max_inc'] or 0) + 1
         return 1
 
-    async def save_instance_soul(```tool_code
-self, soul: Soul):
+    async def save_instance_soul(tool_codeself, soul: Soul):
         """Zapisuje duszę instancji"""
         global db_pool
         if hasattr(db_pool, 'acquire'):
