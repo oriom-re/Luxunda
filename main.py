@@ -683,15 +683,17 @@ const simulation = d3.forceSimulation()
 class MessageBeing(BaseBeing):
     """Byt wiadomości z metadanymi i embedingami"""
 
-    def __post_init__(self):
-        if self.genesis.get('type') != 'message':
-            self.genesis['type'] = 'message'
-        if 'message_data' not in self.attributes:
-            self.attributes['message_data'] = {}
-        if 'embedding' not in self.attributes:
-            self.attributes['embedding'] = None
-        if 'metadata' not in self.attributes:
-            self.attributes['metadata'] = {}
+    async def __post_init__(self):
+        soul = await self.connect_to_soul()
+        if soul and soul.genesis.get('type') != 'message':
+            soul.genesis['type'] = 'message'
+        if soul and 'message_data' not in soul.attributes:
+            soul.attributes['message_data'] = {}
+        if soul and 'embedding' not in soul.attributes:
+            soul.attributes['embedding'] = None
+        if soul and 'metadata' not in soul.attributes:
+            soul.attributes['metadata'] = {}
+        await self.save_soul()
 
     def set_content(self, content: str):
         """Ustawia treść wiadomości"""
@@ -728,25 +730,29 @@ class MessageBeing(BaseBeing):
 
         return dot_product / (magnitude1 * magnitude2)
 
-    @property
-    def tags(self) -> List[str]:
-        """Pobiera tagi z atrybutów"""
-        return self.attributes.get('tags', [])
+    async def get_tags(self) -> List[str]:
+        """Pobiera tagi z atrybutów duszy"""
+        soul = await self.connect_to_soul()
+        return soul.attributes.get('tags', []) if soul else []
 
-    @tags.setter
-    def tags(self, value: List[str]):
-        """Ustawia tagi w atrybutach"""
-        self.attributes['tags'] = value
+    async def set_tags(self, value: List[str]):
+        """Ustawia tagi w atrybutach duszy"""
+        soul = await self.connect_to_soul()
+        if soul:
+            soul.attributes['tags'] = value
+            await self.save_soul()
 
-    @property
-    def energy_level(self) -> int:
-        """Pobiera poziom energii z atrybutów"""
-        return self.attributes.get('energy_level', 0)
+    async def get_energy_level(self) -> int:
+        """Pobiera poziom energii z atrybutów duszy"""
+        soul = await self.connect_to_soul()
+        return soul.attributes.get('energy_level', 0) if soul else 0
 
-    @energy_level.setter
-    def energy_level(self, value: int):
-        """Ustawia poziom energii w atrybutach"""
-        self.attributes['energy_level'] = value
+    async def set_energy_level(self, value: int):
+        """Ustawia poziom energii w atrybutach duszy"""
+        soul = await self.connect_to_soul()
+        if soul:
+            soul.attributes['energy_level'] = value
+            await self.save_soul()
 
     @classmethod
     async def create(cls, genesis: Dict[str, Any], **kwargs):

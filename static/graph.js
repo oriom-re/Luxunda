@@ -325,8 +325,47 @@ class LuxOSUniverse {
                 }
             });
 
+        // Renderuj wiadomości/intencje jako małe kropki na mapie dusz
+        this.beingSelection.filter(d => d.genesis?.type === 'message')
+            .each(function(d) {
+                const being = d3.select(this);
+                const isIntention = d.attributes?.metadata?.message_type === 'intention';
+
+                // Mała kropka dla wiadomości/intencji
+                being.append("circle")
+                    .attr("r", isIntention ? 4 : 3)
+                    .attr("fill", isIntention ? "#ffff00" : "#87ceeb")
+                    .attr("stroke", "#ffffff")
+                    .attr("stroke-width", 0.5)
+                    .style("opacity", 0.8)
+                    .style("filter", isIntention ? "url(#glow)" : null);
+
+                // Pulsowanie dla nowych intencji
+                if (isIntention) {
+                    being.append("circle")
+                        .attr("r", 8)
+                        .attr("fill", "none")
+                        .attr("stroke", "#ffff00")
+                        .attr("stroke-width", 1)
+                        .attr("opacity", 0.6)
+                        .style("animation", "intentionPulse 2s ease-in-out infinite");
+                }
+
+                // Etykieta tylko przy wysokim zoomie
+                if (window.luxOSUniverse.zoomLevel > 10) {
+                    being.append("text")
+                        .attr("class", "being-label")
+                        .attr("dy", 12)
+                        .style("text-anchor", "middle")
+                        .style("fill", "white")
+                        .style("font-size", "6px")
+                        .style("pointer-events", "none")
+                        .text(d.attributes?.message_data?.content?.slice(0, 10) + '...' || 'Msg');
+                }
+            });
+
         // Renderuj pozostałe byty jako planety/komety
-        this.beingSelection.filter(d => !this.isLuxAgent(d))
+        this.beingSelection.filter(d => !this.isLuxAgent(d) && d.genesis?.type !== 'message')
             .each(function(d) {
                 const being = d3.select(this);
                 const energySize = Math.max(5, Math.min(25, (d.attributes?.energy_level || 50) / 4));
@@ -360,13 +399,25 @@ class LuxOSUniverse {
             .transition()
             .duration(1000)
             .attr("transform", d => {
+                // Sprawdź czy byt ma predefiniowaną pozycję
+                const predefinedPos = d.attributes?.position;
+                if (predefinedPos) {
+                    return `translate(${predefinedPos.x}, ${predefinedPos.y})`;
+                }
+
+                // Użyj pozycji z serwera jeśli dostępne
                 const pos = this.beingsPositions[d.soul];
                 if (pos) {
                     return `translate(${pos.x}, ${pos.y})`;
-                } else if (this.isLuxAgent(d)) {
+                } 
+                
+                // Lux zawsze w centrum
+                if (this.isLuxAgent(d)) {
                     return `translate(0, 0)`;
                 }
-                return `translate(${Math.random() * 100 - 50}, ${Math.random() * 100 - 50})`;
+                
+                // Domyślna losowa pozycja
+                return `translate(${Math.random() * 200 - 100}, ${Math.random() * 200 - 100})`;
             });
     }
 
@@ -606,6 +657,12 @@ universeStyle.innerHTML = `
     @keyframes twinkle {
         0%, 100% { opacity: 0.3; }
         50% { opacity: 1; }
+    }
+
+    @keyframes intentionPulse {
+        0% { transform: scale(1); opacity: 0.6; }
+        50% { transform: scale(1.5); opacity: 0.3; }
+        100% { transform: scale(1); opacity: 0.6; }
     }
 `;
 document.head.appendChild(universeStyle);
