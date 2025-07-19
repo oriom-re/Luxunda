@@ -767,13 +767,15 @@ class MessageBeing(BaseBeing):
             attributes['energy_level'] = kwargs['energy_level']
 
         being = cls(
-            soul=soul,
+            soul_uid=soul,
+            soul_patch='/messages',  # Dodaj patch dla MessageBeing
+            incarnation=1,
             genesis=genesis,
             attributes=attributes,
             memories=kwargs.get('memories', []),
             self_awareness=kwargs.get('self_awareness', {})
         )
-        await being.save()
+        await being.save_soul()
         return being
 
     async def save(self):
@@ -789,7 +791,7 @@ class MessageBeing(BaseBeing):
                     attributes = EXCLUDED.attributes,
                     memories = EXCLUDED.memories,
                     self_awareness = EXCLUDED.self_awareness
-                """, str(self.soul), json.dumps(self.genesis, cls=DateTimeEncoder), 
+                """, str(self.soul_uid), json.dumps(self.genesis, cls=DateTimeEncoder), 
                     json.dumps(self.attributes, cls=DateTimeEncoder),
                     json.dumps(self.memories, cls=DateTimeEncoder), 
                     json.dumps(self.self_awareness, cls=DateTimeEncoder))
@@ -799,7 +801,7 @@ class MessageBeing(BaseBeing):
                 INSERT OR REPLACE INTO base_beings 
                 (soul, tags, energy_level, genesis, attributes, memories, self_awareness)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (str(self.soul), json.dumps(self.tags), self.energy_level, 
+            """, (str(self.soul_uid), json.dumps(self.tags), self.energy_level, 
                   json.dumps(self.genesis, cls=DateTimeEncoder), 
                   json.dumps(self.attributes, cls=DateTimeEncoder),
                   json.dumps(self.memories, cls=DateTimeEncoder), 
@@ -814,8 +816,8 @@ class MessageBeing(BaseBeing):
             row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
             if row:
                 return cls(
-                    soul=str(row['soul']),
-                    genesis=row['genesis'],
+                    soul_uid=str(row['soul']),
+                    soul_patch='/messages',  # Poprawka:                genesis=row['genesis'],
                     attributes=row['attributes'],
                     memories=row['memories'],
                     self_awareness=row['self_awareness'],
@@ -832,7 +834,8 @@ class MessageBeing(BaseBeing):
             async with db_pool.acquire() as conn:
                 rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
                 return [cls(
-                    soul=str(row['soul']),
+                    soul_uid=str(row['soul']),
+                    soul_patch='/messages',  # Dodaj patch dla MessageBeing
                     genesis=row['genesis'],
                     attributes=row['attributes'],
                     memories=row['memories'],
@@ -859,7 +862,8 @@ class MessageBeing(BaseBeing):
                             attributes['energy_level'] = row[2]
 
                         beings.append(cls(
-                            soul=row[0],
+                            soul_uid=row[0],
+                            soul_patch='/messages',  # Dodaj patch dla MessageBeing
                             genesis=genesis,
                             attributes=attributes,
                             memories=memories,
@@ -1437,7 +1441,21 @@ async def broadcast_graph_update():
         relationships = await Relationship.get_all()
 
         # Konwertuj do JSON-safe format
-        nodes = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
+        nodes = []
+        for being in beings:
+            soul = await being.connect_to_soul() if hasattr(being, 'connect_to_soul') else None
+            if soul:
+                nodes.append({
+                    'soul': being.soul_uid,
+                    'genesis': soul.genesis,
+                    'attributes': soul.attributes,
+                    'memories': soul.memories,
+                    'self_awareness': soul.self_awareness
+                })
+            else:
+                # Fallback dla legacy beings
+                nodes.append(json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)))
+
         links = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
 
         graph_data = {
@@ -1784,7 +1802,9 @@ class BeingFactory:
         if hasattr(db_pool, 'acquire'):
             # PostgreSQL
             return BeingClass(
-                soul=str(row['soul']),
+                soul_uid=str(row['soul']),
+                soul_patch='/beings',
+                incarnation=1,
                 genesis=row['genesis'],
                 attributes=row['attributes'],
                 memories=row['memories'],
@@ -1798,7 +1818,9 @@ class BeingFactory:
             self_awareness = json.loads(row[6]) if row[6] else {}
 
             return BeingClass(
-                soul=row[0],
+                soul_uid=row[0],
+                soul_patch='/beings',
+                incarnation=1,
                 genesis=genesis,
                 attributes=attributes,
                 memories=memories,
@@ -1861,8 +1883,8 @@ async def create_lux_agent():
         )
 
         # Ustaw specjalne ID dla Lux
-        lux_agent.soul = 'lux-core-consciousness'
-        await lux_agent.save()
+        lux_agent.soul_uid = 'lux-core-consciousness'
+        await lux_agent.save_soul()
 
         print(f"Utworzono Lux jako głównego agenta: {lux_agent.soul}")
         return lux_agent
