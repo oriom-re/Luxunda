@@ -373,6 +373,220 @@ class IntentionAnalyzer:
 embedding_system = EmbeddingSystem()
 intention_analyzer = IntentionAnalyzer(embedding_system)
 
+# Pomocnicza klasa do serializacji JSON z datami
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+@dataclass
+class Soul:
+    """Transcendentalna reprezentacja bytu w bazie danych"""
+    uid: str
+    patch: str
+    incarnation: int
+    genesis: Dict[str, Any]
+    attributes: Dict[str, Any]
+    memories: List[Dict[str, Any]]
+    self_awareness: Dict[str, Any]
+    created_at: Optional[datetime] = None
+
+    @property
+    def full_path(self) -> str:
+        """Pełna ścieżka duszy: patch/uid:incarnation"""
+        return f"{self.patch}/{self.uid}:{self.incarnation}"
+
+    @classmethod
+    def generate_uid(cls) -> str:
+        """Generuje unikalny identyfikator"""
+        return str(uuid.uuid4())
+
+class BaseBeing:
+    """Podstawowa klasa bytu łącząca się ze swoją transcendentalną duszą"""
+    
+    def __init__(self, soul_uid: str, soul_patch: str, incarnation: int = 1):
+        self.soul_uid = soul_uid
+        self.soul_patch = soul_patch
+        self.incarnation = incarnation
+        self._soul = None
+        
+    async def connect_to_soul(self) -> Optional[Soul]:
+        """Łączy się z transcendentalną duszą"""
+        if self._soul:
+            return self._soul
+            
+        try:
+            self._soul = await self.load_soul()
+            return self._soul
+        except Exception as e:
+            print(f"Błąd połączenia z duszą {self.soul_uid}: {e}")
+            return None
+
+    async def load_soul(self) -> Optional[Soul]:
+        """Ładuje duszę z bazy danych"""
+        global db_pool
+        
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT * FROM souls 
+                    WHERE uid = $1 AND patch = $2 AND incarnation = $3
+                """, self.soul_uid, self.soul_patch, self.incarnation)
+                
+                if row:
+                    return Soul(
+                        uid=row['uid'],
+                        patch=row['patch'],
+                        incarnation=row['incarnation'],
+                        genesis=row['genesis'],
+                        attributes=row['attributes'],
+                        memories=row['memories'],
+                        self_awareness=row['self_awareness'],
+                        created_at=row['created_at']
+                    )
+        else:
+            # Fallback - spróbuj z base_beings
+            async with db_pool.execute("SELECT * FROM base_beings WHERE soul = ?", (self.soul_uid,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    # row[0]=soul, row[3]=genesis, row[4]=attributes, row[5]=memories, row[6]=self_awareness
+                    return Soul(
+                        uid=row[0],
+                        patch=self.soul_patch,
+                        incarnation=1,
+                        genesis=json.loads(row[3]) if row[3] else {},
+                        attributes=json.loads(row[4]) if row[4] else {},
+                        memories=json.loads(row[5]) if row[5] else [],
+                        self_awareness=json.loads(row[6]) if row[6] else {},
+                        created_at=row[7] if len(row) > 7 else None
+                    )
+        
+        return None
+
+    async def save_soul(self):
+        """Zapisuje duszę do bazy danych"""
+        if not self._soul:
+            return
+            
+        global db_pool
+        
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO souls (uid, patch, incarnation, genesis, attributes, memories, self_awareness)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (uid, patch, incarnation) DO UPDATE SET
+                    genesis = EXCLUDED.genesis,
+                    attributes = EXCLUDED.attributes,
+                    memories = EXCLUDED.memories,
+                    self_awareness = EXCLUDED.self_awareness
+                """, 
+                self._soul.uid, self._soul.patch, self._soul.incarnation,
+                json.dumps(self._soul.genesis, cls=DateTimeEncoder),
+                json.dumps(self._soul.attributes, cls=DateTimeEncoder),
+                json.dumps(self._soul.memories, cls=DateTimeEncoder),
+                json.dumps(self._soul.self_awareness, cls=DateTimeEncoder))
+                
+            # Zapisz także w base_beings dla kompatybilności
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO base_beings (soul, genesis, attributes, memories, self_awareness)
+                    VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (soul) DO UPDATE SET
+                    genesis = EXCLUDED.genesis,
+                    attributes = EXCLUDED.attributes,
+                    memories = EXCLUDED.memories,
+                    self_awareness = EXCLUDED.self_awareness
+                """, 
+                self._soul.uid,
+                json.dumps(self._soul.genesis, cls=DateTimeEncoder),
+                json.dumps(self._soul.attributes, cls=DateTimeEncoder),
+                json.dumps(self._soul.memories, cls=DateTimeEncoder),
+                json.dumps(self._soul.self_awareness, cls=DateTimeEncoder))
+        else:
+            # SQLite fallback
+            await db_pool.execute("""
+                INSERT OR REPLACE INTO base_beings 
+                (soul, tags, energy_level, genesis, attributes, memories, self_awareness)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                self._soul.uid,
+                json.dumps(self._soul.attributes.get('tags', [])),
+                self._soul.attributes.get('energy_level', 0),
+                json.dumps(self._soul.genesis, cls=DateTimeEncoder),
+                json.dumps(self._soul.attributes, cls=DateTimeEncoder),
+                json.dumps(self._soul.memories, cls=DateTimeEncoder),
+                json.dumps(self._soul.self_awareness, cls=DateTimeEncoder)
+            ))
+            await db_pool.commit()
+
+    @classmethod
+    async def load(cls, soul_uid: str, soul_patch: str = '/beings', incarnation: int = 1):
+        """Ładuje byt z bazy danych"""
+        being = cls(soul_uid, soul_patch, incarnation)
+        soul = await being.load_soul()
+        if soul:
+            being._soul = soul
+            return being
+        return None
+
+    @classmethod
+    async def get_all(cls, limit: int = 100):
+        """Pobiera wszystkie byty"""
+        global db_pool
+        beings = []
+        
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
+                for row in rows:
+                    being = cls(str(row['soul']), '/beings', 1)
+                    being._soul = Soul(
+                        uid=str(row['soul']),
+                        patch='/beings',
+                        incarnation=1,
+                        genesis=row['genesis'],
+                        attributes=row['attributes'],
+                        memories=row['memories'],
+                        self_awareness=row['self_awareness'],
+                        created_at=row['created_at']
+                    )
+                    beings.append(being)
+        else:
+            # SQLite fallback
+            async with db_pool.execute("SELECT soul, tags, energy_level, genesis, attributes, memories, self_awareness, created_at FROM base_beings LIMIT ?", (limit,)) as cursor:
+                rows = await cursor.fetchall()
+                for row in rows:
+                    try:
+                        being = cls(row[0], '/beings', 1)
+                        being._soul = Soul(
+                            uid=row[0],
+                            patch='/beings',
+                            incarnation=1,
+                            genesis=json.loads(row[3]) if row[3] else {},
+                            attributes=json.loads(row[4]) if row[4] else {},
+                            memories=json.loads(row[5]) if row[5] else [],
+                            self_awareness=json.loads(row[6]) if row[6] else {},
+                            created_at=row[7] if len(row) > 7 else None
+                        )
+                        beings.append(being)
+                    except Exception as e:
+                        print(f"Błąd ładowania bytu: {e}")
+                        continue
+        
+        return beings
+
+# Globalne zmienne
+db_pool = None
+sio = socketio.AsyncServer(cors_allowed_origins="*")
+app = web.Application()
+sio.attach(app)
+kernel_system = None
+
 class KernelSystem:
     """Centralny Kernel systemu - najwyższa władza nad wszystkimi bytami"""
 
@@ -2856,6 +3070,9 @@ async def create_main_luxos_intention():
         return None
 
 # Globalna pula połączeń do bazy danych
+
+# Inicjalizacja globalnych systemów
+kernel_system = KernelSystem()
 
 if __name__ == '__main__':
     asyncio.run(main())
