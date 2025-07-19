@@ -286,6 +286,9 @@
         document.addEventListener('DOMContentLoaded', function() {
             const graphManager = new LuxOSGraph();
             const intentionComponent = new IntentionComponent(graphManager);
+            
+            // Make sure input is visible
+            console.log('Intention input:', document.getElementById('intentionInput'));
         });
     </script>
 </body>

@@ -1,150 +1,97 @@
 class LuxOSGraph {
     constructor() {
-        this.socket = null;
+        this.svg = d3.select("#graph");
+        this.width = window.innerWidth;
+        this.height = window.innerHeight - 190; // Account for header and intention panel
         this.nodes = [];
         this.links = [];
         this.selectedNodes = [];
-        this.simulation = null;
-        this.svg = null;
-        this.nodeGroup = null;
-        this.linkGroup = null;
-        this.labelGroup = null;
 
-        this.initSocket();
-        this.initGraph();
+        this.simulation = null;
+        this.socket = null;
+
+        this.initializeSocket();
+        this.initializeGraph();
         this.setupEventListeners();
-        this.initIntentionSystem();
     }
 
-    initSocket() {
+    initializeSocket() {
         this.socket = io();
 
         this.socket.on('connect', () => {
             console.log('Połączono z serwerem');
-            this.updateStatus('Połączono', 'connected');
+            document.getElementById('connectionStatus').textContent = 'Połączono';
+            document.getElementById('connectionDot').classList.add('connected');
+            this.socket.emit('get_graph_data');
         });
 
         this.socket.on('disconnect', () => {
             console.log('Rozłączono z serwerem');
-            this.updateStatus('Rozłączono', 'disconnected');
+            document.getElementById('connectionStatus').textContent = 'Rozłączono';
+            document.getElementById('connectionDot').classList.remove('connected');
         });
 
         this.socket.on('graph_data', (data) => {
-            this.updateGraph(data.nodes, data.links);
+            this.updateGraph(data);
         });
 
-        this.socket.on('graph_updated', (data) => {
-            this.updateGraph(data.nodes, data.links);
-        });
-
-        this.socket.on('being_created', (being) => {
-            console.log('Utworzono nowy byt:', being);
-        });
-
-        this.socket.on('relationship_created', (relationship) => {
-            console.log('Utworzono nową relację:', relationship);
-        });
-
-        this.socket.on('error', (error) => {
-            console.error('Błąd:', error.message);
-            alert('Błąd: ' + error.message);
+        this.socket.on('graph_update', (data) => {
+            this.updateGraph(data);
         });
 
         this.socket.on('intention_response', (response) => {
-            console.log('Odpowiedź na intencję:', response);
-            this.showIntentionFeedback(response.message || 'Intencja przetworzona');
-
-            if (response.actions) {
-                // Automatyczne wykonanie akcji na podstawie intencji
-                this.executeIntentionActions(response.actions);
-            }
+            this.handleIntentionResponse(response);
         });
 
-        this.socket.on('intention_response', (data) => {
-            this.handleIntentionResponse(data);
-        });
-
-        this.socket.on('function_registered', (data) => {
-            this.handleFunctionRegistered(data);
-        });
-
-        this.socket.on('function_executed', (data) => {
-            this.handleFunctionExecuted(data);
-        });
-
-        this.socket.on('registered_functions', (data) => {
-            this.showRegisteredFunctionsList(data);
-        });
-
-        this.socket.on('being_source', (data) => {
-            this.showSourceCode(data);
+        this.socket.on('error', (error) => {
+            console.error('Socket error:', error);
+            this.showIntentionFeedback(error.message || 'Wystąpił błąd', 'error');
         });
     }
 
-    initGraph() {
-        const graphElement = document.getElementById('graph');
-        const width = window.innerWidth;
-        const height = window.innerHeight - 190; // Account for header and intention system
+    initializeGraph() {
+        this.svg
+            .attr("width", this.width)
+            .attr("height", this.height)
+            .attr("viewBox", [0, 0, this.width, this.height]);
 
-        this.svg = d3.select('#graph')
-            .attr('width', width)
-            .attr('height', height);
+        // Add arrow marker for directed links
+        this.svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 15)
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("fill", "#555");
 
-        // Definicje gradientów i markerów
-        const defs = this.svg.append('defs');
+        this.linkGroup = this.svg.append("g").attr("class", "links");
+        this.nodeGroup = this.svg.append("g").attr("class", "nodes");
 
-        // Marker dla strzałek
-        defs.append('marker')
-            .attr('id', 'arrowhead')
-            .attr('viewBox', '0 -5 10 10')
-            .attr('refX', 20)
-            .attr('refY', 0)
-            .attr('markerWidth', 6)
-            .attr('markerHeight', 6)
-            .attr('orient', 'auto')
-            .append('path')
-            .attr('d', 'M0,-5L10,0L0,5')
-            .attr('fill', '#999');
-
-        // Grupy dla różnych elementów
-        this.linkGroup = this.svg.append('g').attr('class', 'links');
-        this.nodeGroup = this.svg.append('g').attr('class', 'nodes');
-        this.labelGroup = this.svg.append('g').attr('class', 'labels');
-
-        // Zoom i pan
-        const zoom = d3.zoom()
-            .scaleExtent([0.1, 4])
-            .on('zoom', (event) => {
-                const { transform } = event;
-                this.nodeGroup.attr('transform', transform);
-                this.linkGroup.attr('transform', transform);
-                this.labelGroup.attr('transform', transform);
-            });
-
-        this.svg.call(zoom);
-
-        // Symulacja fizyki
         this.simulation = d3.forceSimulation()
-            .force('link', d3.forceLink().id(d => d.soul).distance(100))
-            .force('charge', d3.forceManyBody().strength(-300))
-            .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collision', d3.forceCollide().radius(30));
+            .force("link", d3.forceLink().id(d => d.soul).distance(100))
+            .force("charge", d3.forceManyBody().strength(-300))
+            .force("center", d3.forceCenter(this.width / 2, this.height / 2))
+            .force("collision", d3.forceCollide().radius(30));
     }
 
-    updateGraph(nodes, links) {
-        this.nodes = nodes.map(d => ({
-            ...d,
-            x: d.x || Math.random() * 800,
-            y: d.y || Math.random() * 600
-        }));
+    setupEventListeners() {
+        window.addEventListener('resize', () => {
+            this.width = window.innerWidth;
+            this.height = window.innerHeight - 190;
+            this.svg.attr("width", this.width).attr("height", this.height);
+            this.simulation.force("center", d3.forceCenter(this.width / 2, this.height / 2));
+        });
+    }
 
-        this.links = links.map(d => ({
-            ...d,
-            source: d.source_soul,
-            target: d.target_soul
-        }));
+    updateGraph(data) {
+        this.nodes = data.nodes || [];
+        this.links = data.links || [];
 
-        // Aktualizuj statystyki
+        // Update statistics
         document.getElementById('nodesCount').textContent = this.nodes.length;
         document.getElementById('linksCount').textContent = this.links.length;
 
@@ -152,462 +99,216 @@ class LuxOSGraph {
     }
 
     renderGraph() {
-        // Renderowanie linków
+        // Update links
         const link = this.linkGroup
-            .selectAll('.link')
-            .data(this.links, d => d.id);
+            .selectAll(".link")
+            .data(this.links, d => `${d.source_soul}-${d.target_soul}`);
 
         link.exit().remove();
 
         const linkEnter = link.enter()
-            .append('line')
-            .attr('class', 'link')
-            .attr('marker-end', 'url(#arrowhead)');
+            .append("line")
+            .attr("class", "link");
 
-        const linkUpdate = linkEnter.merge(link);
+        link.merge(linkEnter);
 
-        // Renderowanie węzłów
+        // Update nodes
         const node = this.nodeGroup
-            .selectAll('.node')
+            .selectAll(".node-group")
             .data(this.nodes, d => d.soul);
 
         node.exit().remove();
 
         const nodeEnter = node.enter()
-            .append('circle')
-            .attr('class', 'node')
-            .attr('r', d => Math.max(15, (d.energy_level || d.attributes?.energy_level || 50) / 2))
-            .attr('fill', d => this.getNodeColor(d))
+            .append("g")
+            .attr("class", "node-group")
             .call(this.drag());
 
-        const nodeUpdate = nodeEnter.merge(node)
-            .attr('r', d => Math.max(15, (d.energy_level || d.attributes?.energy_level || 50) / 2))
-            .attr('fill', d => this.getNodeColor(d));
+        nodeEnter.append("circle")
+            .attr("class", "node")
+            .attr("r", 20)
+            .attr("fill", d => this.getNodeColor(d));
 
-        // Event listenery dla węzłów
-        nodeUpdate.on('click', (event, d) => {
-            this.selectNode(d);
+        nodeEnter.append("text")
+            .attr("class", "node-label")
+            .attr("dy", "0.3em")
+            .text(d => d.genesis?.name || "Unnamed");
+
+        const nodeUpdate = node.merge(nodeEnter);
+
+        nodeUpdate.select(".node")
+            .attr("fill", d => this.getNodeColor(d));
+
+        nodeUpdate.select(".node-label")
+            .text(d => d.genesis?.name || "Unnamed");
+
+        // Add click handlers
+        nodeUpdate.on("click", (event, d) => {
+            this.handleNodeClick(event, d);
         });
 
-        // Renderowanie etykiet
-        const label = this.labelGroup
-            .selectAll('.node-label')
-            .data(this.nodes, d => d.soul);
-
-        label.exit().remove();
-
-        const labelEnter = label.enter()
-            .append('text')
-            .attr('class', 'node-label')
-            .text(d => (d.genesis && d.genesis.name) || (d.soul ? d.soul.substring(0, 8) : 'Węzeł'));
-
-        const labelUpdate = labelEnter.merge(label);
-
-        // Aktualizacja symulacji
+        // Update simulation
         this.simulation.nodes(this.nodes);
-        this.simulation.force('link').links(this.links);
+        this.simulation.force("link").links(this.links.map(d => ({
+            source: d.source_soul,
+            target: d.target_soul
+        })));
 
-        this.simulation.on('tick', () => {
-            linkUpdate
-                .attr('x1', d => d.source.x)
-                .attr('y1', d => d.source.y)
-                .attr('x2', d => d.target.x)
-                .attr('y2', d => d.target.y);
+        this.simulation.on("tick", () => {
+            this.linkGroup.selectAll(".link")
+                .attr("x1", d => {
+                    const sourceNode = this.nodes.find(n => n.soul === d.source_soul);
+                    return sourceNode ? sourceNode.x : 0;
+                })
+                .attr("y1", d => {
+                    const sourceNode = this.nodes.find(n => n.soul === d.source_soul);
+                    return sourceNode ? sourceNode.y : 0;
+                })
+                .attr("x2", d => {
+                    const targetNode = this.nodes.find(n => n.soul === d.target_soul);
+                    return targetNode ? targetNode.x : 0;
+                })
+                .attr("y2", d => {
+                    const targetNode = this.nodes.find(n => n.soul === d.target_soul);
+                    return targetNode ? targetNode.y : 0;
+                });
 
-            nodeUpdate
-                .attr('cx', d => d.x)
-                .attr('cy', d => d.y);
-
-            labelUpdate
-                .attr('x', d => d.x)
-                .attr('y', d => d.y + 5);
+            this.nodeGroup.selectAll(".node-group")
+                .attr("transform", d => `translate(${d.x},${d.y})`);
         });
 
         this.simulation.alpha(1).restart();
     }
 
     getNodeColor(node) {
-        const type = (node.genesis && node.genesis.type) || 'unknown';
+        const type = node.genesis?.type || 'unknown';
         const colors = {
             'function': '#4CAF50',
             'class': '#2196F3',
-            'runtime': '#FF9800',
-            'kernel': '#F44336',
-            'unknown': '#9E9E9E'
+            'variable': '#FF9800',
+            'module': '#9C27B0',
+            'unknown': '#607D8B'
         };
         return colors[type] || colors.unknown;
     }
 
-    selectNode(node) {
-        // Usuwanie poprzednich zaznaczeń
-        this.nodeGroup.selectAll('.node').classed('selected', false);
+    handleNodeClick(event, node) {
+        event.stopPropagation();
 
-        // Dodawanie do listy wybranych
-        const index = this.selectedNodes.findIndex(n => n.soul === node.soul);
-        if (index === -1) {
-            if (this.selectedNodes.length >= 2) {
-                this.selectedNodes.shift(); // Usuń najstarszy wybór
-            }
-            this.selectedNodes.push(node);
+        if (this.selectedNodes.includes(node.soul)) {
+            this.selectedNodes = this.selectedNodes.filter(s => s !== node.soul);
+        } else {
+            this.selectedNodes.push(node.soul);
         }
 
-        // Zaznaczanie wybranych węzłów
-        this.selectedNodes.forEach(selectedNode => {
-            this.nodeGroup.selectAll('.node')
-                .filter(d => d.soul === selectedNode.soul)
-                .classed('selected', true);
-        });
+        // Update visual selection
+        this.nodeGroup.selectAll(".node")
+            .classed("selected", d => this.selectedNodes.includes(d.soul));
 
-        // Wyświetlanie szczegółów
-        this.showNodeDetails(node);
-
-        console.log('Wybrane węzły:', this.selectedNodes.map(n => (n.genesis && n.genesis.name) || n.soul || 'Nieznany'));
-    }
-
-    showNodeDetails(node) {
-        const panel = document.getElementById('selectedInfo');
-        const details = document.getElementById('beingDetails');
-
-        // Bezpieczne pobieranie wartości
-        const soul = node.soul || 'Nieznane';
-        const name = (node.genesis && node.genesis.name) || 'Brak';
-        const type = (node.genesis && node.genesis.type) || 'Nieznany';
-        const energyLevel = node.energy_level || node.attributes?.energy_level || 0;
-        const tags = node.tags || node.attributes?.tags || [];
-
-        let html = `
-            <strong>Soul:</strong> ${soul}<br>
-            <strong>Nazwa:</strong> ${name}<br>
-            <strong>Typ:</strong> ${type}<br>
-            <strong>Energia:</strong> 
-            <div class="energy-bar">
-                <div class="energy-fill" style="width: ${energyLevel}%"></div>
-            </div>
-            ${energyLevel}/100<br>
-            <strong>Tagi:</strong><br>
-        `;
-
-        if (Array.isArray(tags)) {
-            tags.forEach(tag => {
-                html += `<span class="tag">${tag}</span>`;
-            });
-        }
-
-        html += `<br><br><strong>Atrybuty:</strong><br>
-            <pre style="font-size: 10px; background: #333; padding: 5px; border-radius: 3px; overflow-x: auto;">
-${JSON.stringify(node.attributes || {}, null, 2)}</pre>`;
-
-        if (node.memories && node.memories.length > 0) {
-            html += `<br><strong>Wspomnienia:</strong><br>
-                <pre style="font-size: 10px; background: #333; padding: 5px; border-radius: 3px; overflow-x: auto;">
-${JSON.stringify(node.memories, null, 2)}</pre>`;
-        }
-
-        details.innerHTML = html;
-        panel.style.display = 'block';
+        console.log('Selected nodes:', this.selectedNodes);
     }
 
     drag() {
         return d3.drag()
-            .on('start', (event, d) => {
+            .on("start", (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0.3).restart();
                 d.fx = d.x;
                 d.fy = d.y;
             })
-            .on('drag', (event, d) => {
+            .on("drag", (event, d) => {
                 d.fx = event.x;
                 d.fy = event.y;
             })
-            .on('end', (event, d) => {
+            .on("end", (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0);
                 d.fx = null;
                 d.fy = null;
             });
     }
 
-    setupEventListeners() {
-        window.addEventListener('resize', () => {
-            const width = window.innerWidth;
-            const height = window.innerHeight - 190;
-
-            this.svg.attr('width', width).attr('height', height);
-            this.simulation.force('center', d3.forceCenter(width / 2, height / 2));
-            this.simulation.alpha(1).restart();
-        });
-    }
-
-    initIntentionSystem() {
-        const intentionInput = document.getElementById('intentionInput');
-        const sendButton = document.getElementById('sendIntention');
-        const charCounter = document.getElementById('charCounter');
-
-        // Auto-resize textarea
-        intentionInput.addEventListener('input', () => {
-            this.autoResizeTextarea(intentionInput);
-            this.updateCharCounter(intentionInput, charCounter, sendButton);
-            this.processEmoticons(intentionInput);
-        });
-
-        // Send intention on button click
-        sendButton.addEventListener('click', () => {
-            this.sendIntention();
-        });
-
-        // Send intention on Ctrl+Enter
-        intentionInput.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
-                e.preventDefault();
-                this.sendIntention();
-            }
-        });
-    }
-
-    autoResizeTextarea(textarea) {
-        textarea.style.height = 'auto';
-        const newHeight = Math.min(Math.max(textarea.scrollHeight, 40), 200);
-        textarea.style.height = newHeight + 'px';
-    }
-
-    updateCharCounter(input, counter, button) {
-        const length = input.value.length;
-        const maxLength = 500;
-
-        counter.textContent = `${length}/${maxLength}`;
-
-        if (length > maxLength * 0.9) {
-            counter.className = 'intention-counter danger';
-        } else if (length > maxLength * 0.7) {
-            counter.className = 'intention-counter warning';
-        } else {
-            counter.className = 'intention-counter';
+    processIntention(intention) {
+        if (!intention.trim()) {
+            this.showIntentionFeedback('Wprowadź treść intencji', 'error');
+            return;
         }
 
-        button.disabled = length === 0 || length > maxLength;
-    }
-
-    processEmoticons(input) {
-        const cursorPos = input.selectionStart;
-        let text = input.value;
-
-        // Mapa emotikonów
-        const emoticonMap = {
-            ':D': '😃',
-            ':)': '😊',
-            ':(': '😞',
-            ':P': '😛',
-            ';)': '😉',
-            ':o': '😮',
-            ':O': '😲',
-            ':|': '😐',
-            ':/': '😕',
-            '<3': '❤️',
-            '</3': '💔',
-            ':*': '😘'
+        const context = {
+            selected_nodes: this.selectedNodes,
+            current_graph: {
+                nodes: this.nodes.length,
+                links: this.links.length
+            }
         };
 
-        let replaced = false;
-        for (const [emoticon, emoji] of Object.entries(emoticonMap)) {
-            if (text.includes(emoticon)) {
-                text = text.replaceAll(emoticon, emoji);
-                replaced = true;
-            }
-        }
-
-        if (replaced) {
-            input.value = text;
-            input.setSelectionRange(cursorPos, cursorPos);
-        }
-    }
-
-    sendIntention() {
-        const intentionInput = document.getElementById('intentionInput');
-        const intention = intentionInput.value.trim();
-
-        if (!intention) return;
-
-        // Wyślij intencję przez Socket.IO
         this.socket.emit('process_intention', {
             intention: intention,
-            context: {
-                selected_nodes: this.selectedNodes.map(n => n.soul),
-                timestamp: new Date().toISOString(),
-                graph_state: {
-                    nodes_count: this.nodes.length,
-                    links_count: this.links.length
-                }
-            }
+            context: context
         });
 
         console.log('Wysłano intencję:', intention);
-
-        // Wyczyść pole i zresetuj wysokość
-        intentionInput.value = '';
-        intentionInput.style.height = '40px';
-        document.getElementById('charCounter').textContent = '0/500';
-        document.getElementById('charCounter').className = 'intention-counter';
-        document.getElementById('sendIntention').disabled = true;
-
-        // Pokaż feedback
-        this.showIntentionFeedback('Intencja wysłana...');
+        this.showIntentionFeedback('Przetwarzanie intencji...', 'info');
     }
 
-    showIntentionFeedback(message) {
-        // Tymczasowe powiadomienie w prawym górnym rogu
-        const feedback = document.createElement('div');
-        feedback.style.position = 'fixed';
-        feedback.style.top = '60px';
-        feedback.style.right = '10px';
-        feedback.style.background = '#00ff88';
-        feedback.style.color = 'black';
-        feedback.style.padding = '10px 15px';
-        feedback.style.borderRadius = '5px';
-        feedback.style.zIndex = '1001';
-        feedback.style.fontSize = '14px';
-        feedback.textContent = message;
+    handleIntentionResponse(response) {
+        console.log('Odpowiedź na intencję:', response);
+        this.showIntentionFeedback(response.message || 'Intencja przetworzona', 'success');
 
-        document.body.appendChild(feedback);
-
-        setTimeout(() => {
-            feedback.remove();
-        }, 3000);
+        // Clear selection after processing
+        this.selectedNodes = [];
+        this.nodeGroup.selectAll(".node").classed("selected", false);
     }
 
-    executeIntentionActions(actions) {
-        actions.forEach(action => {
-            switch (action.type) {
-                case 'create_being':
-                    this.socket.emit('create_being', action.data);
-                    break;
-                case 'create_relationship':
-                    this.socket.emit('create_relationship', action.data);
-                    break;
-                case 'select_nodes':
-                    action.data.souls.forEach(soul => {
-                        const node = this.nodes.find(n => n.soul === soul);
-                        if (node) this.selectNode(node);
-                    });
-                    break;
-                case 'highlight_path':
-                    this.highlightPath(action.data.from, action.data.to);
-                    break;
-                default:
-                    console.log('Nieznana akcja intencji:', action);
-            }
-        });
-    }
-
-    highlightPath(fromSoul, toSoul) {
-        // Proste podświetlenie ścieżki między węzłami
-        this.linkGroup.selectAll('.link')
-            .classed('highlighted', d => 
-                (d.source.soul === fromSoul && d.target.soul === toSoul) ||
-                (d.source.soul === toSoul && d.target.soul === fromSoul)
-            );
-
-        setTimeout(() => {
-            this.linkGroup.selectAll('.link').classed('highlighted', false);
-        }, 3000);
-    }
-
-    updateStatus(message, type) {
-        const statusElement = document.getElementById('connectionStatus');
-        const dotElement = document.getElementById('connectionDot');
-
-        if (statusElement) {
-            statusElement.textContent = message;
-            statusElement.className = `status-${type}`;
-        }
-
-        if (dotElement) {
-            if (type === 'connected') {
-                dotElement.classList.add('connected');
-            } else {
-                dotElement.classList.remove('connected');
-            }
-        }
-    }
-
-    processIntention(intention) {
-        // Wyślij intencję przez Socket.IO
-        this.socket.emit('process_intention', {
-            intention: intention,
-            context: {
-                selected_nodes: this.selectedNodes.map(n => n.soul),
-                timestamp: new Date().toISOString(),
-                graph_state: {
-                    nodes_count: this.nodes.length,
-                    links_count: this.links.length
-                }
-            }
-        });
-
-        console.log('Wysłano intencję:', intention);
-        this.showFeedback('Intencja wysłana... 🚀');
-    }
-
-    showFeedback(message) {
-        // Usuń poprzednie powiadomienie
-        const existing = document.querySelector('.feedback-message');
+    showIntentionFeedback(message, type = 'success') {
+        // Remove existing feedback
+        const existing = document.querySelector('.intention-feedback');
         if (existing) {
             existing.remove();
         }
 
-        // Utwórz nowe powiadomienie
+        // Create new feedback
         const feedback = document.createElement('div');
-        feedback.className = 'feedback-message';
+        feedback.className = `intention-feedback ${type}`;
         feedback.textContent = message;
+
+        // Styles
+        feedback.style.position = 'fixed';
+        feedback.style.top = '80px';
+        feedback.style.right = '20px';
+        feedback.style.padding = '12px 18px';
+        feedback.style.borderRadius = '8px';
+        feedback.style.zIndex = '1001';
+        feedback.style.fontSize = '14px';
+        feedback.style.fontWeight = 'bold';
+        feedback.style.transform = 'translateX(100%)';
+        feedback.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+        feedback.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+
+        if (type === 'error') {
+            feedback.style.background = '#ff4444';
+            feedback.style.color = 'white';
+        } else if (type === 'info') {
+            feedback.style.background = '#2196F3';
+            feedback.style.color = 'white';
+        } else {
+            feedback.style.background = '#00ff88';
+            feedback.style.color = '#1a1a1a';
+        }
 
         document.body.appendChild(feedback);
 
-        // Animacja pojawienia się
+        // Animate in
         setTimeout(() => {
-            feedback.classList.add('show');
-        }, 100);
+            feedback.style.transform = 'translateX(0)';
+        }, 10);
 
-        // Automatyczne usunięcie po 3 sekundach
+        // Auto remove after 3 seconds
         setTimeout(() => {
-            feedback.classList.remove('show');
+            feedback.style.transform = 'translateX(100%)';
             setTimeout(() => {
-                feedback.remove();
+                if (feedback.parentNode) {
+                    feedback.remove();
+                }
             }, 300);
         }, 3000);
     }
-
-    handleIntentionResponse(data) {
-        console.log('Odpowiedź na intencję:', data);
-
-        if (data.actions && data.actions.length > 0) {
-            data.actions.forEach(action => {
-                if (action.type === 'create_being') {
-                    this.socket.emit('create_being', action.data);
-                } else if (action.type === 'create_relationship') {
-                    this.socket.emit('create_relationship', action.data);
-                }
-            });
-        }
-
-        this.showFeedback(data.message || 'Intencja przetworzona! ✨');
-        this.updateStatus('Połączono', 'connected');
-    }
-
-    handleFunctionRegistered(data) {
-        console.log('Funkcja zarejestrowana:', data);
-        this.showFeedback('Funkcja zarejestrowana! ✅');
-    }
-
-    handleFunctionExecuted(data) {
-        console.log('Funkcja wykonana:', data);
-        this.showFeedback('Funkcja wykonana! 🚀');
-    }
-
-    showRegisteredFunctionsList(data) {
-        console.log('Lista funkcji:', data);
-    }
-
-    showSourceCode(data) {
-        console.log('Kod źródłowy:', data);
-        alert(`Kod źródłowy:\n\n${data.source}`);
-    }
 }
-
-// Inicjalizacja - przeniesiona do HTML
