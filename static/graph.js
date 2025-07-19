@@ -373,7 +373,6 @@ class LuxOSUniverse {
             });
 
         // Renderuj wiadomości/intencje jako małe kropki na mapie dusz
-        const self = this;
         this.beingSelection.filter(d => d.genesis?.type === 'message')
             .each(function(d) {
                 const being = d3.select(this);
