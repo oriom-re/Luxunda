@@ -284,11 +284,20 @@
     <script>
         // Inicjalizacja aplikacji
         document.addEventListener('DOMContentLoaded', function() {
-            const graphManager = new LuxOSGraph();
-            const intentionComponent = new IntentionComponent(graphManager);
-            
-            // Make sure input is visible
-            console.log('Intention input:', document.getElementById('intentionInput'));
+            try {
+                if (typeof LuxOSGraph === 'undefined') {
+                    console.error('LuxOSGraph class not loaded');
+                    return;
+                }
+                
+                const graphManager = new LuxOSGraph();
+                const intentionComponent = new IntentionComponent(graphManager);
+                
+                // Make sure input is visible
+                console.log('Intention input:', document.getElementById('intentionInput'));
+            } catch (error) {
+                console.error('Error initializing application:', error);
+            }
         });
     </script>
 </body>
