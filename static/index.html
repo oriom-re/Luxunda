@@ -280,46 +280,12 @@
     </div>
 
     <script src="graph.js"></script>
+    <script src="intention-component.js"></script>
     <script>
         // Inicjalizacja aplikacji
         document.addEventListener('DOMContentLoaded', function() {
             const graphManager = new LuxOSGraph();
-
-            // Obsługa licznika znaków w intencji
-            const intentionInput = document.getElementById('intentionInput');
-            const intentionCounter = document.getElementById('charCounter');
-
-            intentionInput.addEventListener('input', function() {
-                const length = this.value.length;
-                intentionCounter.textContent = length;
-
-                if (length > 450) {
-                    intentionCounter.style.color = '#ff4444';
-                } else if (length > 350) {
-                    intentionCounter.style.color = '#ffff44';
-                } else {
-                    intentionCounter.style.color = '#888';
-                }
-            });
-
-            // Obsługa Enter w textarea
-            intentionInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    document.getElementById('sendIntention').click();
-                }
-            });
-
-            // Obsługa przycisków
-            document.getElementById('sendIntention').addEventListener('click', function() {
-                const intention = intentionInput.value.trim();
-                if (intention) {
-                    graphManager.processIntention(intention);
-                    intentionInput.value = '';
-                    intentionCounter.textContent = '0';
-                    intentionCounter.style.color = '#888';
-                }
-            });
+            const intentionComponent = new IntentionComponent(graphManager);
         });
     </script>
 </body>
