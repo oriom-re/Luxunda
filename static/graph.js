@@ -93,13 +93,9 @@ class LuxOSGraph {
             .attr("height", this.height)
             .attr("viewBox", [0, 0, this.width, this.height]);
 
-        // Dodaj zoom i pan (tylko scroll i lewym przyciskiem)
+        // Dodaj zoom i pan (scroll i lewy przycisk)
         this.zoom = d3.zoom()
             .scaleExtent([0.1, 10])
-            .filter((event) => {
-                // Blokuj środkowy przycisk dla zoom, pozwól tylko na scroll i lewy przycisk
-                return event.type !== 'mousedown' || event.button !== 1;
-            })
             .on("zoom", (event) => {
                 this.container.attr("transform", event.transform);
                 
@@ -154,13 +150,7 @@ class LuxOSGraph {
             this.hideContextMenu();
         });
 
-        // Obsługa środkowego przycisku myszy do przesuwania
-        this.svg.on('mousedown', (event) => {
-            if (event.button === 1) { // Środkowy przycisk
-                event.preventDefault();
-                this.startMiddleMousePan(event);
-            }
-        });
+        // Usunięto obsługę środkowego przycisku myszy
     }
 
     updateGraph(data) {
@@ -751,6 +741,13 @@ class LuxOSGraph {
                     <button onclick="window.luxosGraph.addNodeTag('${node.soul}')" style="background: #2196F3; color: white; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">🏷️ Dodaj Tag</button>
                     <button onclick="window.luxosGraph.closeNodeDetails()" style="background: #607D8B; color: white; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">🚪 Zamknij</button>
                 </div>
+
+                <div style="background: rgba(255, 193, 7, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #FFC107; margin-top: 15px;">
+                    <h3 style="margin: 0 0 10px 0; color: #FFC107;">🔍 Kontrolki Zoom</h3>
+                    <button onclick="window.luxosGraph.zoomIn()" style="background: #FFC107; color: #1a1a1a; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer; font-weight: bold;">➕ Przybliż</button>
+                    <button onclick="window.luxosGraph.zoomOut()" style="background: #FFC107; color: #1a1a1a; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer; font-weight: bold;">➖ Oddal</button>
+                    <button onclick="window.luxosGraph.resetZoom()" style="background: #FFC107; color: #1a1a1a; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer; font-weight: bold;">🏠 Reset</button>
+                </div>
             </div>
         `;
     }
@@ -836,30 +833,7 @@ class LuxOSGraph {
         }
     }
 
-    startMiddleMousePan(event) {
-        const startX = event.clientX;
-        const startY = event.clientY;
-        const currentTransform = d3.zoomTransform(this.svg.node());
-        
-        const mouseMoveHandler = (e) => {
-            const deltaX = e.clientX - startX;
-            const deltaY = e.clientY - startY;
-            
-            const newTransform = d3.zoomIdentity
-                .scale(currentTransform.k)
-                .translate(currentTransform.x + deltaX, currentTransform.y + deltaY);
-            
-            this.svg.call(this.zoom.transform, newTransform);
-        };
-        
-        const mouseUpHandler = () => {
-            document.removeEventListener('mousemove', mouseMoveHandler);
-            document.removeEventListener('mouseup', mouseUpHandler);
-        };
-        
-        document.addEventListener('mousemove', mouseMoveHandler);
-        document.addEventListener('mouseup', mouseUpHandler);
-    }
+    // Usunięto funkcję startMiddleMousePan - nie jest już potrzebna
 
     checkForNodeProximity(transform) {
         // Jeśli użytkownik nie opuścił strefy od ostatniego otwarcia
