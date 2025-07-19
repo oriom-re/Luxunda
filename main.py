@@ -218,33 +218,129 @@ sio.attach(app)
 function_router = FunctionRouter()
 
 @dataclass
-class BaseBeing:
-    soul: str
+class Soul:
+    """Transcendentalna reprezentacja bytu w bazie danych"""
+    uid: str
+    patch: str  # Ścieżka identyfikacji
+    incarnation: int  # Wcielenie, domyślnie najwyższe
     genesis: Dict[str, Any]
     attributes: Dict[str, Any]
     memories: List[Dict[str, Any]]
     self_awareness: Dict[str, Any]
     created_at: Optional[datetime] = None
 
-@dataclass
-class FunctionBeing(BaseBeing):
-    """Byt funkcyjny z możliwością wykonania"""
+    @property
+    def full_path(self) -> str:
+        """Pełna ścieżka soul: patch/uid:incarnation"""
+        return f"{self.patch}/{self.uid}:{self.incarnation}"
 
-    def __post_init__(self):
-        if self.genesis.get('type') != 'function':
-            self.genesis['type'] = 'function'
+    @classmethod
+    def generate_uid(cls) -> str:
+        """Generuje unikalny identyfikator"""
+        return str(uuid.uuid4())
+
+@dataclass
+class BaseBeing:
+    """Pierwszy byt łączący się transcendentalnie ze stanem pamięci"""
+    soul_uid: str
+    soul_patch: str
+    incarnation: int
+    # Source nie jest zapisywany w duszy dla BaseBeing
+    _soul: Optional[Soul] = None
+    _socket: Optional[Any] = None  # Socket do wymiany duszami
+
+    async def connect_to_soul(self) -> Soul:
+        """Łączy się z transcendentalną duszą"""
+        if not self._soul:
+            self._soul = await self.load_soul()
+        return self._soul
+
+    async def load_soul(self) -> Optional[Soul]:
+        """Ładuje duszę z bazy danych"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                # Jeśli incarnation = 0, pobierz najwyższe
+                if self.incarnation == 0:
+                    row = await conn.fetchrow("""
+                        SELECT * FROM souls 
+                        WHERE uid = $1 AND patch = $2 
+                        ORDER BY incarnation DESC LIMIT 1
+                    """, self.soul_uid, self.soul_patch)
+                else:
+                    row = await conn.fetchrow("""
+                        SELECT * FROM souls 
+                        WHERE uid = $1 AND patch = $2 AND incarnation = $3
+                    """, self.soul_uid, self.soul_patch, self.incarnation)
+                
+                if row:
+                    return Soul(
+                        uid=row['uid'],
+                        patch=row['patch'],
+                        incarnation=row['incarnation'],
+                        genesis=row['genesis'],
+                        attributes=row['attributes'],
+                        memories=row['memories'],
+                        self_awareness=row['self_awareness'],
+                        created_at=row['created_at']
+                    )
+        return None
+
+    async def save_soul(self):
+        """Zapisuje duszę do bazy danych"""
+        if not self._soul:
+            return
+
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO souls (uid, patch, incarnation, genesis, attributes, memories, self_awareness)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (uid, patch, incarnation) DO UPDATE SET
+                    genesis = EXCLUDED.genesis,
+                    attributes = EXCLUDED.attributes,
+                    memories = EXCLUDED.memories,
+                    self_awareness = EXCLUDED.self_awareness
+                """, self._soul.uid, self._soul.patch, self._soul.incarnation,
+                    json.dumps(self._soul.genesis, cls=DateTimeEncoder), 
+                    json.dumps(self._soul.attributes, cls=DateTimeEncoder),
+                    json.dumps(self._soul.memories, cls=DateTimeEncoder), 
+                    json.dumps(self._soul.self_awareness, cls=DateTimeEncoder))
+
+    def open_soul_socket(self, target_being: 'BaseBeing'):
+        """Otwiera socket do wymiany duszami - zapobiega cyklicznym zależnościom"""
+        # Implementacja socket'a do wymiany kontekstem
+        pass
+
+class FunctionBeing(BaseBeing):
+    """Byt funkcyjny z możliwością wykonania - source zapisywany w duszy"""
+
+    def __init__(self, soul_uid: str, soul_patch: str, incarnation: int = 0):
+        super().__init__(soul_uid, soul_patch, incarnation)
+
+    async def __post_init__(self):
+        """Inicjalizacja po utworzeniu"""
+        soul = await self.connect_to_soul()
+        if soul and soul.genesis.get('type') != 'function':
+            soul.genesis['type'] = 'function'
+        await self.save_soul()
 
     async def __call__(self, *args, **kwargs):
-        """Wykonuje funkcję z kodu źródłowego"""
-        source = self.genesis.get('source', '')
-        function_name = self.genesis.get('name', 'unknown_function')
+        """Wykonuje funkcję z kodu źródłowego zapisanego w duszy"""
+        soul = await self.connect_to_soul()
+        if not soul:
+            return {'success': False, 'error': 'Nie można połączyć się z duszą'}
+
+        source = soul.genesis.get('source', '')
+        function_name = soul.genesis.get('name', 'unknown_function')
 
         if not source:
-            return {'success': False, 'error': 'Brak kodu źródłowego'}
+            return {'success': False, 'error': 'Brak kodu źródłowego w duszy'}
 
         result = await SafeCodeExecutor.execute_function(source, function_name, *args, **kwargs)
 
-        # Zapisz wykonanie w pamięci
+        # Zapisz wykonanie w pamięci duszy
         memory_entry = {
             'type': 'execution',
             'timestamp': datetime.now().isoformat(),
@@ -253,58 +349,146 @@ class FunctionBeing(BaseBeing):
             'result': str(result.get('result')),
             'success': result.get('success', False)
         }
-        self.memories.append(memory_entry)
-        await self.save()
+        soul.memories.append(memory_entry)
+        await self.save_soul()
 
         return result
 
-    def get_function_signature(self) -> str:
-        """Zwraca sygnaturę funkcji"""
-        return self.genesis.get('signature', f"{self.genesis.get('name', 'unknown')}()")
+    async def get_function_signature(self) -> str:
+        """Zwraca sygnaturę funkcji z duszy"""
+        soul = await self.connect_to_soul()
+        if soul:
+            return soul.genesis.get('signature', f"{soul.genesis.get('name', 'unknown')}()")
+        return "unknown()"
 
-@dataclass
+    async def update_source(self, new_source: str):
+        """Aktualizuje kod źródłowy w duszy"""
+        soul = await self.connect_to_soul()
+        if soul:
+            soul.genesis['source'] = new_source
+            await self.save_soul()
+
 class ClassBeing(BaseBeing):
-    """Byt klasy z możliwością instancjacji"""
+    """Klasa abstrakcyjna stale obecna na dysku"""
+    
+    def __init__(self, soul_uid: str, soul_patch: str, incarnation: int = 0):
+        super().__init__(soul_uid, soul_patch, incarnation)
+        self._disk_persistent = True
+        self._ws_socket = None  # WebSocket dla trwałej komunikacji
+        
+    async def __post_init__(self):
+        """Inicjalizacja po utworzeniu"""
+        soul = await self.connect_to_soul()
+        if soul and soul.genesis.get('type') != 'class':
+            soul.genesis['type'] = 'class'
+            soul.genesis['source'] = self.get_class_source()  # Source zapisywany w duszy
+        
+        if soul and 'instances' not in soul.attributes:
+            soul.attributes['instances'] = []
+        
+        await self.save_soul()
 
-    def __post_init__(self):
-        if self.genesis.get('type') != 'class':
-            self.genesis['type'] = 'class'
-        if 'instances' not in self.attributes:
-            self.attributes['instances'] = []
+    def get_class_source(self) -> str:
+        """Zwraca kod źródłowy klasy - zapisywany w duszy"""
+        return f"""
+class {self.__class__.__name__}(ClassBeing):
+    '''Klasa automatycznie wygenerowana z ClassBeing'''
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    # Metody klasy będą tutaj
+"""
 
-    async def instantiate(self, *args, **kwargs) -> str:
-        """Tworzy instancję klasy"""
-        instance_soul = str(uuid.uuid4())
+    async def instantiate(self, instance_patch: str, *args, **kwargs) -> str:
+        """Tworzy instancję klasy z nowym wcieleniem"""
+        soul = await self.connect_to_soul()
+        if not soul:
+            raise ValueError("Nie można połączyć się z duszą klasy")
 
-        # Utwórz byt instancji
-        instance = await BaseBeing.create(
+        # Generuj nowy uid dla instancji
+        instance_uid = Soul.generate_uid()
+        
+        # Znajdź najwyższe wcielenie dla tej instancji
+        next_incarnation = await self.get_next_incarnation(instance_uid, instance_patch)
+        
+        # Utwórz duszę instancji
+        instance_soul = Soul(
+            uid=instance_uid,
+            patch=instance_patch,
+            incarnation=next_incarnation,
             genesis={
                 'type': 'instance',
-                'class_soul': self.soul,
-                'name': f"{self.genesis.get('name', 'Unknown')}_Instance",
-                'created_by': 'class_instantiation'
+                'class_soul_uid': self.soul_uid,
+                'class_patch': self.soul_patch,
+                'name': f"{soul.genesis.get('name', 'Unknown')}_Instance",
+                'created_by': 'class_instantiation',
+                'source': soul.genesis.get('source', '')  # Kopiuj source z klasy
             },
             attributes={
-                'class_reference': self.soul,
+                'class_reference': f"{self.soul_patch}/{self.soul_uid}:{self.incarnation}",
                 'instance_data': kwargs,
                 'creation_args': args
             },
             memories=[{
                 'type': 'instantiation',
-                'data': f'Created from class {self.soul}',
+                'data': f'Created from class {soul.full_path}',
                 'timestamp': datetime.now().isoformat()
-            }]
+            }],
+            self_awareness={'trust_level': 0.8, 'confidence': 0.7}
         )
 
-        # Zapisz referencję do instancji
-        self.attributes['instances'].append(instance_soul)
-        await self.save()
+        # Zapisz instancję do bazy
+        await self.save_instance_soul(instance_soul)
+        
+        # Dodaj referencję do instancji w klasie
+        soul.attributes['instances'].append(instance_soul.full_path)
+        await self.save_soul()
 
-        return instance_soul
+        return instance_soul.full_path
 
-    def get_instances(self) -> List[str]:
+    async def get_next_incarnation(self, uid: str, patch: str) -> int:
+        """Pobiera następny numer wcielenia"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT MAX(incarnation) as max_inc FROM souls 
+                    WHERE uid = $1 AND patch = $2
+                """, uid, patch)
+                return (row['max_inc'] or 0) + 1
+        return 1
+
+    async def save_instance_soul(self, soul: Soul):
+        """Zapisuje duszę instancji"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO souls (uid, patch, incarnation, genesis, attributes, memories, self_awareness)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """, soul.uid, soul.patch, soul.incarnation,
+                    json.dumps(soul.genesis, cls=DateTimeEncoder), 
+                    json.dumps(soul.attributes, cls=DateTimeEncoder),
+                    json.dumps(soul.memories, cls=DateTimeEncoder), 
+                    json.dumps(soul.self_awareness, cls=DateTimeEncoder))
+
+    async def get_instances(self) -> List[str]:
         """Zwraca listę instancji"""
-        return self.attributes.get('instances', [])
+        soul = await self.connect_to_soul()
+        return soul.attributes.get('instances', []) if soul else []
+
+    def can_inherit_from(self, other_class) -> bool:
+        """Sprawdza czy może dziedziczyć po innej klasie"""
+        # Może dziedziczyć tylko po ClassBeing lub klasach trwale obecnych na dysku
+        return (isinstance(other_class, ClassBeing) and 
+                hasattr(other_class, '_disk_persistent') and 
+                other_class._disk_persistent)
+
+    async def establish_ws_connection(self):
+        """Ustanawia trwałe połączenie WebSocket"""
+        # Implementacja trwałego WS dla ClassBeing
+        pass
 
 @dataclass
 class DataBeing(BaseBeing):
@@ -1313,7 +1497,22 @@ async def init_database():
 async def setup_postgresql_tables():
     """Tworzy tabele w PostgreSQL"""
     async with db_pool.acquire() as conn:
-        # Tabela base_beings
+        # Tabela souls - transcendentalna reprezentacja
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS souls (
+                uid UUID NOT NULL,
+                patch VARCHAR(255) NOT NULL,
+                incarnation INTEGER NOT NULL,
+                genesis JSONB NOT NULL,
+                attributes JSONB NOT NULL,
+                memories JSONB NOT NULL,
+                self_awareness JSONB NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (uid, patch, incarnation)
+            )
+        """)
+
+        # Tabela base_beings - stara struktura dla kompatybilności
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS base_beings (
                 soul UUID PRIMARY KEY,
@@ -1460,7 +1659,7 @@ async def main():
         await runner.cleanup()
 
 class BeingFactory:
-    """Factory do tworzenia różnych typów bytów"""
+    """Factory do tworzenia różnych typów bytów z nową filozofią Soul"""
 
     BEING_TYPES = {
         'function': FunctionBeing,
@@ -1475,14 +1674,16 @@ class BeingFactory:
 
     @classmethod
     async def create_being(cls, being_type: str, genesis: Dict[str, Any], **kwargs) -> BaseBeing:
-        """Tworzy byt odpowiedniego typu"""
+        """Tworzy byt odpowiedniego typu z transcendentalną duszą"""
         BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
 
         # Upewnij się, że typ jest ustawiony w genesis
         genesis['type'] = being_type
 
-        # Generuj unikalne soul
-        soul = str(uuid.uuid4())
+        # Generuj parametry duszy
+        soul_uid = Soul.generate_uid()
+        soul_patch = kwargs.get('patch', f'/{being_type}s')
+        incarnation = kwargs.get('incarnation', 1)
 
         # Przygotuj atrybuty
         attributes = kwargs.get('attributes', {})
@@ -1491,16 +1692,50 @@ class BeingFactory:
         if 'energy_level' in kwargs:
             attributes['energy_level'] = kwargs['energy_level']
 
-        # Utwórz byt
-        being = BeingClass(
-            soul=soul,
+        # Utwórz transcendentalną duszę
+        soul = Soul(
+            uid=soul_uid,
+            patch=soul_patch,
+            incarnation=incarnation,
             genesis=genesis,
             attributes=attributes,
             memories=kwargs.get('memories', []),
             self_awareness=kwargs.get('self_awareness', {})
         )
 
-        await being.save()
+        # Utwórz byt
+        if BeingClass == BaseBeing:
+            being = BeingClass(soul_uid, soul_patch, incarnation)
+        else:
+            being = BeingClass(soul_uid, soul_patch, incarnation)
+            
+        being._soul = soul
+        await being.save_soul()
+
+        # Dla niektórych typów wykonaj post-init
+        if hasattr(being, '__post_init__'):
+            await being.__post_init__()
+
+        return being
+
+    @classmethod
+    async def incarnate_being(cls, soul_uid: str, soul_patch: str, incarnation: int = 0) -> Optional[BaseBeing]:
+        """Wcielenie bytu z istniejącej duszy"""
+        # Utwórz tymczasowy byt żeby załadować duszę
+        temp_being = BaseBeing(soul_uid, soul_patch, incarnation)
+        soul = await temp_being.load_soul()
+        
+        if not soul:
+            return None
+
+        # Określ typ bytu z duszy
+        being_type = soul.genesis.get('type', 'base')
+        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
+
+        # Utwórz właściwy byt
+        being = BeingClass(soul_uid, soul_patch, soul.incarnation)
+        being._soul = soul
+
         return being
 
     @classmethod
