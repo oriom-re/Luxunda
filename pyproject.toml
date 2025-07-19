@@ -11,7 +11,7 @@ dependencies = [
     "aiohttp-cors",
     "python-socketio",
     "aiosqlite",
-    "openai",
+    "openai>=1.0.0",
     "numpy",
     "scikit-learn"
 ]

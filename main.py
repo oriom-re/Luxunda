@@ -10,9 +10,13 @@ from aiohttp import web
 
 import hashlib
 import openai
+import os
 from typing import Tuple
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+
+# Konfiguracja OpenAI
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
 class EmbeddingSystem:
     """Dwupoziomowy system embedingów - tani model + głęboki model"""
@@ -30,12 +34,17 @@ class EmbeddingSystem:
             return self.cache[cache_key]
             
         try:
-            # Symulacja - w rzeczywistości byłby to OpenAI API
-            # response = openai.Embedding.create(input=text, model=self.cheap_model)
-            # embedding = response['data'][0]['embedding']
-            
-            # Symulowana wersja
-            embedding = [hash(text + str(i)) % 1000 / 1000.0 for i in range(384)]  # 384-dim dla small
+            # Prawdziwe OpenAI API
+            if openai.api_key:
+                client = openai.OpenAI()
+                response = client.embeddings.create(
+                    input=text,
+                    model=self.cheap_model
+                )
+                embedding = response.data[0].embedding
+            else:
+                # Fallback jeśli brak klucza API
+                embedding = [hash(text + str(i)) % 1000 / 1000.0 for i in range(384)]
             
             self.cache[cache_key] = embedding
             return embedding
@@ -53,12 +62,17 @@ class EmbeddingSystem:
             return self.cache[cache_key]
             
         try:
-            # Symulacja - w rzeczywistości byłby to OpenAI API
-            # response = openai.Embedding.create(input=text, model=self.deep_model)
-            # embedding = response['data'][0]['embedding']
-            
-            # Symulowana wersja
-            embedding = [hash(text + str(i)) % 1000 / 1000.0 for i in range(1536)]  # 1536-dim dla large
+            # Prawdziwe OpenAI API
+            if openai.api_key:
+                client = openai.OpenAI()
+                response = client.embeddings.create(
+                    input=text,
+                    model=self.deep_model
+                )
+                embedding = response.data[0].embedding
+            else:
+                # Fallback jeśli brak klucza API
+                embedding = [hash(text + str(i)) % 1000 / 1000.0 for i in range(1536)]
             
             self.cache[cache_key] = embedding
             return embedding
