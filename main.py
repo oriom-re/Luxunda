@@ -25,20 +25,20 @@ class DateTimeEncoder(json.JSONEncoder):
 
 class SafeCodeExecutor:
     """Bezpieczny executor kodu z ograniczeniami"""
-    
+
     # Dozwolone built-in funkcje
     ALLOWED_BUILTINS = {
         'abs', 'all', 'any', 'bool', 'dict', 'enumerate', 'filter', 'float',
         'int', 'len', 'list', 'max', 'min', 'range', 'reversed', 'round',
         'sorted', 'str', 'sum', 'tuple', 'zip', 'print'
     }
-    
+
     # Zabronione wyrażenia AST
     FORBIDDEN_NODES = {
         ast.Import, ast.ImportFrom,
         ast.Call  # Będziemy sprawdzać wywołania funkcji osobno
     }
-    
+
     @classmethod
     def validate_code(cls, code: str) -> tuple[bool, str]:
         """Waliduje kod przed wykonaniem"""
@@ -46,7 +46,7 @@ class SafeCodeExecutor:
             tree = ast.parse(code)
         except SyntaxError as e:
             return False, f"Błąd składni: {str(e)}"
-        
+
         for node in ast.walk(tree):
             # Sprawdź zabronione typy węzłów
             if type(node) in cls.FORBIDDEN_NODES:
@@ -56,15 +56,15 @@ class SafeCodeExecutor:
                         return False, f"Zabronione wywołanie funkcji: {node.func.id}"
                 else:
                     return False, f"Zabroniona operacja: {type(node).__name__}"
-            
+
             # Sprawdź dostęp do atrybutów
             if isinstance(node, ast.Attribute):
                 attr_name = node.attr
                 if attr_name.startswith('_') or attr_name in ['__import__', 'exec', 'eval']:
                     return False, f"Zabroniony dostęp do atrybutu: {attr_name}"
-        
+
         return True, "Kod jest bezpieczny"
-    
+
     @classmethod
     async def execute_function(cls, code: str, function_name: str, *args, **kwargs) -> dict:
         """Wykonuje funkcję z kodu w bezpiecznym środowisku"""
@@ -76,21 +76,21 @@ class SafeCodeExecutor:
                 'output': '',
                 'result': None
             }
-        
+
         # Przygotuj bezpieczne środowisko wykonania
         safe_globals = {
             '__builtins__': {name: getattr(builtins, name) for name in cls.ALLOWED_BUILTINS}
         }
         safe_locals = {}
-        
+
         # Przekieruj stdout do przechwycenia print
         old_stdout = sys.stdout
         sys.stdout = captured_output = StringIO()
-        
+
         try:
             # Wykonaj kod
             exec(code, safe_globals, safe_locals)
-            
+
             # Sprawdź czy funkcja została zdefiniowana
             if function_name not in safe_locals:
                 return {
@@ -99,7 +99,7 @@ class SafeCodeExecutor:
                     'output': captured_output.getvalue(),
                     'result': None
                 }
-            
+
             # Wykonaj funkcję
             func = safe_locals[function_name]
             if not callable(func):
@@ -109,16 +109,16 @@ class SafeCodeExecutor:
                     'output': captured_output.getvalue(),
                     'result': None
                 }
-            
+
             result = func(*args, **kwargs)
-            
+
             return {
                 'success': True,
                 'error': None,
                 'output': captured_output.getvalue(),
                 'result': result
             }
-            
+
         except Exception as e:
             return {
                 'success': False,
@@ -132,50 +132,50 @@ class SafeCodeExecutor:
 
 class FunctionRouter:
     """Router dla funkcji z bytów"""
-    
+
     def __init__(self):
         self.registered_functions = {}
-    
+
     async def register_function_from_being(self, soul: str) -> dict:
         """Rejestruje funkcję z bytu"""
         being = await BaseBeing.load(soul)
         if not being:
             return {'success': False, 'error': 'Byt nie znaleziony'}
-        
+
         if being.genesis.get('type') != 'function':
             return {'success': False, 'error': 'Byt nie jest funkcją'}
-        
+
         source = being.genesis.get('source', '')
         name = being.genesis.get('name', 'unknown_function')
-        
+
         if not source:
             return {'success': False, 'error': 'Brak kodu źródłowego w bycie'}
-        
+
         # Waliduj kod
         is_valid, validation_msg = SafeCodeExecutor.validate_code(source)
         if not is_valid:
             return {'success': False, 'error': validation_msg}
-        
+
         self.registered_functions[soul] = {
             'name': name,
             'source': source,
             'being': being
         }
-        
+
         return {'success': True, 'message': f'Funkcja {name} została zarejestrowana'}
-    
+
     async def execute_function(self, soul: str, *args, **kwargs) -> dict:
         """Wykonuje funkcję z zarejestrowanego bytu"""
         if soul not in self.registered_functions:
             return {'success': False, 'error': 'Funkcja nie jest zarejestrowana'}
-        
+
         func_info = self.registered_functions[soul]
         result = await SafeCodeExecutor.execute_function(
             func_info['source'], 
             func_info['name'], 
             *args, **kwargs
         )
-        
+
         # Zapisz wykonanie w pamięci bytu
         if result['success']:
             being = func_info['being']
@@ -189,9 +189,9 @@ class FunctionRouter:
             }
             being.memories.append(memory_entry)
             await being.save()
-        
+
         return result
-    
+
     def get_registered_functions(self) -> dict:
         """Zwraca listę zarejestrowanych funkcji"""
         return {
@@ -226,7 +226,7 @@ class BaseBeing:
     def tags(self) -> List[str]:
         """Pobiera tagi z atrybutów"""
         return self.attributes.get('tags', [])
-    
+
     @tags.setter
     def tags(self, value: List[str]):
         """Ustawia tagi w atrybutach"""
@@ -236,7 +236,7 @@ class BaseBeing:
     def energy_level(self) -> int:
         """Pobiera poziom energii z atrybutów"""
         return self.attributes.get('energy_level', 0)
-    
+
     @energy_level.setter
     def energy_level(self, value: int):
         """Ustawia poziom energii w atrybutach"""
@@ -246,14 +246,14 @@ class BaseBeing:
     async def create(cls, genesis: Dict[str, Any], **kwargs):
         """Tworzy nowy byt w bazie danych"""
         soul = str(uuid.uuid4())
-        
+
         # Przygotuj atrybuty z tags i energy_level
         attributes = kwargs.get('attributes', {})
         if 'tags' in kwargs:
             attributes['tags'] = kwargs['tags']
         if 'energy_level' in kwargs:
             attributes['energy_level'] = kwargs['energy_level']
-        
+
         being = cls(
             soul=soul,
             genesis=genesis,
@@ -339,13 +339,13 @@ class BaseBeing:
                         attributes = json.loads(row[4]) if row[4] else {}
                         memories = json.loads(row[5]) if row[5] else []
                         self_awareness = json.loads(row[6]) if row[6] else {}
-                        
+
                         # Dodaj tags i energy_level do attributes jeśli nie ma
                         if 'tags' not in attributes and row[1]:
                             attributes['tags'] = json.loads(row[1])
                         if 'energy_level' not in attributes and row[2]:
                             attributes['energy_level'] = row[2]
-                        
+
                         beings.append(cls(
                             soul=row[0],
                             genesis=genesis,
@@ -372,7 +372,7 @@ class Relationship:
     def tags(self) -> List[str]:
         """Pobiera tagi z atrybutów"""
         return self.attributes.get('tags', [])
-    
+
     @tags.setter
     def tags(self, value: List[str]):
         """Ustawia tagi w atrybutach"""
@@ -382,7 +382,7 @@ class Relationship:
     def energy_level(self) -> int:
         """Pobiera poziom energii z atrybutów"""
         return self.attributes.get('energy_level', 0)
-    
+
     @energy_level.setter
     def energy_level(self, value: int):
         """Ustawia poziom energii w atrybutach"""
@@ -392,14 +392,14 @@ class Relationship:
     async def create(cls, source_soul: str, target_soul: str, genesis: Dict[str, Any], **kwargs):
         """Tworzy nową relację"""
         rel_id = str(uuid.uuid4())
-        
+
         # Przygotuj atrybuty z tags i energy_level
         attributes = kwargs.get('attributes', {})
         if 'tags' in kwargs:
             attributes['tags'] = kwargs['tags']
         if 'energy_level' in kwargs:
             attributes['energy_level'] = kwargs['energy_level']
-        
+
         relationship = cls(
             id=rel_id,
             source_soul=source_soul,
@@ -461,13 +461,13 @@ class Relationship:
                     try:
                         genesis = json.loads(row[5]) if row[5] else {}
                         attributes = json.loads(row[6]) if row[6] else {}
-                        
+
                         # Dodaj tags i energy_level do attributes jeśli nie ma
                         if 'tags' not in attributes and row[1]:
                             attributes['tags'] = json.loads(row[1])
                         if 'energy_level' not in attributes and row[2]:
                             attributes['energy_level'] = row[2]
-                        
+
                         relationships.append(cls(
                             id=row[0],
                             source_soul=row[3],
@@ -561,14 +561,14 @@ async def process_intention(sid, data):
     try:
         intention = data.get('intention', '').lower()
         context = data.get('context', {})
-        
+
         print(f"Otrzymano intencję od {sid}: {intention}")
-        
+
         # Proste przetwarzanie intencji - w przyszłości można dodać AI
         response = await analyze_intention(intention, context)
-        
+
         await sio.emit('intention_response', response, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd przetwarzania intencji: {str(e)}'}, room=sid)
 
@@ -580,10 +580,10 @@ async def register_function(sid, data):
         if not soul:
             await sio.emit('error', {'message': 'Brak soul bytu'}, room=sid)
             return
-        
+
         result = await function_router.register_function_from_being(soul)
         await sio.emit('function_registered', result, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd rejestracji funkcji: {str(e)}'}, room=sid)
 
@@ -594,14 +594,14 @@ async def execute_function(sid, data):
         soul = data.get('soul')
         args = data.get('args', [])
         kwargs = data.get('kwargs', {})
-        
+
         if not soul:
             await sio.emit('error', {'message': 'Brak soul funkcji'}, room=sid)
             return
-        
+
         result = await function_router.execute_function(soul, *args, **kwargs)
         await sio.emit('function_executed', result, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd wykonania funkcji: {str(e)}'}, room=sid)
 
@@ -611,7 +611,7 @@ async def get_registered_functions(sid, data):
     try:
         functions = function_router.get_registered_functions()
         await sio.emit('registered_functions', functions, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd pobierania funkcji: {str(e)}'}, room=sid)
 
@@ -623,12 +623,12 @@ async def get_being_source(sid, data):
         if not soul:
             await sio.emit('error', {'message': 'Brak soul bytu'}, room=sid)
             return
-        
+
         being = await BaseBeing.load(soul)
         if not being:
             await sio.emit('error', {'message': 'Byt nie znaleziony'}, room=sid)
             return
-        
+
         source_data = {
             'soul': soul,
             'name': being.genesis.get('name', 'Nieznana'),
@@ -636,23 +636,23 @@ async def get_being_source(sid, data):
             'source': being.genesis.get('source', ''),
             'created_by': being.genesis.get('created_by', 'unknown')
         }
-        
+
         await sio.emit('being_source', source_data, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd pobierania kodu: {str(e)}'}, room=sid)
 
 async def analyze_intention(intention: str, context: dict) -> dict:
     """Analizuje intencję i zwraca odpowiedz z akcjami"""
-    
+
     # Słowa kluczowe dla różnych akcji
     create_keywords = ['utwórz', 'stwórz', 'dodaj', 'nowy', 'nowa', 'nowe']
     connect_keywords = ['połącz', 'zwiąż', 'relacja', 'łącz']
     find_keywords = ['znajdź', 'pokaż', 'gdzie', 'szukaj']
-    
+
     actions = []
     message = "Intencja została przetworzona."
-    
+
     # Rozpoznawanie intencji tworzenia
     if any(keyword in intention for keyword in create_keywords):
         if 'funkcj' in intention:
@@ -663,7 +663,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                 if word in ['funkcj', 'funkcję', 'funkcji'] and i < len(words) - 1:
                     name = words[i + 1].replace(',', '').replace('.', '')
                     break
-            
+
             actions.append({
                 'type': 'create_being',
                 'data': {
@@ -674,14 +674,14 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                         'created_by': 'intention'
                     },
                     'tags': ['function', 'intention'],
-                    'energy_level': 75,
+                    'energy_level': 70,
                     'attributes': {'created_via': 'intention', 'intention_text': intention},
                     'memories': [{'type': 'creation', 'data': intention}],
                     'self_awareness': {'trust_level': 0.8, 'confidence': 0.9}
                 }
             })
             message = f"Utworzono funkcję: {name}"
-            
+
         elif 'klas' in intention:
             words = intention.split()
             name = "Nowa_Klasa"
@@ -689,7 +689,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                 if word in ['klas', 'klasę', 'klasy'] and i < len(words) - 1:
                     name = words[i + 1].replace(',', '').replace('.', '')
                     break
-            
+
             actions.append({
                 'type': 'create_being',
                 'data': {
@@ -700,14 +700,14 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                         'created_by': 'intention'
                     },
                     'tags': ['class', 'intention'],
-                    'energy_level': 80,
+                    'energy_level': 70,
                     'attributes': {'created_via': 'intention', 'intention_text': intention},
                     'memories': [{'type': 'creation', 'data': intention}],
                     'self_awareness': {'trust_level': 0.8, 'confidence': 0.9}
                 }
             })
             message = f"Utworzono klasę: {name}"
-    
+
     # Rozpoznawanie intencji łączenia
     elif any(keyword in intention for keyword in connect_keywords):
         selected_nodes = context.get('selected_nodes', [])
@@ -719,7 +719,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                 relationship_type = 'contains'
             elif 'zależ' in intention:
                 relationship_type = 'depends'
-            
+
             actions.append({
                 'type': 'create_relationship',
                 'data': {
@@ -738,14 +738,14 @@ async def analyze_intention(intention: str, context: dict) -> dict:
             message = f"Utworzono relację typu {relationship_type}"
         else:
             message = "Aby połączyć byty, wybierz najpierw co najmniej 2 węzły w grafie."
-    
+
     # Rozpoznawanie intencji wyszukiwania
     elif any(keyword in intention for keyword in find_keywords):
         message = "Funkcja wyszukiwania zostanie wkrótce dodana."
-    
+
     else:
         message = "Nie rozpoznano intencji. Spróbuj opisać co chcesz zrobić używając słów: utwórz, połącz, znajdź."
-    
+
     return {
         'message': message,
         'actions': actions,
@@ -880,7 +880,7 @@ async def setup_postgresql_tables():
             ADD CONSTRAINT valid_source_soul 
             FOREIGN KEY (source_soul) REFERENCES base_beings (soul)
         """)
-        
+
         await conn.execute("""
             ALTER TABLE relationships 
             DROP CONSTRAINT IF EXISTS valid_target_soul
@@ -890,7 +890,7 @@ async def setup_postgresql_tables():
             ADD CONSTRAINT valid_target_soul 
             FOREIGN KEY (target_soul) REFERENCES base_beings (soul)
         """)
-        
+
         await conn.execute("""
             ALTER TABLE relationships 
             DROP CONSTRAINT IF EXISTS no_self_relationship
@@ -983,7 +983,7 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', 5000)
     await site.start()
     print("Serwer uruchomiony na http://0.0.0.0:5000")
-    
+
     # Trzymaj serwer żywy
     try:
         await asyncio.Event().wait()

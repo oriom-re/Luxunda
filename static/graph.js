@@ -82,9 +82,9 @@ class LuxOSGraph {
     }
 
     initGraph() {
-        const container = d3.select('#graph-container');
-        const width = container.node().getBoundingClientRect().width;
-        const height = container.node().getBoundingClientRect().height;
+        const graphElement = document.getElementById('graph');
+        const width = window.innerWidth;
+        const height = window.innerHeight - 190; // Account for header and intention system
 
         this.svg = d3.select('#graph')
             .attr('width', width)
@@ -327,9 +327,8 @@ ${JSON.stringify(node.memories, null, 2)}</pre>`;
 
     setupEventListeners() {
         window.addEventListener('resize', () => {
-            const container = d3.select('#graph-container');
-            const width = container.node().getBoundingClientRect().width;
-            const height = container.node().getBoundingClientRect().height;
+            const width = window.innerWidth;
+            const height = window.innerHeight - 190;
 
             this.svg.attr('width', width).attr('height', height);
             this.simulation.force('center', d3.forceCenter(width / 2, height / 2));
