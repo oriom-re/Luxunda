@@ -622,7 +622,7 @@ class KernelSystem:
                     'hierarchy_level': 0  # Najwyższy poziom
                 },
                 attributes={
-                    'energy_level': float('inf'),  # Nieskończona energia
+                    'energy_level': 999999999,  # Bardzo wysoka energia zamiast nieskończonej
                     'kernel_permissions': {
                         'absolute_control': True,
                         'create_gods': True,
@@ -1630,7 +1630,15 @@ async def create_being(sid, data):
             self_awareness=data.get('self_awareness', {})
         )
         # Konwertuj do JSON-safe format
-        being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
+        soul = await being.connect_to_soul()
+        being_dict = {
+            'soul': being.soul_uid,
+            'soul_uid': being.soul_uid,
+            'genesis': soul.genesis if soul else {},
+            'attributes': soul.attributes if soul else {},
+            'memories': soul.memories if soul else [],
+            'self_awareness': soul.self_awareness if soul else {}
+        }
         await sio.emit('being_created', being_dict)
         await sio.emit('node_added', being_dict)
     except Exception as e:
@@ -1649,7 +1657,13 @@ async def create_relationship(sid, data):
             attributes=data.get('attributes', {})
         )
         # Konwertuj do JSON-safe format
-        rel_dict = json.loads(json.dumps(asdict(relationship), cls=DateTimeEncoder))
+        rel_dict = {
+            'id': relationship.id,
+            'source_soul': relationship.source_soul,
+            'target_soul': relationship.target_soul,
+            'genesis': relationship.genesis,
+            'attributes': relationship.attributes
+        }
         await sio.emit('relationship_created', rel_dict)
         await sio.emit('link_added', rel_dict)
     except Exception as e:
@@ -1662,14 +1676,24 @@ async def update_being(sid, data):
         being = await BaseBeing.load(data['soul'])
         if being:
             # Aktualizuj pola
-            for key, value in data.items():
-                if hasattr(being, key) and key != 'soul':
-                    setattr(being, key, value)
-            await being.save()
-            # Konwertuj do JSON-safe format
-            being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
-            await sio.emit('being_updated', being_dict)
-            await sio.emit('node_updated', being_dict)
+            soul = await being.connect_to_soul()
+            if soul:
+                for key, value in data.items():
+                    if key in ['genesis', 'attributes', 'memories', 'self_awareness']:
+                        setattr(soul, key, value)
+                await being.save_soul()
+                
+                # Konwertuj do JSON-safe format
+                being_dict = {
+                    'soul': being.soul_uid,
+                    'soul_uid': being.soul_uid,
+                    'genesis': soul.genesis,
+                    'attributes': soul.attributes,
+                    'memories': soul.memories,
+                    'self_awareness': soul.self_awareness
+                }
+                await sio.emit('being_updated', being_dict)
+                await sio.emit('node_updated', being_dict)
         else:
             await sio.emit('error', {'message': 'Byt nie znaleziony'}, room=sid)
     except Exception as e:
@@ -2053,9 +2077,29 @@ async def get_graph_data():
         beings = await BaseBeing.get_all()
         relationships = await Relationship.get_all()
 
-        # Konwertuj do JSON-safe format
-        nodes = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
-        links = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
+        # Konwertuj do JSON-safe format bez asdict()
+        nodes = []
+        for being in beings:
+            soul = await being.connect_to_soul()
+            if soul:
+                nodes.append({
+                    'soul': being.soul_uid,
+                    'soul_uid': being.soul_uid,
+                    'genesis': soul.genesis,
+                    'attributes': soul.attributes,
+                    'memories': soul.memories,
+                    'self_awareness': soul.self_awareness
+                })
+
+        links = []
+        for rel in relationships:
+            links.append({
+                'id': rel.id,
+                'source_soul': rel.source_soul,
+                'target_soul': rel.target_soul,
+                'genesis': rel.genesis,
+                'attributes': rel.attributes
+            })
 
         return {
             'nodes': nodes,
@@ -2087,16 +2131,22 @@ async def broadcast_graph_update():
             if soul:
                 nodes.append({
                     'soul': being.soul_uid,
+                    'soul_uid': being.soul_uid,
                     'genesis': soul.genesis,
                     'attributes': soul.attributes,
                     'memories': soul.memories,
                     'self_awareness': soul.self_awareness
                 })
-            else:
-                # Fallback dla legacy beings
-                nodes.append(json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)))
 
-        links = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
+        links = []
+        for rel in relationships:
+            links.append({
+                'id': rel.id,
+                'source_soul': rel.source_soul,
+                'target_soul': rel.target_soul,
+                'genesis': rel.genesis,
+                'attributes': rel.attributes
+            })
 
         graph_data = {
             'nodes': nodes,
