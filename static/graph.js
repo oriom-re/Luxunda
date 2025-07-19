@@ -144,6 +144,10 @@ class LuxOSGraph {
             target: d.target_soul
         }));
 
+        // Aktualizuj statystyki
+        document.getElementById('nodesCount').textContent = this.nodes.length;
+        document.getElementById('linksCount').textContent = this.links.length;
+
         this.renderGraph();
     }
 
@@ -507,9 +511,67 @@ ${JSON.stringify(node.memories, null, 2)}</pre>`;
     }
 
     updateStatus(message, type) {
-        const status = document.getElementById('status');
-        status.textContent = message;
-        status.className = `status-${type}`;
+        const statusElement = document.getElementById('connectionStatus');
+        const dotElement = document.getElementById('connectionDot');
+        
+        if (statusElement) {
+            statusElement.textContent = message;
+            statusElement.className = `status-${type}`;
+        }
+        
+        if (dotElement) {
+            if (type === 'connected') {
+                dotElement.classList.add('connected');
+            } else {
+                dotElement.classList.remove('connected');
+            }
+        }
+    }
+
+    processIntention(intention) {
+        // Wyślij intencję przez Socket.IO
+        this.socket.emit('process_intention', {
+            intention: intention,
+            context: {
+                selected_nodes: this.selectedNodes.map(n => n.soul),
+                timestamp: new Date().toISOString(),
+                graph_state: {
+                    nodes_count: this.nodes.length,
+                    links_count: this.links.length
+                }
+            }
+        });
+
+        console.log('Wysłano intencję:', intention);
+        this.showFeedback('Intencja wysłana... 🚀');
+    }
+
+    showFeedback(message) {
+        // Usuń poprzednie powiadomienie
+        const existing = document.querySelector('.feedback-message');
+        if (existing) {
+            existing.remove();
+        }
+
+        // Utwórz nowe powiadomienie
+        const feedback = document.createElement('div');
+        feedback.className = 'feedback-message';
+        feedback.textContent = message;
+        
+        document.body.appendChild(feedback);
+        
+        // Animacja pojawienia się
+        setTimeout(() => {
+            feedback.classList.add('show');
+        }, 100);
+        
+        // Automatyczne usunięcie po 3 sekundach
+        setTimeout(() => {
+            feedback.classList.remove('show');
+            setTimeout(() => {
+                feedback.remove();
+            }, 300);
+        }, 3000);
     }
 
     handleIntentionResponse(data) {
@@ -525,273 +587,9 @@ ${JSON.stringify(node.memories, null, 2)}</pre>`;
             });
         }
 
-        this.updateStatus(data.message, 'connected');
-    }
-
-    handleFunctionRegistered(data) {
-        if (data.success) {
-            this.updateStatus(data.message, 'connected');
-        } else {
-            this.updateStatus(data.error, 'disconnected');
-        }
-    }
-
-    handleFunctionExecuted(data) {
-        const resultDiv = document.getElementById('executionResult');
-
-        if (data.success) {
-            resultDiv.className = 'execution-result success';
-            let resultText = '';
-            if (data.output) {
-                resultText += `Output:\n${data.output}\n\n`;
-            }
-            resultText += `Result: ${JSON.stringify(data.result, null, 2)}`;
-            resultDiv.textContent = resultText;
-        } else {
-            resultDiv.className = 'execution-result error';
-            let errorText = `Error: ${data.error}\n`;
-            if (data.output) {
-                errorText += `\nOutput:\n${data.output}`;
-            }
-            if (data.traceback) {
-                errorText += `\n\nTraceback:\n${data.traceback}`;
-            }
-            resultDiv.textContent = errorText;
-        }
-    }
-
-    showRegisteredFunctionsList(functions) {
-        const panel = document.getElementById('registeredFunctions');
-        const list = document.getElementById('functionsList');
-
-        if (Object.keys(functions).length === 0) {
-            list.innerHTML = '<p>Brak zarejestrowanych funkcji</p>';
-        } else {
-            let html = '';
-            for (const [soul, info] of Object.entries(functions)) {
-                html += `
-                    <div class="function-item" onclick="showExecutionModal('${soul}')">
-                        <div class="function-name">${info.name}</div>
-                        <div class="function-preview">${info.source_preview}</div>
-                    </div>
-                `;
-            }
-            list.innerHTML = html;
-        }
-
-        panel.style.display = 'block';
-    }
-
-    showSourceCode(data) {
-        document.getElementById('sourceName').textContent = data.name;
-        document.getElementById('sourceType').textContent = data.type;
-        document.getElementById('sourceSoul').textContent = data.soul;
-        document.getElementById('sourceCode').textContent = data.source;
-        document.getElementById('sourceModal').style.display = 'block';
+        this.showFeedback(data.message || 'Intencja przetworzona! ✨');
+        this.updateStatus('Połączono', 'connected');
     }
 }
 
-// Funkcje globalne dla UI
-function createBeing() {
-    const name = document.getElementById('newBeingName').value;
-    const type = document.getElementById('newBeingType').value;
-    const energy = parseInt(document.getElementById('newBeingEnergy').value);
-    const tagsStr = document.getElementById('newBeingTags').value;
-
-    if (!name) {
-        alert('Podaj nazwę bytu');
-        return;
-    }
-
-    const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()) : [];
-
-    const beingData = {
-        genesis: {
-            name: name,
-            type: type,
-            source: `# Wygenerowany byt: ${name}\nclass ${name}:\n    pass`,
-            created_by: 'frontend'
-        },
-        tags: tags,
-        energy_level: energy,
-        attributes: {
-            created_via: 'frontend',
-            initial_energy: energy
-        },
-        memories: [],
-        self_awareness: {
-            trust_level: 0.5,
-            confidence: 0.7
-        }
-    };
-
-    graph.socket.emit('create_being', beingData);
-
-    // Wyczyść formularz
-    document.getElementById('newBeingName').value = '';
-    document.getElementById('newBeingTags').value = '';
-    document.getElementById('newBeingEnergy').value = '50';
-}
-
-function createRelationship() {
-    if (graph.selectedNodes.length !== 2) {
-        alert('Wybierz dokładnie dwa byty w grafie');
-        return;
-    }
-
-    const type = document.getElementById('relationshipType').value;
-    const [source, target] = graph.selectedNodes;
-
-    const relationshipData = {
-        source_soul: source.soul,
-        target_soul: target.soul,
-        genesis: {
-            type: type,
-            created_via: 'frontend',
-            description: `${source.genesis.name || 'Byt'} ${type} ${target.genesis.name || 'Byt'}`
-        },
-        tags: [type, 'frontend'],
-        energy_level: 50,
-        attributes: {
-            created_via: 'frontend'
-        }
-    };
-
-    graph.socket.emit('create_relationship', relationshipData);
-
-    // Wyczyść wybrane węzły
-    graph.selectedNodes = [];
-    graph.nodeGroup.selectAll('.node').classed('selected', false);
-}
-
-function clearSelection() {
-    graph.selectedNodes = [];
-    graph.nodeGroup.selectAll('.node').classed('selected', false);
-}
-
-graph.clearSelection();
-}
-
-// Funkcje obsługi executora funkcji
-function registerSelectedFunction() {
-    if (graph.selectedNodes.length !== 1) {
-        alert('Wybierz dokładnie jeden byt funkcji');
-        return;
-    }
-
-    const node = graph.selectedNodes[0];
-    if (!node.genesis || node.genesis.type !== 'function') {
-        alert('Wybrany byt nie jest funkcją');
-        return;
-    }
-
-    graph.socket.emit('register_function', { soul: node.soul });
-}
-
-function showRegisteredFunctions() {
-    graph.socket.emit('get_registered_functions', {});
-}
-
-function showSourceCode() {
-    if (graph.selectedNodes.length !== 1) {
-        alert('Wybierz dokładnie jeden byt');
-        return;
-    }
-
-    const node = graph.selectedNodes[0];
-    graph.socket.emit('get_being_source', { soul: node.soul });
-}
-
-function closeSourceModal() {
-    document.getElementById('sourceModal').style.display = 'none';
-}
-
-function closeExecutionModal() {
-    document.getElementById('executionModal').style.display = 'none';
-}
-
-function executeCurrentFunction() {
-    const soul = document.getElementById('sourceSoul').textContent;
-    if (soul) {
-        showExecutionModal(soul);
-    }
-}
-
-function registerCurrentFunction() {
-    const soul = document.getElementById('sourceSoul').textContent;
-    if (soul) {
-        graph.socket.emit('register_function', { soul: soul });
-    }
-}
-
-function showExecutionModal(soul) {
-    document.getElementById('executionModal').style.display = 'block';
-    document.getElementById('executionModal').dataset.soul = soul;
-}
-
-function executeFunctionWithArgs() {
-    const soul = document.getElementById('executionModal').dataset.soul;
-    const argsText = document.getElementById('functionArgs').value.trim();
-    const kwargsText = document.getElementById('functionKwargs').value.trim();
-
-    let args = [];
-    let kwargs = {};
-
-    try {
-        if (argsText) {
-            args = JSON.parse(argsText);
-        }
-        if (kwargsText) {
-            kwargs = JSON.parse(kwargsText);
-        }
-    } catch (e) {
-        alert('Błąd parsowania argumentów JSON: ' + e.message);
-        return;
-    }
-
-    graph.socket.emit('execute_function', {
-        soul: soul,
-        args: args,
-        kwargs: kwargs
-    });
-}
-
-function applyFilter() {
-    const filterType = document.getElementById('filterType').value;
-    const filterValue = document.getElementById('filterValue').value.toLowerCase();
-
-    if (filterType === 'all') {
-        graph.nodeGroup.selectAll('.node').style('opacity', 1);
-        graph.linkGroup.selectAll('.link').style('opacity', 0.6);
-        return;
-    }
-
-    graph.nodeGroup.selectAll('.node').style('opacity', d => {
-        if (filterType === 'energy') {
-            const threshold = parseInt(filterValue) || 0;
-            return d.energy_level >= threshold ? 1 : 0.2;
-        } else if (filterType === 'tag') {
-            return d.tags.some(tag => tag.toLowerCase().includes(filterValue)) ? 1 : 0.2;
-        }
-        return 1;
-    });
-
-    // Ukryj linki do niewidocznych węzłów
-    graph.linkGroup.selectAll('.link').style('opacity', d => {
-        const sourceVisible = graph.nodeGroup.select(`[data-soul="${d.source.soul}"]`).style('opacity') === '1';
-        const targetVisible = graph.nodeGroup.select(`[data-soul="${d.target.soul}"]`).style('opacity') === '1';
-        return sourceVisible && targetVisible ? 0.6 : 0.1;
-    });
-}
-
-function clearFilter() {
-    document.getElementById('filterValue').value = '';
-    document.getElementById('filterType').value = 'all';
-    applyFilter();
-}
-
-// Inicjalizacja
-let graph;
-document.addEventListener('DOMContentLoaded', () => {
-    graph = new LuxOSGraph();
-});
+// Inicjalizacja - przeniesiona do HTML
