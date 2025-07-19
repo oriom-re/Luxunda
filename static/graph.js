@@ -9,6 +9,10 @@ class LuxOSGraph {
         this.selectedNodes = [];
         this.simulation = null;
         this.socket = null;
+        this.mouseDownTime = 0;
+
+        // Globalna referencja dla przycisków w panelu szczegółów
+        window.luxosGraph = this;
 
         this.initializeSocket();
         this.initializeGraph();
@@ -92,6 +96,11 @@ class LuxOSGraph {
             .scaleExtent([0.1, 10])
             .on("zoom", (event) => {
                 this.container.attr("transform", event.transform);
+                
+                // Sprawdź czy zoom jest na wysokim poziomie i czy jest blisko węzła
+                if (event.transform.k > 3) {
+                    this.checkForNodeProximity(event.transform);
+                }
             });
 
         this.svg.call(this.zoom);
@@ -192,8 +201,15 @@ class LuxOSGraph {
         nodeUpdate.select(".node-label")
             .text(d => d.genesis?.name || "Unnamed");
 
-        nodeUpdate.on("click", (event, d) => {
+        nodeUpdate.on("mousedown", (event, d) => {
+            this.mouseDownTime = Date.now();
+        })
+        .on("click", (event, d) => {
             this.handleNodeClick(event, d);
+        })
+        .on("dblclick", (event, d) => {
+            event.preventDefault();
+            this.openNodeDetails(d);
         })
         .on("contextmenu", (event, d) => {
             event.preventDefault();
@@ -248,33 +264,40 @@ class LuxOSGraph {
     handleNodeClick(event, node) {
         event.stopPropagation();
 
-        if (this.selectedNodes.includes(node.soul)) {
-            this.selectedNodes = this.selectedNodes.filter(s => s !== node.soul);
-        } else {
-            this.selectedNodes.push(node.soul);
+        // Sprawdź czy to było przeciąganie - jeśli tak, nie otwieraj węzła
+        if (node.isDragging || (node.lastDragTime && Date.now() - node.lastDragTime < 200)) {
+            return;
         }
 
-        this.nodeGroup.selectAll(".node")
-            .classed("selected", d => this.selectedNodes.includes(d.soul));
+        // Sprawdź czy to pojedyncze kliknięcie (nie przeciąganie)
+        const timeSinceMouseDown = Date.now() - (this.mouseDownTime || 0);
+        if (timeSinceMouseDown > 300) {
+            return; // To było przeciąganie
+        }
 
-        console.log('Selected nodes:', this.selectedNodes);
+        // Otwórz szczegóły węzła
+        this.openNodeDetails(node);
     }
 
     drag() {
         return d3.drag()
             .on("start", (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0.3).restart();
-                d.fx = d.x;
-                d.fy = d.y;
+                // Oznacz węzeł jako przeciągany w metadanych, ale zachowaj fizyczność
+                d.isDragging = true;
+                d.dragStartTime = Date.now();
             })
             .on("drag", (event, d) => {
-                d.fx = event.x;
-                d.fy = event.y;
+                // Aktualizuj pozycję bez blokowania fizyki
+                d.x = event.x;
+                d.y = event.y;
             })
             .on("end", (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0);
-                d.fx = null;
-                d.fy = null;
+                // Usuń oznaczenie przeciągania, zachowując pozycję
+                d.isDragging = false;
+                d.lastDragTime = Date.now();
+                // Nie blokuj pozycji - pozwól fizyce działać normalnie
             });
     }
 
@@ -560,22 +583,168 @@ class LuxOSGraph {
         }
     }
 
-    showNodeDetails(node) {
-        const details = {
-            'Nazwa': node.genesis?.name || 'Brak nazwy',
-            'Typ': node.genesis?.type || 'Nieznany',
-            'Soul ID': node.soul,
-            'Energia': node.attributes?.energy_level || 0,
-            'Tagi': Array.isArray(node.attributes?.tags) ? node.attributes.tags.join(', ') : 'Brak',
-            'Zaufanie': node.self_awareness?.trust_level || 'Brak danych'
-        };
+    openNodeDetails(node) {
+        // Usuń poprzednie okno szczegółów jeśli istnieje
+        this.closeNodeDetails();
 
-        let detailText = 'Szczegóły węzła:\n\n';
-        for (const [key, value] of Object.entries(details)) {
-            detailText += `${key}: ${value}\n`;
+        const detailsPanel = document.createElement('div');
+        detailsPanel.className = 'node-details-panel';
+        detailsPanel.style.position = 'fixed';
+        detailsPanel.style.top = '50%';
+        detailsPanel.style.left = '50%';
+        detailsPanel.style.transform = 'translate(-50%, -50%)';
+        detailsPanel.style.width = '500px';
+        detailsPanel.style.maxHeight = '80vh';
+        detailsPanel.style.background = 'rgba(26, 26, 26, 0.98)';
+        detailsPanel.style.border = '2px solid #00ff88';
+        detailsPanel.style.borderRadius = '12px';
+        detailsPanel.style.padding = '20px';
+        detailsPanel.style.zIndex = '2000';
+        detailsPanel.style.backdropFilter = 'blur(15px)';
+        detailsPanel.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.8)';
+        detailsPanel.style.overflowY = 'auto';
+        detailsPanel.style.color = 'white';
+        detailsPanel.style.fontFamily = 'monospace';
+
+        const header = document.createElement('div');
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'center';
+        header.style.marginBottom = '20px';
+        header.style.borderBottom = '1px solid #555';
+        header.style.paddingBottom = '15px';
+
+        const title = document.createElement('h2');
+        title.textContent = `🧠 ${node.genesis?.name || 'Byt Bez Nazwy'}`;
+        title.style.margin = '0';
+        title.style.color = '#00ff88';
+        title.style.fontSize = '24px';
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.background = '#ff4444';
+        closeBtn.style.color = 'white';
+        closeBtn.style.border = 'none';
+        closeBtn.style.borderRadius = '50%';
+        closeBtn.style.width = '30px';
+        closeBtn.style.height = '30px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.fontSize = '16px';
+        closeBtn.style.fontWeight = 'bold';
+        closeBtn.addEventListener('click', () => this.closeNodeDetails());
+
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+
+        const content = document.createElement('div');
+        content.innerHTML = this.generateNodeDetailsHTML(node);
+
+        detailsPanel.appendChild(header);
+        detailsPanel.appendChild(content);
+
+        document.body.appendChild(detailsPanel);
+
+        // Animacja wejścia
+        detailsPanel.style.opacity = '0';
+        detailsPanel.style.transform = 'translate(-50%, -50%) scale(0.8)';
+        setTimeout(() => {
+            detailsPanel.style.transition = 'all 0.3s ease';
+            detailsPanel.style.opacity = '1';
+            detailsPanel.style.transform = 'translate(-50%, -50%) scale(1)';
+        }, 10);
+
+        // Zamknij po kliknięciu poza panelem
+        setTimeout(() => {
+            document.addEventListener('click', (e) => {
+                if (!detailsPanel.contains(e.target)) {
+                    this.closeNodeDetails();
+                }
+            }, { once: true });
+        }, 100);
+
+        // Zamknij po ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeNodeDetails();
+            }
+        }, { once: true });
+    }
+
+    generateNodeDetailsHTML(node) {
+        const genesis = node.genesis || {};
+        const attributes = node.attributes || {};
+        const memories = node.memories || [];
+        const selfAwareness = node.self_awareness || {};
+
+        return `
+            <div style="display: grid; gap: 15px;">
+                <div style="background: rgba(0, 255, 136, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #00ff88;">
+                    <h3 style="margin: 0 0 10px 0; color: #00ff88;">📊 Podstawowe Informacje</h3>
+                    <div><strong>Soul ID:</strong> <code>${node.soul}</code></div>
+                    <div><strong>Typ:</strong> ${genesis.type || 'Nieznany'}</div>
+                    <div><strong>Utworzony przez:</strong> ${genesis.created_by || 'System'}</div>
+                    <div><strong>Data utworzenia:</strong> ${node.created_at || 'Nieznana'}</div>
+                </div>
+
+                ${genesis.source ? `
+                <div style="background: rgba(33, 150, 243, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #2196F3;">
+                    <h3 style="margin: 0 0 10px 0; color: #2196F3;">💻 Kod Źródłowy</h3>
+                    <pre style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; font-size: 12px;">${genesis.source}</pre>
+                </div>
+                ` : ''}
+
+                <div style="background: rgba(255, 152, 0, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #FF9800;">
+                    <h3 style="margin: 0 0 10px 0; color: #FF9800;">⚡ Atrybuty</h3>
+                    <div><strong>Energia:</strong> ${attributes.energy_level || 0}</div>
+                    <div><strong>Tagi:</strong> ${Array.isArray(attributes.tags) ? attributes.tags.map(tag => `<span style="background: #555; padding: 2px 6px; border-radius: 3px; margin: 2px;">${tag}</span>`).join(' ') : 'Brak'}</div>
+                    ${attributes.created_via ? `<div><strong>Utworzony via:</strong> ${attributes.created_via}</div>` : ''}
+                    ${attributes.intention_text ? `<div><strong>Tekst intencji:</strong> "${attributes.intention_text}"</div>` : ''}
+                </div>
+
+                <div style="background: rgba(156, 39, 176, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #9C27B0;">
+                    <h3 style="margin: 0 0 10px 0; color: #9C27B0;">🧠 Samoświadomość</h3>
+                    <div><strong>Poziom zaufania:</strong> ${selfAwareness.trust_level || 'Nieznany'}</div>
+                    <div><strong>Pewność siebie:</strong> ${selfAwareness.confidence || 'Nieznana'}</div>
+                </div>
+
+                ${memories.length > 0 ? `
+                <div style="background: rgba(96, 125, 139, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #607D8B;">
+                    <h3 style="margin: 0 0 10px 0; color: #607D8B;">💭 Pamięci</h3>
+                    ${memories.map(memory => `
+                        <div style="background: rgba(0,0,0,0.3); padding: 8px; margin: 5px 0; border-radius: 4px;">
+                            <strong>${memory.type || 'Memory'}:</strong> ${memory.data || 'Brak danych'}
+                        </div>
+                    `).join('')}
+                </div>
+                ` : ''}
+
+                <div style="background: rgba(76, 175, 80, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #4CAF50;">
+                    <h3 style="margin: 0 0 10px 0; color: #4CAF50;">🛠️ Akcje</h3>
+                    <button onclick="window.luxosGraph.increaseNodeEnergy({soul: '${node.soul}'})" style="background: #00ff88; color: #1a1a1a; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">⚡ Zwiększ Energię</button>
+                    <button onclick="window.luxosGraph.addNodeTag({soul: '${node.soul}', attributes: ${JSON.stringify(attributes).replace(/"/g, '&quot;')}})" style="background: #2196F3; color: white; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">🏷️ Dodaj Tag</button>
+                    <button onclick="window.luxosGraph.closeNodeDetails()" style="background: #607D8B; color: white; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">🚪 Zamknij</button>
+                </div>
+            </div>
+        `;
+    }
+
+    closeNodeDetails() {
+        const panel = document.querySelector('.node-details-panel');
+        if (panel) {
+            panel.style.transition = 'all 0.3s ease';
+            panel.style.opacity = '0';
+            panel.style.transform = 'translate(-50%, -50%) scale(0.8)';
+            setTimeout(() => {
+                if (panel.parentNode) {
+                    panel.remove();
+                }
+            }, 300);
         }
+    }
 
-        alert(detailText);
+    showNodeDetails(node) {
+        // Przekieruj do nowej funkcji
+        this.openNodeDetails(node);
     }
 
     increaseNodeEnergy(node) {
@@ -631,6 +800,44 @@ class LuxOSGraph {
             
             // Tutaj można dodać komunikację z backendem
             this.socket.emit('delete_being', { soul: node.soul });
+        }
+    }
+
+    checkForNodeProximity(transform) {
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        
+        // Przekształć współrzędne centrum viewport na współrzędne grafu
+        const graphCenterX = (centerX - transform.x) / transform.k;
+        const graphCenterY = (centerY - transform.y) / transform.k;
+        
+        // Znajdź najbliższy węzeł do centrum viewport
+        let closestNode = null;
+        let minDistance = Infinity;
+        
+        this.nodes.forEach(node => {
+            if (node.x !== undefined && node.y !== undefined) {
+                const distance = Math.sqrt(
+                    Math.pow(node.x - graphCenterX, 2) + 
+                    Math.pow(node.y - graphCenterY, 2)
+                );
+                
+                if (distance < minDistance && distance < 50) { // 50 jednostek promień
+                    minDistance = distance;
+                    closestNode = node;
+                }
+            }
+        });
+        
+        // Jeśli znaleziono bliski węzeł i zoom jest wystarczająco duży, otwórz szczegóły
+        if (closestNode && transform.k > 4 && !this.nodeDetailsOpen) {
+            this.nodeDetailsOpen = true;
+            this.openNodeDetails(closestNode);
+            
+            // Zresetuj flagę po chwili
+            setTimeout(() => {
+                this.nodeDetailsOpen = false;
+            }, 1000);
         }
     }
 
