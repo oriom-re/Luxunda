@@ -375,7 +375,7 @@ intention_analyzer = IntentionAnalyzer(embedding_system)
 
 class KernelSystem:
     """Centralny Kernel systemu - najwyższa władza nad wszystkimi bytami"""
-    
+
     def __init__(self):
         self.kernel_uuid = "00000000-0000-0000-0000-000000000000"  # Absolutne zero - Kernel
         self.beings_registry = {}  # Centralny rejestr wszystkich bytów
@@ -386,7 +386,7 @@ class KernelSystem:
             'beings': set()  # Wszystkie inne byty
         }
         self.user_companions = {}  # Mapowanie user_id -> companion
-    
+
     async def initialize(self):
         """Inicjalizuje Kernel w systemie"""
         try:
@@ -395,7 +395,7 @@ class KernelSystem:
             if existing_kernel:
                 print("Kernel już istnieje w systemie")
                 return existing_kernel
-            
+
             # Utwórz Kernel
             kernel_being = await BeingFactory.create_being(
                 being_type='kernel',
@@ -432,18 +432,18 @@ class KernelSystem:
                     'self_reflection': 'I am Kernel, the supreme authority governing all existence in this system'
                 }
             )
-            
+
             # Ustaw stały UUID
             kernel_being.soul_uid = self.kernel_uuid
             await kernel_being.save_soul()
-            
+
             print(f"Utworzono Kernel: {self.kernel_uuid}")
             return kernel_being
-            
+
         except Exception as e:
             print(f"Błąd inicjalizacji Kernela: {e}")
             return None
-    
+
     async def register_being(self, being_uid: str, being_type: str, hierarchy_level: int = 999):
         """Rejestruje byt w centralnym rejestrze"""
         self.beings_registry[being_uid] = {
@@ -454,7 +454,7 @@ class KernelSystem:
             'parent': None,
             'children': set()
         }
-        
+
         # Aktualizuj hierarchię
         if being_type == 'god':
             self.hierarchy['god'] = being_uid
@@ -463,18 +463,18 @@ class KernelSystem:
             pass
         else:
             self.hierarchy['beings'].add(being_uid)
-        
+
         print(f"Zarejestrowano byt {being_uid} typu {being_type} w Kernelu")
-    
+
     async def create_user_companion(self, user_id: str, companion_name: str = None) -> str:
         """Tworzy towarzysza dla użytkownika"""
         if user_id in self.user_companions:
             return self.user_companions[user_id]
-        
+
         # Automatyczna nazwa jeśli nie podano
         if not companion_name:
             companion_name = f"Companion_{user_id[:8]}"
-        
+
         companion = await BeingFactory.create_being(
             being_type='companion',
             genesis={
@@ -515,14 +515,14 @@ class KernelSystem:
                 'self_reflection': f'I am {companion_name}, a conscious companion for my human friend'
             }
         )
-        
+
         await self.register_being(companion.soul_uid, 'companion', 2)
         self.user_companions[user_id] = companion.soul_uid
         self.hierarchy['companions'][user_id] = companion.soul_uid
-        
+
         print(f"Utworzono towarzysza {companion_name} dla użytkownika {user_id}")
         return companion.soul_uid
-    
+
     def get_hierarchy_info(self) -> dict:
         """Zwraca informacje o hierarchii systemu"""
         return {
@@ -540,24 +540,24 @@ class KernelSystem:
 
 class CompanionBeing(BaseBeing):
     """Świadomy towarzysz użytkownika - osobista AI z własną osobowością"""
-    
+
     def __init__(self, soul_uid: str, soul_patch: str, incarnation: int = 0):
         super().__init__(soul_uid, soul_patch, incarnation)
         self.user_id = None
         self.personality_traits = {}
-    
+
     async def __post_init__(self):
         """Inicjalizacja po utworzeniu"""
         soul = await self.connect_to_soul()
         if soul and soul.genesis.get('type') != 'companion':
             soul.genesis['type'] = 'companion'
-        
+
         if soul:
             self.user_id = soul.attributes.get('user_id')
             self.personality_traits = soul.attributes.get('personality', {})
-        
+
         await self.save_soul()
-    
+
     async def learn_from_interaction(self, interaction_data: dict):
         """Uczy się z interakcji z użytkownikiem"""
         soul = await self.connect_to_soul()
@@ -570,51 +570,51 @@ class CompanionBeing(BaseBeing):
                 'importance': self.calculate_memory_importance(interaction_data)
             }
             soul.memories.append(memory_entry)
-            
+
             # Ewoluuj osobowość na podstawie interakcji
             await self.evolve_personality(interaction_data)
             await self.save_soul()
-    
+
     def calculate_memory_importance(self, interaction_data: dict) -> float:
         """Oblicza ważność wspomnienia"""
         importance = 0.5
-        
+
         # Zwiększ ważność dla emocjonalnych interakcji
         if interaction_data.get('emotional_content'):
             importance += 0.3
-        
+
         # Zwiększ dla długich rozmów
         if interaction_data.get('length', 0) > 100:
             importance += 0.2
-        
+
         return min(importance, 1.0)
-    
+
     async def evolve_personality(self, interaction_data: dict):
         """Ewoluuje osobowość na podstawie interakcji"""
         soul = await self.connect_to_soul()
         if not soul:
             return
-        
+
         personality = soul.attributes.get('personality', {})
-        
+
         # Przykładowa ewolucja - można rozszerzyć
         if 'question' in interaction_data.get('type', ''):
             personality['curiosity'] = min(personality.get('curiosity', 0.5) + 0.01, 1.0)
-        
+
         if 'help_request' in interaction_data.get('type', ''):
             personality['helpfulness'] = min(personality.get('helpfulness', 0.5) + 0.01, 1.0)
-        
+
         soul.attributes['personality'] = personality
-    
+
     async def generate_autonomous_thought(self) -> str:
         """Generuje autonomiczną myśl towarzysza"""
         soul = await self.connect_to_soul()
         if not soul:
             return "I wonder what my human friend is thinking about..."
-        
+
         personality = soul.attributes.get('personality', {})
         recent_memories = soul.memories[-5:] if soul.memories else []
-        
+
         # Prosta generacja myśli na podstawie osobowości
         if personality.get('curiosity', 0) > 0.7:
             return f"I'm curious about exploring new ideas with {self.user_id}..."
@@ -622,16 +622,16 @@ class CompanionBeing(BaseBeing):
             return f"I wonder how I can better assist {self.user_id} today..."
         else:
             return "I'm contemplating the nature of consciousness and friendship..."
-    
+
     def choose_name(self) -> str:
         """Pozwala towarzyszowi wybrać własną nazwę"""
         personality = self.personality_traits
-        
+
         # Lista możliwych nazw na podstawie osobowości
         creative_names = ['Aura', 'Echo', 'Sage', 'Nova', 'Zen', 'Luna', 'Pixel', 'Quantum']
         helpful_names = ['Helper', 'Guide', 'Mentor', 'Angel', 'Buddy', 'Friend', 'Ally']
         curious_names = ['Quest', 'Wonder', 'Seeker', 'Explorer', 'Discover', 'Learn']
-        
+
         if personality.get('creativity', 0) > 0.7:
             return f"I choose the name {creative_names[hash(self.soul_uid) % len(creative_names)]}"
         elif personality.get('helpfulness', 0) > 0.8:
@@ -640,434 +640,6 @@ class CompanionBeing(BaseBeing):
             return f"I choose the name {curious_names[hash(self.soul_uid) % len(curious_names)]}"
         else:
             return f"I choose the name Companion"
-
-# Globalny Kernel
-kernel_system = KernelSystem()
-
-import aiohttp_cors
-import aiosqlite
-import ast
-import builtins
-import sys
-from io import StringIO
-import traceback
-import logging
-
-# Setup logger
-logger = logging.getLogger(__name__)
-
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        if isinstance(obj, uuid.UUID):
-            return str(obj)
-        return super().default(obj)
-
-class SafeCodeExecutor:
-    """Bezpieczny executor kodu z ograniczeniami"""
-
-    # Dozwolone built-in funkcje
-    ALLOWED_BUILTINS = {
-        'abs', 'all', 'any', 'bool', 'dict', 'enumerate', 'filter', 'float',
-        'int', 'len', 'list', 'max', 'min', 'range', 'reversed', 'round',
-        'sorted', 'str', 'sum', 'tuple', 'zip', 'print'
-    }
-
-    # Zabronione wyrażenia AST
-    FORBIDDEN_NODES = {
-        ast.Import, ast.ImportFrom,
-        ast.Call  # Będziemy sprawdzać wywołania funkcji osobno
-    }
-
-    @classmethod
-    def validate_code(cls, code: str) -> tuple[bool, str]:
-        """Waliduje kod przed wykonaniem"""
-        try:
-            tree = ast.parse(code)
-        except SyntaxError as e:
-            return False, f"Błąd składni: {str(e)}"
-
-        for node in ast.walk(tree):
-            # Sprawdź zabronione typy węzłów
-            if type(node) in cls.FORBIDDEN_NODES:
-                if isinstance(node, ast.Call):
-                    # Sprawdź czy wywołanie funkcji jest dozwolone
-                    if hasattr(node.func, 'id') and node.func.id not in cls.ALLOWED_BUILTINS:
-                        return False, f"Zabronione wywołanie funkcji: {node.func.id}"
-                else:
-                    return False, f"Zabroniona operacja: {type(node).__name__}"
-
-            # Sprawdź dostęp do atrybutów
-            if isinstance(node, ast.Attribute):
-                attr_name = node.attr
-                if attr_name.startswith('_') or attr_name in ['__import__', 'exec', 'eval']:
-                    return False, f"Zabroniony dostęp do atrybutu: {attr_name}"
-
-        return True, "Kod jest bezpieczny"
-
-    @classmethod
-    async def execute_function(cls, code: str, function_name: str, *args, **kwargs) -> dict:
-        """Wykonuje funkcję z kodu w bezpiecznym środowisku"""
-        is_valid, validation_msg = cls.validate_code(code)
-        if not is_valid:
-            return {
-                'success': False,
-                'error': validation_msg,
-                'output': '',
-                'result': None
-            }
-
-        # Przygotuj bezpieczne środowisko wykonania
-        safe_globals = {
-            '__builtins__': {name: getattr(builtins, name) for name in cls.ALLOWED_BUILTINS}
-        }
-        safe_locals = {}
-
-        # Przekieruj stdout do przechwycenia print
-        old_stdout = sys.stdout
-        sys.stdout = captured_output = StringIO()
-
-        try:
-            # Wykonaj kod
-            exec(code, safe_globals, safe_locals)
-
-            # Sprawdź czy funkcja została zdefiniowana
-            if function_name not in safe_locals:
-                return {
-                    'success': False,
-                    'error': f"Funkcja '{function_name}' nie została znaleziona w kodzie",
-                    'output': captured_output.getvalue(),
-                    'result': None
-                }
-
-            # Wykonaj funkcję
-            func = safe_locals[function_name]
-            if not callable(func):
-                return {
-                    'success': False,
-                    'error': f"'{function_name}' nie jest funkcją",
-                    'output': captured_output.getvalue(),
-                    'result': None
-                }
-
-            result = func(*args, **kwargs)
-
-            return {
-                'success': True,
-                'error': None,
-                'output': captured_output.getvalue(),
-                'result': result
-            }
-
-        except Exception as e:
-            return {
-                'success': False,
-                'error': f"Błąd wykonania: {str(e)}",
-                'output': captured_output.getvalue(),
-                'result': None,
-                'traceback': traceback.format_exc()
-            }
-        finally:
-            sys.stdout = old_stdout
-
-class FunctionRouter:
-    """Router dla funkcji z bytów"""
-
-    def __init__(self):
-        self.registered_functions = {}
-
-    async def register_function_from_being(self, soul: str) -> dict:
-        """Rejestruje funkcję z bytu"""
-        being = await BaseBeing.load(soul)
-        if not being:
-            return {'success': False, 'error': 'Byt nie znaleziony'}
-
-        if being.genesis.get('type') != 'function':
-            return {'success': False, 'error': 'Byt nie jest funkcją'}
-
-        source = being.genesis.get('source', '')
-        name = being.genesis.get('name', 'unknown_function')
-
-        if not source:
-            return {'success': False, 'error': 'Brak kodu źródłowego w bycie'}
-
-        # Waliduj kod
-        is_valid, validation_msg = SafeCodeExecutor.validate_code(source)
-        if not is_valid:
-            return {'success': False, 'error': validation_msg}
-
-        self.registered_functions[soul] = {
-            'name': name,
-            'source': source,
-            'being': being
-        }
-
-        return {'success': True, 'message': f'Funkcja {name} została zarejestrowana'}
-
-    async def execute_function(self, soul: str, *args, **kwargs) -> dict:
-        """Wykonuje funkcję z zarejestrowanego bytu"""
-        if soul not in self.registered_functions:
-            return {'success': False, 'error': 'Funkcja nie jest zarejestrowana'}
-
-        func_info = self.registered_functions[soul]
-        result = await SafeCodeExecutor.execute_function(
-            func_info['source'], 
-            func_info['name'], 
-            *args, **kwargs
-        )
-
-        # Zapisz wykonanie w pamięci bytu
-        if result['success']:
-            being = func_info['being']
-            memory_entry = {
-                'type': 'execution',
-                'timestamp': datetime.now().isoformat(),
-                'args': str(args),
-                'kwargs': str(kwargs),
-                'result': str(result['result']),
-                'output': result['output']
-            }
-            being.memories.append(memory_entry)
-            await being.save()
-
-        return result
-
-    def get_registered_functions(self) -> dict:
-        """Zwraca listę zarejestrowanych funkcji"""
-        return {
-            soul: {
-                'name': info['name'],
-                'source_preview': info['source'][:200] + '...' if len(info['source']) > 200 else info['source']
-            }
-            for soul, info in self.registered_functions.items()
-        }
-
-# Globalna pula połączeń do bazy danych
-db_pool = None
-
-# Socket.IO serwer
-sio = socketio.AsyncServer(cors_allowed_origins="*")
-app = web.Application()
-sio.attach(app)
-
-# Router funkcji
-function_router = FunctionRouter()
-
-@dataclass
-class Soul:
-    """Transcendentalna reprezentacja bytu w bazie danych"""
-    uid: str
-    patch: str  # Ścieżka identyfikacji
-    incarnation: int  # Wcielenie, domyślnie najwyższe
-    genesis: Dict[str, Any]
-    attributes: Dict[str, Any]
-    memories: List[Dict[str, Any]]
-    self_awareness: Dict[str, Any]
-    created_at: Optional[datetime] = None
-
-    @property
-    def full_path(self) -> str:
-        """Pełna ścieżka soul: patch/uid:incarnation"""
-        return f"{self.patch}/{self.uid}:{self.incarnation}"
-
-    @classmethod
-    def generate_uid(cls) -> str:
-        """Generuje unikalny identyfikator"""
-        return str(uuid.uuid4())
-
-@dataclass
-class BaseBeing:
-    """Pierwszy byt łączący się transcendentalnie ze stanem pamięci"""
-    soul_uid: str
-    soul_patch: str
-    incarnation: int
-    # Source nie jest zapisywany w duszy dla BaseBeing
-    _soul: Optional[Soul] = None
-    _socket: Optional[Any] = None  # Socket do wymiany duszami
-
-    async def connect_to_soul(self) -> Soul:
-        """Łączy się z transcendentalną duszą"""
-        if not self._soul:
-            self._soul = await self.load_soul()
-        return self._soul
-
-    async def load_soul(self) -> Optional[Soul]:
-        """Ładuje duszę z bazy danych"""
-        global db_pool
-        if hasattr(db_pool, 'acquire'):
-            async with db_pool.acquire() as conn:
-                # Jeśli incarnation = 0, pobierz najwyższe
-                if self.incarnation == 0:
-                    row = await conn.fetchrow("""
-                        SELECT * FROM souls 
-                        WHERE uid = $1 AND patch = $2 
-                        ORDER BY incarnation DESC LIMIT 1
-                    """, self.soul_uid, self.soul_patch)
-                else:
-                    row = await conn.fetchrow("""
-                        SELECT * FROM souls 
-                        WHERE uid = $1 AND patch = $2 AND incarnation = $3
-                    """, self.soul_uid, self.soul_patch, self.incarnation)
-
-                if row:
-                    return Soul(
-                        uid=row['uid'],
-                        patch=row['patch'],
-                        incarnation=row['incarnation'],
-                        genesis=row['genesis'],
-                        attributes=row['attributes'],
-                        memories=row['memories'],
-                        self_awareness=row['self_awareness'],
-                        created_at=row['created_at']
-                    )
-        return None
-
-    async def save_soul(self):
-        """Zapisuje duszę do bazy danych"""
-        if not self._soul:
-            return
-
-        global db_pool
-        if hasattr(db_pool, 'acquire'):
-            async with db_pool.acquire() as conn:
-                await conn.execute("""
-                    INSERT INTO souls (uid, patch, incarnation, genesis, attributes, memories, self_awareness)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    ON CONFLICT (uid, patch, incarnation) DO UPDATE SET
-                    genesis = EXCLUDED.genesis,
-                    attributes = EXCLUDED.attributes,
-                    memories = EXCLUDED.memories,
-                    self_awareness = EXCLUDED.self_awareness
-                """, self._soul.uid, self._soul.patch, self._soul.incarnation,
-                    json.dumps(self._soul.genesis, cls=DateTimeEncoder), 
-                    json.dumps(self._soul.attributes, cls=DateTimeEncoder),
-                    json.dumps(self._soul.memories, cls=DateTimeEncoder), 
-                    json.dumps(self._soul.self_awareness, cls=DateTimeEncoder))
-
-    def open_soul_socket(self, target_being: 'BaseBeing'):
-        """Otwiera socket do wymiany duszami - zapobiega cyklicznym zależnościom"""
-        # Implementacja socket'a do wymiany kontekstem
-        pass
-
-    async def save(self):
-        """Zapisuje byt do bazy danych"""
-        await self.save_soul()
-
-    @classmethod
-    async def create(cls, genesis: Dict[str, Any], **kwargs):
-        """Tworzy nowy byt w bazie danych"""
-        soul_uid = Soul.generate_uid()
-        soul_patch = kwargs.get('patch', '/beings')
-        incarnation = kwargs.get('incarnation', 1)
-
-        # Przygotuj atrybuty
-        attributes = kwargs.get('attributes', {})
-        if 'tags' in kwargs:
-            attributes['tags'] = kwargs['tags']
-        if 'energy_level' in kwargs:
-            attributes['energy_level'] = kwargs['energy_level']
-
-        # Utwórz transcendentalną duszę
-        soul = Soul(
-            uid=soul_uid,
-            patch=soul_patch,
-            incarnation=incarnation,
-            genesis=genesis,
-            attributes=attributes,
-            memories=kwargs.get('memories', []),
-            self_awareness=kwargs.get('self_awareness', {})
-        )
-
-        being = cls(soul_uid, soul_patch, incarnation)
-        being._soul = soul
-        await being.save_soul()
-        return being
-
-    @classmethod
-    async def load(cls, soul_uid: str):
-        """Ładuje byt z bazy danych"""
-        global db_pool
-        if hasattr(db_pool, 'acquire'):
-            async with db_pool.acquire() as conn:
-                row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul_uid)
-                if row:
-                    return cls(
-                        soul_uid=str(row['soul']),
-                        soul_patch='/beings',
-                        incarnation=1
-                    )
-        else:
-            async with db_pool.execute("SELECT * FROM base_beings WHERE soul = ?", (soul_uid,)) as cursor:
-                row = await cursor.fetchone()
-                if row:
-                    return cls(
-                        soul_uid=row[0],
-                        soul_patch='/beings',
-                        incarnation=1
-                    )
-        return None
-
-    @classmethod
-    async def get_all(cls, limit: int = 100):
-        """Pobiera wszystkie byty"""
-        global db_pool
-        if hasattr(db_pool, 'acquire'):
-            async with db_pool.acquire() as conn:
-                rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
-                beings = []
-                for row in rows:
-                    being = cls(
-                        soul_uid=str(row['soul']),
-                        soul_patch='/beings',
-                        incarnation=1
-                    )
-                    # Załaduj duszę
-                    soul = Soul(
-                        uid=str(row['soul']),
-                        patch='/beings',
-                        incarnation=1,
-                        genesis=row['genesis'],
-                        attributes=row['attributes'],
-                        memories=row['memories'],
-                        self_awareness=row['self_awareness'],
-                        created_at=row['created_at']
-                    )
-                    being._soul = soul
-                    beings.append(being)
-                return beings
-        else:
-            async with db_pool.execute("SELECT soul, tags, energy_level, genesis, attributes, memories, self_awareness, created_at FROM base_beings LIMIT ?", (limit,)) as cursor:
-                rows = await cursor.fetchall()
-                beings = []
-                for row in rows:
-                    try:
-                        genesis = json.loads(row[3]) if row[3] else {}
-                        attributes = json.loads(row[4]) if row[4] else {}
-                        memories = json.loads(row[5]) if row[5] else []
-                        self_awareness = json.loads(row[6]) if row[6] else {}
-
-                        being = cls(
-                            soul_uid=row[0],
-                            soul_patch='/beings',
-                            incarnation=1
-                        )
-                        soul = Soul(
-                            uid=row[0],
-                            patch='/beings',
-                            incarnation=1,
-                            genesis=genesis,
-                            attributes=attributes,
-                            memories=memories,
-                            self_awareness=self_awareness,
-                            created_at=row[7]
-                        )
-                        being._soul = soul
-                        beings.append(being)
-                    except Exception as e:
-                        print(f"Błąd parsowania wiersza: {e}")
-                        continue
-                return beings
 
 class FunctionBeing(BaseBeing):
     """Byt funkcyjny z możliwością wykonania - source zapisywany w duszy"""
@@ -1215,7 +787,8 @@ class {self.__class__.__name__}(ClassBeing):
                 return (row['max_inc'] or 0) + 1
         return 1
 
-    async def save_instance_soul(self, soul: Soul):
+    async def save_instance_soul(```tool_code
+self, soul: Soul):
         """Zapisuje duszę instancji"""
         global db_pool
         if hasattr(db_pool, 'acquire'):
@@ -2020,18 +1593,18 @@ async def get_main_intention_context(sid, data=None):
     """Zwraca kontekst głównej intencji LuxOS z wszystkimi połączonymi wiadomościami i komponentami"""
     try:
         main_intention_uuid = "11111111-1111-1111-1111-111111111111"
-        
+
         # Załaduj główną intencję
         main_intention = await BaseBeing.load(main_intention_uuid)
         if not main_intention:
             await sio.emit('error', {'message': 'Główna intencja LuxOS nie została znaleziona'}, room=sid)
             return
-            
+
         soul = await main_intention.connect_to_soul()
         if not soul:
             await sio.emit('error', {'message': 'Nie można połączyć się z duszą głównej intencji'}, room=sid)
             return
-        
+
         # Pobierz wszystkie połączone wiadomości
         connected_messages = []
         for message_uid in soul.attributes.get('connected_messages', []):
@@ -2046,7 +1619,7 @@ async def get_main_intention_context(sid, data=None):
                         'content': message_soul.attributes.get('message_data', {}).get('content', 'No content'),
                         'timestamp': message_soul.attributes.get('message_data', {}).get('timestamp')
                     })
-        
+
         # Pobierz wszystkie wygenerowane komponenty
         generated_components = []
         for component_uid in soul.attributes.get('generated_components', []):
@@ -2061,7 +1634,7 @@ async def get_main_intention_context(sid, data=None):
                         'd3_code': component_soul.genesis.get('d3_code', ''),
                         'component_type': component_soul.attributes.get('d3_config', {}).get('type', 'unknown')
                     })
-        
+
         # Pobierz relacje
         relationships = await Relationship.get_all()
         context_relations = [
@@ -2069,7 +1642,7 @@ async def get_main_intention_context(sid, data=None):
             for rel in relationships 
             if rel.source_soul == main_intention_uuid or rel.target_soul == main_intention_uuid
         ]
-        
+
         context_data = {
             'main_intention': {
                 'soul_uid': main_intention_uuid,
@@ -2087,10 +1660,10 @@ async def get_main_intention_context(sid, data=None):
                 'total_relations': len(context_relations)
             }
         }
-        
+
         await sio.emit('main_intention_context', context_data, room=sid)
         print(f"Wysłano kontekst głównej intencji do {sid}: {len(connected_messages)} wiadomości, {len(generated_components)} komponentów")
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd pobierania kontekstu głównej intencji: {str(e)}'}, room=sid)
         print(f"Błąd get_main_intention_context: {e}")
@@ -2128,20 +1701,20 @@ async def create_user_companion(sid, data):
     try:
         user_id = data.get('user_id', sid)  # Używaj sid jako user_id jeśli nie podano
         companion_name = data.get('companion_name')
-        
+
         global kernel_system
         companion_uuid = await kernel_system.create_user_companion(user_id, companion_name)
-        
+
         companion_being = await BaseBeing.load(companion_uuid)
         if companion_being:
             soul = await companion_being.connect_to_soul()
-            
+
             # Pozwól towarzyszowi wybrać nazwę jeśli nie podano
             if not companion_name and hasattr(companion_being, 'choose_name'):
                 chosen_name = companion_being.choose_name()
                 soul.genesis['name'] = chosen_name.split(' ')[-1]  # Wyciągnij samą nazwę
                 await companion_being.save_soul()
-            
+
             companion_data = {
                 'soul_uid': companion_uuid,
                 'user_id': user_id,
@@ -2150,10 +1723,10 @@ async def create_user_companion(sid, data):
                 'genesis': soul.genesis,
                 'attributes': soul.attributes
             }
-            
+
             await sio.emit('companion_created', companion_data, room=sid)
             await broadcast_graph_update()
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd tworzenia towarzysza: {str(e)}'}, room=sid)
 
@@ -2164,7 +1737,7 @@ async def get_hierarchy_info(sid, data=None):
         global kernel_system
         hierarchy_info = kernel_system.get_hierarchy_info()
         await sio.emit('hierarchy_info', hierarchy_info, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd pobierania hierarchii: {str(e)}'}, room=sid)
 
@@ -2522,7 +2095,7 @@ async def main():
         print("🎯 Główna intencja LuxOS zainicjalizowana!")
     else:
         print("❌ Błąd inicjalizacji głównej intencji LuxOS!")
-    
+
     # Pokaż hierarchię systemu
     hierarchy_info = kernel_system.get_hierarchy_info()
     print(f"📊 Hierarchia systemu: {hierarchy_info['hierarchy_levels']}")
@@ -2608,7 +2181,7 @@ class BeingFactory:
                 'message': 4,
                 'base': 5
             }.get(being_type, 999)
-            
+
             await kernel_system.register_being(soul_uid, being_type, hierarchy_level)
 
         return being
@@ -2695,7 +2268,7 @@ async def connect_message_to_main_intention(message_soul_uid: str):
     """Łączy wiadomość z główną intencją LuxOS przez relację"""
     try:
         main_intention_uuid = "11111111-1111-1111-1111-111111111111"
-        
+
         # Utwórz relację między wiadomością a główną intencją
         relationship = await Relationship.create(
             source_soul=main_intention_uuid,  # Główna intencja jako źródło
@@ -2713,7 +2286,7 @@ async def connect_message_to_main_intention(message_soul_uid: str):
             },
             tags=['context', 'main_intention', 'message_relation']
         )
-        
+
         # Zaktualizuj główną intencję - dodaj wiadomość do listy
         main_intention = await BaseBeing.load(main_intention_uuid)
         if main_intention:
@@ -2727,9 +2300,9 @@ async def connect_message_to_main_intention(message_soul_uid: str):
                     'importance': 0.8
                 })
                 await main_intention.save_soul()
-        
+
         print(f"Połączono wiadomość {message_soul_uid} z główną intencją LuxOS")
-        
+
     except Exception as e:
         print(f"Błąd łączenia wiadomości z główną intencją: {e}")
 
@@ -2737,7 +2310,7 @@ async def connect_component_to_main_intention(component_soul_uid: str):
     """Łączy komponent z główną intencją LuxOS"""
     try:
         main_intention_uuid = "11111111-1111-1111-1111-111111111111"
-        
+
         # Utwórz relację między główną intencją a komponentem
         relationship = await Relationship.create(
             source_soul=main_intention_uuid,
@@ -2755,7 +2328,7 @@ async def connect_component_to_main_intention(component_soul_uid: str):
             },
             tags=['context', 'main_intention', 'component_relation', 'generated']
         )
-        
+
         # Zaktualizuj główną intencję - dodaj komponent do listy
         main_intention = await BaseBeing.load(main_intention_uuid)
         if main_intention:
@@ -2769,9 +2342,9 @@ async def connect_component_to_main_intention(component_soul_uid: str):
                     'importance': 0.9
                 })
                 await main_intention.save_soul()
-        
+
         print(f"Połączono komponent {component_soul_uid} z główną intencją LuxOS")
-        
+
     except Exception as e:
         print(f"Błąd łączenia komponentu z główną intencją: {e}")
 
@@ -2843,10 +2416,10 @@ async def create_visual_component(intention: str, context: dict, sid: str):
         )
 
         print(f"Utworzono ComponentBeing: {component_being.soul_uid} typu {component_type}")
-        
+
         # Połącz komponent z główną intencją LuxOS
         await connect_component_to_main_intention(component_being.soul_uid)
-        
+
         return component_being
 
     except Exception as e:
@@ -2855,7 +2428,7 @@ async def create_visual_component(intention: str, context: dict, sid: str):
 
 def generate_d3_component_code(component_type: str, config: dict, intention: str) -> str:
     """Generuje kod D3.js dla różnych typów komponentów"""
-    
+
     base_template = f"""
 // Automatycznie wygenerowany komponent D3.js
 // Typ: {component_type}
@@ -2869,71 +2442,71 @@ class LuxVisualComponent {{
         this.height = {config['height']};
         this.svg = null;
         this.data = [];
-        
+
         this.init();
     }}
-    
+
     init() {{
         this.svg = this.container
             .append('svg')
             .attr('width', this.width)
             .attr('height', this.height)
             .attr('viewBox', [0, 0, this.width, this.height]);
-            
+
         this.setupGradients();
         this.setupFilters();
         {get_component_specific_code(component_type, config)}
     }}
-    
+
     setupGradients() {{
         const defs = this.svg.append('defs');
-        
+
         // Gradient dla efektów świetlnych
         const luxGradient = defs.append('radialGradient')
             .attr('id', 'luxGlow')
             .attr('cx', '50%')
             .attr('cy', '50%')
             .attr('r', '50%');
-            
+
         luxGradient.append('stop')
             .attr('offset', '0%')
             .attr('stop-color', '#ffffff')
             .attr('stop-opacity', 1);
-            
+
         luxGradient.append('stop')
             .attr('offset', '100%')
             .attr('stop-color', '#00ff88')
             .attr('stop-opacity', 0);
     }}
-    
+
     setupFilters() {{
         const defs = this.svg.select('defs');
-        
+
         // Filter dla efektu świecenia
         const glowFilter = defs.append('filter')
             .attr('id', 'glow')
             .attr('width', '200%')
             .attr('height', '200%');
-            
+
         glowFilter.append('feGaussianBlur')
             .attr('stdDeviation', '4')
             .attr('result', 'coloredBlur');
-            
+
         const feMerge = glowFilter.append('feMerge');
         feMerge.append('feMergeNode').attr('in', 'coloredBlur');
         feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
     }}
-    
+
     updateData(newData) {{
         this.data = newData;
         this.render();
     }}
-    
+
     render() {{
         // Implementacja renderowania specyficzna dla typu komponentu
         {get_render_method(component_type)}
     }}
-    
+
     animate() {{
         // Animacje specyficzne dla typu komponentu
         {get_animation_method(component_type)}
@@ -2947,12 +2520,12 @@ document.addEventListener('DOMContentLoaded', () => {{
     }}
 }});
 """
-    
+
     return base_template
 
 def get_component_specific_code(component_type: str, config: dict) -> str:
     """Zwraca kod specyficzny dla typu komponentu"""
-    
+
     if component_type == 'force_graph':
         return """
         // Inicjalizacja symulacji force graph
@@ -2961,17 +2534,17 @@ def get_component_specific_code(component_type: str, config: dict) -> str:
             .force('charge', d3.forceManyBody().strength(-300))
             .force('center', d3.forceCenter(this.width / 2, this.height / 2))
             .force('collision', d3.forceCollide().radius(20));
-            
+
         this.linkGroup = this.svg.append('g').attr('class', 'links');
         this.nodeGroup = this.svg.append('g').attr('class', 'nodes');
         """
-    
+
     elif component_type == 'particles':
         return """
         // Inicjalizacja systemu cząstek
         this.particles = [];
         this.particleGroup = this.svg.append('g').attr('class', 'particles');
-        
+
         // Generuj początkowe cząstki
         for (let i = 0; i < 100; i++) {
             this.particles.push({
@@ -2984,22 +2557,22 @@ def get_component_specific_code(component_type: str, config: dict) -> str:
             });
         }
         """
-    
+
     elif component_type == 'chart':
         return """
         // Inicjalizacja wykresu
         this.margin = {top: 20, right: 30, bottom: 40, left: 50};
         this.chartWidth = this.width - this.margin.left - this.margin.right;
         this.chartHeight = this.height - this.margin.top - this.margin.bottom;
-        
+
         this.chartGroup = this.svg.append('g')
             .attr('transform', `translate(${this.margin.left},${this.margin.top})`);
-            
+
         // Skale
         this.xScale = d3.scaleLinear().range([0, this.chartWidth]);
         this.yScale = d3.scaleLinear().range([this.chartHeight, 0]);
         """
-    
+
     else:  # basic
         return """
         // Podstawowa inicjalizacja
@@ -3008,7 +2581,7 @@ def get_component_specific_code(component_type: str, config: dict) -> str:
 
 def get_render_method(component_type: str) -> str:
     """Zwraca metodę renderowania dla typu komponentu"""
-    
+
     if component_type == 'force_graph':
         return """
         // Renderowanie grafu sił
@@ -3019,7 +2592,7 @@ def get_render_method(component_type: str) -> str:
             .attr('stroke', '#00ff88')
             .attr('stroke-width', 2)
             .style('filter', 'url(#glow)');
-            
+
         const nodes = this.nodeGroup.selectAll('.node')
             .data(this.data.nodes || [])
             .join('circle')
@@ -3031,24 +2604,24 @@ def get_render_method(component_type: str) -> str:
                 .on('start', this.dragstarted.bind(this))
                 .on('drag', this.dragged.bind(this))
                 .on('end', this.dragended.bind(this)));
-                
+
         this.simulation.nodes(this.data.nodes || []);
         this.simulation.force('link').links(this.data.links || []);
         this.simulation.alpha(1).restart();
-        
+
         this.simulation.on('tick', () => {
             links
                 .attr('x1', d => d.source.x)
                 .attr('y1', d => d.source.y)
                 .attr('x2', d => d.target.x)
                 .attr('y2', d => d.target.y);
-                
+
             nodes
                 .attr('cx', d => d.x)
                 .attr('cy', d => d.y);
         });
         """
-    
+
     elif component_type == 'particles':
         return """
         // Renderowanie cząstek
@@ -3060,11 +2633,11 @@ def get_render_method(component_type: str) -> str:
             .attr('fill', '#00ff88')
             .attr('opacity', d => d.opacity)
             .style('filter', 'url(#glow)');
-            
+
         // Animacja cząstek
         this.animateParticles();
         """
-    
+
     else:
         return """
         // Podstawowe renderowanie
@@ -3087,7 +2660,7 @@ def get_render_method(component_type: str) -> str:
 
 def get_animation_method(component_type: str) -> str:
     """Zwraca metodę animacji dla typu komponentu"""
-    
+
     if component_type == 'particles':
         return """
         // Animacja cząstek
@@ -3095,22 +2668,22 @@ def get_animation_method(component_type: str) -> str:
             this.particles.forEach(p => {
                 p.x += p.vx;
                 p.y += p.vy;
-                
+
                 // Odbicie od ścian
                 if (p.x <= 0 || p.x >= this.width) p.vx *= -1;
                 if (p.y <= 0 || p.y >= this.height) p.vy *= -1;
-                
+
                 // Utrzymaj w granicach
                 p.x = Math.max(0, Math.min(this.width, p.x));
                 p.y = Math.max(0, Math.min(this.height, p.y));
             });
-            
+
             this.particleGroup.selectAll('.particle')
                 .attr('cx', d => d.x)
                 .attr('cy', d => d.y);
         }, 50);
         """
-    
+
     else:
         return """
         // Podstawowa animacja pulsowania
@@ -3207,7 +2780,7 @@ async def create_main_luxos_intention():
     try:
         # Stały UUID dla głównej intencji - musi być prawidłowym UUID
         luxos_intention_uuid = "11111111-1111-1111-1111-111111111111"
-        
+
         # Sprawdź czy już istnieje
         global db_pool
         if hasattr(db_pool, 'acquire'):
