@@ -150,9 +150,10 @@ class LuxOSGraph {
             e.preventDefault();
         });
 
-        // Obsługa kliknięcia lewym przyciskiem w puste miejsce - ukryj menu
+        // Obsługa kliknięcia lewym przyciskiem w puste miejsce - ukryj menu i odznacz relacje
         this.svg.on('click', () => {
             this.hideContextMenu();
+            this.clearLinkSelection();
         });
 
         // Usunięto obsługę środkowego przycisku myszy
@@ -176,13 +177,28 @@ class LuxOSGraph {
         link.exit().remove();
 
         const linkEnter = link.enter()
-            .append("line")
-            .attr("class", "link")
-            .attr("class", "link")
+            .append("g")
+            .attr("class", "link-group");
+
+        // Niewidoczna linia dla lepszego wykrywania kliknięć (szerszy obszar)
+        linkEnter.append("line")
+            .attr("class", "link-hit-area")
+            .attr("stroke", "transparent")
+            .attr("stroke-width", 15) // Szerszy obszar wykrywania
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.handleLinkSelection(event, d);
+            })
+            .on("contextmenu", (event, d) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.showLinkContextMenu(event, d);
             });
+
+        // Widoczna linia
+        linkEnter.append("line")
+            .attr("class", "link")
+            .attr("pointer-events", "none"); // Wyłącz eventy na widocznej linii
 
         link.merge(linkEnter);
 
@@ -238,7 +254,7 @@ class LuxOSGraph {
         })));
 
         this.simulation.on("tick", () => {
-            this.linkGroup.selectAll(".link")
+            this.linkGroup.selectAll(".link-group").selectAll("line")
                 .attr("x1", d => {
                     const sourceNode = this.nodes.find(n => n.soul === d.source_soul);
                     return sourceNode ? sourceNode.x : 0;
@@ -309,13 +325,164 @@ class LuxOSGraph {
     handleLinkSelection(event, link) {
         event.stopPropagation();
 
-        const linkElement = this.linkGroup.selectAll(".link").filter(l => l.source_soul === link.source_soul && l.target_soul === link.target_soul);
-        const isSelected = linkElement.classed("selected");
+        const linkElement = this.linkGroup.selectAll(".link-group").filter(l => l.source_soul === link.source_soul && l.target_soul === link.target_soul);
+        const isSelected = linkElement.select(".link").classed("selected");
 
         if (isSelected) {
-            linkElement.classed("selected", false);
+            linkElement.select(".link").classed("selected", false);
         } else {
-            linkElement.classed("selected", true);
+            linkElement.select(".link").classed("selected", true);
+        }
+
+        console.log('Link selection changed:', link.id || `${link.source_soul}-${link.target_soul}`);
+    }
+
+    clearLinkSelection() {
+        this.linkGroup.selectAll(".link").classed("selected", false);
+    }
+
+    showLinkContextMenu(event, link) {
+        this.hideContextMenu();
+
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.position = 'fixed';
+        menu.style.left = event.pageX + 'px';
+        menu.style.top = event.pageY + 'px';
+        menu.style.background = 'rgba(26, 26, 26, 0.95)';
+        menu.style.border = '1px solid #00ff88';
+        menu.style.borderRadius = '8px';
+        menu.style.padding = '8px 0';
+        menu.style.zIndex = '2000';
+        menu.style.minWidth = '150px';
+        menu.style.backdropFilter = 'blur(10px)';
+        menu.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.5)';
+
+        const menuItems = [
+            {
+                text: '🔍 Szczegóły relacji',
+                action: () => this.showLinkDetails(link)
+            },
+            {
+                text: '⚡ Zwiększ energię',
+                action: () => this.increaseLinkEnergy(link)
+            },
+            {
+                text: '🏷️ Dodaj tag',
+                action: () => this.addLinkTag(link)
+            },
+            {
+                text: '📝 Edytuj typ',
+                action: () => this.editLinkType(link)
+            },
+            {
+                text: '🗑️ Usuń relację',
+                action: () => this.deleteLink(link)
+            }
+        ];
+
+        menuItems.forEach(item => {
+            const menuItem = document.createElement('div');
+            menuItem.textContent = item.text;
+            menuItem.style.padding = '8px 16px';
+            menuItem.style.color = 'white';
+            menuItem.style.cursor = 'pointer';
+            menuItem.style.fontSize = '14px';
+            menuItem.style.borderBottom = '1px solid #333';
+
+            menuItem.addEventListener('mouseenter', () => {
+                menuItem.style.background = '#00ff88';
+                menuItem.style.color = '#1a1a1a';
+            });
+
+            menuItem.addEventListener('mouseleave', () => {
+                menuItem.style.background = 'transparent';
+                menuItem.style.color = 'white';
+            });
+
+            menuItem.addEventListener('click', () => {
+                item.action();
+                this.hideContextMenu();
+            });
+
+            menu.appendChild(menuItem);
+        });
+
+        // Usuń ostatnią linię
+        if (menu.lastChild) {
+            menu.lastChild.style.borderBottom = 'none';
+        }
+
+        document.body.appendChild(menu);
+
+        // Zamknij menu po kliknięciu gdzie indziej
+        setTimeout(() => {
+            document.addEventListener('click', () => this.hideContextMenu(), { once: true });
+        }, 100);
+    }
+
+    showLinkDetails(link) {
+        alert(`Relacja: ${link.source_soul} → ${link.target_soul}\nTyp: ${link.genesis?.type || 'Nieznany'}\nID: ${link.id || 'Brak'}`);
+    }
+
+    increaseLinkEnergy(link) {
+        const newEnergyLevel = (link.attributes?.energy_level || 0) + 10;
+        this.showIntentionFeedback(`Energia relacji zwiększona do ${newEnergyLevel}`, 'success');
+        
+        // Tutaj można dodać komunikację z backendem
+        this.socket.emit('update_relationship', {
+            id: link.id,
+            attributes: {
+                ...link.attributes,
+                energy_level: newEnergyLevel
+            }
+        });
+    }
+
+    addLinkTag(link) {
+        const tag = prompt('Wprowadź nowy tag dla relacji:');
+        if (tag && tag.trim()) {
+            const currentTags = Array.isArray(link.attributes?.tags) ? link.attributes.tags : [];
+            if (!currentTags.includes(tag.trim())) {
+                currentTags.push(tag.trim());
+                this.showIntentionFeedback(`Dodano tag do relacji: ${tag}`, 'success');
+
+                // Wyślij do backendu
+                this.socket.emit('update_relationship', {
+                    id: link.id,
+                    attributes: {
+                        ...link.attributes,
+                        tags: currentTags
+                    }
+                });
+            } else {
+                this.showIntentionFeedback(`Tag "${tag}" już istnieje`, 'info');
+            }
+        }
+    }
+
+    editLinkType(link) {
+        const newType = prompt('Wprowadź nowy typ relacji:', link.genesis?.type || '');
+        if (newType && newType.trim()) {
+            this.showIntentionFeedback(`Zmieniono typ relacji na: ${newType}`, 'success');
+
+            // Wyślij do backendu
+            this.socket.emit('update_relationship', {
+                id: link.id,
+                genesis: {
+                    ...link.genesis,
+                    type: newType.trim()
+                }
+            });
+        }
+    }
+
+    deleteLink(link) {
+        if (confirm(`Czy na pewno chcesz usunąć relację "${link.genesis?.type || 'Nieznana'}" między bytami?`)) {
+            this.showIntentionFeedback('Relacja usunięta', 'info');
+
+            // Wyślij do backendu
+            this.socket.emit('delete_relationship', { id: link.id });
         }
     }
 
@@ -473,12 +640,32 @@ class LuxOSGraph {
 
         // Renderuj nową relację
         const link = this.linkGroup
-            .selectAll(".link")
+            .selectAll(".link-group")
             .data(this.links, d => `${d.source_soul}-${d.target_soul}`);
 
-        link.enter()
-            .append("line")
-            .attr("class", "link");
+        const linkEnter = link.enter()
+            .append("g")
+            .attr("class", "link-group");
+
+        // Niewidoczna linia dla lepszego wykrywania kliknięć
+        linkEnter.append("line")
+            .attr("class", "link-hit-area")
+            .attr("stroke", "transparent")
+            .attr("stroke-width", 15)
+            .on("click", (event, d) => {
+                event.stopPropagation();
+                this.handleLinkSelection(event, d);
+            })
+            .on("contextmenu", (event, d) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.showLinkContextMenu(event, d);
+            });
+
+        // Widoczna linia
+        linkEnter.append("line")
+            .attr("class", "link")
+            .attr("pointer-events", "none");
 
         // Restart symulacji z nową relacją
         this.simulation.alpha(0.3).restart();
