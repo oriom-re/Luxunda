@@ -2262,20 +2262,7 @@ async def init_app():
     app.router.add_route('GET', '/api/relationships', api_relationships)
     app.router.add_route('POST', '/api/relationships', api_relationships)
 
-    # Konfiguracja CORS tylko dla tras API
-    cors = aiohttp_cors.setup(app, defaults={
-        "*": aiohttp_cors.ResourceOptions(
-            allow_credentials=True,
-            expose_headers="*",
-            allow_headers="*",
-            allow_methods="*"
-        )
-    })
-
-    # Dodaj CORS tylko do tras API (pomiń Socket.IO)
-    for route in list(app.router.routes()):
-        if hasattr(route, 'resource') and route.resource.canonical.startswith('/api/'):
-            cors.add(route)
+    # Socket.IO już obsługuje CORS w swoich ustawieniach
 
     await init_database()
 
