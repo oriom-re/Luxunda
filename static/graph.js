@@ -291,10 +291,10 @@ class LuxOSGraph {
             }
         });
         
-        // Poczekaj chwilę i odśwież graf po wykonaniu wszystkich akcji
+        // Odśwież graf raz po wykonaniu wszystkich akcji
         setTimeout(() => {
             this.socket.emit('get_graph_data');
-        }, 200);
+        }, 100);
     }
 
     // Funkcje zoom

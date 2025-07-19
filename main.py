@@ -512,7 +512,6 @@ async def create_being(sid, data):
         # Konwertuj do JSON-safe format
         being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
         await sio.emit('being_created', being_dict)
-        await broadcast_graph_update()
     except Exception as e:
         await sio.emit('error', {'message': str(e)}, room=sid)
 
@@ -531,7 +530,6 @@ async def create_relationship(sid, data):
         # Konwertuj do JSON-safe format
         rel_dict = json.loads(json.dumps(asdict(relationship), cls=DateTimeEncoder))
         await sio.emit('relationship_created', rel_dict)
-        await broadcast_graph_update()
     except Exception as e:
         await sio.emit('error', {'message': str(e)}, room=sid)
 
@@ -549,7 +547,6 @@ async def update_being(sid, data):
             # Konwertuj do JSON-safe format
             being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
             await sio.emit('being_updated', being_dict)
-            await broadcast_graph_update()
         else:
             await sio.emit('error', {'message': 'Byt nie znaleziony'}, room=sid)
     except Exception as e:
