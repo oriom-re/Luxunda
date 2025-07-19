@@ -47,12 +47,6 @@ class LuxOSGraph {
             console.error('Socket error:', error);
             this.showIntentionFeedback(error.message || 'Wystąpił błąd', 'error');
         });
-        });
-
-        this.socket.on('error', (error) => {
-            console.error('Socket error:', error);
-            this.showIntentionFeedback(error.message || 'Wystąpił błąd', 'error');
-        });
     }
 
     initializeGraph() {
@@ -81,7 +75,7 @@ class LuxOSGraph {
             .force("link", d3.forceLink().id(d => d.soul).distance(100))
             .force("charge", d3.forceManyBody().strength(-300))
             .force("center", d3.forceCenter(this.width / 2, this.height / 2))
-            .force("collision", d3.forceCollide().radius(25))(30));
+            .force("collision", d3.forceCollide().radius(30));
     }
 
     setupEventListeners() {

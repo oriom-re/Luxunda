@@ -271,7 +271,11 @@ class IntentionComponent {
                 this.sendIntention();
             }
         });
-    }n-feedback');
+    }
+
+    showFeedback(message, type = 'success') {
+        // Usuń poprzednie powiadomienie
+        const existing = document.querySelector('.intention-feedback');
         if (existing) {
             existing.remove();
         }
