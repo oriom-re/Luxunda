@@ -102,7 +102,7 @@ class LuxOSGraph {
                 // Sprawdź czy zoom jest na wysokim poziomie i czy jest blisko węzła
                 if (event.transform.k > 5) { // Zwiększony próg zoom
                     this.checkForNodeProximity(event.transform);
-                } else if (event.transform.k <= 3) {
+                } else if (event.transform.k <= 4) {
                     // Zamknij panel szczegółów przy oddaleniu
                     this.closeNodeDetails();
                     this.proximityLocked = false;
@@ -708,7 +708,7 @@ class LuxOSGraph {
                 );
                 
                 // Zamknij panel przy oddaleniu
-                if (newScale <= 3) {
+                if (newScale <= 4) {
                     this.closeNodeDetails();
                     this.proximityLocked = false;
                     this.lastProximityNode = null;
@@ -922,7 +922,7 @@ class LuxOSGraph {
                 );
                 
                 // Jeśli oddalił się poza strefę (większy obszar do wyjścia)
-                if (distance > 40 || currentTransform.k <= 5) {
+                if (distance > 40 || currentTransform.k <= 4) {
                     this.proximityLocked = false;
                     this.lastProximityNode = null;
                     this.nodeDetailsOpen = false;
