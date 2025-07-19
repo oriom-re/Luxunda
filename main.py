@@ -193,8 +193,17 @@ class IntentionAnalyzer:
                 if not soul:
                     continue
 
+                # Sprawdź czy attributes to string i sparsuj go
+                attributes = soul.attributes
+                if isinstance(attributes, str):
+                    try:
+                        attributes = json.loads(attributes)
+                    except json.JSONDecodeError:
+                        print(f"Błąd parsowania attributes dla bytu {being.soul_uid}")
+                        continue
+
                 # Sprawdź czy byt ma embedding
-                being_emb = soul.attributes.get('embedding')
+                being_emb = attributes.get('embedding') if isinstance(attributes, dict) else None
                 if not being_emb:
                     continue
 
@@ -202,10 +211,18 @@ class IntentionAnalyzer:
                 similarity = self.embedding_system.calculate_similarity(cheap_emb, being_emb)
 
                 if similarity > 0.5:  # Próg rezonansu
+                    # Podobnie dla genesis
+                    genesis = soul.genesis
+                    if isinstance(genesis, str):
+                        try:
+                            genesis = json.loads(genesis)
+                        except json.JSONDecodeError:
+                            genesis = {}
+
                     resonant_beings.append({
                         'soul_uid': being.soul_uid,
-                        'name': soul.genesis.get('name', 'Nieznany'),
-                        'type': soul.genesis.get('type', 'unknown'),
+                        'name': genesis.get('name', 'Nieznany') if isinstance(genesis, dict) else 'Nieznany',
+                        'type': genesis.get('type', 'unknown') if isinstance(genesis, dict) else 'unknown',
                         'similarity': similarity
                     })
 
@@ -215,6 +232,8 @@ class IntentionAnalyzer:
 
         except Exception as e:
             print(f"Błąd znajdowania rezonansów: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     async def generate_response(self, intention: str, intention_type: str, 
@@ -1201,7 +1220,17 @@ class MessageBeing(BaseBeing):
         """Ustawia treść wiadomości z inteligentnym embedingiem"""
         soul = await self.connect_to_soul()
         if soul:
-            soul.attributes['message_data'] = {
+            # Upewnij się, że attributes to dict
+            attributes = soul.attributes
+            if isinstance(attributes, str):
+                try:
+                    attributes = json.loads(attributes)
+                    soul.attributes = attributes
+                except json.JSONDecodeError:
+                    soul.attributes = {}
+                    attributes = soul.attributes
+
+            attributes['message_data'] = {
                 'content': content,
                 'length': len(content),
                 'timestamp': datetime.now().isoformat()
@@ -1211,12 +1240,12 @@ class MessageBeing(BaseBeing):
             global embedding_system
             if len(content) > 100 or any(word in content.lower() for word in ['system', 'agent', 'lux']):
                 # Ważna wiadomość - użyj głębokiego embedingu
-                soul.attributes['embedding'] = await embedding_system.generate_deep_embedding(content)
-                soul.attributes['embedding_type'] = 'deep'
+                attributes['embedding'] = await embedding_system.generate_deep_embedding(content)
+                attributes['embedding_type'] = 'deep'
             else:
                 # Zwykła wiadomość - użyj taniego embedingu
-                soul.attributes['embedding'] = await embedding_system.generate_cheap_embedding(content)
-                soul.attributes['embedding_type'] = 'cheap'
+                attributes['embedding'] = await embedding_system.generate_cheap_embedding(content)
+                attributes['embedding_type'] = 'cheap'
 
             await self.save_soul()
 
