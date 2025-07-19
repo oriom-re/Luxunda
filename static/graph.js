@@ -673,7 +673,7 @@ class LuxOSGraph {
     generateNodeDetailsHTML(node) {
         const genesis = node.genesis || {};
         const attributes = node.attributes || {};
-        const memories = node.memories || [];
+        const memories = Array.isArray(node.memories) ? node.memories : [];
         const selfAwareness = node.self_awareness || {};
 
         return `
@@ -720,8 +720,8 @@ class LuxOSGraph {
 
                 <div style="background: rgba(76, 175, 80, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #4CAF50;">
                     <h3 style="margin: 0 0 10px 0; color: #4CAF50;">🛠️ Akcje</h3>
-                    <button onclick="window.luxosGraph.increaseNodeEnergy({soul: '${node.soul}'})" style="background: #00ff88; color: #1a1a1a; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">⚡ Zwiększ Energię</button>
-                    <button onclick="window.luxosGraph.addNodeTag({soul: '${node.soul}', attributes: ${JSON.stringify(attributes).replace(/"/g, '&quot;')}})" style="background: #2196F3; color: white; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">🏷️ Dodaj Tag</button>
+                    <button onclick="window.luxosGraph.increaseNodeEnergy('${node.soul}')" style="background: #00ff88; color: #1a1a1a; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">⚡ Zwiększ Energię</button>
+                    <button onclick="window.luxosGraph.addNodeTag('${node.soul}')" style="background: #2196F3; color: white; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">🏷️ Dodaj Tag</button>
                     <button onclick="window.luxosGraph.closeNodeDetails()" style="background: #607D8B; color: white; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">🚪 Zamknij</button>
                 </div>
             </div>
@@ -747,7 +747,10 @@ class LuxOSGraph {
         this.openNodeDetails(node);
     }
 
-    increaseNodeEnergy(node) {
+    increaseNodeEnergy(soulId) {
+        const node = this.nodes.find(n => n.soul === soulId);
+        if (!node) return;
+        
         // Symulacja zwiększenia energii
         const newEnergyLevel = (node.attributes?.energy_level || 0) + 10;
         this.showIntentionFeedback(`Energia węzła zwiększona do ${newEnergyLevel}`, 'success');
@@ -762,7 +765,10 @@ class LuxOSGraph {
         });
     }
 
-    addNodeTag(node) {
+    addNodeTag(soulId) {
+        const node = this.nodes.find(n => n.soul === soulId);
+        if (!node) return;
+        
         const tag = prompt('Wprowadź nowy tag:');
         if (tag && tag.trim()) {
             const currentTags = Array.isArray(node.attributes?.tags) ? node.attributes.tags : [];
