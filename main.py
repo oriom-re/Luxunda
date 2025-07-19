@@ -980,9 +980,9 @@ async def main():
     await init_app()
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 5000)
+    site = web.TCPSite(runner, '0.0.0.0', 8000)
     await site.start()
-    print("Serwer uruchomiony na http://0.0.0.0:5000")
+    print("Serwer uruchomiony na http://0.0.0.0:8000")
 
     # Trzymaj serwer żywy
     try:
