@@ -206,7 +206,7 @@ class LuxOSGraph {
             .style("cursor", "pointer")
             .on("click", (event, d) => {
                 event.stopPropagation();
-                this.selectLink(d);
+                this.selectLink(d, event);
             })
             .on("mouseover", function(event, d) {
                 d3.select(this).attr("stroke", "#00ff88").attr("stroke-width", 3);
@@ -229,6 +229,11 @@ class LuxOSGraph {
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.selectNode(d);
+            })
+            .on("contextmenu", (event, d) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.showNodeContextMenu(d, event);
             })
             .on("dblclick", (event, d) => {
                 event.stopPropagation();
@@ -286,14 +291,54 @@ class LuxOSGraph {
         this.updateNodeStyles();
     }
 
-    selectLink(link) {
+    selectLink(link, event) {
         if (this.selectedLink === link) {
             this.selectedLink = null;
         } else {
             this.selectedLink = link;
-            this.showLinkContextMenu(link);
+            this.showLinkContextMenu(link, event);
         }
         this.updateLinkStyles();
+    }
+
+    increaseNodeEnergy(node) {
+        const newEnergyLevel = (node.attributes?.energy_level || 0) + 10;
+        this.showIntentionFeedback(`Energia węzła zwiększona do ${newEnergyLevel}`, 'success');
+
+        this.socket.emit('update_being', {
+            soul: node.soul,
+            attributes: {
+                ...node.attributes,
+                energy_level: newEnergyLevel
+            }
+        });
+    }
+
+    addNodeTag(node) {
+        const tag = prompt('Wprowadź nowy tag dla węzła:');
+        if (tag && tag.trim()) {
+            const currentTags = Array.isArray(node.attributes?.tags) ? node.attributes.tags : [];
+            if (!currentTags.includes(tag.trim())) {
+                currentTags.push(tag.trim());
+                this.showIntentionFeedback(`Dodano tag do węzła: ${tag}`, 'success');
+
+                this.socket.emit('update_being', {
+                    soul: node.soul,
+                    attributes: {
+                        ...node.attributes,
+                        tags: currentTags
+                    }
+                });
+            } else {
+                this.showIntentionFeedback(`Tag "${tag}" już istnieje`, 'info');
+            }
+        }
+    }
+
+    pinNode(node) {
+        node.fx = node.x;
+        node.fy = node.y;
+        this.showIntentionFeedback('Węzeł został przypięty', 'success');
     }
 
     deselectAll() {
@@ -318,7 +363,34 @@ class LuxOSGraph {
             .attr("stroke-width", d => d === this.selectedLink ? 4 : 2);
     }
 
-    showLinkContextMenu(link) {
+    showNodeContextMenu(node, event) {
+        const contextMenu = [
+            {
+                label: '📋 Szczegóły węzła',
+                action: () => this.showNodeDetails(node)
+            },
+            {
+                label: '⚡ Zwiększ energię (+10)',
+                action: () => this.increaseNodeEnergy(node)
+            },
+            {
+                label: '🏷️ Dodaj tag',
+                action: () => this.addNodeTag(node)
+            },
+            {
+                label: '📌 Przypnij pozycję',
+                action: () => this.pinNode(node)
+            },
+            {
+                label: '🗑️ Usuń węzeł',
+                action: () => this.deleteNode(node.soul)
+            }
+        ];
+
+        this.showContextMenu(contextMenu, event);
+    }
+
+    showLinkContextMenu(link, event) {
         const contextMenu = [
             {
                 label: '📋 Szczegóły relacji',
@@ -342,10 +414,10 @@ class LuxOSGraph {
             }
         ];
 
-        this.showContextMenu(contextMenu);
+        this.showContextMenu(contextMenu, event);
     }
 
-    showContextMenu(items) {
+    showContextMenu(items, event) {
         this.hideContextMenu();
 
         const menu = document.createElement('div');
@@ -677,9 +749,9 @@ class LuxOSGraph {
             })
             .on("end", (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0);
-                // Zachowaj pozycję węzła po przeciągnięciu
-                d.fx = d.x;
-                d.fy = d.y;
+                // Nie zamrażaj pozycji - pozwól na dalszą symulację
+                d.fx = null;
+                d.fy = null;
             });
     }
 
