@@ -134,104 +134,6 @@ class SafeCodeExecutor:
         finally:
             sys.stdout = old_stdout
 
-class BeingFactory:
-    """Factory do tworzenia różnych typów bytów"""
-    
-    BEING_TYPES = {
-        'function': FunctionBeing,
-        'class': ClassBeing,
-        'data': DataBeing,
-        'scenario': ScenarioBeing,
-        'task': TaskBeing,
-        'component': ComponentBeing,
-        'message': MessageBeing,
-        'base': BaseBeing
-    }
-    
-    @classmethod
-    async def create_being(cls, being_type: str, genesis: Dict[str, Any], **kwargs) -> BaseBeing:
-        """Tworzy byt odpowiedniego typu"""
-        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
-        
-        # Upewnij się, że typ jest ustawiony w genesis
-        genesis['type'] = being_type
-        
-        # Generuj unikalne soul
-        soul = str(uuid.uuid4())
-        
-        # Przygotuj atrybuty
-        attributes = kwargs.get('attributes', {})
-        if 'tags' in kwargs:
-            attributes['tags'] = kwargs['tags']
-        if 'energy_level' in kwargs:
-            attributes['energy_level'] = kwargs['energy_level']
-        
-        # Utwórz byt
-        being = BeingClass(
-            soul=soul,
-            genesis=genesis,
-            attributes=attributes,
-            memories=kwargs.get('memories', []),
-            self_awareness=kwargs.get('self_awareness', {})
-        )
-        
-        await being.save()
-        return being
-    
-    @classmethod
-    async def load_being(cls, soul: str) -> Optional[BaseBeing]:
-        """Ładuje byt odpowiedniego typu z bazy danych"""
-        global db_pool
-        
-        if hasattr(db_pool, 'acquire'):
-            async with db_pool.acquire() as conn:
-                row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
-        else:
-            async with db_pool.execute("SELECT * FROM base_beings WHERE soul = ?", (soul,)) as cursor:
-                row = await cursor.fetchone()
-        
-        if not row:
-            return None
-        
-        # Określ typ bytu
-        if hasattr(db_pool, 'acquire'):
-            # PostgreSQL
-            genesis = row['genesis']
-            being_type = genesis.get('type', 'base')
-        else:
-            # SQLite
-            genesis = json.loads(row[3]) if row[3] else {}
-            being_type = genesis.get('type', 'base')
-        
-        # Wybierz odpowiednią klasę
-        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
-        
-        # Utwórz instancję
-        if hasattr(db_pool, 'acquire'):
-            # PostgreSQL
-            return BeingClass(
-                soul=str(row['soul']),
-                genesis=row['genesis'],
-                attributes=row['attributes'],
-                memories=row['memories'],
-                self_awareness=row['self_awareness'],
-                created_at=row['created_at']
-            )
-        else:
-            # SQLite
-            attributes = json.loads(row[4]) if row[4] else {}
-            memories = json.loads(row[5]) if row[5] else []
-            self_awareness = json.loads(row[6]) if row[6] else {}
-            
-            return BeingClass(
-                soul=row[0],
-                genesis=genesis,
-                attributes=attributes,
-                memories=memories,
-                self_awareness=self_awareness,
-                created_at=row[7]
-            )
-
 class FunctionRouter:
     """Router dla funkcji z bytów"""
 
@@ -327,21 +229,21 @@ class BaseBeing:
 @dataclass
 class FunctionBeing(BaseBeing):
     """Byt funkcyjny z możliwością wykonania"""
-    
+
     def __post_init__(self):
         if self.genesis.get('type') != 'function':
             self.genesis['type'] = 'function'
-    
+
     async def __call__(self, *args, **kwargs):
         """Wykonuje funkcję z kodu źródłowego"""
         source = self.genesis.get('source', '')
         function_name = self.genesis.get('name', 'unknown_function')
-        
+
         if not source:
             return {'success': False, 'error': 'Brak kodu źródłowego'}
-        
+
         result = await SafeCodeExecutor.execute_function(source, function_name, *args, **kwargs)
-        
+
         # Zapisz wykonanie w pamięci
         memory_entry = {
             'type': 'execution',
@@ -353,9 +255,9 @@ class FunctionBeing(BaseBeing):
         }
         self.memories.append(memory_entry)
         await self.save()
-        
+
         return result
-    
+
     def get_function_signature(self) -> str:
         """Zwraca sygnaturę funkcji"""
         return self.genesis.get('signature', f"{self.genesis.get('name', 'unknown')}()")
@@ -363,17 +265,17 @@ class FunctionBeing(BaseBeing):
 @dataclass
 class ClassBeing(BaseBeing):
     """Byt klasy z możliwością instancjacji"""
-    
+
     def __post_init__(self):
         if self.genesis.get('type') != 'class':
             self.genesis['type'] = 'class'
         if 'instances' not in self.attributes:
             self.attributes['instances'] = []
-    
+
     async def instantiate(self, *args, **kwargs) -> str:
         """Tworzy instancję klasy"""
         instance_soul = str(uuid.uuid4())
-        
+
         # Utwórz byt instancji
         instance = await BaseBeing.create(
             genesis={
@@ -393,13 +295,13 @@ class ClassBeing(BaseBeing):
                 'timestamp': datetime.now().isoformat()
             }]
         )
-        
+
         # Zapisz referencję do instancji
         self.attributes['instances'].append(instance_soul)
         await self.save()
-        
+
         return instance_soul
-    
+
     def get_instances(self) -> List[str]:
         """Zwraca listę instancji"""
         return self.attributes.get('instances', [])
@@ -407,7 +309,7 @@ class ClassBeing(BaseBeing):
 @dataclass
 class DataBeing(BaseBeing):
     """Byt danych z operacjami CRUD"""
-    
+
     def __post_init__(self):
         if self.genesis.get('type') != 'data':
             self.genesis['type'] = 'data'
@@ -415,11 +317,11 @@ class DataBeing(BaseBeing):
             self.attributes['data_schema'] = {}
         if 'data_values' not in self.attributes:
             self.attributes['data_values'] = {}
-    
+
     def set_data(self, key: str, value: Any):
         """Ustawia wartość danych"""
         self.attributes['data_values'][key] = value
-        
+
         # Zapisz w pamięci
         self.memories.append({
             'type': 'data_update',
@@ -427,11 +329,11 @@ class DataBeing(BaseBeing):
             'value': str(value),
             'timestamp': datetime.now().isoformat()
         })
-    
+
     def get_data(self, key: str) -> Any:
         """Pobiera wartość danych"""
         return self.attributes['data_values'].get(key)
-    
+
     def define_schema(self, schema: Dict[str, Any]):
         """Definiuje schemat danych"""
         self.attributes['data_schema'] = schema
@@ -439,7 +341,7 @@ class DataBeing(BaseBeing):
 @dataclass
 class ScenarioBeing(BaseBeing):
     """Byt scenariusza z sekwencją kroków"""
-    
+
     def __post_init__(self):
         if self.genesis.get('type') != 'scenario':
             self.genesis['type'] = 'scenario'
@@ -447,7 +349,7 @@ class ScenarioBeing(BaseBeing):
             self.attributes['steps'] = []
         if 'current_step' not in self.attributes:
             self.attributes['current_step'] = 0
-    
+
     def add_step(self, step_name: str, step_data: Dict[str, Any]):
         """Dodaje krok do scenariusza"""
         step = {
@@ -457,27 +359,27 @@ class ScenarioBeing(BaseBeing):
             'created_at': datetime.now().isoformat()
         }
         self.attributes['steps'].append(step)
-    
+
     async def execute_next_step(self) -> Dict[str, Any]:
         """Wykonuje następny krok scenariusza"""
         steps = self.attributes.get('steps', [])
         current_step = self.attributes.get('current_step', 0)
-        
+
         if current_step >= len(steps):
             return {'success': False, 'error': 'Brak więcej kroków'}
-        
+
         step = steps[current_step]
         step['status'] = 'executing'
         step['started_at'] = datetime.now().isoformat()
-        
+
         # Symulacja wykonania kroku
         await asyncio.sleep(0.1)
-        
+
         step['status'] = 'completed'
         step['completed_at'] = datetime.now().isoformat()
-        
+
         self.attributes['current_step'] = current_step + 1
-        
+
         # Zapisz w pamięci
         self.memories.append({
             'type': 'step_execution',
@@ -485,14 +387,14 @@ class ScenarioBeing(BaseBeing):
             'step_index': current_step,
             'timestamp': datetime.now().isoformat()
         })
-        
+
         await self.save()
         return {'success': True, 'step': step}
 
 @dataclass
 class TaskBeing(BaseBeing):
     """Byt zadania z asynchronicznym wykonywaniem"""
-    
+
     def __post_init__(self):
         if self.genesis.get('type') != 'task':
             self.genesis['type'] = 'task'
@@ -500,24 +402,24 @@ class TaskBeing(BaseBeing):
             self.attributes['task_status'] = 'pending'
         if 'async_result' not in self.attributes:
             self.attributes['async_result'] = None
-    
+
     async def execute_async(self, delay: float = 1.0) -> str:
         """Wykonuje zadanie asynchronicznie"""
         task_id = str(uuid.uuid4())
-        
+
         async def async_task():
             self.attributes['task_status'] = 'running'
             self.attributes['started_at'] = datetime.now().isoformat()
             await self.save()
-            
+
             # Symulacja długotrwałego zadania
             await asyncio.sleep(delay)
-            
+
             result = f"Task completed at {datetime.now().isoformat()}"
             self.attributes['task_status'] = 'completed'
             self.attributes['async_result'] = result
             self.attributes['completed_at'] = datetime.now().isoformat()
-            
+
             # Zapisz w pamięci
             self.memories.append({
                 'type': 'async_completion',
@@ -525,14 +427,14 @@ class TaskBeing(BaseBeing):
                 'result': result,
                 'timestamp': datetime.now().isoformat()
             })
-            
+
             await self.save()
             return result
-        
+
         # Uruchom zadanie w tle
         asyncio.create_task(async_task())
         return task_id
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Zwraca status zadania"""
         return {
@@ -545,7 +447,7 @@ class TaskBeing(BaseBeing):
 @dataclass
 class ComponentBeing(BaseBeing):
     """Byt komponentu D3.js"""
-    
+
     def __post_init__(self):
         if self.genesis.get('type') != 'component':
             self.genesis['type'] = 'component'
@@ -553,27 +455,27 @@ class ComponentBeing(BaseBeing):
             self.attributes['d3_config'] = {}
         if 'render_data' not in self.attributes:
             self.attributes['render_data'] = {}
-    
+
     def set_d3_config(self, config: Dict[str, Any]):
         """Ustawia konfigurację komponentu D3"""
         self.attributes['d3_config'] = config
-    
+
     def set_render_data(self, data: Dict[str, Any]):
         """Ustawia dane do renderowania"""
         self.attributes['render_data'] = data
-        
+
         # Zapisz w pamięci
         self.memories.append({
             'type': 'data_update',
             'data_size': len(str(data)),
             'timestamp': datetime.now().isoformat()
         })
-    
+
     def generate_d3_code(self) -> str:
         """Generuje kod D3.js dla komponentu"""
         config = self.attributes.get('d3_config', {})
         component_type = config.get('type', 'basic')
-        
+
         if component_type == 'chart':
             return f"""
 // D3.js Chart Component for {self.genesis.get('name', 'Unknown')}
@@ -596,7 +498,7 @@ const simulation = d3.forceSimulation()
 @dataclass
 class MessageBeing(BaseBeing):
     """Byt wiadomości z metadanymi i embedingami"""
-    
+
     def __post_init__(self):
         if self.genesis.get('type') != 'message':
             self.genesis['type'] = 'message'
@@ -606,40 +508,40 @@ class MessageBeing(BaseBeing):
             self.attributes['embedding'] = None
         if 'metadata' not in self.attributes:
             self.attributes['metadata'] = {}
-    
+
     def set_content(self, content: str):
         """Ustawia treść wiadomości"""
         self.attributes['message_data']['content'] = content
         self.attributes['message_data']['length'] = len(content)
         self.attributes['message_data']['timestamp'] = datetime.now().isoformat()
-        
+
         # Symulacja wygenerowania embedingu (w rzeczywistości byłby to model AI)
         self.attributes['embedding'] = [hash(content + str(i)) % 1000 / 1000.0 for i in range(10)]
-    
+
     def set_sender(self, sender_soul: str):
         """Ustawia nadawcę wiadomości"""
         self.attributes['metadata']['sender'] = sender_soul
-    
+
     def set_context_being(self, context_soul: str):
         """Ustawia byt będący kontekstem wiadomości"""
         self.attributes['metadata']['context_being'] = context_soul
-    
+
     def get_similarity(self, other_message: 'MessageBeing') -> float:
         """Oblicza podobieństwo z inną wiadomością na podstawie embedingu"""
         if not self.attributes.get('embedding') or not other_message.attributes.get('embedding'):
             return 0.0
-        
+
         # Proste podobieństwo cosinusowe (symulowane)
         emb1 = self.attributes['embedding']
         emb2 = other_message.attributes['embedding']
-        
+
         dot_product = sum(a * b for a, b in zip(emb1, emb2))
         magnitude1 = sum(a * a for a in emb1) ** 0.5
         magnitude2 = sum(a * a for a in emb2) ** 0.5
-        
+
         if magnitude1 == 0 or magnitude2 == 0:
             return 0.0
-        
+
         return dot_product / (magnitude1 * magnitude2)
 
     @property
@@ -1025,7 +927,7 @@ async def process_intention(sid, data):
         print(f"Odpowiedź na intencję: {response}")
 
         await sio.emit('intention_response', response, room=sid)
-        
+
         # Wyślij aktualizację grafu
         await broadcast_graph_update()
 
@@ -1207,7 +1109,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                 }
             })
             message = f"Utworzono byt klasy: {name}"
-            
+
         elif 'task' in intention or 'zadani' in intention:
             words = intention.split()
             name = "Nowe_Zadanie"
@@ -1234,7 +1136,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                 }
             })
             message = f"Utworzono byt zadania: {name}"
-            
+
         elif 'komponent' in intention or 'd3' in intention:
             words = intention.split()
             name = "Nowy_Komponent"
@@ -1556,6 +1458,106 @@ async def main():
         pass
     finally:
         await runner.cleanup()
+
+class BeingFactory:
+    """Factory do tworzenia różnych typów bytów"""
+
+    BEING_TYPES = {
+        'function': FunctionBeing,
+        'class': ClassBeing,
+        'data': DataBeing,
+        'scenario': ScenarioBeing,
+        'task': TaskBeing,
+        'component': ComponentBeing,
+        'message': MessageBeing,
+        'base': BaseBeing
+    }
+
+    @classmethod
+    async def create_being(cls, being_type: str, genesis: Dict[str, Any], **kwargs) -> BaseBeing:
+        """Tworzy byt odpowiedniego typu"""
+        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
+
+        # Upewnij się, że typ jest ustawiony w genesis
+        genesis['type'] = being_type
+
+        # Generuj unikalne soul
+        soul = str(uuid.uuid4())
+
+        # Przygotuj atrybuty
+        attributes = kwargs.get('attributes', {})
+        if 'tags' in kwargs:
+            attributes['tags'] = kwargs['tags']
+        if 'energy_level' in kwargs:
+            attributes['energy_level'] = kwargs['energy_level']
+
+        # Utwórz byt
+        being = BeingClass(
+            soul=soul,
+            genesis=genesis,
+            attributes=attributes,
+            memories=kwargs.get('memories', []),
+            self_awareness=kwargs.get('self_awareness', {})
+        )
+
+        await being.save()
+        return being
+
+    @classmethod
+    async def load_being(cls, soul: str) -> Optional[BaseBeing]:
+        """Ładuje byt odpowiedniego typu z bazy danych"""
+        global db_pool
+
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
+        else:
+            async with db_pool.execute("SELECT * FROM base_beings WHERE soul = ?", (soul,)) as cursor:
+                row = await cursor.fetchone()
+
+        if not row:
+            return None
+
+        # Określ typ bytu
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            genesis = row['genesis']
+            being_type = genesis.get('type', 'base')
+        else:
+            # SQLite
+            genesis = json.loads(row[3]) if row[3] else {}
+            being_type = genesis.get('type', 'base')
+
+        # Wybierz odpowiednią klasę
+        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
+
+        # Utwórz instancję
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            return BeingClass(
+                soul=str(row['soul']),
+                genesis=row['genesis'],
+                attributes=row['attributes'],
+                memories=row['memories'],
+                self_awareness=row['self_awareness'],
+                created_at=row['created_at']
+            )
+        else:
+            # SQLite
+            attributes = json.loads(row[4]) if row[4] else {}
+            memories = json.loads(row[5]) if row[5] else []
+            self_awareness = json.loads(row[6]) if row[6] else {}
+
+            return BeingClass(
+                soul=row[0],
+                genesis=genesis,
+                attributes=attributes,
+                memories=memories,
+                self_awareness=self_awareness,
+                created_at=row[7]
+            )
+
+# Globalna pula połączeń do bazy danych
 
 if __name__ == '__main__':
     asyncio.run(main())

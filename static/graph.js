@@ -192,9 +192,7 @@ class LuxOSGraph {
         );
 
         if (!luxExists) {
-            this.createLuxBeing();
-        }
-    }
+            this.createLuxBe}
 
     createLuxBeing() {
         const luxBeing = {
@@ -235,7 +233,11 @@ class LuxOSGraph {
             // Pozycja w centrum ekranu
             x: this.width / 2,
             y: this.height / 2,
-            fx: this.width / 2, // Przypnij do centrum
+            fx: this.width / 2,
+            fy: this.height / 2
+        };
+
+        return luxBeing;dth / 2, // Przypnij do centrum
             fy: this.height / 2
         };
 
