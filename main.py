@@ -579,7 +579,7 @@ class BaseBeing:
                         continue
         
         return beings
-
+# ==============================================================================================================================
 # Globalne zmienne
 db_pool = None
 sio = socketio.AsyncServer(cors_allowed_origins="*")
