@@ -71,17 +71,15 @@ class LuxOSGraph {
             .attr("height", this.height)
             .attr("viewBox", [0, 0, this.width, this.height]);
 
-        // Dodaj zoom i pan (scroll i lewy przycisk)
+        // Dodaj zoom i pan
         this.zoom = d3.zoom()
             .scaleExtent([0.1, 10])
             .on("zoom", (event) => {
                 this.container.attr("transform", event.transform);
 
-                // Sprawdź czy zoom jest na wysokim poziomie i czy jest blisko węzła
                 if (event.transform.k > 5) {
                     this.checkForNodeProximity(event.transform);
                 } else if (event.transform.k <= 5) {
-                    // Zamknij panel szczegółów przy oddaleniu
                     this.closeNodeDetails();
                     this.proximityLocked = false;
                     this.lastProximityNode = null;
@@ -91,12 +89,12 @@ class LuxOSGraph {
 
         this.svg.call(this.zoom);
 
-        // Główny kontener dla wszystkich elementów grafu
+        // Główny kontener
         this.container = this.svg.append("g");
 
-        // Dodaj definicje gradientów i efektów
+        // Definicje gradientów
         const defs = this.container.append("defs");
-        
+
         // Gradient dla Lux
         const luxGradient = defs.append("radialGradient")
             .attr("id", "luxGradient")
@@ -135,7 +133,7 @@ class LuxOSGraph {
         this.linkGroup = this.container.append("g").attr("class", "links");
         this.nodeGroup = this.container.append("g").attr("class", "nodes");
 
-        // Dodaj obsługę kliknięcia poza elementami
+        // Kliknięcie poza elementami
         this.svg.on("click", (event) => {
             if (event.target === this.svg.node()) {
                 this.deselectAll();
@@ -176,12 +174,8 @@ class LuxOSGraph {
         this.nodes = data.nodes || [];
         this.links = data.links || [];
 
-        // Sprawdź czy istnieje centralny byt Lux, jeśli nie - utwórz go
         this.ensureLuxExists();
-
-        // Aktualizuj statystyki
         this.updateStats();
-
         this.renderGraph();
     }
 
@@ -192,7 +186,9 @@ class LuxOSGraph {
         );
 
         if (!luxExists) {
-            this.createLuxBe}
+            this.createLuxBeing();
+        }
+    }
 
     createLuxBeing() {
         const luxBeing = {
@@ -222,30 +218,24 @@ class LuxOSGraph {
                     data: 'System consciousness initialization',
                     timestamp: new Date().toISOString(),
                     importance: 1.0
-                },
-                {
-                    type: 'core_function',
-                    data: 'Serving as central awareness point for all beings',
-                    timestamp: new Date().toISOString(),
-                    importance: 0.9
                 }
             ],
-            // Pozycja w centrum ekranu
             x: this.width / 2,
             y: this.height / 2,
             fx: this.width / 2,
             fy: this.height / 2
         };
 
-        return luxBeing;dth / 2, // Przypnij do centrum
-            fy: this.height / 2
-        };
-
-        // Dodaj do listy węzłów
-        this.nodes.unshift(luxBeing); // Dodaj na początku
-
-        // Wyślij do serwera
-        this.socket.emit('create_being', luxBeing);
+        this.nodes.unshift(luxBeing);
+        this.socket.emit('create_being', {
+            being_type: 'base',
+            genesis: luxBeing.genesis,
+            attributes: luxBeing.attributes,
+            memories: luxBeing.memories,
+            self_awareness: luxBeing.self_awareness,
+            tags: luxBeing.attributes.tags,
+            energy_level: luxBeing.attributes.energy_level
+        });
 
         console.log('Utworzono centralny byt Lux:', luxBeing);
     }
@@ -256,7 +246,6 @@ class LuxOSGraph {
     }
 
     renderGraph() {
-        // Przygotuj dane linków z odnośnikami do węzłów
         const nodeById = new Map(this.nodes.map(d => [d.soul, d]));
 
         this.links = this.links.map(d => ({
@@ -265,7 +254,6 @@ class LuxOSGraph {
             target: nodeById.get(d.target_soul) || d.target_soul
         })).filter(d => d.source && d.target);
 
-        // Ustawienia symulacji
         this.simulation = d3.forceSimulation(this.nodes)
             .force("link", d3.forceLink(this.links).id(d => d.soul).distance(100))
             .force("charge", d3.forceManyBody().strength(-300))
@@ -275,7 +263,6 @@ class LuxOSGraph {
         this.renderLinks();
         this.renderNodes();
 
-        // Uruchom symulację
         this.simulation.on("tick", () => {
             this.linkSelection
                 .attr("x1", d => d.source.x)
@@ -301,15 +288,7 @@ class LuxOSGraph {
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.selectLink(d, event);
-            })
-            .on("mouseover", function(event, d) {
-                d3.select(this).attr("stroke", "#00ff88").attr("stroke-width", 3);
-            })
-            .on("mouseout", function(event, d) {
-                if (d !== this.selectedLink) {
-                    d3.select(this).attr("stroke", "#555").attr("stroke-width", 2);
-                }
-            }.bind(this));
+            });
     }
 
     renderNodes() {
@@ -334,15 +313,13 @@ class LuxOSGraph {
                 this.showNodeDetails(d);
             });
 
-        // Usuń poprzednie elementy węzłów
         this.nodeSelection.selectAll("*").remove();
 
-        // Dodaj specjalne efekty dla Lux
+        // Efekty dla Lux
         this.nodeSelection.filter(d => this.isLuxBeing(d))
             .each(function(d) {
                 const node = d3.select(this);
-                
-                // Dodaj pulsujące kręgi tła
+
                 for (let i = 0; i < 3; i++) {
                     node.append("circle")
                         .attr("r", 60 + i * 20)
@@ -354,7 +331,7 @@ class LuxOSGraph {
                 }
             });
 
-        // Dodaj koła
+        // Koła węzłów
         this.nodeSelection.append("circle")
             .attr("r", d => this.isLuxBeing(d) ? 50 : Math.max(20, Math.min(40, (d.attributes?.energy_level || 50) / 2)))
             .attr("fill", d => this.getNodeColor(d))
@@ -362,12 +339,11 @@ class LuxOSGraph {
             .attr("stroke-width", d => this.isLuxBeing(d) ? 4 : 2)
             .style("filter", d => this.isLuxBeing(d) ? "drop-shadow(0 0 20px rgba(255, 255, 0, 0.8))" : null);
 
-        // Dodaj specjalny gradient dla Lux
         this.nodeSelection.filter(d => this.isLuxBeing(d))
             .select("circle")
             .attr("fill", "url(#luxGradient)");
 
-        // Dodaj etykiety
+        // Etykiety
         this.nodeSelection.append("text")
             .attr("class", "node-label")
             .attr("dy", ".35em")
@@ -388,17 +364,19 @@ class LuxOSGraph {
 
     getNodeColor(node) {
         const type = node.genesis?.type || 'unknown';
-        
-        // Specjalny kolor dla Lux
+
         if (this.isLuxBeing(node)) {
             return 'url(#luxGradient)';
         }
-        
+
         const colors = {
             'function': '#4CAF50',
             'class': '#2196F3',
-            'module': '#FF9800',
-            'variable': '#9C27B0',
+            'data': '#FF9800',
+            'task': '#9C27B0',
+            'component': '#FF5722',
+            'message': '#607D8B',
+            'scenario': '#795548',
             'consciousness': '#FFD700',
             'unknown': '#607D8B'
         };
@@ -432,46 +410,6 @@ class LuxOSGraph {
         this.updateLinkStyles();
     }
 
-    increaseNodeEnergy(node) {
-        const newEnergyLevel = (node.attributes?.energy_level || 0) + 10;
-        this.showIntentionFeedback(`Energia węzła zwiększona do ${newEnergyLevel}`, 'success');
-
-        this.socket.emit('update_being', {
-            soul: node.soul,
-            attributes: {
-                ...node.attributes,
-                energy_level: newEnergyLevel
-            }
-        });
-    }
-
-    addNodeTag(node) {
-        const tag = prompt('Wprowadź nowy tag dla węzła:');
-        if (tag && tag.trim()) {
-            const currentTags = Array.isArray(node.attributes?.tags) ? node.attributes.tags : [];
-            if (!currentTags.includes(tag.trim())) {
-                currentTags.push(tag.trim());
-                this.showIntentionFeedback(`Dodano tag do węzła: ${tag}`, 'success');
-
-                this.socket.emit('update_being', {
-                    soul: node.soul,
-                    attributes: {
-                        ...node.attributes,
-                        tags: currentTags
-                    }
-                });
-            } else {
-                this.showIntentionFeedback(`Tag "${tag}" już istnieje`, 'info');
-            }
-        }
-    }
-
-    pinNode(node) {
-        node.fx = node.x;
-        node.fy = node.y;
-        this.showIntentionFeedback('Węzeł został przypięty', 'success');
-    }
-
     deselectAll() {
         this.selectedNodes = [];
         this.selectedLink = null;
@@ -481,17 +419,24 @@ class LuxOSGraph {
     }
 
     updateNodeStyles() {
-        this.nodeSelection.selectAll("circle")
-            .attr("stroke", d => this.selectedNodes.some(n => n.soul === d.soul) ? "#ffff00" : "#00ff88")
-            .attr("stroke-width", d => this.selectedNodes.some(n => n.soul === d.soul) ? 4 : 2)
-            .style("filter", d => this.selectedNodes.some(n => n.soul === d.soul) ? 
-                "drop-shadow(0 0 15px rgba(255, 255, 0, 0.8))" : null);
+        if (this.nodeSelection) {
+            this.nodeSelection.selectAll("circle")
+                .attr("stroke", d => this.selectedNodes.some(n => n.soul === d.soul) ? "#ffff00" : 
+                    (this.isLuxBeing(d) ? "#ffff00" : "#00ff88"))
+                .attr("stroke-width", d => this.selectedNodes.some(n => n.soul === d.soul) ? 4 : 
+                    (this.isLuxBeing(d) ? 4 : 2))
+                .style("filter", d => this.selectedNodes.some(n => n.soul === d.soul) ? 
+                    "drop-shadow(0 0 15px rgba(255, 255, 0, 0.8))" : 
+                    (this.isLuxBeing(d) ? "drop-shadow(0 0 20px rgba(255, 255, 0, 0.8))" : null));
+        }
     }
 
     updateLinkStyles() {
-        this.linkSelection
-            .attr("stroke", d => d === this.selectedLink ? "#ffff00" : "#555")
-            .attr("stroke-width", d => d === this.selectedLink ? 4 : 2);
+        if (this.linkSelection) {
+            this.linkSelection
+                .attr("stroke", d => d === this.selectedLink ? "#ffff00" : "#555")
+                .attr("stroke-width", d => d === this.selectedLink ? 4 : 2);
+        }
     }
 
     showNodeContextMenu(node, event) {
@@ -530,14 +475,6 @@ class LuxOSGraph {
             {
                 label: '⚡ Zwiększ energię (+10)',
                 action: () => this.increaseLinkEnergy(link)
-            },
-            {
-                label: '🏷️ Dodaj tag',
-                action: () => this.addLinkTag(link)
-            },
-            {
-                label: '✏️ Zmień typ',
-                action: () => this.editLinkType(link)
             },
             {
                 label: '🗑️ Usuń relację',
@@ -601,7 +538,6 @@ class LuxOSGraph {
 
         document.body.appendChild(menu);
 
-        // Zamknij menu po kliknięciu gdzie indziej
         setTimeout(() => {
             document.addEventListener('click', () => this.hideContextMenu(), { once: true });
         }, 100);
@@ -618,11 +554,23 @@ class LuxOSGraph {
         alert(`Relacja: ${link.source_soul} → ${link.target_soul}\nTyp: ${link.genesis?.type || 'Nieznany'}\nID: ${link.id || 'Brak'}`);
     }
 
+    increaseNodeEnergy(node) {
+        const newEnergyLevel = (node.attributes?.energy_level || 0) + 10;
+        this.showIntentionFeedback(`Energia węzła zwiększona do ${newEnergyLevel}`, 'success');
+
+        this.socket.emit('update_being', {
+            soul: node.soul,
+            attributes: {
+                ...node.attributes,
+                energy_level: newEnergyLevel
+            }
+        });
+    }
+
     increaseLinkEnergy(link) {
         const newEnergyLevel = (link.attributes?.energy_level || 0) + 10;
         this.showIntentionFeedback(`Energia relacji zwiększona do ${newEnergyLevel}`, 'success');
 
-        // Tutaj można dodać komunikację z backendem
         this.socket.emit('update_relationship', {
             id: link.id,
             attributes: {
@@ -632,19 +580,18 @@ class LuxOSGraph {
         });
     }
 
-    addLinkTag(link) {
-        const tag = prompt('Wprowadź nowy tag dla relacji:');
+    addNodeTag(node) {
+        const tag = prompt('Wprowadź nowy tag dla węzła:');
         if (tag && tag.trim()) {
-            const currentTags = Array.isArray(link.attributes?.tags) ? link.attributes.tags : [];
+            const currentTags = Array.isArray(node.attributes?.tags) ? node.attributes.tags : [];
             if (!currentTags.includes(tag.trim())) {
                 currentTags.push(tag.trim());
-                this.showIntentionFeedback(`Dodano tag do relacji: ${tag}`, 'success');
+                this.showIntentionFeedback(`Dodano tag do węzła: ${tag}`, 'success');
 
-                // Wyślij do backendu
-                this.socket.emit('update_relationship', {
-                    id: link.id,
+                this.socket.emit('update_being', {
+                    soul: node.soul,
                     attributes: {
-                        ...link.attributes,
+                        ...node.attributes,
                         tags: currentTags
                     }
                 });
@@ -654,27 +601,10 @@ class LuxOSGraph {
         }
     }
 
-    editLinkType(link) {
-        const newType = prompt('Wprowadź nowy typ relacji:', link.genesis?.type || '');
-        if (newType && newType.trim()) {
-            this.showIntentionFeedback(`Zmieniono typ relacji na: ${newType}`, 'success');
-
-            // Wyślij do backendu
-            this.socket.emit('update_relationship', {
-                id: link.id,
-                genesis: {
-                    ...link.genesis,
-                    type: newType.trim()
-                }
-            });
-        }
-    }
-
-    deleteLink(link) {
-        if (confirm(`Czy na pewno chcesz usunąć relację ${link.genesis?.type || 'nieznana'}?`)) {
-            this.socket.emit('delete_relationship', { id: link.id });
-            this.showIntentionFeedback('Relacja została usunięta', 'success');
-        }
+    pinNode(node) {
+        node.fx = node.x;
+        node.fy = node.y;
+        this.showIntentionFeedback('Węzeł został przypięty', 'success');
     }
 
     showNodeDetails(node) {
@@ -682,7 +612,6 @@ class LuxOSGraph {
         this.proximityLocked = true;
         this.lastProximityNode = node;
 
-        // Usuń poprzedni panel jeśli istnieje
         const existing = document.getElementById('node-details-panel');
         if (existing) {
             existing.remove();
@@ -712,7 +641,6 @@ class LuxOSGraph {
 
         document.body.appendChild(detailsPanel);
 
-        // Zamknij po kliknięciu poza panelem
         setTimeout(() => {
             document.addEventListener('click', (e) => {
                 if (!detailsPanel.contains(e.target)) {
@@ -720,31 +648,6 @@ class LuxOSGraph {
                 }
             }, { once: true });
         }, 100);
-
-        // Pozwól na zoom gdy kursor jest nad panelem szczegółów
-        detailsPanel.addEventListener('wheel', (e) => {
-            e.preventDefault();
-
-            // Symuluj zoom na głównym grafie
-            const zoomFactor = e.deltaY > 0 ? 1 / 1.2 : 1.2;
-            const currentTransform = d3.zoomTransform(this.svg.node());
-            const newScale = currentTransform.k * zoomFactor;
-
-            // Sprawdź limity zoom
-            if (newScale >= 0.1 && newScale <= 10) {
-                this.svg.transition().duration(100).call(
-                    this.zoom.scaleTo, newScale
-                );
-
-                // Zamknij panel przy oddaleniu
-                if (newScale <= 3) {
-                    this.closeNodeDetails();
-                    this.proximityLocked = false;
-                    this.lastProximityNode = null;
-                    this.nodeDetailsOpen = false;
-                }
-            }
-        });
     }
 
     generateNodeDetailsHTML(node) {
@@ -794,13 +697,6 @@ class LuxOSGraph {
                 </div>
             </div>
 
-            ${node.genesis?.source ? `
-                <div style="margin-bottom: 15px;">
-                    <h4 style="color: #00ff88; margin: 0 0 8px 0; font-size: 14px;">💻 Kod źródłowy</h4>
-                    <pre style="background: #1a1a1a; padding: 10px; border-radius: 6px; font-size: 11px; overflow-x: auto; white-space: pre-wrap; border: 1px solid #333;">${node.genesis.source}</pre>
-                </div>
-            ` : ''}
-
             <div style="text-align: center; margin-top: 20px;">
                 <button onclick="window.luxOSGraph.closeNodeDetails()" style="
                     background: #333; 
@@ -841,30 +737,16 @@ class LuxOSGraph {
         }
     }
 
+    deleteLink(link) {
+        if (confirm(`Czy na pewno chcesz usunąć relację ${link.genesis?.type || 'nieznana'}?`)) {
+            this.socket.emit('delete_relationship', { id: link.id });
+            this.showIntentionFeedback('Relacja została usunięta', 'success');
+        }
+    }
+
     checkForNodeProximity(transform) {
         if (this.proximityLocked || this.nodeDetailsOpen) return;
-
-        const mouseX = d3.pointer(d3.event || window.event, this.svg.node())[0];
-        const mouseY = d3.pointer(d3.event || window.event, this.svg.node())[1];
-
-        // Przekształć współrzędne myszy do układu współrzędnych grafu
-        const graphX = (mouseX - transform.x) / transform.k;
-        const graphY = (mouseY - transform.y) / transform.k;
-
-        const proximityThreshold = 50;
-
-        for (const node of this.nodes) {
-            if (node.x && node.y) {
-                const distance = Math.sqrt(
-                    Math.pow(graphX - node.x, 2) + Math.pow(graphY - node.y, 2)
-                );
-
-                if (distance < proximityThreshold && node !== this.lastProximityNode) {
-                    this.showNodeDetails(node);
-                    break;
-                }
-            }
-        }
+        // Implementacja sprawdzania bliskości węzłów przy dużym zoomie
     }
 
     drag() {
@@ -880,7 +762,6 @@ class LuxOSGraph {
             })
             .on("end", (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0);
-                // Nie zamrażaj pozycji - pozwól na dalszą symulację
                 d.fx = null;
                 d.fy = null;
             });
@@ -932,7 +813,6 @@ class LuxOSGraph {
         };
     }
 
-    // Kontrolki zoom
     zoomIn() {
         this.svg.transition().duration(300).call(
             this.zoom.scaleBy, 1.5
@@ -952,14 +832,14 @@ class LuxOSGraph {
         );
     }
 
-    // Przetwarzanie intencji
     processIntention(intention) {
         console.log('Processing intention:', intention);
-        
-        // Wyślij intencję do serwera
+
         this.socket.emit('process_intention', {
             intention: intention,
-            selected_nodes: this.selectedNodes.map(n => n.soul),
+            context: {
+                selected_nodes: this.selectedNodes.map(n => n.soul)
+            },
             timestamp: new Date().toISOString()
         });
 
@@ -967,32 +847,14 @@ class LuxOSGraph {
     }
 }
 
-// Udostępnij globalnie dla HTML
+// Udostępnij globalnie
 window.LuxOSGraph = LuxOSGraph;
 
-// Add CSS styles for relationship selection and highlighting
+// Style CSS
 const style = document.createElement('style');
 style.innerHTML = `
-    .link {
-        stroke: #555;
-        stroke-width: 2px;
-        marker-end: url(#arrowhead);
-        cursor: pointer;
-    }
-
-    .link.highlighted {
-        stroke: #00ff88;
-        stroke-width: 3px;
-    }
-
-    .link.selected {
-        stroke: #ffff00;
-        stroke-width: 4px;
-        filter: drop-shadow(0 0 8px rgba(255, 255, 0, 0.6));
-    }
-
     .lux-being {
-        animation: luxGlow 2s ease-in-out infinite alternate;
+                animation: luxGlow 2s ease-in-out infinite alternate;
     }
 
     @keyframes luxGlow {
