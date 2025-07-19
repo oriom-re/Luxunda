@@ -513,12 +513,12 @@ ${JSON.stringify(node.memories, null, 2)}</pre>`;
     updateStatus(message, type) {
         const statusElement = document.getElementById('connectionStatus');
         const dotElement = document.getElementById('connectionDot');
-        
+
         if (statusElement) {
             statusElement.textContent = message;
             statusElement.className = `status-${type}`;
         }
-        
+
         if (dotElement) {
             if (type === 'connected') {
                 dotElement.classList.add('connected');
@@ -557,14 +557,14 @@ ${JSON.stringify(node.memories, null, 2)}</pre>`;
         const feedback = document.createElement('div');
         feedback.className = 'feedback-message';
         feedback.textContent = message;
-        
+
         document.body.appendChild(feedback);
-        
+
         // Animacja pojawienia się
         setTimeout(() => {
             feedback.classList.add('show');
         }, 100);
-        
+
         // Automatyczne usunięcie po 3 sekundach
         setTimeout(() => {
             feedback.classList.remove('show');
@@ -589,6 +589,25 @@ ${JSON.stringify(node.memories, null, 2)}</pre>`;
 
         this.showFeedback(data.message || 'Intencja przetworzona! ✨');
         this.updateStatus('Połączono', 'connected');
+    }
+
+    handleFunctionRegistered(data) {
+        console.log('Funkcja zarejestrowana:', data);
+        this.showFeedback('Funkcja zarejestrowana! ✅');
+    }
+
+    handleFunctionExecuted(data) {
+        console.log('Funkcja wykonana:', data);
+        this.showFeedback('Funkcja wykonana! 🚀');
+    }
+
+    showRegisteredFunctionsList(data) {
+        console.log('Lista funkcji:', data);
+    }
+
+    showSourceCode(data) {
+        console.log('Kod źródłowy:', data);
+        alert(`Kod źródłowy:\n\n${data.source}`);
     }
 }
 
