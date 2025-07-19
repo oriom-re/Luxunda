@@ -49,6 +49,13 @@ class LuxOSUniverse {
 
         this.socket.on('error', (error) => {
             console.error('Błąd wszechświata:', error);
+            this.showErrorMessage('Błąd połączenia z wszechświatem: ' + error.message);
+        });
+
+        // Globalna obsługa nieobsłużonych błędów Promise
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Nieobsłużony błąd Promise:', event.reason);
+            event.preventDefault(); // Zapobiegnij domyślnemu logowaniu
         });
     }
 
@@ -169,7 +176,45 @@ class LuxOSUniverse {
     updateUniverse(data) {
         console.log('Aktualizacja wszechświata:', data);
 
-        this.beings = data.nodes || [];
+        // Bezpieczna deserializacja danych
+        this.beings = (data.nodes || []).map(node => {
+            try {
+                // Parsuj stringi JSON z backendu
+                if (typeof node._soul?.genesis === 'string') {
+                    node._soul.genesis = JSON.parse(node._soul.genesis);
+                }
+                if (typeof node._soul?.attributes === 'string') {
+                    node._soul.attributes = JSON.parse(node._soul.attributes);
+                }
+                if (typeof node._soul?.memories === 'string') {
+                    node._soul.memories = JSON.parse(node._soul.memories);
+                }
+                if (typeof node._soul?.self_awareness === 'string') {
+                    node._soul.self_awareness = JSON.parse(node._soul.self_awareness);
+                }
+                
+                // Mapuj strukturę dla kompatybilności
+                return {
+                    soul: node.soul_uid || node.soul,
+                    soul_uid: node.soul_uid,
+                    genesis: node._soul?.genesis || node.genesis || { type: 'unknown', name: 'Unknown' },
+                    attributes: node._soul?.attributes || node.attributes || { energy_level: 50 },
+                    memories: node._soul?.memories || node.memories || [],
+                    self_awareness: node._soul?.self_awareness || node.self_awareness || {}
+                };
+            } catch (e) {
+                console.warn('Błąd parsowania danych bytu:', e, node);
+                return {
+                    soul: node.soul_uid || node.soul || 'unknown',
+                    soul_uid: node.soul_uid,
+                    genesis: { type: 'unknown', name: 'Unknown' },
+                    attributes: { energy_level: 50 },
+                    memories: [],
+                    self_awareness: {}
+                };
+            }
+        });
+
         this.ensureLuxAgent();
         this.updateStats();
         this.renderUniverse();
@@ -328,6 +373,7 @@ class LuxOSUniverse {
             });
 
         // Renderuj wiadomości/intencje jako małe kropki na mapie dusz
+        const self = this;
         this.beingSelection.filter(d => d.genesis?.type === 'message')
             .each(function(d) {
                 const being = d3.select(this);
@@ -354,7 +400,7 @@ class LuxOSUniverse {
                 }
 
                 // Etykieta tylko przy wysokim zoomie
-                if (this.zoomLevel > 10) {
+                if (self.zoomLevel > 10) {
                     being.append("text")
                         .attr("class", "being-label")
                         .attr("dy", 12)
@@ -367,6 +413,7 @@ class LuxOSUniverse {
             });
 
         // Renderuj pozostałe byty jako planety/komety
+        const self = this;
         this.beingSelection.filter(d => !this.isLuxAgent(d) && d.genesis?.type !== 'message')
             .each(function(d) {
                 const being = d3.select(this);
@@ -375,13 +422,13 @@ class LuxOSUniverse {
                 // Główne ciało
                 being.append("circle")
                     .attr("r", energySize)
-                    .attr("fill", this.getBeingColor(d))
+                    .attr("fill", self.getBeingColor(d))
                     .attr("stroke", "#ffffff")
                     .attr("stroke-width", 1)
                     .style("filter", d.attributes?.energy_level > 80 ? "url(#glow)" : null);
 
                 // Etykieta (tylko przy odpowiednim zoomie)
-                if (this.zoomLevel > 2) {
+                if (self.zoomLevel > 2) {
                     being.append("text")
                         .attr("class", "being-label")
                         .attr("dy", energySize + 15)
@@ -506,20 +553,35 @@ class LuxOSUniverse {
     }
 
     addBeing(being) {
-        // Sprawdź czy byt już istnieje
-        const existingIndex = this.beings.findIndex(b => b.soul === being.soul || b.soul_uid === being.soul_uid);
-        
-        if (existingIndex !== -1) {
-            // Zaktualizuj istniejący byt
-            this.beings[existingIndex] = being;
-        } else {
-            // Dodaj nowy byt
-            this.beings.push(being);
+        try {
+            // Bezpieczna deserializacja nowego bytu
+            const processedBeing = {
+                soul: being.soul_uid || being.soul,
+                soul_uid: being.soul_uid,
+                genesis: being._soul?.genesis || being.genesis || { type: 'unknown', name: 'Unknown' },
+                attributes: being._soul?.attributes || being.attributes || { energy_level: 50 },
+                memories: being._soul?.memories || being.memories || [],
+                self_awareness: being._soul?.self_awareness || being.self_awareness || {}
+            };
+
+            // Sprawdź czy byt już istnieje
+            const existingIndex = this.beings.findIndex(b => 
+                b.soul === processedBeing.soul || b.soul_uid === processedBeing.soul_uid);
+            
+            if (existingIndex !== -1) {
+                // Zaktualizuj istniejący byt
+                this.beings[existingIndex] = processedBeing;
+            } else {
+                // Dodaj nowy byt
+                this.beings.push(processedBeing);
+            }
+            
+            console.log('Dodano/zaktualizowano byt:', processedBeing);
+            this.updateStats();
+            this.renderUniverse();
+        } catch (error) {
+            console.error('Błąd dodawania bytu:', error, being);
         }
-        
-        console.log('Dodano/zaktualizowano byt:', being);
-        this.updateStats();
-        this.renderUniverse();
     }
 
     updateBeingStyles() {
@@ -633,6 +695,33 @@ class LuxOSUniverse {
             this.zoom.transform,
             d3.zoomIdentity
         );
+    }
+
+    showErrorMessage(message) {
+        // Pokaż komunikat błędu w interfejsie
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.textContent = message;
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            background: #ff4444;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            z-index: 2000;
+            max-width: 300px;
+        `;
+        
+        document.body.appendChild(errorDiv);
+        
+        // Usuń po 5 sekundach
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.parentNode.removeChild(errorDiv);
+            }
+        }, 5000);
     }
 }
 
