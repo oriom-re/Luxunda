@@ -309,6 +309,7 @@
             <button class="zoom-btn" id="zoomIn">+</button>
             <button class="zoom-btn" id="zoomOut">-</button>
             <button class="zoom-btn" id="zoomReset">⌂</button>
+            <button class="zoom-btn" id="luxChat" title="Chat z Lux">💬</button>
         </div>
 
         <div class="intention-system">
@@ -329,6 +330,7 @@
 
     <script src="graph.js"></script>
     <script src="intention-component.js"></script>
+    <script src="chat-component.js"></script>
     <script>
         // Inicjalizacja aplikacji
         document.addEventListener('DOMContentLoaded', function() {
@@ -340,15 +342,18 @@
                 
                 const graphManager = new LuxOSGraph();
                 const intentionComponent = new IntentionComponent(graphManager);
+                const luxChatComponent = new LuxChatComponent(graphManager);
                 
                 // Zapisz globalne referencje dla debugowania
                 window.luxOSUniverse = graphManager;
                 window.intentionComponent = intentionComponent;
+                window.luxChatComponent = luxChatComponent;
                 
                 // Dodaj obsługę kontrolek zoom
                 document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
                 document.getElementById('zoomOut').addEventListener('click', () => graphManager.zoomOut());
                 document.getElementById('zoomReset').addEventListener('click', () => graphManager.resetZoom());
+                document.getElementById('luxChat').addEventListener('click', () => luxChatComponent.toggle());
                 
                 // Make sure input is visible
                 console.log('Intention input:', document.getElementById('intentionInput'));
