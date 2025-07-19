@@ -102,6 +102,12 @@ class LuxOSGraph {
                 // Sprawdź czy zoom jest na wysokim poziomie i czy jest blisko węzła
                 if (event.transform.k > 5) { // Zwiększony próg zoom
                     this.checkForNodeProximity(event.transform);
+                } else if (event.transform.k <= 3) {
+                    // Zamknij panel szczegółów przy oddaleniu
+                    this.closeNodeDetails();
+                    this.proximityLocked = false;
+                    this.lastProximityNode = null;
+                    this.nodeDetailsOpen = false;
                 }
             });
 
@@ -742,12 +748,7 @@ class LuxOSGraph {
                     <button onclick="window.luxosGraph.closeNodeDetails()" style="background: #607D8B; color: white; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">🚪 Zamknij</button>
                 </div>
 
-                <div style="background: rgba(255, 193, 7, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #FFC107; margin-top: 15px;">
-                    <h3 style="margin: 0 0 10px 0; color: #FFC107;">🔍 Kontrolki Zoom</h3>
-                    <button onclick="window.luxosGraph.zoomIn()" style="background: #FFC107; color: #1a1a1a; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer; font-weight: bold;">➕ Przybliż</button>
-                    <button onclick="window.luxosGraph.zoomOut()" style="background: #FFC107; color: #1a1a1a; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer; font-weight: bold;">➖ Oddal</button>
-                    <button onclick="window.luxosGraph.resetZoom()" style="background: #FFC107; color: #1a1a1a; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer; font-weight: bold;">🏠 Reset</button>
-                </div>
+                
             </div>
         `;
     }
