@@ -679,7 +679,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                     'tags': ['function', 'intention'],
                     'energy_level': 70,
                     'attributes': {'created_via': 'intention', 'intention_text': intention},
-                    'memories': [{'type': 'creation', 'data': intention}],
+                    'memories':[{'type': 'creation', 'data': intention}],
                     'self_awareness': {'trust_level': 0.8, 'confidence': 0.9}
                 }
             })

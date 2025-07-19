@@ -49,12 +49,12 @@ class LuxOSGraph {
 
         this.socket.on('being_created', (being) => {
             console.log('Nowy byt utworzony:', being);
-            this.socket.emit('get_graph_data');
+            // Graf zostanie automatycznie odświeżony przez broadcast_graph_update
         });
 
         this.socket.on('relationship_created', (relationship) => {
             console.log('Nowa relacja utworzona:', relationship);
-            this.socket.emit('get_graph_data');
+            // Graf zostanie automatycznie odświeżony przez broadcast_graph_update
         });
 
         this.socket.on('error', (error) => {
@@ -290,6 +290,11 @@ class LuxOSGraph {
                 this.socket.emit('create_relationship', action.data);
             }
         });
+        
+        // Poczekaj chwilę i odśwież graf po wykonaniu wszystkich akcji
+        setTimeout(() => {
+            this.socket.emit('get_graph_data');
+        }, 200);
     }
 
     // Funkcje zoom
