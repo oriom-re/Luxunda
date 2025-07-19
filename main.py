@@ -20,19 +20,19 @@ openai.api_key = os.getenv('OPENAI_API_KEY')
 
 class EmbeddingSystem:
     """Dwupoziomowy system embedingów - tani model + głęboki model"""
-    
+
     def __init__(self):
         self.cheap_model = "text-embedding-3-small"  # Tańszy model OpenAI
         self.deep_model = "text-embedding-3-large"   # Droższy, głębszy model
         self.cache = {}  # Cache dla embedingów
-        
+
     async def generate_cheap_embedding(self, text: str) -> list:
         """Generuje szybki, tani emebeding dla wstępnej analizy"""
         cache_key = f"cheap_{hashlib.md5(text.encode()).hexdigest()}"
-        
+
         if cache_key in self.cache:
             return self.cache[cache_key]
-            
+
         try:
             # Prawdziwe OpenAI API
             if openai.api_key:
@@ -45,22 +45,22 @@ class EmbeddingSystem:
             else:
                 # Fallback jeśli brak klucza API
                 embedding = [hash(text + str(i)) % 1000 / 1000.0 for i in range(384)]
-            
+
             self.cache[cache_key] = embedding
             return embedding
-            
+
         except Exception as e:
             print(f"Błąd generowania taniego embedingu: {e}")
             # Fallback
             return [hash(text + str(i)) % 1000 / 1000.0 for i in range(384)]
-    
+
     async def generate_deep_embedding(self, text: str) -> list:
         """Generuje głęboki emebeding dla ważnych interakcji"""
         cache_key = f"deep_{hashlib.md5(text.encode()).hexdigest()}"
-        
+
         if cache_key in self.cache:
             return self.cache[cache_key]
-            
+
         try:
             # Prawdziwe OpenAI API
             if openai.api_key:
@@ -73,36 +73,36 @@ class EmbeddingSystem:
             else:
                 # Fallback jeśli brak klucza API
                 embedding = [hash(text + str(i)) % 1000 / 1000.0 for i in range(1536)]
-            
+
             self.cache[cache_key] = embedding
             return embedding
-            
+
         except Exception as e:
             print(f"Błąd generowania głębokiego embedingu: {e}")
             # Fallback
             return [hash(text + str(i)) % 1000 / 1000.0 for i in range(1536)]
-    
+
     def calculate_similarity(self, emb1: list, emb2: list) -> float:
         """Oblicza podobieństwo cosinusowe między embedingami"""
         if len(emb1) != len(emb2):
             return 0.0
-            
+
         try:
             # Konwertuj do numpy arrays
             emb1_np = np.array(emb1).reshape(1, -1)
             emb2_np = np.array(emb2).reshape(1, -1)
-            
+
             # Oblicz podobieństwo cosinusowe
             similarity = cosine_similarity(emb1_np, emb2_np)[0][0]
             return float(similarity)
-            
+
         except Exception as e:
             print(f"Błąd obliczania podobieństwa: {e}")
             return 0.0
 
 class IntentionAnalyzer:
     """Inteligentny system analizy intencji"""
-    
+
     def __init__(self, embedding_system: EmbeddingSystem):
         self.embedding_system = embedding_system
         self.intention_patterns = {
@@ -114,32 +114,32 @@ class IntentionAnalyzer:
             'delete': ['usuń', 'wyrzuć', 'skasuj', 'zniszcz']
         }
         self.importance_threshold = 0.7  # Próg ważności dla głębokiego embedingu
-    
+
     async def analyze_intention(self, intention: str, context: dict = None) -> dict:
         """Analizuje intencję z dwupoziomowym systemem"""
-        
+
         # 1. Szybka analiza z tanim modelem
         cheap_embedding = await self.embedding_system.generate_cheap_embedding(intention)
-        
+
         # 2. Określ ważność intencji
         importance = await self.calculate_importance(intention, context)
-        
+
         # 3. Jeśli ważna, użyj głębokiego modelu
         deep_embedding = None
         if importance > self.importance_threshold:
             deep_embedding = await self.embedding_system.generate_deep_embedding(intention)
-        
+
         # 4. Klasyfikuj typ intencji
         intention_type = self.classify_intention(intention)
-        
+
         # 5. Znajdź rezonanse z istniejącymi bytami
         resonant_beings = await self.find_resonant_beings(cheap_embedding, deep_embedding)
-        
+
         # 6. Generuj odpowiedź
         response = await self.generate_response(
             intention, intention_type, importance, resonant_beings, context
         )
-        
+
         return {
             'intention': intention,
             'type': intention_type,
@@ -150,57 +150,57 @@ class IntentionAnalyzer:
             'response': response,
             'context': context
         }
-    
+
     async def calculate_importance(self, intention: str, context: dict = None) -> float:
         """Oblicza ważność intencji"""
         importance = 0.5  # Bazowa ważność
-        
+
         # Zwiększ ważność dla złożonych intencji
         if len(intention.split()) > 5:
             importance += 0.1
-            
+
         # Zwiększ dla słów kluczowych wysokiej ważności
         important_keywords = ['system', 'agent', 'lux', 'wszechświat', 'świadomość']
         for keyword in important_keywords:
             if keyword in intention.lower():
                 importance += 0.2
-                
+
         # Zwiększ jeśli jest kontekst
         if context and context.get('selected_nodes'):
             importance += 0.2
-            
+
         return min(importance, 1.0)
-    
+
     def classify_intention(self, intention: str) -> str:
         """Klasyfikuje typ intencji"""
         intention_lower = intention.lower()
-        
+
         for intention_type, keywords in self.intention_patterns.items():
             for keyword in keywords:
                 if keyword in intention_lower:
                     return intention_type
-                    
+
         return 'unknown'
-    
+
     async def find_resonant_beings(self, cheap_emb: list, deep_emb: list = None) -> list:
         """Znajduje byty rezonujące z intencją"""
         try:
             all_beings = await BaseBeing.get_all(50)  # Ograniczamy do 50 dla wydajności
             resonant_beings = []
-            
+
             for being in all_beings:
                 soul = await being.connect_to_soul()
                 if not soul:
                     continue
-                    
+
                 # Sprawdź czy byt ma embedding
                 being_emb = soul.attributes.get('embedding')
                 if not being_emb:
                     continue
-                
+
                 # Oblicz podobieństwo
                 similarity = self.embedding_system.calculate_similarity(cheap_emb, being_emb)
-                
+
                 if similarity > 0.5:  # Próg rezonansu
                     resonant_beings.append({
                         'soul_uid': being.soul_uid,
@@ -208,22 +208,22 @@ class IntentionAnalyzer:
                         'type': soul.genesis.get('type', 'unknown'),
                         'similarity': similarity
                     })
-            
+
             # Sortuj po podobieństwie
             resonant_beings.sort(key=lambda x: x['similarity'], reverse=True)
             return resonant_beings[:5]  # Zwróć top 5
-            
+
         except Exception as e:
             print(f"Błąd znajdowania rezonansów: {e}")
             return []
-    
+
     async def generate_response(self, intention: str, intention_type: str, 
                               importance: float, resonant_beings: list, context: dict) -> dict:
         """Generuje inteligentną odpowiedź na intencję"""
-        
+
         actions = []
         message = f"Przetwarzam intencję typu '{intention_type}' (ważność: {importance:.2f})"
-        
+
         if intention_type == 'create':
             actions = await self.handle_create_intention(intention, resonant_beings)
         elif intention_type == 'connect':
@@ -232,17 +232,17 @@ class IntentionAnalyzer:
             actions = await self.handle_find_intention(intention, resonant_beings)
         elif intention_type == 'analyze':
             actions = await self.handle_analyze_intention(intention, resonant_beings)
-        
+
         return {
             'message': message,
             'actions': actions,
             'resonant_beings': resonant_beings
         }
-    
+
     async def handle_create_intention(self, intention: str, resonant_beings: list) -> list:
         """Obsługuje intencje tworzenia"""
         actions = []
-        
+
         # Określ typ na podstawie intencji
         if any(word in intention.lower() for word in ['funkcj', 'function']):
             being_type = 'function'
@@ -256,7 +256,7 @@ class IntentionAnalyzer:
         else:
             being_type = 'base'
             name = 'Nowy_Byt'
-        
+
         actions.append({
             'type': 'create_being',
             'data': {
@@ -276,15 +276,15 @@ class IntentionAnalyzer:
                 }
             }
         })
-        
+
         return actions
-    
+
     async def handle_connect_intention(self, intention: str, context: dict, resonant_beings: list) -> list:
         """Obsługuje intencje łączenia"""
         actions = []
-        
+
         selected_nodes = context.get('selected_nodes', []) if context else []
-        
+
         if len(selected_nodes) >= 2:
             # Określ typ relacji
             if any(word in intention.lower() for word in ['dziedzicz', 'inherits']):
@@ -295,7 +295,7 @@ class IntentionAnalyzer:
                 rel_type = 'calls'
             else:
                 rel_type = 'relates'
-            
+
             actions.append({
                 'type': 'create_relationship',
                 'data': {
@@ -328,19 +328,19 @@ class IntentionAnalyzer:
                             }
                         }
                     })
-        
+
         return actions
-    
+
     async def handle_find_intention(self, intention: str, resonant_beings: list) -> list:
         """Obsługuje intencje wyszukiwania"""
         # Tutaj można rozszerzyć o bardziej zaawansowane wyszukiwanie
         return []
-    
+
     async def handle_analyze_intention(self, intention: str, resonant_beings: list) -> list:
         """Obsługuje intencje analizy"""
         # Tutaj można dodać analizę systemu lub bytów
         return []
-    
+
     def extract_name(self, intention: str, keywords: list) -> str:
         """Ekstraktuje nazwę z intencji"""
         words = intention.split()
@@ -846,7 +846,8 @@ class ClassBeing(BaseBeing):
         """Inicjalizacja po utworzeniu"""
         soul = await self.connect_to_soul()
         if soul and soul.genesis.get('type') != 'class':
-            soul.genesis['type'] = 'class'
+            soul.genesis```python
+['type'] = 'class'
             soul.genesis['source'] = self.get_class_source()  # Source zapisywany w duszy
 
         if soul and 'instances' not in soul.attributes:
@@ -1148,7 +1149,7 @@ const simulation = d3.forceSimulation()
 @dataclass
 class MessageBeing(BaseBeing):
     """Byt wiadomości z metadanymi i embedingami"""
-    
+
     def __init__(self, soul_uid: str, soul_patch: str, incarnation: int = 0):
         super().__init__(soul_uid, soul_patch, incarnation)
 
@@ -1217,7 +1218,7 @@ class MessageBeing(BaseBeing):
                 # Zwykła wiadomość - użyj taniego embedingu
                 soul.attributes['embedding'] = await embedding_system.generate_cheap_embedding(content)
                 soul.attributes['embedding_type'] = 'cheap'
-            
+
             await self.save_soul()
 
     def set_sender(self, sender_soul: str):
@@ -1628,10 +1629,10 @@ async def process_intention(sid, data):
                 tags=['message', 'intention', 'user_input'],
                 energy_level=80
             )
-            
+
             # Załaduj duszę żeby właściwości były dostępne
             await message_being.connect_to_soul()
-            
+
         except Exception as e:
             print(f"Błąd tworzenia message being: {e}")
             message_being = None
@@ -1765,7 +1766,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
     try:
         # Użyj nowego systemu AI do analizy
         analysis = await intention_analyzer.analyze_intention(intention, context)
-        
+
         return {
             'message': analysis['response']['message'],
             'actions': analysis['response']['actions'],
@@ -1777,10 +1778,10 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                 'resonant_beings': analysis['resonant_beings']
             }
         }
-        
+
     except Exception as e:
         print(f"Błąd analizy AI, używam fallback: {e}")
-        
+
         # Fallback do prostej analizy
         return {
             'message': 'Analizuję intencję (fallback mode)',
@@ -2044,7 +2045,7 @@ async def init_app():
 
     # Dodaj CORS tylko do tras API (pomiń Socket.IO)
     for route in list(app.router.routes()):
-        if hasattr(route, 'resource') and route.resource.canonical.startswith('/api/'):
+        if hasattr(route, 'resource') and route.resource.canonical.startswith('/api/'),
             cors.add(route)
 
     await init_database()
@@ -2216,7 +2217,7 @@ async def create_lux_agent():
     try:
         # Sprawdź czy Lux już istnieje - używamy stałego UUID dla Lux
         lux_uuid = "00000000-0000-0000-0000-000000000001"  # Stały UUID dla Lux
-        
+
         # Sprawdź w bazie czy już istnieje
         global db_pool
         if hasattr(db_pool, 'acquire'):

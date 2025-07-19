@@ -35,27 +35,52 @@ class LuxOSUniverse {
         });
 
         this.socket.on('graph_data', (data) => {
-            this.updateUniverse(data);
+            try {
+                this.updateUniverse(data);
+            } catch (error) {
+                console.error('Błąd aktualizacji wszechświata:', error);
+                this.showErrorMessage('Błąd aktualizacji danych');
+            }
         });
 
         this.socket.on('universe_state', (data) => {
-            this.updateUniversePositions(data);
+            try {
+                this.updateUniversePositions(data);
+            } catch (error) {
+                console.error('Błąd aktualizacji pozycji:', error);
+            }
         });
 
         this.socket.on('being_created', (being) => {
-            console.log('Nowy byt w wszechświecie:', being);
-            this.addBeing(being);
+            try {
+                console.log('Nowy byt w wszechświecie:', being);
+                this.addBeing(being);
+            } catch (error) {
+                console.error('Błąd dodawania bytu:', error);
+            }
+        });
+
+        this.socket.on('intention_response', (response) => {
+            try {
+                console.log('Odpowiedź na intencję:', response);
+                // Przekaż do intention component jeśli istnieje
+                if (window.intentionComponent) {
+                    window.intentionComponent.handleIntentionResponse(response);
+                }
+            } catch (error) {
+                console.error('Błąd obsługi odpowiedzi na intencję:', error);
+            }
         });
 
         this.socket.on('error', (error) => {
             console.error('Błąd wszechświata:', error);
-            this.showErrorMessage('Błąd połączenia z wszechświatem: ' + error.message);
+            this.showErrorMessage('Błąd połączenia z wszechświatem: ' + (error.message || error));
         });
 
         // Globalna obsługa nieobsłużonych błędów Promise
         window.addEventListener('unhandledrejection', (event) => {
             console.error('Nieobsłużony błąd Promise:', event.reason);
-            event.preventDefault(); // Zapobiegnij domyślnemu logowaniu
+            // Nie zapobiegamy domyślnemu logowaniu - pozwól na debugging
         });
     }
 
