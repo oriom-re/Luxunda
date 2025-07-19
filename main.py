@@ -1152,6 +1152,39 @@ class MessageBeing(BaseBeing):
     def __init__(self, soul_uid: str, soul_patch: str, incarnation: int = 0):
         super().__init__(soul_uid, soul_patch, incarnation)
 
+    @property
+    def soul(self) -> str:
+        """Kompatybilność - zwraca soul_uid"""
+        return self.soul_uid
+
+    @property
+    def genesis(self) -> dict:
+        """Kompatybilność - zwraca genesis z duszy"""
+        if self._soul:
+            return self._soul.genesis
+        return {}
+
+    @property
+    def attributes(self) -> dict:
+        """Kompatybilność - zwraca attributes z duszy"""
+        if self._soul:
+            return self._soul.attributes
+        return {}
+
+    @property
+    def memories(self) -> list:
+        """Kompatybilność - zwraca memories z duszy"""
+        if self._soul:
+            return self._soul.memories
+        return []
+
+    @property
+    def self_awareness(self) -> dict:
+        """Kompatybilność - zwraca self_awareness z duszy"""
+        if self._soul:
+            return self._soul.self_awareness
+        return {}
+
     async def __post_init__(self):
         soul = await self.connect_to_soul()
         if soul and soul.genesis.get('type') != 'message':
@@ -1566,40 +1599,49 @@ async def process_intention(sid, data):
         print(f"Otrzymano intencję od {sid}: {intention}")
 
         # Utwórz byt wiadomości dla otrzymanej intencji
-        message_being = await BeingFactory.create_being(
-            being_type='message',
-            genesis={
-                'type': 'message',
-                'name': f'Intention_Message_{datetime.now().strftime("%H%M%S")}',
-                'created_by': 'user_intention',
-                'source': 'user_input'
-            },
-            attributes={
-                'message_data': {
-                    'content': intention,
-                    'length': len(intention),
-                    'timestamp': datetime.now().isoformat()
+        try:
+            message_being = await BeingFactory.create_being(
+                being_type='message',
+                genesis={
+                    'type': 'message',
+                    'name': f'Intention_Message_{datetime.now().strftime("%H%M%S")}',
+                    'created_by': 'user_intention',
+                    'source': 'user_input'
                 },
-                'metadata': {
-                    'sender': sid,
-                    'context': context,
-                    'message_type': 'intention'
-                }
-            },
-            memories=[{
-                'type': 'creation',
-                'data': f'Intention message from user {sid}',
-                'timestamp': datetime.now().isoformat()
-            }],
-            tags=['message', 'intention', 'user_input'],
-            energy_level=80
-        )
+                attributes={
+                    'message_data': {
+                        'content': intention,
+                        'length': len(intention),
+                        'timestamp': datetime.now().isoformat()
+                    },
+                    'metadata': {
+                        'sender': sid,
+                        'context': context,
+                        'message_type': 'intention'
+                    }
+                },
+                memories=[{
+                    'type': 'creation',
+                    'data': f'Intention message from user {sid}',
+                    'timestamp': datetime.now().isoformat()
+                }],
+                tags=['message', 'intention', 'user_input'],
+                energy_level=80
+            )
+            
+            # Załaduj duszę żeby właściwości były dostępne
+            await message_being.connect_to_soul()
+            
+        except Exception as e:
+            print(f"Błąd tworzenia message being: {e}")
+            message_being = None
 
         # Przetwórz intencję
         response = await analyze_intention(intention, context)
 
         # Dodaj informację o bycie wiadomości do odpowiedzi
-        response['message_being_soul'] = message_being.soul_uid
+        if message_being:
+            response['message_being_soul'] = message_being.soul_uid
 
         print(f"Odpowiedź na intencję: {response}")
 

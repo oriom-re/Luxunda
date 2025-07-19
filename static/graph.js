@@ -192,7 +192,7 @@ class LuxOSUniverse {
                 if (typeof node._soul?.self_awareness === 'string') {
                     node._soul.self_awareness = JSON.parse(node._soul.self_awareness);
                 }
-                
+
                 // Mapuj strukturę dla kompatybilności
                 return {
                     soul: node.soul_uid || node.soul,
@@ -422,7 +422,7 @@ class LuxOSUniverse {
                 // Główne ciało
                 being.append("circle")
                     .attr("r", energySize)
-                    .attr("fill", self.getBeingColor(d))
+                    .attr("fill", self.getBeingColor ? self.getBeingColor(d) : '#666666')
                     .attr("stroke", "#ffffff")
                     .attr("stroke-width", 1)
                     .style("filter", d.attributes?.energy_level > 80 ? "url(#glow)" : null);
@@ -459,12 +459,12 @@ class LuxOSUniverse {
                 if (pos) {
                     return `translate(${pos.x}, ${pos.y})`;
                 } 
-                
+
                 // Lux zawsze w centrum
                 if (this.isLuxAgent(d)) {
                     return `translate(0, 0)`;
                 }
-                
+
                 // Domyślna losowa pozycja
                 return `translate(${Math.random() * 200 - 100}, ${Math.random() * 200 - 100})`;
             });
@@ -567,7 +567,7 @@ class LuxOSUniverse {
             // Sprawdź czy byt już istnieje
             const existingIndex = this.beings.findIndex(b => 
                 b.soul === processedBeing.soul || b.soul_uid === processedBeing.soul_uid);
-            
+
             if (existingIndex !== -1) {
                 // Zaktualizuj istniejący byt
                 this.beings[existingIndex] = processedBeing;
@@ -575,7 +575,7 @@ class LuxOSUniverse {
                 // Dodaj nowy byt
                 this.beings.push(processedBeing);
             }
-            
+
             console.log('Dodano/zaktualizowano byt:', processedBeing);
             this.updateStats();
             this.renderUniverse();
@@ -713,9 +713,9 @@ class LuxOSUniverse {
             z-index: 2000;
             max-width: 300px;
         `;
-        
+
         document.body.appendChild(errorDiv);
-        
+
         // Usuń po 5 sekundach
         setTimeout(() => {
             if (errorDiv.parentNode) {
