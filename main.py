@@ -311,7 +311,7 @@ class DataBeing(BaseBeing):
     """Byt danych z operacjami CRUD"""
 
     def __post_init__(self):
-        if self.genesis.get('type') != 'data':
+        if self.genesis.get('type') != ' ':
             self.genesis['type'] = 'data'
         if 'data_schema' not in self.attributes:
             self.attributes['data_schema'] = {}
