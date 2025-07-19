@@ -22,7 +22,7 @@ class LuxOSGraph {
             console.log('Połączono z serwerem');
             document.getElementById('connectionStatus').textContent = 'Połączono';
             document.getElementById('connectionDot').classList.add('connected');
-            this.socket.emit('get_graph_data');
+            // Nie wysyłamy get_graph_data - backend automatycznie wyśle dane po połączeniu
         });
 
         this.socket.on('disconnect', () => {
@@ -123,6 +123,16 @@ class LuxOSGraph {
             this.svg.attr("width", this.width).attr("height", this.height);
             this.simulation.force("center", d3.forceCenter(this.width / 2, this.height / 2));
         });
+
+        // Zablokuj domyślne menu kontekstowe przeglądarki
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        // Obsługa kliknięcia lewym przyciskiem w puste miejsce - ukryj menu
+        this.svg.on('click', () => {
+            this.hideContextMenu();
+        });
     }
 
     updateGraph(data) {
@@ -179,6 +189,11 @@ class LuxOSGraph {
 
         nodeUpdate.on("click", (event, d) => {
             this.handleNodeClick(event, d);
+        })
+        .on("contextmenu", (event, d) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.showContextMenu(event, d);
         });
 
         this.simulation.nodes(this.nodes);
@@ -431,6 +446,150 @@ class LuxOSGraph {
             this.zoom.transform,
             d3.zoomIdentity
         );
+    }
+
+    showContextMenu(event, node) {
+        this.hideContextMenu();
+
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.position = 'fixed';
+        menu.style.left = event.pageX + 'px';
+        menu.style.top = event.pageY + 'px';
+        menu.style.background = 'rgba(26, 26, 26, 0.95)';
+        menu.style.border = '1px solid #00ff88';
+        menu.style.borderRadius = '8px';
+        menu.style.padding = '8px 0';
+        menu.style.zIndex = '2000';
+        menu.style.minWidth = '150px';
+        menu.style.backdropFilter = 'blur(10px)';
+        menu.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.5)';
+
+        const menuItems = [
+            {
+                text: '🔍 Szczegóły',
+                action: () => this.showNodeDetails(node)
+            },
+            {
+                text: '⚡ Zwiększ energię',
+                action: () => this.increaseNodeEnergy(node)
+            },
+            {
+                text: '🏷️ Dodaj tag',
+                action: () => this.addNodeTag(node)
+            },
+            {
+                text: '🗑️ Usuń węzeł',
+                action: () => this.deleteNode(node)
+            }
+        ];
+
+        menuItems.forEach(item => {
+            const menuItem = document.createElement('div');
+            menuItem.textContent = item.text;
+            menuItem.style.padding = '8px 16px';
+            menuItem.style.color = 'white';
+            menuItem.style.cursor = 'pointer';
+            menuItem.style.fontSize = '14px';
+            menuItem.style.borderBottom = '1px solid #333';
+            
+            menuItem.addEventListener('mouseenter', () => {
+                menuItem.style.background = '#00ff88';
+                menuItem.style.color = '#1a1a1a';
+            });
+            
+            menuItem.addEventListener('mouseleave', () => {
+                menuItem.style.background = 'transparent';
+                menuItem.style.color = 'white';
+            });
+            
+            menuItem.addEventListener('click', () => {
+                item.action();
+                this.hideContextMenu();
+            });
+            
+            menu.appendChild(menuItem);
+        });
+
+        // Usuń ostatnią linię
+        if (menu.lastChild) {
+            menu.lastChild.style.borderBottom = 'none';
+        }
+
+        document.body.appendChild(menu);
+
+        // Zamknij menu po kliknięciu gdzie indziej
+        setTimeout(() => {
+            document.addEventListener('click', () => this.hideContextMenu(), { once: true });
+        }, 100);
+    }
+
+    hideContextMenu() {
+        const menu = document.querySelector('.context-menu');
+        if (menu) {
+            menu.remove();
+        }
+    }
+
+    showNodeDetails(node) {
+        const details = {
+            'Nazwa': node.genesis?.name || 'Brak nazwy',
+            'Typ': node.genesis?.type || 'Nieznany',
+            'Soul ID': node.soul,
+            'Energia': node.attributes?.energy_level || 0,
+            'Tagi': Array.isArray(node.attributes?.tags) ? node.attributes.tags.join(', ') : 'Brak',
+            'Zaufanie': node.self_awareness?.trust_level || 'Brak danych'
+        };
+
+        let detailText = 'Szczegóły węzła:\n\n';
+        for (const [key, value] of Object.entries(details)) {
+            detailText += `${key}: ${value}\n`;
+        }
+
+        alert(detailText);
+    }
+
+    increaseNodeEnergy(node) {
+        // Symulacja zwiększenia energii
+        const newEnergyLevel = (node.attributes?.energy_level || 0) + 10;
+        this.showIntentionFeedback(`Energia węzła zwiększona do ${newEnergyLevel}`, 'success');
+        
+        // Tutaj można dodać komunikację z backendem
+        this.socket.emit('update_being', {
+            soul: node.soul,
+            attributes: {
+                ...node.attributes,
+                energy_level: newEnergyLevel
+            }
+        });
+    }
+
+    addNodeTag(node) {
+        const tag = prompt('Wprowadź nowy tag:');
+        if (tag && tag.trim()) {
+            const currentTags = Array.isArray(node.attributes?.tags) ? node.attributes.tags : [];
+            currentTags.push(tag.trim());
+            
+            this.showIntentionFeedback(`Dodano tag: ${tag}`, 'success');
+            
+            // Tutaj można dodać komunikację z backendem
+            this.socket.emit('update_being', {
+                soul: node.soul,
+                attributes: {
+                    ...node.attributes,
+                    tags: currentTags
+                }
+            });
+        }
+    }
+
+    deleteNode(node) {
+        if (confirm(`Czy na pewno chcesz usunąć węzeł "${node.genesis?.name || 'Unnamed'}"?`)) {
+            this.showIntentionFeedback('Węzeł usunięty', 'info');
+            
+            // Tutaj można dodać komunikację z backendem
+            this.socket.emit('delete_being', { soul: node.soul });
+        }
     }
 
     showIntentionFeedback(message, type = 'success') {
