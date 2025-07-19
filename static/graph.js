@@ -142,23 +142,6 @@ class LuxOSGraph {
         this.simulation.force("link").links(this.links);
         this.simulation.restart();
 
-        // Handle tick events
-        this.simulation.on("tick", () => {
-            this.linkGroup.selectAll(".link")
-                .attr("x1", d => d.source.x)
-                .attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x)
-                .attr("y2", d => d.target.y);
-
-            this.nodeGroup.selectAll(".node-group")
-                .attr("transform", d => `translate(${d.x},${d.y})`);
-        });deColor(d));
-
-        nodeEnter.append("text")
-            .attr("class", "node-label")
-            .attr("dy", "0.3em")
-            .text(d => d.genesis?.name || "Unnamed");
-
         const nodeUpdate = node.merge(nodeEnter);
 
         nodeUpdate.select(".node")
@@ -169,7 +152,7 @@ class LuxOSGraph {
 
         // Add click handlers
         nodeUpdate.on("click", (event, d) => {
-            this.handleNodeClick(event, d);
+            this.selectNode(event, d);
         });
 
         // Update simulation
@@ -205,33 +188,7 @@ class LuxOSGraph {
         this.simulation.alpha(1).restart();
     }
 
-    getNodeColor(node) {
-        const type = node.genesis?.type || 'unknown';
-        const colors = {
-            'function': '#4CAF50',
-            'class': '#2196F3',
-            'variable': '#FF9800',
-            'module': '#9C27B0',
-            'unknown': '#607D8B'
-        };
-        return colors[type] || colors.unknown;
-    }
-
-    handleNodeClick(event, node) {
-        event.stopPropagation();
-
-        if (this.selectedNodes.includes(node.soul)) {
-            this.selectedNodes = this.selectedNodes.filter(s => s !== node.soul);
-        } else {
-            this.selectedNodes.push(node.soul);
-        }
-
-        // Update visual selection
-        this.nodeGroup.selectAll(".node")
-            .classed("selected", d => this.selectedNodes.includes(d.soul));
-
-        console.log('Selected nodes:', this.selectedNodes);
-    }
+    
 
     drag() {
         return d3.drag()
@@ -355,73 +312,6 @@ class LuxOSGraph {
         // Auto hide after 3 seconds
         setTimeout(() => {
             feedback.style.opacity = '0';
-        }, 3000);ext
-        });
-
-        console.log('Wysłano intencję:', intention);
-        this.showIntentionFeedback('Przetwarzanie intencji...', 'info');
-    }
-
-    handleIntentionResponse(response) {
-        console.log('Odpowiedź na intencję:', response);
-        this.showIntentionFeedback(response.message || 'Intencja przetworzona', 'success');
-
-        // Clear selection after processing
-        this.selectedNodes = [];
-        this.nodeGroup.selectAll(".node").classed("selected", false);
-    }
-
-    showIntentionFeedback(message, type = 'success') {
-        // Remove existing feedback
-        const existing = document.querySelector('.intention-feedback');
-        if (existing) {
-            existing.remove();
-        }
-
-        // Create new feedback
-        const feedback = document.createElement('div');
-        feedback.className = `intention-feedback ${type}`;
-        feedback.textContent = message;
-
-        // Styles
-        feedback.style.position = 'fixed';
-        feedback.style.top = '80px';
-        feedback.style.right = '20px';
-        feedback.style.padding = '12px 18px';
-        feedback.style.borderRadius = '8px';
-        feedback.style.zIndex = '1001';
-        feedback.style.fontSize = '14px';
-        feedback.style.fontWeight = 'bold';
-        feedback.style.transform = 'translateX(100%)';
-        feedback.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-        feedback.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-
-        if (type === 'error') {
-            feedback.style.background = '#ff4444';
-            feedback.style.color = 'white';
-        } else if (type === 'info') {
-            feedback.style.background = '#2196F3';
-            feedback.style.color = 'white';
-        } else {
-            feedback.style.background = '#00ff88';
-            feedback.style.color = '#1a1a1a';
-        }
-
-        document.body.appendChild(feedback);
-
-        // Animate in
-        setTimeout(() => {
-            feedback.style.transform = 'translateX(0)';
-        }, 10);
-
-        // Auto remove after 3 seconds
-        setTimeout(() => {
-            feedback.style.transform = 'translateX(100%)';
-            setTimeout(() => {
-                if (feedback.parentNode) {
-                    feedback.remove();
-                }
-            }, 300);
         }, 3000);
     }
 }
