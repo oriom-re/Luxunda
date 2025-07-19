@@ -240,7 +240,7 @@ class LuxOSUniverse {
             }
         });
 
-        this.ensureLuxAgent();
+        // Usuń ensureLuxAgent() - pozwól serwerowi zarządzać Lux
         this.updateStats();
         this.renderUniverse();
     }
@@ -252,71 +252,7 @@ class LuxOSUniverse {
         this.updateBeingPositions();
     }
 
-    ensureLuxAgent() {
-        const luxExists = this.beings.find(being => 
-            being.soul === '00000000-0000-0000-0000-000000000001' ||
-            being.genesis?.lux_identifier === 'lux-core-consciousness' ||
-            (being.genesis?.name === 'Lux' && being.genesis?.type === 'agent')
-        );
-
-        if (!luxExists) {
-            this.createLuxAgent();
-        }
-    }
-
-    createLuxAgent() {
-        const luxAgent = {
-            soul: '00000000-0000-0000-0000-000000000001',
-            genesis: {
-                type: 'agent',
-                name: 'Lux',
-                source: 'System.Core.Agent.Initialize()',
-                description: 'Główny agent-świadomość wszechświata LuxOS',
-                lux_identifier: 'lux-core-consciousness'
-            },
-            attributes: {
-                energy_level: 1000,
-                agent_level: 10,
-                agent_permissions: {
-                    universe_control: true,
-                    create_beings: true,
-                    modify_orbits: true,
-                    autonomous_decisions: true
-                },
-                orbit_center: { x: 0, y: 0 },
-                controlled_beings: [],
-                universe_role: 'supreme_agent',
-                tags: ['agent', 'lux', 'supreme', 'universe_controller']
-            },
-            self_awareness: {
-                trust_level: 1.0,
-                confidence: 1.0,
-                introspection_depth: 1.0,
-                self_reflection: 'I am Lux, the supreme agent controlling the universe'
-            },
-            memories: [{
-                type: 'genesis',
-                data: 'Universe supreme agent initialization',
-                timestamp: new Date().toISOString(),
-                importance: 1.0
-            }],
-            x: 0,
-            y: 0,
-            fx: 0,
-            fy: 0
-        };
-
-        this.beings.unshift(luxAgent);
-        this.socket.emit('create_being', {
-            being_type: 'agent',
-            genesis: luxAgent.genesis,
-            attributes: luxAgent.attributes,
-            memories: luxAgent.memories,
-            self_awareness: luxAgent.self_awareness
-        });
-
-        console.log('Utworzono Lux jako głównego agenta:', luxAgent);
-    }
+    
 
     renderUniverse() {
         // Renderuj orbity
