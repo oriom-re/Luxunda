@@ -14,6 +14,10 @@ import builtins
 import sys
 from io import StringIO
 import traceback
+import logging
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -312,7 +316,7 @@ class BaseBeing:
         return None
 
     @classmethod
-    async defget_all(cls, limit: int = 100):
+    async def get_all(cls, limit: int = 100):
         """Pobiera wszystkie byty"""
         global db_pool
         if hasattr(db_pool, 'acquire'):
@@ -792,8 +796,8 @@ async def analyze_intention(intention: str, context: dict) -> dict:
         'context': context
     }
 
-async def send_graph_data(sid):
-    """Wysyła dane grafu do konkretnego klienta"""
+async def get_graph_data():
+    """Pobiera dane grafu do zwrócenia"""
     try:
         beings = await BaseBeing.get_all()
         relationships = await Relationship.get_all()
@@ -802,11 +806,18 @@ async def send_graph_data(sid):
         nodes = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
         links = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
 
-        graph_data = {
+        return {
             'nodes': nodes,
             'links': links
         }
+    except Exception as e:
+        print(f"Błąd w get_graph_data: {e}")
+        return {'nodes': [], 'links': []}
 
+async def send_graph_data(sid):
+    """Wysyła dane grafu do konkretnego klienta"""
+    try:
+        graph_data = await get_graph_data()
         await sio.emit('graph_data', graph_data, room=sid)
     except Exception as e:
         print(f"Błąd w send_graph_data: {e}")
@@ -833,7 +844,7 @@ async def broadcast_graph_update():
 
 # HTTP API endpoints
 async def api_beings(request):
-        """REST API dla bytów"""
+    """REST API dla bytów"""
     if request.method == 'GET':
         beings = await BaseBeing.get_all()
         beings_data = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
