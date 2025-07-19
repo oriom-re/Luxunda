@@ -1618,19 +1618,25 @@ async def process_intention(sid, data):
                         'sender': sid,
                         'context': context,
                         'message_type': 'intention'
-                    }
+                    },
+                    'connected_to_main_intention': True,  # Oznacz jako połączone z główną intencją
+                    'main_intention_context': 'luxos-main-intention-context'
                 },
                 memories=[{
                     'type': 'creation',
                     'data': f'Intention message from user {sid}',
                     'timestamp': datetime.now().isoformat()
                 }],
-                tags=['message', 'intention', 'user_input'],
+                tags=['message', 'intention', 'user_input', 'luxos_context'],
                 energy_level=80
             )
 
             # Załaduj duszę żeby właściwości były dostępne
             await message_being.connect_to_soul()
+
+            # Połącz z główną intencją LuxOS przez relację
+            if message_being:
+                await connect_message_to_main_intention(message_being.soul_uid)
 
         except Exception as e:
             print(f"Błąd tworzenia message being: {e}")
@@ -1708,6 +1714,86 @@ async def get_registered_functions(sid, data):
 
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd pobierania funkcji: {str(e)}'}, room=sid)
+
+@sio.event
+async def get_main_intention_context(sid, data=None):
+    """Zwraca kontekst głównej intencji LuxOS z wszystkimi połączonymi wiadomościami i komponentami"""
+    try:
+        main_intention_uuid = "luxos-main-intention-context"
+        
+        # Załaduj główną intencję
+        main_intention = await BaseBeing.load(main_intention_uuid)
+        if not main_intention:
+            await sio.emit('error', {'message': 'Główna intencja LuxOS nie została znaleziona'}, room=sid)
+            return
+            
+        soul = await main_intention.connect_to_soul()
+        if not soul:
+            await sio.emit('error', {'message': 'Nie można połączyć się z duszą głównej intencji'}, room=sid)
+            return
+        
+        # Pobierz wszystkie połączone wiadomości
+        connected_messages = []
+        for message_uid in soul.attributes.get('connected_messages', []):
+            message_being = await BaseBeing.load(message_uid)
+            if message_being:
+                message_soul = await message_being.connect_to_soul()
+                if message_soul:
+                    connected_messages.append({
+                        'soul_uid': message_uid,
+                        'genesis': message_soul.genesis,
+                        'attributes': message_soul.attributes,
+                        'content': message_soul.attributes.get('message_data', {}).get('content', 'No content'),
+                        'timestamp': message_soul.attributes.get('message_data', {}).get('timestamp')
+                    })
+        
+        # Pobierz wszystkie wygenerowane komponenty
+        generated_components = []
+        for component_uid in soul.attributes.get('generated_components', []):
+            component_being = await BaseBeing.load(component_uid)
+            if component_being:
+                component_soul = await component_being.connect_to_soul()
+                if component_soul:
+                    generated_components.append({
+                        'soul_uid': component_uid,
+                        'genesis': component_soul.genesis,
+                        'attributes': component_soul.attributes,
+                        'd3_code': component_soul.genesis.get('d3_code', ''),
+                        'component_type': component_soul.attributes.get('d3_config', {}).get('type', 'unknown')
+                    })
+        
+        # Pobierz relacje
+        relationships = await Relationship.get_all()
+        context_relations = [
+            json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder))
+            for rel in relationships 
+            if rel.source_soul == main_intention_uuid or rel.target_soul == main_intention_uuid
+        ]
+        
+        context_data = {
+            'main_intention': {
+                'soul_uid': main_intention_uuid,
+                'genesis': soul.genesis,
+                'attributes': soul.attributes,
+                'memories': soul.memories,
+                'self_awareness': soul.self_awareness
+            },
+            'connected_messages': connected_messages,
+            'generated_components': generated_components,
+            'context_relations': context_relations,
+            'stats': {
+                'total_messages': len(connected_messages),
+                'total_components': len(generated_components),
+                'total_relations': len(context_relations)
+            }
+        }
+        
+        await sio.emit('main_intention_context', context_data, room=sid)
+        print(f"Wysłano kontekst głównej intencji do {sid}: {len(connected_messages)} wiadomości, {len(generated_components)} komponentów")
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd pobierania kontekstu głównej intencji: {str(e)}'}, room=sid)
+        print(f"Błąd get_main_intention_context: {e}")
 
 @sio.event
 async def get_being_source(sid, data):
@@ -2076,6 +2162,13 @@ async def main():
     else:
         print("Błąd inicjalizacji wszechświata Lux!")
 
+    # Inicjalizacja głównej intencji LuxOS
+    main_intention = await create_main_luxos_intention()
+    if main_intention:
+        print("Główna intencja LuxOS zainicjalizowana!")
+    else:
+        print("Błąd inicjalizacji głównej intencji LuxOS!")
+
     # Trzymaj serwer żywy
     try:
         await asyncio.Event().wait()
@@ -2223,6 +2316,90 @@ class BeingFactory:
                 created_at=row[7]
             )
 
+async def connect_message_to_main_intention(message_soul_uid: str):
+    """Łączy wiadomość z główną intencją LuxOS przez relację"""
+    try:
+        main_intention_uuid = "luxos-main-intention-context"
+        
+        # Utwórz relację między wiadomością a główną intencją
+        relationship = await Relationship.create(
+            source_soul=main_intention_uuid,  # Główna intencja jako źródło
+            target_soul=message_soul_uid,     # Wiadomość jako cel
+            genesis={
+                'type': 'contains_message',
+                'name': 'LuxOS_Context_Message',
+                'created_by': 'intention_system',
+                'description': 'Relacja łącząca wiadomość z główną intencją LuxOS'
+            },
+            attributes={
+                'relationship_type': 'context_inclusion',
+                'context_role': 'message_in_main_intention',
+                'energy_level': 90
+            },
+            tags=['context', 'main_intention', 'message_relation']
+        )
+        
+        # Zaktualizuj główną intencję - dodaj wiadomość do listy
+        main_intention = await BaseBeing.load(main_intention_uuid)
+        if main_intention:
+            soul = await main_intention.connect_to_soul()
+            if soul:
+                soul.attributes['connected_messages'].append(message_soul_uid)
+                soul.memories.append({
+                    'type': 'message_connected',
+                    'data': f'Connected message {message_soul_uid} to main intention',
+                    'timestamp': datetime.now().isoformat(),
+                    'importance': 0.8
+                })
+                await main_intention.save_soul()
+        
+        print(f"Połączono wiadomość {message_soul_uid} z główną intencją LuxOS")
+        
+    except Exception as e:
+        print(f"Błąd łączenia wiadomości z główną intencją: {e}")
+
+async def connect_component_to_main_intention(component_soul_uid: str):
+    """Łączy komponent z główną intencją LuxOS"""
+    try:
+        main_intention_uuid = "luxos-main-intention-context"
+        
+        # Utwórz relację między główną intencją a komponentem
+        relationship = await Relationship.create(
+            source_soul=main_intention_uuid,
+            target_soul=component_soul_uid,
+            genesis={
+                'type': 'contains_component',
+                'name': 'LuxOS_Generated_Component',
+                'created_by': 'component_system',
+                'description': 'Relacja łącząca wygenerowany komponent z główną intencją LuxOS'
+            },
+            attributes={
+                'relationship_type': 'generated_content',
+                'context_role': 'component_in_main_intention',
+                'energy_level': 95
+            },
+            tags=['context', 'main_intention', 'component_relation', 'generated']
+        )
+        
+        # Zaktualizuj główną intencję - dodaj komponent do listy
+        main_intention = await BaseBeing.load(main_intention_uuid)
+        if main_intention:
+            soul = await main_intention.connect_to_soul()
+            if soul:
+                soul.attributes['generated_components'].append(component_soul_uid)
+                soul.memories.append({
+                    'type': 'component_generated',
+                    'data': f'Generated component {component_soul_uid} connected to main intention',
+                    'timestamp': datetime.now().isoformat(),
+                    'importance': 0.9
+                })
+                await main_intention.save_soul()
+        
+        print(f"Połączono komponent {component_soul_uid} z główną intencją LuxOS")
+        
+    except Exception as e:
+        print(f"Błąd łączenia komponentu z główną intencją: {e}")
+
 async def create_visual_component(intention: str, context: dict, sid: str):
     """Tworzy ComponentBeing z kodem D3.js na podstawie intencji"""
     try:
@@ -2291,6 +2468,10 @@ async def create_visual_component(intention: str, context: dict, sid: str):
         )
 
         print(f"Utworzono ComponentBeing: {component_being.soul_uid} typu {component_type}")
+        
+        # Połącz komponent z główną intencją LuxOS
+        await connect_component_to_main_intention(component_being.soul_uid)
+        
         return component_being
 
     except Exception as e:
@@ -2640,6 +2821,87 @@ async def create_lux_agent():
 
     except Exception as e:
         print(f"Błąd tworzenia agenta Lux: {e}")
+        return None
+
+async def create_main_luxos_intention():
+    """Tworzy główną intencję LuxOS jako kontekst dla wszystkich wiadomości"""
+    try:
+        # Stały UUID dla głównej intencji
+        luxos_intention_uuid = "luxos-main-intention-context"
+        
+        # Sprawdź czy już istnieje
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                existing_row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", luxos_intention_uuid)
+                if existing_row:
+                    print("Główna intencja LuxOS już istnieje")
+                    being = await BaseBeing.load(luxos_intention_uuid)
+                    return being
+
+        # Utwórz główną intencję LuxOS
+        luxos_intention = await BeingFactory.create_being(
+            being_type='message',
+            genesis={
+                'type': 'intention',
+                'name': 'LuxOS',
+                'source': 'System.Core.Intention.MainContext()',
+                'description': 'Główna intencja projektu LuxOS - system bytów astralnych z transcendentalną architekturą',
+                'created_by': 'system_initialization',
+                'intention_scope': 'global_project_context'
+            },
+            attributes={
+                'energy_level': 1000,  # Maksymalna energia jako główna intencja
+                'intention_type': 'main_context',
+                'project_scope': 'full_luxos_system',
+                'context_data': {
+                    'project_description': 'LuxOS - System zarządzania bytami astralnymi z transcendentalną architekturą Soul-BaseBeing',
+                    'key_concepts': [
+                        'Soul - transcendentalna reprezentacja w bazie danych',
+                        'BaseBeing - pierwszy byt łączący się ze stanem pamięci', 
+                        'ClassBeing - klasy trwale obecne na dysku',
+                        'ComponentBeing - komponenty D3.js generowane z kodu',
+                        'MessageBeing - wiadomości z embedingami',
+                        'AgentBeing - agenci z uprawnieniami',
+                        'Wszechświat orbitalny - byty krążące wokół agentów'
+                    ],
+                    'architecture_layers': [
+                        'Frontend: JavaScript + D3.js + Socket.IO',
+                        'Backend: Python + AsyncIO + aiohttp + OpenAI',
+                        'Database: PostgreSQL + JSONB + transcendentalne dusze',
+                        'AI: Dwupoziomowy system embedingów + analiza intencji'
+                    ]
+                },
+                'connected_messages': [],  # Lista soul_uid wiadomości
+                'generated_components': [],  # Lista wygenerowanych komponentów
+                'sub_intentions': [],  # Podintencje
+                'tags': ['intention', 'main_context', 'luxos', 'project']
+            },
+            self_awareness={
+                'trust_level': 1.0,
+                'confidence': 1.0,
+                'introspection_depth': 1.0,
+                'self_reflection': 'I am the main intention of LuxOS project, connecting all messages and components'
+            },
+            memories=[
+                {
+                    'type': 'genesis',
+                    'data': 'Main LuxOS intention initialization',
+                    'timestamp': datetime.now().isoformat(),
+                    'importance': 1.0
+                }
+            ]
+        )
+
+        # Ustaw stały UUID
+        luxos_intention.soul_uid = luxos_intention_uuid  
+        await luxos_intention.save_soul()
+
+        print(f"Utworzono główną intencję LuxOS: {luxos_intention.soul_uid}")
+        return luxos_intention
+
+    except Exception as e:
+        print(f"Błąd tworzenia głównej intencji LuxOS: {e}")
         return None
 
 # Globalna pula połączeń do bazy danych

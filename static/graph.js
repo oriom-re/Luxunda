@@ -34,14 +34,20 @@ class LuxOSUniverse {
             this.updateConnectionStatus(false);
         });
 
+        // Obsługa otrzymanych danych grafu
         this.socket.on('graph_data', (data) => {
-            try {
-                this.updateUniverse(data);
-            } catch (error) {
-                console.error('Błąd aktualizacji wszechświata:', error);
-                this.showErrorMessage('Błąd aktualizacji danych');
-            }
+            console.log('Aktualizacja wszechświata:', data);
+            this.updateUniverse(data);
         });
+
+        // Obsługa kontekstu głównej intencji LuxOS
+        this.socket.on('main_intention_context', (data) => {
+            console.log('Otrzymano kontekst głównej intencji LuxOS:', data);
+            this.handleMainIntentionContext(data);
+        });
+
+        // Event listenery dla głównej intencji
+        this.setupMainIntentionControls();
 
         this.socket.on('universe_state', (data) => {
             try {
@@ -733,7 +739,7 @@ class LuxOSUniverse {
     handleNewComponent(componentData) {
         try {
             const containerId = componentData.config.container;
-            
+
             // Utwórz kontener dla komponentu jeśli nie istnieje
             if (!document.getElementById(containerId)) {
                 const componentContainer = document.createElement('div');
@@ -752,7 +758,7 @@ class LuxOSUniverse {
                     backdrop-filter: blur(10px);
                     box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
                 `;
-                
+
                 // Dodaj nagłówek
                 const header = document.createElement('div');
                 header.className = 'component-header';
@@ -764,7 +770,7 @@ class LuxOSUniverse {
                     font-size: 18px;
                 `;
                 header.textContent = `Komponent: ${componentData.genesis.name}`;
-                
+
                 // Dodaj przycisk zamknięcia
                 const closeBtn = document.createElement('button');
                 closeBtn.innerHTML = '×';
@@ -782,18 +788,18 @@ class LuxOSUniverse {
                 closeBtn.onclick = () => {
                     componentContainer.remove();
                 };
-                
+
                 componentContainer.appendChild(header);
                 componentContainer.appendChild(closeBtn);
                 document.body.appendChild(componentContainer);
             }
-            
+
             // Wykonaj kod D3.js komponenta
             this.executeComponentCode(componentData.genesis.d3_code, componentData);
-            
+
             // Pokaż komunikat o powodzeniu
             this.showSuccessMessage(`Komponent ${componentData.genesis.name} został utworzony!`);
-            
+
         } catch (error) {
             console.error('Błąd tworzenia komponentu:', error);
             this.showErrorMessage('Błąd tworzenia komponentu D3.js');
@@ -805,19 +811,19 @@ class LuxOSUniverse {
             // Bezpieczne wykonanie kodu D3.js
             const scriptElement = document.createElement('script');
             scriptElement.textContent = d3Code;
-            
+
             // Dodaj kod do head
             document.head.appendChild(scriptElement);
-            
+
             // Usuń script po wykonaniu (opcjonalnie)
             setTimeout(() => {
                 if (scriptElement.parentNode) {
                     scriptElement.parentNode.removeChild(scriptElement);
                 }
             }, 1000);
-            
+
             console.log('Kod D3.js komponenta wykonany pomyślnie');
-            
+
         } catch (error) {
             console.error('Błąd wykonania kodu D3.js:', error);
             throw error;
@@ -877,6 +883,18 @@ class LuxOSUniverse {
                 errorDiv.parentNode.removeChild(errorDiv);
             }
         }, 5000);
+    }
+
+    handleMainIntentionContext(data) {
+        // Tutaj obsłuż dane kontekstu głównej intencji LuxOS
+        console.log("Dane kontekstu głównej intencji LuxOS:", data);
+        // Możesz np. wyświetlić informacje w specjalnym panelu UI
+    }
+
+    setupMainIntentionControls() {
+        // Konfiguracja kontrolek dla głównej intencji LuxOS
+        // Przyciski, suwaki, itp.
+        console.log("Konfiguracja kontrolek dla głównej intencji LuxOS");
     }
 }
 
