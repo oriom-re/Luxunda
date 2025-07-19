@@ -1,4 +1,3 @@
-
 class LuxOSGraph {
     constructor() {
         this.svg = d3.select("#graph");
@@ -98,7 +97,7 @@ class LuxOSGraph {
             .scaleExtent([0.1, 10])
             .on("zoom", (event) => {
                 this.container.attr("transform", event.transform);
-                
+
                 // Sprawdź czy zoom jest na wysokim poziomie i czy jest blisko węzła
                 if (event.transform.k > 5) { // Zwiększony próg zoom
                     this.checkForNodeProximity(event.transform);
@@ -178,7 +177,12 @@ class LuxOSGraph {
 
         const linkEnter = link.enter()
             .append("line")
-            .attr("class", "link");
+            .attr("class", "link")
+            .attr("class", "link")
+            .on("click", (event, d) => {
+                event.stopPropagation();
+                this.handleLinkSelection(event, d);
+            });
 
         link.merge(linkEnter);
 
@@ -302,6 +306,20 @@ class LuxOSGraph {
         console.log('Selected nodes:', this.selectedNodes);
     }
 
+    handleLinkSelection(event, link) {
+        event.stopPropagation();
+
+        const linkElement = this.linkGroup.selectAll(".link").filter(l => l.source_soul === link.source_soul && l.target_soul === link.target_soul);
+        const isSelected = linkElement.classed("selected");
+
+        if (isSelected) {
+            linkElement.classed("selected", false);
+        } else {
+            linkElement.classed("selected", true);
+        }
+    }
+
+
     drag() {
         return d3.drag()
             .on("start", (event, d) => {
@@ -349,11 +367,11 @@ class LuxOSGraph {
 
     handleIntentionResponse(response) {
         console.log('Odpowiedź na intencję:', response);
-        
+
         if (response.actions && response.actions.length > 0) {
             this.executeActions(response.actions);
         }
-        
+
         this.showIntentionFeedback(response.message || 'Intencja przetworzona', 'success');
         this.selectedNodes = [];
         this.nodeGroup.selectAll(".node").classed("selected", false);
@@ -362,14 +380,14 @@ class LuxOSGraph {
     executeActions(actions) {
         actions.forEach(action => {
             console.log('Wykonywanie akcji:', action);
-            
+
             if (action.type === 'create_being') {
                 this.socket.emit('create_being', action.data);
             } else if (action.type === 'create_relationship') {
                 this.socket.emit('create_relationship', action.data);
             }
         });
-        
+
         // Granularne aktualizacje - nie potrzebujemy pełnego odświeżenia
     }
 
@@ -417,7 +435,7 @@ class LuxOSGraph {
     renderNewNode(nodeData) {
         // Dodaj nowy węzeł do symulacji
         this.simulation.nodes(this.nodes);
-        
+
         // Renderuj nowy węzeł
         const nodeGroup = this.nodeGroup
             .selectAll(".node-group")
@@ -567,22 +585,22 @@ class LuxOSGraph {
             menuItem.style.cursor = 'pointer';
             menuItem.style.fontSize = '14px';
             menuItem.style.borderBottom = '1px solid #333';
-            
+
             menuItem.addEventListener('mouseenter', () => {
                 menuItem.style.background = '#00ff88';
                 menuItem.style.color = '#1a1a1a';
             });
-            
+
             menuItem.addEventListener('mouseleave', () => {
                 menuItem.style.background = 'transparent';
                 menuItem.style.color = 'white';
             });
-            
+
             menuItem.addEventListener('click', () => {
                 item.action();
                 this.hideContextMenu();
             });
-            
+
             menu.appendChild(menuItem);
         });
 
@@ -695,18 +713,18 @@ class LuxOSGraph {
         // Pozwól na zoom gdy kursor jest nad panelem szczegółów
         detailsPanel.addEventListener('wheel', (e) => {
             e.preventDefault();
-            
+
             // Symuluj zoom na głównym grafie
             const zoomFactor = e.deltaY > 0 ? 1 / 1.2 : 1.2;
             const currentTransform = d3.zoomTransform(this.svg.node());
             const newScale = currentTransform.k * zoomFactor;
-            
+
             // Sprawdź limity zoom
             if (newScale >= 0.1 && newScale <= 10) {
                 this.svg.transition().duration(100).call(
                     this.zoom.scaleTo, newScale
                 );
-                
+
                 // Zamknij panel przy oddaleniu
                 if (newScale <= 4) {
                     this.closeNodeDetails();
@@ -773,7 +791,7 @@ class LuxOSGraph {
                     <button onclick="window.luxosGraph.closeNodeDetails()" style="background: #607D8B; color: white; border: none; padding: 8px 12px; margin: 5px; border-radius: 4px; cursor: pointer;">🚪 Zamknij</button>
                 </div>
 
-                
+
             </div>
         `;
     }
@@ -800,11 +818,11 @@ class LuxOSGraph {
     increaseNodeEnergy(soulId) {
         const node = this.nodes.find(n => n.soul === soulId);
         if (!node) return;
-        
+
         // Symulacja zwiększenia energii
         const newEnergyLevel = (node.attributes?.energy_level || 0) + 10;
         this.showIntentionFeedback(`Energia węzła zwiększona do ${newEnergyLevel}`, 'success');
-        
+
         // Tutaj można dodać komunikację z backendem
         this.socket.emit('update_being', {
             soul: node.soul,
@@ -818,13 +836,13 @@ class LuxOSGraph {
     addNodeTag(soulId) {
         const node = this.nodes.find(n => n.soul === soulId);
         if (!node) return;
-        
+
         const tag = prompt('Wprowadź nowy tag:');
         if (tag && tag.trim()) {
             const currentTags = Array.isArray(node.attributes?.tags) ? node.attributes.tags : [];
             if (!currentTags.includes(tag.trim())) {
                 currentTags.push(tag.trim());
-                
+
                 // Aktualizuj lokalnie dane węzła zachowując pozycję
                 const nodeIndex = this.nodes.findIndex(n => n.soul === node.soul);
                 if (nodeIndex !== -1) {
@@ -833,9 +851,9 @@ class LuxOSGraph {
                         tags: currentTags
                     };
                 }
-                
+
                 this.showIntentionFeedback(`Dodano tag: ${tag}`, 'success');
-                
+
                 // Wyślij do backendu
                 this.socket.emit('update_being', {
                     soul: node.soul,
@@ -853,7 +871,7 @@ class LuxOSGraph {
     deleteNode(node) {
         if (confirm(`Czy na pewno chcesz usunąć węzeł "${node.genesis?.name || 'Unnamed'}"?`)) {
             this.showIntentionFeedback('Węzeł usunięty', 'info');
-            
+
             // Tutaj można dodać komunikację z backendem
             this.socket.emit('delete_being', { soul: node.soul });
         }
@@ -869,36 +887,36 @@ class LuxOSGraph {
 
         const centerX = this.width / 2;
         const centerY = this.height / 2;
-        
+
         // Przekształć współrzędne centrum viewport na współrzędne grafu
         const graphCenterX = (centerX - transform.x) / transform.k;
         const graphCenterY = (centerY - transform.y) / transform.k;
-        
+
         // Znajdź najbliższy węzeł do centrum viewport
         let closestNode = null;
         let minDistance = Infinity;
-        
+
         this.nodes.forEach(node => {
             if (node.x !== undefined && node.y !== undefined) {
                 const distance = Math.sqrt(
                     Math.pow(node.x - graphCenterX, 2) + 
                     Math.pow(node.y - graphCenterY, 2)
                 );
-                
+
                 if (distance < minDistance && distance < 25) { // Zmniejszony obszar wykrywania do 25 jednostek
                     minDistance = distance;
                     closestNode = node;
                 }
             }
         });
-        
+
         // Jeśli znaleziono bliski węzeł i zoom jest wystarczająco duży, otwórz szczegóły
         if (closestNode && transform.k > 5 && !this.nodeDetailsOpen && !this.proximityLocked) {
             this.nodeDetailsOpen = true;
             this.proximityLocked = true;
             this.lastProximityNode = closestNode;
             this.openNodeDetails(closestNode);
-            
+
             // Rozpocznij monitorowanie opuszczenia strefy
             this.startProximityMonitoring(transform);
         }
@@ -907,20 +925,20 @@ class LuxOSGraph {
     startProximityMonitoring(transform) {
         const checkExit = () => {
             if (!this.proximityLocked) return;
-            
+
             const currentTransform = d3.zoomTransform(this.svg.node());
             const centerX = this.width / 2;
             const centerY = this.height / 2;
-            
+
             const graphCenterX = (centerX - currentTransform.x) / currentTransform.k;
             const graphCenterY = (centerY - currentTransform.y) / currentTransform.k;
-            
+
             if (this.lastProximityNode && this.lastProximityNode.x !== undefined && this.lastProximityNode.y !== undefined) {
                 const distance = Math.sqrt(
                     Math.pow(this.lastProximityNode.x - graphCenterX, 2) + 
                     Math.pow(this.lastProximityNode.y - graphCenterY, 2)
                 );
-                
+
                 // Jeśli oddalił się poza strefę (większy obszar do wyjścia)
                 if (distance > 40 || currentTransform.k <= 4) {
                     this.proximityLocked = false;
@@ -929,11 +947,11 @@ class LuxOSGraph {
                     return;
                 }
             }
-            
+
             // Kontynuuj monitorowanie
             requestAnimationFrame(checkExit);
         };
-        
+
         requestAnimationFrame(checkExit);
     }
 
@@ -986,3 +1004,26 @@ class LuxOSGraph {
         }, 3000);
     }
 }
+
+// Add CSS styles for relationship selection and highlighting
+const style = document.createElement('style');
+style.innerHTML = `
+    .link {
+        stroke: #555;
+        stroke-width: 2px;
+        marker-end: url(#arrowhead);
+        cursor: pointer;
+    }
+
+    .link.highlighted {
+        stroke: #00ff88;
+        stroke-width: 3px;
+    }
+
+    .link.selected {
+        stroke: #ffff00;
+        stroke-width: 4px;
+        filter: drop-shadow(0 0 8px rgba(255, 255, 0, 0.6));
+    }
+`;
+document.head.appendChild(style);
