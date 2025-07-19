@@ -49,12 +49,25 @@ class LuxOSGraph {
 
         this.socket.on('being_created', (being) => {
             console.log('Nowy byt utworzony:', being);
-            // Graf zostanie automatycznie odświeżony przez broadcast_graph_update
         });
 
         this.socket.on('relationship_created', (relationship) => {
             console.log('Nowa relacja utworzona:', relationship);
-            // Graf zostanie automatycznie odświeżony przez broadcast_graph_update
+        });
+
+        this.socket.on('node_added', (node) => {
+            console.log('Dodawanie węzła:', node);
+            this.addNode(node);
+        });
+
+        this.socket.on('link_added', (link) => {
+            console.log('Dodawanie relacji:', link);
+            this.addLink(link);
+        });
+
+        this.socket.on('node_updated', (node) => {
+            console.log('Aktualizacja węzła:', node);
+            this.updateNode(node);
         });
 
         this.socket.on('error', (error) => {
@@ -291,10 +304,113 @@ class LuxOSGraph {
             }
         });
         
-        // Odśwież graf raz po wykonaniu wszystkich akcji
-        setTimeout(() => {
-            this.socket.emit('get_graph_data');
-        }, 100);
+        // Granularne aktualizacje - nie potrzebujemy pełnego odświeżenia
+    }
+
+    // Granularne aktualizacje
+    addNode(nodeData) {
+        // Sprawdź czy węzeł już istnieje
+        const existingIndex = this.nodes.findIndex(n => n.soul === nodeData.soul);
+        if (existingIndex !== -1) {
+            return; // Węzeł już istnieje
+        }
+
+        // Dodaj nowy węzeł
+        this.nodes.push(nodeData);
+        this.updateStats();
+        this.renderNewNode(nodeData);
+    }
+
+    addLink(linkData) {
+        // Sprawdź czy relacja już istnieje
+        const existingIndex = this.links.findIndex(l => l.id === linkData.id);
+        if (existingIndex !== -1) {
+            return; // Relacja już istnieje
+        }
+
+        // Dodaj nową relację
+        this.links.push(linkData);
+        this.updateStats();
+        this.renderNewLink(linkData);
+    }
+
+    updateNode(nodeData) {
+        // Znajdź i zaktualizuj węzeł
+        const index = this.nodes.findIndex(n => n.soul === nodeData.soul);
+        if (index !== -1) {
+            this.nodes[index] = nodeData;
+            this.renderUpdatedNode(nodeData);
+        }
+    }
+
+    updateStats() {
+        document.getElementById('nodesCount').textContent = this.nodes.length;
+        document.getElementById('linksCount').textContent = this.links.length;
+    }
+
+    renderNewNode(nodeData) {
+        // Dodaj nowy węzeł do symulacji
+        this.simulation.nodes(this.nodes);
+        
+        // Renderuj nowy węzeł
+        const nodeGroup = this.nodeGroup
+            .selectAll(".node-group")
+            .data(this.nodes, d => d.soul);
+
+        const nodeEnter = nodeGroup.enter()
+            .append("g")
+            .attr("class", "node-group")
+            .call(this.drag());
+
+        nodeEnter.append("circle")
+            .attr("class", "node")
+            .attr("r", 20)
+            .attr("fill", d => this.getNodeColor(d));
+
+        nodeEnter.append("text")
+            .attr("class", "node-label")
+            .attr("dy", "0.3em")
+            .text(d => d.genesis?.name || "Unnamed");
+
+        nodeEnter.on("click", (event, d) => {
+            this.handleNodeClick(event, d);
+        });
+
+        // Restart symulacji z nowym węzłem
+        this.simulation.alpha(0.3).restart();
+    }
+
+    renderNewLink(linkData) {
+        // Dodaj nową relację do symulacji
+        this.simulation.force("link").links(this.links.map(d => ({
+            source: d.source_soul,
+            target: d.target_soul
+        })));
+
+        // Renderuj nową relację
+        const link = this.linkGroup
+            .selectAll(".link")
+            .data(this.links, d => `${d.source_soul}-${d.target_soul}`);
+
+        link.enter()
+            .append("line")
+            .attr("class", "link");
+
+        // Restart symulacji z nową relacją
+        this.simulation.alpha(0.3).restart();
+    }
+
+    renderUpdatedNode(nodeData) {
+        // Aktualizuj istniejący węzeł
+        const nodeGroup = this.nodeGroup
+            .selectAll(".node-group")
+            .data(this.nodes, d => d.soul);
+
+        nodeGroup.select(".node")
+            .attr("fill", d => this.getNodeColor(d));
+
+        nodeGroup.select(".node-label")
+            .text(d => d.genesis?.name || "Unnamed");
     }
 
     // Funkcje zoom
