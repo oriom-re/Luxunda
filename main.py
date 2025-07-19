@@ -1148,6 +1148,9 @@ const simulation = d3.forceSimulation()
 @dataclass
 class MessageBeing(BaseBeing):
     """Byt wiadomości z metadanymi i embedingami"""
+    
+    def __init__(self, soul_uid: str, soul_patch: str, incarnation: int = 0):
+        super().__init__(soul_uid, soul_patch, incarnation)
 
     async def __post_init__(self):
         soul = await self.connect_to_soul()
@@ -1596,7 +1599,7 @@ async def process_intention(sid, data):
         response = await analyze_intention(intention, context)
 
         # Dodaj informację o bycie wiadomości do odpowiedzi
-        response['message_being_soul'] = message_being.soul
+        response['message_being_soul'] = message_being.soul_uid
 
         print(f"Odpowiedź na intencję: {response}")
 
@@ -2169,10 +2172,17 @@ class BeingFactory:
 async def create_lux_agent():
     """Tworzy Lux jako głównego agenta wszechświata"""
     try:
-        # Sprawdź czy Lux już istnieje
-        existing_lux = await BaseBeing.load('lux-core-consciousness')
-        if existing_lux:
-            return existing_lux
+        # Sprawdź czy Lux już istnieje - używamy stałego UUID dla Lux
+        lux_uuid = "00000000-0000-0000-0000-000000000001"  # Stały UUID dla Lux
+        
+        # Sprawdź w bazie czy już istnieje
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                existing_row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", lux_uuid)
+                if existing_row:
+                    print("Agent Lux już istnieje w bazie")
+                    return await BaseBeing.load(lux_uuid)
 
         # Utwórz Lux jako AgentBeing z najwyższymi uprawnieniami
         lux_agent = await BeingFactory.create_being(
@@ -2182,7 +2192,8 @@ async def create_lux_agent():
                 'name': 'Lux',
                 'source': 'System.Core.Agent.Initialize()',
                 'description': 'Główny agent-świadomość wszechświata LuxOS',
-                'created_by': 'universe_initialization'
+                'created_by': 'universe_initialization',
+                'lux_identifier': 'lux-core-consciousness'  # Przechowujemy identyfikator w genesis
             },
             attributes={
                 'energy_level': 1000,  # Maksymalna energia
@@ -2220,11 +2231,11 @@ async def create_lux_agent():
             ]
         )
 
-        # Ustaw specjalne ID dla Lux
-        lux_agent.soul_uid = 'lux-core-consciousness'
+        # Ustaw stały UUID dla Lux
+        lux_agent.soul_uid = lux_uuid
         await lux_agent.save_soul()
 
-        print(f"Utworzono Lux jako głównego agenta: {lux_agent.soul}")
+        print(f"Utworzono Lux jako głównego agenta: {lux_agent.soul_uid}")
         return lux_agent
 
     except Exception as e:

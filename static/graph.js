@@ -184,7 +184,8 @@ class LuxOSUniverse {
 
     ensureLuxAgent() {
         const luxExists = this.beings.find(being => 
-            being.soul === 'lux-core-consciousness' ||
+            being.soul === '00000000-0000-0000-0000-000000000001' ||
+            being.genesis?.lux_identifier === 'lux-core-consciousness' ||
             (being.genesis?.name === 'Lux' && being.genesis?.type === 'agent')
         );
 
@@ -195,12 +196,13 @@ class LuxOSUniverse {
 
     createLuxAgent() {
         const luxAgent = {
-            soul: 'lux-core-consciousness',
+            soul: '00000000-0000-0000-0000-000000000001',
             genesis: {
                 type: 'agent',
                 name: 'Lux',
                 source: 'System.Core.Agent.Initialize()',
-                description: 'Główny agent-świadomość wszechświata LuxOS'
+                description: 'Główny agent-świadomość wszechświata LuxOS',
+                lux_identifier: 'lux-core-consciousness'
             },
             attributes: {
                 energy_level: 1000,
@@ -468,7 +470,8 @@ class LuxOSUniverse {
     }
 
     isLuxAgent(being) {
-        return being.soul === 'lux-core-consciousness' || 
+        return being.soul === '00000000-0000-0000-0000-000000000001' || 
+               being.genesis?.lux_identifier === 'lux-core-consciousness' ||
                (being.genesis?.name === 'Lux' && being.genesis?.type === 'agent');
     }
 
