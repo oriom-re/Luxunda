@@ -4,146 +4,222 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LuxOS - Graf Bytów</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <title>LuxOS - System Zarządzania Bytami</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #0a0a0a;
-            color: #ffffff;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white;
             overflow: hidden;
         }
 
-        #container {
+        .container {
             display: flex;
             height: 100vh;
         }
 
-        #graph-container {
+        .main-area {
             flex: 1;
             position: relative;
         }
 
-        #sidebar {
+        .sidebar {
             width: 300px;
-            background: #1a1a1a;
-            border-left: 1px solid #333;
+            background: rgba(26, 26, 26, 0.95);
+            border-left: 2px solid #00ff88;
             padding: 20px;
-            box-sizing: border-box;
             overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            background: rgba(26, 26, 26, 0.95);
+            padding: 15px 20px;
+            border-bottom: 2px solid #00ff88;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .connection-status {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #00ff88;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        #graph {
+            width: 100%;
+            height: calc(100vh - 70px - 120px);
+            background: radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
         }
 
         .node {
-            stroke: #fff;
-            stroke-width: 2px;
             cursor: pointer;
+            stroke: #00ff88;
+            stroke-width: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover {
+            stroke-width: 3px;
+            filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.8));
         }
 
         .node.selected {
-            stroke: #00ff88;
+            stroke: #ffff00;
             stroke-width: 4px;
+            filter: drop-shadow(0 0 15px rgba(255, 255, 0, 0.8));
         }
 
         .link {
-            stroke: #999;
-            stroke-opacity: 0.6;
+            stroke: #555;
             stroke-width: 2px;
+            marker-end: url(#arrowhead);
         }
 
         .link.highlighted {
             stroke: #00ff88;
-            stroke-width: 4px;
+            stroke-width: 3px;
         }
 
         .node-label {
-            font-family: Arial, sans-serif;
             font-size: 12px;
             fill: white;
             text-anchor: middle;
             pointer-events: none;
+            font-weight: bold;
         }
 
-        .controls {
-            margin-bottom: 20px;
-        }
-
-        .control-group {
+        .sidebar h2 {
+            color: #00ff88;
             margin-bottom: 15px;
+            font-size: 18px;
         }
 
-        label {
-            display: block;
-            margin-bottom: 5px;
-            color: #ccc;
-        }
-
-        input, textarea, select {
-            width: 100%;
-            padding: 8px;
-            background: #333;
-            border: 1px solid #555;
-            color: white;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        button {
-            background: #00ff88;
-            color: black;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 5px 5px 5px 0;
-        }
-
-        button:hover {
-            background: #00cc6a;
-        }
-
-        .info-panel {
-            background: #2a2a2a;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-
-        .tag {
-            display: inline-block;
-            background: #444;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            margin: 2px;
+        .sidebar h3 {
+            color: #00ff88;
+            margin-bottom: 10px;
+            font-size: 16px;
         }
 
         .energy-bar {
             width: 100%;
-            height: 10px;
+            height: 20px;
             background: #333;
-            border-radius: 5px;
+            border-radius: 10px;
             overflow: hidden;
             margin: 5px 0;
         }
 
         .energy-fill {
             height: 100%;
-            background: linear-gradient(90deg, #ff4444, #ffff44, #44ff44);
+            background: linear-gradient(90deg, #ff4444 0%, #ffff44 50%, #00ff88 100%);
             transition: width 0.3s ease;
         }
 
-        #status {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: #333;
+        .tag {
+            display: inline-block;
+            background: #00ff88;
+            color: #1a1a1a;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin: 2px;
+            font-weight: bold;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: #00ff88;
+            color: #1a1a1a;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #00cc66;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .selected-info {
+            background: rgba(51, 51, 51, 0.8);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #555;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            background: rgba(51, 51, 51, 0.8);
             padding: 10px;
             border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .stat-label {
             font-size: 12px;
+            color: #ccc;
         }
 
         .status-connected {
@@ -154,12 +230,11 @@
             color: #ff4444;
         }
 
-        /* System intencji */
         .intention-system {
             position: fixed;
             bottom: 0;
             left: 0;
-            right: 300px; /* Uwzględniając szerokość sidebara */
+            right: 300px;
             background: rgba(26, 26, 26, 0.95);
             border-top: 2px solid #00ff88;
             padding: 15px;
@@ -206,159 +281,44 @@
             font-size: 12px;
         }
 
-        .intention-counter.warning {
-            color: #ff9800;
-        }
-
-        .intention-counter.danger {
-            color: #f44336;
-        }
-
-        .send-button {
-            background: #00ff88;
-            color: black;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-
-        .send-button:hover:not(:disabled) {
-            background: #00cc6a;
-            transform: translateY(-1px);
-        }
-
-        .send-button:disabled {
-            background: #555;
-            color: #888;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Modal styles */
-        .modal {
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-        }
-
-        .modal-content {
-            background-color: #1a1a1a;
-            margin: 5% auto;
-            padding: 0;
-            border: 1px solid #333;
+        .source-viewer {
+            background: rgba(51, 51, 51, 0.8);
             border-radius: 8px;
-            width: 80%;
-            max-width: 800px;
-            max-height: 80%;
-            overflow: hidden;
-        }
-
-        .modal-header {
-            background-color: #2a2a2a;
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #333;
-        }
-
-        .modal-header h3 {
-            margin: 0;
-            color: #00ff88;
-        }
-
-        .close {
-            color: #aaa;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            line-height: 1;
-        }
-
-        .close:hover {
-            color: #fff;
-        }
-
-        .modal-body {
-            padding: 20px;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-
-        .source-info {
-            background: #2a2a2a;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-            font-size: 12px;
-        }
-
-        .source-container {
-            background: #0d0d0d;
-            border: 1px solid #333;
-            border-radius: 5px;
-            max-height: 400px;
-            overflow: auto;
-            margin-bottom: 15px;
-        }
-
-        .source-container pre {
-            margin: 0;
             padding: 15px;
-            white-space: pre-wrap;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.4;
-        }
-
-        .source-container code {
-            color: #f8f8f2;
-        }
-
-        .source-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .execution-result {
-            margin-top: 15px;
-            padding: 10px;
-            background: #2a2a2a;
-            border-radius: 5px;
-            white-space: pre-wrap;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            max-height: 200px;
+            margin-bottom: 15px;
+            border: 1px solid #555;
+            max-height: 300px;
             overflow-y: auto;
         }
 
-        .execution-result.success {
-            border-left: 4px solid #00ff88;
+        .source-content {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: #222;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            overflow-x: auto;
         }
 
-        .execution-result.error {
-            border-left: 4px solid #ff4444;
+        .function-controls {
+            margin-top: 10px;
+        }
+
+        .function-list {
+            background: rgba(51, 51, 51, 0.8);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #555;
         }
 
         .function-item {
-            background: #2a2a2a;
+            background: rgba(68, 68, 68, 0.8);
             padding: 10px;
             border-radius: 5px;
             margin-bottom: 10px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .function-item:hover {
-            background: #333;
+            border: 1px solid #666;
         }
 
         .function-name {
@@ -372,165 +332,163 @@
             font-size: 11px;
             color: #ccc;
             white-space: pre-wrap;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .execution-result {
+            background: rgba(51, 51, 51, 0.8);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            border: 1px solid #555;
+        }
+
+        .execution-success {
+            border-color: #00ff88;
+        }
+
+        .execution-error {
+            border-color: #ff4444;
+        }
+
+        .execution-output {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: #222;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
-    <div id="status">Łączenie...</div>
-    
-    <div id="container">
-        <div id="graph-container">
+    <div class="container">
+        <div class="main-area">
+            <div class="header">
+                <div class="logo">LuxOS</div>
+                <div class="connection-status">
+                    <div class="status-dot" id="connectionDot"></div>
+                    <span id="connectionStatus">Łączenie...</span>
+                </div>
+            </div>
+            
             <svg id="graph"></svg>
             
-            <!-- System intencji -->
             <div class="intention-system">
                 <textarea 
-                    id="intentionInput" 
                     class="intention-input" 
-                    placeholder="Opisz swoją intencję... (np. 'Utwórz funkcję do przetwarzania danych' lub 'Połącz te byty relacją dziedziczenia')"
-                    maxlength="500"></textarea>
+                    id="intentionInput" 
+                    placeholder="Opisz co chcesz zrobić... (np. 'utwórz funkcję calculate_sum', 'połącz wybrane byty relacją dziedziczenia')"
+                    maxlength="500"
+                ></textarea>
                 <div class="intention-controls">
-                    <span id="charCounter" class="intention-counter">0/500</span>
-                    <button id="sendIntention" class="send-button" disabled>Wyślij Intencję</button>
+                    <div class="intention-counter">
+                        <span id="intentionCounter">0</span>/500
+                    </div>
+                    <button class="btn" id="processIntention">Przetwórz Intencję</button>
                 </div>
             </div>
         </div>
         
-        <div id="sidebar">
-            <div class="controls">
-                <h3>Zarządzanie Grafem Bytów</h3>
-                
-                <div class="control-group">
-                    <label>Typ filtra:</label>
-                    <select id="filterType">
-                        <option value="all">Wszystkie</option>
-                        <option value="energy">Poziom energii</option>
-                        <option value="tag">Tag</option>
-                    </select>
+        <div class="sidebar">
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="nodesCount">0</div>
+                    <div class="stat-label">Byty</div>
                 </div>
-                
-                <div class="control-group">
-                    <label>Wartość filtra:</label>
-                    <input type="text" id="filterValue" placeholder="np. funkcja, 50">
+                <div class="stat-item">
+                    <div class="stat-value" id="linksCount">0</div>
+                    <div class="stat-label">Relacje</div>
                 </div>
-                
-                <button onclick="applyFilter()">Zastosuj Filtr</button>
-                <button onclick="clearFilter()">Wyczyść</button>
             </div>
             
             <div class="controls">
-                <h4>Nowy Byt</h4>
-                
-                <div class="control-group">
-                    <label>Nazwa:</label>
-                    <input type="text" id="newBeingName" placeholder="Nazwa bytu">
-                </div>
-                
-                <div class="control-group">
-                    <label>Typ:</label>
-                    <select id="newBeingType">
-                        <option value="function">Funkcja</option>
-                        <option value="class">Klasa</option>
-                        <option value="runtime">Runtime</option>
-                        <option value="kernel">Kernel</option>
-                    </select>
-                </div>
-                
-                <div class="control-group">
-                    <label>Energia (0-100):</label>
-                    <input type="number" id="newBeingEnergy" min="0" max="100" value="50">
-                </div>
-                
-                <div class="control-group">
-                    <label>Tagi (oddzielone przecinkami):</label>
-                    <input type="text" id="newBeingTags" placeholder="ai, core, experimental">
-                </div>
-                
-                <button onclick="createBeing()">Utwórz Byt</button>
+                <button class="btn" id="refreshBtn">Odśwież Graf</button>
+                <button class="btn" id="clearSelectionBtn">Wyczyść Wybór</button>
             </div>
             
-            <div class="controls">
-                <h4>Nowa Relacja</h4>
-                <p style="font-size: 12px; color: #ccc;">Wybierz dwa byty w grafie, a następnie kliknij przycisk.</p>
-                
-                <div class="control-group">
-                    <label>Typ relacji:</label>
-                    <select id="relationshipType">
-                        <option value="calls">Wywołuje</option>
-                        <option value="inherits">Dziedziczy</option>
-                        <option value="contains">Zawiera</option>
-                        <option value="depends">Zależy od</option>
-                    </select>
-                </div>
-                
-                <button onclick="createRelationship()">Utwórz Relację</button>
-            </div>
-            
-            <div id="selectedInfo" class="info-panel" style="display: none;">
-                <h4>Szczegóły Bytu</h4>
+            <div class="selected-info" id="selectedInfo" style="display: none;">
+                <h3>Szczegóły Bytu</h3>
                 <div id="beingDetails"></div>
             </div>
             
-            <div class="controls">
-                <h4>Wykonanie Funkcji</h4>
-                <button onclick="registerSelectedFunction()">Zarejestruj Funkcję</button>
-                <button onclick="showRegisteredFunctions()">Pokaż Funkcje</button>
-                <button onclick="showSourceCode()">Pokaż Kod</button>
+            <div class="source-viewer" id="sourceViewer" style="display: none;">
+                <h3>Kod Źródłowy</h3>
+                <div id="sourceContent" class="source-content"></div>
+                <div class="function-controls">
+                    <button class="btn" id="registerFunctionBtn">Zarejestruj Funkcję</button>
+                    <button class="btn" id="executeFunctionBtn">Wykonaj Funkcję</button>
+                </div>
+                <div id="executionResult" class="execution-result" style="display: none;"></div>
             </div>
             
-            <div id="registeredFunctions" class="info-panel" style="display: none;">
-                <h4>Zarejestrowane Funkcje</h4>
-                <div id="functionsList"></div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Okno wyświetlania kodu źródłowego -->
-    <div id="sourceModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="sourceTitle">Kod Źródłowy</h3>
-                <span class="close" onclick="closeSourceModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="source-info">
-                    <strong>Nazwa:</strong> <span id="sourceName"></span><br>
-                    <strong>Typ:</strong> <span id="sourceType"></span><br>
-                    <strong>Soul:</strong> <span id="sourceSoul"></span>
-                </div>
-                <div class="source-container">
-                    <pre><code id="sourceCode"></code></pre>
-                </div>
-                <div class="source-actions">
-                    <button onclick="executeCurrentFunction()">Wykonaj Funkcję</button>
-                    <button onclick="registerCurrentFunction()">Zarejestruj</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Okno wykonania funkcji -->
-    <div id="executionModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Wykonanie Funkcji</h3>
-                <span class="close" onclick="closeExecutionModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="control-group">
-                    <label>Argumenty (JSON array):</label>
-                    <textarea id="functionArgs" placeholder='["arg1", "arg2"]'></textarea>
-                </div>
-                <div class="control-group">
-                    <label>Argumenty nazwane (JSON object):</label>
-                    <textarea id="functionKwargs" placeholder='{"key": "value"}'></textarea>
-                </div>
-                <button onclick="executeFunctionWithArgs()">Wykonaj</button>
-                <div id="executionResult" class="execution-result"></div>
+            <div class="function-list" id="functionList" style="display: none;">
+                <h3>Zarejestrowane Funkcje</h3>
+                <div id="functionItems"></div>
             </div>
         </div>
     </div>
 
     <script src="graph.js"></script>
+    <script>
+        // Inicjalizacja aplikacji
+        document.addEventListener('DOMContentLoaded', function() {
+            const graphManager = new GraphManager();
+            
+            // Obsługa licznika znaków w intencji
+            const intentionInput = document.getElementById('intentionInput');
+            const intentionCounter = document.getElementById('intentionCounter');
+            
+            intentionInput.addEventListener('input', function() {
+                const length = this.value.length;
+                intentionCounter.textContent = length;
+                
+                if (length > 450) {
+                    intentionCounter.style.color = '#ff4444';
+                } else if (length > 350) {
+                    intentionCounter.style.color = '#ffff44';
+                } else {
+                    intentionCounter.style.color = '#888';
+                }
+            });
+            
+            // Obsługa Enter w textarea
+            intentionInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    document.getElementById('processIntention').click();
+                }
+            });
+            
+            // Obsługa przycisków
+            document.getElementById('processIntention').addEventListener('click', function() {
+                const intention = intentionInput.value.trim();
+                if (intention) {
+                    graphManager.processIntention(intention);
+                    intentionInput.value = '';
+                    intentionCounter.textContent = '0';
+                    intentionCounter.style.color = '#888';
+                }
+            });
+            
+            document.getElementById('refreshBtn').addEventListener('click', function() {
+                graphManager.refreshGraph();
+            });
+            
+            document.getElementById('clearSelectionBtn').addEventListener('click', function() {
+                graphManager.clearSelection();
+            });
+            
+            document.getElementById('registerFunctionBtn').addEventListener('click', function() {
+                graphManager.registerSelectedFunction();
+            });
+            
+            document.getElementById('executeFunctionBtn').addEventListener('click', function() {
+                graphManager.executeSelectedFunction();
+            });
+        });
+    </script>
 </body>
 </html>
