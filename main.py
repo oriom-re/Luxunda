@@ -846,7 +846,8 @@ class ClassBeing(BaseBeing):
         """Inicjalizacja po utworzeniu"""
         soul = await self.connect_to_soul()
         if soul and soul.genesis.get('type') != 'class':
-            soul.genesis['type'] = 'class'
+            soul.genesis```python
+['type'] = 'class'
             soul.genesis['source'] = self.get_class_source()  # Source zapisywany w duszy
 
         if soul and 'instances' not in soul.attributes:
@@ -2044,7 +2045,7 @@ async def init_app():
 
     # Dodaj CORS tylko do tras API (pomiń Socket.IO)
     for route in list(app.router.routes()):
-        if hasattr(route, 'resource') and route.resource.canonical.startswith('/api/'):
+        if hasattr(route, 'resource') and route.resource.canonical.startswith('/api/'),
             cors.add(route)
 
     await init_database()
