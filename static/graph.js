@@ -70,6 +70,11 @@ class LuxOSGraph {
             this.updateNode(node);
         });
 
+        this.socket.on('being_updated', (being) => {
+            console.log('Byt zaktualizowany:', being);
+            this.updateNode(being);
+        });
+
         this.socket.on('error', (error) => {
             console.error('Socket error:', error);
             this.showIntentionFeedback(error.message || 'Wystąpił błąd', 'error');
@@ -416,7 +421,26 @@ class LuxOSGraph {
     }
 
     renderUpdatedNode(nodeData) {
-        // Aktualizuj istniejący węzeł
+        // Znajdź istniejący węzeł w symulacji i zachowaj jego pozycję
+        const existingNode = this.simulation.nodes().find(n => n.soul === nodeData.soul);
+        if (existingNode) {
+            // Zachowaj pozycję węzła
+            nodeData.x = existingNode.x;
+            nodeData.y = existingNode.y;
+            nodeData.vx = existingNode.vx;
+            nodeData.vy = existingNode.vy;
+        }
+
+        // Aktualizuj węzeł w tablicy
+        const nodeIndex = this.nodes.findIndex(n => n.soul === nodeData.soul);
+        if (nodeIndex !== -1) {
+            this.nodes[nodeIndex] = nodeData;
+        }
+
+        // Aktualizuj symulację z zachowanymi pozycjami
+        this.simulation.nodes(this.nodes);
+
+        // Aktualizuj wizualnie węzeł
         const nodeGroup = this.nodeGroup
             .selectAll(".node-group")
             .data(this.nodes, d => d.soul);
@@ -426,6 +450,11 @@ class LuxOSGraph {
 
         nodeGroup.select(".node-label")
             .text(d => d.genesis?.name || "Unnamed");
+
+        // Delikatny restart symulacji tylko jeśli potrzebny
+        if (this.simulation.alpha() < 0.1) {
+            this.simulation.alpha(0.1).restart();
+        }
     }
 
     // Funkcje zoom
@@ -568,18 +597,31 @@ class LuxOSGraph {
         const tag = prompt('Wprowadź nowy tag:');
         if (tag && tag.trim()) {
             const currentTags = Array.isArray(node.attributes?.tags) ? node.attributes.tags : [];
-            currentTags.push(tag.trim());
-            
-            this.showIntentionFeedback(`Dodano tag: ${tag}`, 'success');
-            
-            // Tutaj można dodać komunikację z backendem
-            this.socket.emit('update_being', {
-                soul: node.soul,
-                attributes: {
-                    ...node.attributes,
-                    tags: currentTags
+            if (!currentTags.includes(tag.trim())) {
+                currentTags.push(tag.trim());
+                
+                // Aktualizuj lokalnie dane węzła zachowując pozycję
+                const nodeIndex = this.nodes.findIndex(n => n.soul === node.soul);
+                if (nodeIndex !== -1) {
+                    this.nodes[nodeIndex].attributes = {
+                        ...this.nodes[nodeIndex].attributes,
+                        tags: currentTags
+                    };
                 }
-            });
+                
+                this.showIntentionFeedback(`Dodano tag: ${tag}`, 'success');
+                
+                // Wyślij do backendu
+                this.socket.emit('update_being', {
+                    soul: node.soul,
+                    attributes: {
+                        ...node.attributes,
+                        tags: currentTags
+                    }
+                });
+            } else {
+                this.showIntentionFeedback(`Tag "${tag}" już istnieje`, 'info');
+            }
         }
     }
 
