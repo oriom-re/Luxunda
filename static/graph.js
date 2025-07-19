@@ -691,6 +691,31 @@ class LuxOSGraph {
                 this.closeNodeDetails();
             }
         }, { once: true });
+
+        // Pozwól na zoom gdy kursor jest nad panelem szczegółów
+        detailsPanel.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            // Symuluj zoom na głównym grafie
+            const zoomFactor = e.deltaY > 0 ? 1 / 1.2 : 1.2;
+            const currentTransform = d3.zoomTransform(this.svg.node());
+            const newScale = currentTransform.k * zoomFactor;
+            
+            // Sprawdź limity zoom
+            if (newScale >= 0.1 && newScale <= 10) {
+                this.svg.transition().duration(100).call(
+                    this.zoom.scaleTo, newScale
+                );
+                
+                // Zamknij panel przy oddaleniu
+                if (newScale <= 3) {
+                    this.closeNodeDetails();
+                    this.proximityLocked = false;
+                    this.lastProximityNode = null;
+                    this.nodeDetailsOpen = false;
+                }
+            }
+        });
     }
 
     generateNodeDetailsHTML(node) {
