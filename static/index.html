@@ -272,9 +272,9 @@
             ></textarea>
             <div class="intention-controls">
                 <div class="intention-counter">
-                    <span id="intentionCounter">0</span>/500
+                    <span id="charCounter">0</span>/500
                 </div>
-                <button class="btn" id="processIntention">🎯 Przetwórz Intencję</button>
+                <button class="btn" id="sendIntention">🎯 Przetwórz Intencję</button>
             </div>
         </div>
     </div>
@@ -287,7 +287,7 @@
 
             // Obsługa licznika znaków w intencji
             const intentionInput = document.getElementById('intentionInput');
-            const intentionCounter = document.getElementById('intentionCounter');
+            const intentionCounter = document.getElementById('charCounter');
 
             intentionInput.addEventListener('input', function() {
                 const length = this.value.length;
@@ -306,12 +306,12 @@
             intentionInput.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    document.getElementById('processIntention').click();
+                    document.getElementById('sendIntention').click();
                 }
             });
 
             // Obsługa przycisków
-            document.getElementById('processIntention').addEventListener('click', function() {
+            document.getElementById('sendIntention').addEventListener('click', function() {
                 const intention = intentionInput.value.trim();
                 if (intention) {
                     graphManager.processIntention(intention);
