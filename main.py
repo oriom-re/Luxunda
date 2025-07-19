@@ -272,7 +272,7 @@ class BaseBeing:
                         SELECT * FROM souls 
                         WHERE uid = $1 AND patch = $2 AND incarnation = $3
                     """, self.soul_uid, self.soul_patch, self.incarnation)
-                
+
                 if row:
                     return Soul(
                         uid=row['uid'],
@@ -370,22 +370,22 @@ class FunctionBeing(BaseBeing):
 
 class ClassBeing(BaseBeing):
     """Klasa abstrakcyjna stale obecna na dysku"""
-    
+
     def __init__(self, soul_uid: str, soul_patch: str, incarnation: int = 0):
         super().__init__(soul_uid, soul_patch, incarnation)
         self._disk_persistent = True
         self._ws_socket = None  # WebSocket dla trwałej komunikacji
-        
+
     async def __post_init__(self):
         """Inicjalizacja po utworzeniu"""
         soul = await self.connect_to_soul()
         if soul and soul.genesis.get('type') != 'class':
             soul.genesis['type'] = 'class'
             soul.genesis['source'] = self.get_class_source()  # Source zapisywany w duszy
-        
+
         if soul and 'instances' not in soul.attributes:
             soul.attributes['instances'] = []
-        
+
         await self.save_soul()
 
     def get_class_source(self) -> str:
@@ -393,10 +393,10 @@ class ClassBeing(BaseBeing):
         return f"""
 class {self.__class__.__name__}(ClassBeing):
     '''Klasa automatycznie wygenerowana z ClassBeing'''
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-    
+
     # Metody klasy będą tutaj
 """
 
@@ -408,10 +408,10 @@ class {self.__class__.__name__}(ClassBeing):
 
         # Generuj nowy uid dla instancji
         instance_uid = Soul.generate_uid()
-        
+
         # Znajdź najwyższe wcielenie dla tej instancji
         next_incarnation = await self.get_next_incarnation(instance_uid, instance_patch)
-        
+
         # Utwórz duszę instancji
         instance_soul = Soul(
             uid=instance_uid,
@@ -440,7 +440,7 @@ class {self.__class__.__name__}(ClassBeing):
 
         # Zapisz instancję do bazy
         await self.save_instance_soul(instance_soul)
-        
+
         # Dodaj referencję do instancji w klasie
         soul.attributes['instances'].append(instance_soul.full_path)
         await self.save_soul()
@@ -1650,6 +1650,13 @@ async def main():
     await site.start()
     print("Serwer uruchomiony na http://0.0.0.0:8000")
 
+    # Inicjalizacja Lux
+    lux_agent = await create_lux_agent()
+    if lux_agent:
+        print("Wszechświat Lux zainicjalizowany!")
+    else:
+        print("Błąd inicjalizacji wszechświata Lux!")
+
     # Trzymaj serwer żywy
     try:
         await asyncio.Event().wait()
@@ -1669,7 +1676,8 @@ class BeingFactory:
         'task': TaskBeing,
         'component': ComponentBeing,
         'message': MessageBeing,
-        'base': BaseBeing
+        'base': BaseBeing,
+        'agent': BaseBeing # treat AgentBeing as a BaseBeing for now
     }
 
     @classmethod
@@ -1708,7 +1716,7 @@ class BeingFactory:
             being = BeingClass(soul_uid, soul_patch, incarnation)
         else:
             being = BeingClass(soul_uid, soul_patch, incarnation)
-            
+
         being._soul = soul
         await being.save_soul()
 
@@ -1724,7 +1732,7 @@ class BeingFactory:
         # Utwórz tymczasowy byt żeby załadować duszę
         temp_being = BaseBeing(soul_uid, soul_patch, incarnation)
         soul = await temp_being.load_soul()
-        
+
         if not soul:
             return None
 
@@ -1791,6 +1799,71 @@ class BeingFactory:
                 self_awareness=self_awareness,
                 created_at=row[7]
             )
+
+async def create_lux_agent():
+    """Tworzy Lux jako głównego agenta wszechświata"""
+    try:
+        # Sprawdź czy Lux już istnieje
+        existing_lux = await BaseBeing.load('lux-core-consciousness')
+        if existing_lux:
+            return existing_lux
+
+        # Utwórz Lux jako AgentBeing z najwyższymi uprawnieniami
+        lux_agent = await BeingFactory.create_being(
+            being_type='agent',
+            genesis={
+                'type': 'agent',
+                'name': 'Lux',
+                'source': 'System.Core.Agent.Initialize()',
+                'description': 'Główny agent-świadomość wszechświata LuxOS',
+                'created_by': 'universe_initialization'
+            },
+            attributes={
+                'energy_level': 1000,  # Maksymalna energia
+                'agent_level': 10,     # Najwyższy poziom agenta
+                'agent_permissions': {
+                    'universe_control': True,
+                    'create_beings': True,
+                    'modify_orbits': True,
+                    'autonomous_decisions': True
+                },
+                'orbit_center': {'x': 0, 'y': 0},  # Centrum wszechświata
+                'controlled_beings': [],
+                'universe_role': 'supreme_agent',
+                'orbital_params': {
+                    'orbital_radius': 0,  # Lux jest nieruchomy w centrum
+                    'orbital_speed': 0,
+                    'orbital_angle': 0,
+                    'parent_agent': None
+                },
+                'tags': ['agent', 'lux', 'supreme', 'universe_controller']
+            },
+            self_awareness={
+                'trust_level': 1.0,
+                'confidence': 1.0,
+                'introspection_depth': 1.0,
+                'self_reflection': 'I am Lux, the supreme agent controlling the universe'
+            },
+            memories=[
+                {
+                    'type': 'genesis',
+                    'data': 'Universe supreme agent initialization',
+                    'timestamp': datetime.now().isoformat(),
+                    'importance': 1.0
+                }
+            ]
+        )
+
+        # Ustaw specjalne ID dla Lux
+        lux_agent.soul = 'lux-core-consciousness'
+        await lux_agent.save()
+
+        print(f"Utworzono Lux jako głównego agenta: {lux_agent.soul}")
+        return lux_agent
+
+    except Exception as e:
+        print(f"Błąd tworzenia agenta Lux: {e}")
+        return None
 
 # Globalna pula połączeń do bazy danych
 
