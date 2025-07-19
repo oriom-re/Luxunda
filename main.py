@@ -567,9 +567,32 @@ async def process_intention(sid, data):
         # Proste przetwarzanie intencji - w przyszłości można dodać AI
         response = await analyze_intention(intention, context)
 
+        print(f"Odpowiedź na intencję: {response}")
+
+        # Jeśli są akcje do wykonania, wykonaj je automatycznie
+        if response.get('actions'):
+            for action in response['actions']:
+                print(f"Wykonywanie akcji: {action}")
+                if action['type'] == 'create_being':
+                    try:
+                        being = await BaseBeing.create(**action['data'])
+                        print(f"Utworzono byt: {being.soul}")
+                        await sio.emit('being_created', json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)))
+                    except Exception as e:
+                        print(f"Błąd tworzenia bytu: {e}")
+                elif action['type'] == 'create_relationship':
+                    try:
+                        relationship = await Relationship.create(**action['data'])
+                        print(f"Utworzono relację: {relationship.id}")
+                        await sio.emit('relationship_created', json.loads(json.dumps(asdict(relationship), cls=DateTimeEncoder)))
+                    except Exception as e:
+                        print(f"Błąd tworzenia relacji: {e}")
+
         await sio.emit('intention_response', response, room=sid)
+        await broadcast_graph_update()
 
     except Exception as e:
+        print(f"Błąd przetwarzania intencji: {e}")
         await sio.emit('error', {'message': f'Błąd przetwarzania intencji: {str(e)}'}, room=sid)
 
 @sio.event

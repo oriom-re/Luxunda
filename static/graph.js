@@ -7,7 +7,6 @@ class LuxOSGraph {
         this.nodes = [];
         this.links = [];
         this.selectedNodes = [];
-
         this.simulation = null;
         this.socket = null;
 
@@ -40,8 +39,22 @@ class LuxOSGraph {
             this.updateGraph(data);
         });
 
+        this.socket.on('graph_updated', (data) => {
+            this.updateGraph(data);
+        });
+
         this.socket.on('intention_response', (response) => {
             this.handleIntentionResponse(response);
+        });
+
+        this.socket.on('being_created', (being) => {
+            console.log('Nowy byt utworzony:', being);
+            this.socket.emit('get_graph_data');
+        });
+
+        this.socket.on('relationship_created', (relationship) => {
+            console.log('Nowa relacja utworzona:', relationship);
+            this.socket.emit('get_graph_data');
         });
 
         this.socket.on('error', (error) => {
@@ -245,10 +258,26 @@ class LuxOSGraph {
 
     handleIntentionResponse(response) {
         console.log('Odpowiedź na intencję:', response);
+        
+        if (response.actions && response.actions.length > 0) {
+            this.executeActions(response.actions);
+        }
+        
         this.showIntentionFeedback(response.message || 'Intencja przetworzona', 'success');
-
         this.selectedNodes = [];
         this.nodeGroup.selectAll(".node").classed("selected", false);
+    }
+
+    executeActions(actions) {
+        actions.forEach(action => {
+            console.log('Wykonywanie akcji:', action);
+            
+            if (action.type === 'create_being') {
+                this.socket.emit('create_being', action.data);
+            } else if (action.type === 'create_relationship') {
+                this.socket.emit('create_relationship', action.data);
+            }
+        });
     }
 
     showIntentionFeedback(message, type = 'success') {
