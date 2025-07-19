@@ -354,7 +354,7 @@ class LuxOSUniverse {
                 }
 
                 // Etykieta tylko przy wysokim zoomie
-                if (window.luxOSUniverse.zoomLevel > 10) {
+                if (this.zoomLevel > 10) {
                     being.append("text")
                         .attr("class", "being-label")
                         .attr("dy", 12)
@@ -375,13 +375,13 @@ class LuxOSUniverse {
                 // Główne ciało
                 being.append("circle")
                     .attr("r", energySize)
-                    .attr("fill", window.luxOSUniverse.getBeingColor(d))
+                    .attr("fill", this.getBeingColor(d))
                     .attr("stroke", "#ffffff")
                     .attr("stroke-width", 1)
                     .style("filter", d.attributes?.energy_level > 80 ? "url(#glow)" : null);
 
                 // Etykieta (tylko przy odpowiednim zoomie)
-                if (window.luxOSUniverse.zoomLevel > 2) {
+                if (this.zoomLevel > 2) {
                     being.append("text")
                         .attr("class", "being-label")
                         .attr("dy", energySize + 15)
@@ -503,6 +503,23 @@ class LuxOSUniverse {
 
         console.log('Wybrane byty:', this.selectedNodes.map(n => n.soul));
         this.updateBeingStyles();
+    }
+
+    addBeing(being) {
+        // Sprawdź czy byt już istnieje
+        const existingIndex = this.beings.findIndex(b => b.soul === being.soul || b.soul_uid === being.soul_uid);
+        
+        if (existingIndex !== -1) {
+            // Zaktualizuj istniejący byt
+            this.beings[existingIndex] = being;
+        } else {
+            // Dodaj nowy byt
+            this.beings.push(being);
+        }
+        
+        console.log('Dodano/zaktualizowano byt:', being);
+        this.updateStats();
+        this.renderUniverse();
     }
 
     updateBeingStyles() {
