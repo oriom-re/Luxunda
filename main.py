@@ -696,54 +696,100 @@ class BinaryBeing(BaseBeing):
             for binary_id in self.attributes.get('binary_ids', [])
         ]
 
+# MessageBeing usunięte - wiadomości to dusze, nie byty!
+
 @dataclass
-class MessageBeing(BaseBeing):
-    """Byt wiadomości z metadanymi i embedingami"""
+class Soul:
+    """Reprezentuje duszę - surowe dane/informacje które byty mogą interpretować"""
+    id: str
+    content: Any  # Może być tekst, JSON, binary, cokolwiek
+    metadata: Dict[str, Any]
+    created_at: Optional[datetime] = None
+    
+    @classmethod
+    async def create(cls, content: Any, **metadata):
+        """Tworzy nową duszę"""
+        soul_id = str(uuid.uuid4())
+        soul = cls(
+            id=soul_id,
+            content=content,
+            metadata=metadata,
+            created_at=datetime.now()
+        )
+        await soul.save()
+        return soul
+    
+    async def save(self):
+        """Zapisuje duszę do bazy"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO souls (id, content, metadata, created_at)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (id) DO UPDATE SET
+                    content = EXCLUDED.content,
+                    metadata = EXCLUDED.metadata
+                """, str(self.id), json.dumps(self.content, cls=DateTimeEncoder), 
+                    json.dumps(self.metadata, cls=DateTimeEncoder), self.created_at)
+        else:
+            await db_pool.execute("""
+                INSERT OR REPLACE INTO souls 
+                (id, content, metadata, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (str(self.id), json.dumps(self.content, cls=DateTimeEncoder), 
+                  json.dumps(self.metadata, cls=DateTimeEncoder), self.created_at))
+            await db_pool.commit()
 
-    def __post_init__(self):
-        if self.genesis.get('type') != 'message':
-            self.genesis['type'] = 'message'
-        if 'message_data' not in self.attributes:
-            self.attributes['message_data'] = {}
-        if 'embedding' not in self.attributes:
-            self.attributes['embedding'] = None
-        if 'metadata' not in self.attributes:
-            self.attributes['metadata'] = {}
-
-    def set_content(self, content: str):
-        """Ustawia treść wiadomości"""
-        self.attributes['message_data']['content'] = content
-        self.attributes['message_data']['length'] = len(content)
-        self.attributes['message_data']['timestamp'] = datetime.now().isoformat()
-
-        # Symulacja wygenerowania embedingu (w rzeczywistości byłby to model AI)
-        self.attributes['embedding'] = [hash(content + str(i)) % 1000 / 1000.0 for i in range(10)]
-
-    def set_sender(self, sender_soul: str):
-        """Ustawia nadawcę wiadomości"""
-        self.attributes['metadata']['sender'] = sender_soul
-
-    def set_context_being(self, context_soul: str):
-        """Ustawia byt będący kontekstem wiadomości"""
-        self.attributes['metadata']['context_being'] = context_soul
-
-    def get_similarity(self, other_message: 'MessageBeing') -> float:
-        """Oblicza podobieństwo z inną wiadomością na podstawie embedingu"""
-        if not self.attributes.get('embedding') or not other_message.attributes.get('embedding'):
-            return 0.0
-
-        # Proste podobieństwo cosinusowe (symulowane)
-        emb1 = self.attributes['embedding']
-        emb2 = other_message.attributes['embedding']
-
-        dot_product = sum(a * b for a, b in zip(emb1, emb2))
-        magnitude1 = sum(a * a for a in emb1) ** 0.5
-        magnitude2 = sum(a * a for a in emb2) ** 0.5
-
-        if magnitude1 == 0 or magnitude2 == 0:
-            return 0.0
-
-        return dot_product / (magnitude1 * magnitude2)
+@dataclass 
+class SoulRelation:
+    """Relacja między bytem a duszą - jak byt postrzega daną duszę"""
+    being_soul: str
+    soul_id: str
+    interpretation: Dict[str, Any]  # Jak byt interpretuje tę duszę
+    emotional_response: float  # -1 do 1, jak byt "czuje" do tej duszy
+    relevance: float  # 0 do 1, jak istotna jest ta dusze dla bytu
+    last_accessed: Optional[datetime] = None
+    
+    @classmethod
+    async def create(cls, being_soul: str, soul_id: str, **kwargs):
+        """Tworzy relację byt-dusza"""
+        relation = cls(
+            being_soul=being_soul,
+            soul_id=soul_id,
+            interpretation=kwargs.get('interpretation', {}),
+            emotional_response=kwargs.get('emotional_response', 0.0),
+            relevance=kwargs.get('relevance', 0.5),
+            last_accessed=datetime.now()
+        )
+        await relation.save()
+        return relation
+    
+    async def save(self):
+        """Zapisuje relację"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO soul_relations (being_soul, soul_id, interpretation, emotional_response, relevance, last_accessed)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (being_soul, soul_id) DO UPDATE SET
+                    interpretation = EXCLUDED.interpretation,
+                    emotional_response = EXCLUDED.emotional_response,
+                    relevance = EXCLUDED.relevance,
+                    last_accessed = EXCLUDED.last_accessed
+                """, str(self.being_soul), str(self.soul_id), 
+                    json.dumps(self.interpretation, cls=DateTimeEncoder),
+                    self.emotional_response, self.relevance, self.last_accessed)
+        else:
+            await db_pool.execute("""
+                INSERT OR REPLACE INTO soul_relations 
+                (being_soul, soul_id, interpretation, emotional_response, relevance, last_accessed)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (str(self.being_soul), str(self.soul_id), 
+                  json.dumps(self.interpretation, cls=DateTimeEncoder),
+                  self.emotional_response, self.relevance, self.last_accessed))
+            await db_pool.commit()
 
     @property
     def tags(self) -> List[str]:
@@ -1063,41 +1109,20 @@ async def process_intention(sid, data):
 
         print(f"Otrzymano intencję od {sid}: {intention}")
 
-        # Utwórz byt wiadomości dla otrzymanej intencji
-        message_being = await BeingFactory.create_being(
-            being_type='message',
-            genesis={
-                'type': 'message',
-                'name': f'Intention_Message_{datetime.now().strftime("%H%M%S")}',
-                'created_by': 'user_intention',
-                'source': 'user_input'
-            },
-            attributes={
-                'message_data': {
-                    'content': intention,
-                    'length': len(intention),
-                    'timestamp': datetime.now().isoformat()
-                },
-                'metadata': {
-                    'sender': sid,
-                    'context': context,
-                    'message_type': 'intention'
-                }
-            },
-            memories=[{
-                'type': 'creation',
-                'data': f'Intention message from user {sid}',
-                'timestamp': datetime.now().isoformat()
-            }],
-            tags=['message', 'intention', 'user_input'],
-            energy_level=80
+        # Utwórz duszę dla otrzymanej intencji
+        intention_soul = await Soul.create(
+            content=intention,
+            sender=sid,
+            context=context,
+            message_type='intention',
+            timestamp=datetime.now().isoformat()
         )
 
         # Przetwórz intencję
         response = await analyze_intention(intention, context)
 
-        # Dodaj informację o bycie wiadomości do odpowiedzi
-        response['message_being_soul'] = message_being.soul
+        # Dodaj informację o duszy do odpowiedzi
+        response['intention_soul_id'] = intention_soul.id
 
         print(f"Odpowiedź na intencję: {response}")
 
@@ -1530,6 +1555,31 @@ async def setup_postgresql_tables():
             )
         """)
 
+        # Tabela souls - dusze/wiadomości/informacje
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS souls (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                content JSONB NOT NULL,
+                metadata JSONB DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Tabela soul_relations - jak byty postrzegają dusze
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS soul_relations (
+                being_soul UUID NOT NULL,
+                soul_id UUID NOT NULL,
+                interpretation JSONB DEFAULT '{}',
+                emotional_response FLOAT DEFAULT 0.0,
+                relevance FLOAT DEFAULT 0.5,
+                last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (being_soul, soul_id),
+                FOREIGN KEY (being_soul) REFERENCES base_beings(soul) ON DELETE CASCADE,
+                FOREIGN KEY (soul_id) REFERENCES souls(id) ON DELETE CASCADE
+            )
+        """)
+
         # Indeksy
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_genesis ON base_beings USING gin (genesis)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_attributes ON base_beings USING gin (attributes)")
@@ -1583,6 +1633,29 @@ async def setup_sqlite_tables():
             metadata TEXT DEFAULT '{}',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (being_soul) REFERENCES base_beings(soul) ON DELETE CASCADE
+        )
+    """)
+
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS souls (
+            id TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            metadata TEXT DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS soul_relations (
+            being_soul TEXT NOT NULL,
+            soul_id TEXT NOT NULL,
+            interpretation TEXT DEFAULT '{}',
+            emotional_response REAL DEFAULT 0.0,
+            relevance REAL DEFAULT 0.5,
+            last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (being_soul, soul_id),
+            FOREIGN KEY (being_soul) REFERENCES base_beings(soul) ON DELETE CASCADE,
+            FOREIGN KEY (soul_id) REFERENCES souls(id) ON DELETE CASCADE
         )
     """)
 
@@ -1648,7 +1721,6 @@ class BeingFactory:
         'scenario': ScenarioBeing,
         'task': TaskBeing,
         'component': ComponentBeing,
-        'message': MessageBeing,
         'binary': BinaryBeing,
         'base': BaseBeing
     }
