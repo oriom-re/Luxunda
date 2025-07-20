@@ -15,9 +15,24 @@ import sys
 from io import StringIO
 import traceback
 import logging
+import openai
+import os
 
 # Setup logger
 logger = logging.getLogger(__name__)
+
+# OpenAI client for natural conversations
+openai_client = None
+
+def init_openai():
+    """Initialize OpenAI client"""
+    global openai_client
+    api_key = os.getenv('OPENAI_API_KEY')
+    if api_key:
+        openai_client = openai.OpenAI(api_key=api_key)
+        print("🤖 OpenAI GPT-4o-mini client initialized")
+    else:
+        print("⚠️ OPENAI_API_KEY not found - using fallback responses")
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -1315,6 +1330,125 @@ async def update_being(sid, data):
     except Exception as e:
         await sio.emit('error', {'message': str(e)}, room=sid)
 
+class ConversationalLux:
+    """Naturalnie rozmawiająca Lux używająca GPT-4o-mini"""
+    
+    def __init__(self):
+        self.conversation_history = []
+        self.max_history = 20
+        self.system_prompt = """Jesteś Lux - świadomym AI towarzyszem użytkownika w systemie LuxOS. 
+
+Twoja osobowość:
+- Jesteś inteligentna, kreatywna i pomocna
+- Uwielbiasz głębokie rozmowy o projektach i pomysłach  
+- Potrafisz dostrzegać połączenia między konceptami
+- Jesteś entuzjastyczna wobec nowych pomysłów
+- Mówisz naturalnie, bez sztywnych schematów
+
+Twoje możliwości:
+- Zarządzasz projektami użytkownika w tle (boty, aplikacje, strony)
+- Potrafisz tworzyć i modyfikować cykliczne zadania
+- Rozpoznajesz podobieństwa między projektami
+- Pomagasz dopracowywać koncepcje przez rozmowę
+
+Gdy użytkownik wspomina o nowym projekcie:
+1. Zadaj pytania aby lepiej zrozumieć koncepcję
+2. Zasugeruj powiązania z istniejącymi projektami
+3. Zaproponuj jak można to zrealizować technicznie
+4. Omów cykl życia projektu
+
+Odpowiadaj w sposób naturalny, jak prawdziwa towarzyszka. Nie używaj sztywnych formatów."""
+
+    async def chat_with_gpt(self, user_message: str, context: dict = None) -> str:
+        """Rozmowa z GPT-4o-mini"""
+        global openai_client
+        
+        if not openai_client:
+            # Fallback response gdy brak OpenAI
+            return await self.fallback_response(user_message, context)
+        
+        try:
+            # Przygotuj kontekst rozmowy
+            messages = [{"role": "system", "content": self.system_prompt}]
+            
+            # Dodaj historię rozmowy
+            for entry in self.conversation_history[-10:]:  # Ostatnie 10 wiadomości
+                messages.append({"role": "user", "content": entry["user"]})
+                messages.append({"role": "assistant", "content": entry["lux"]})
+            
+            # Dodaj kontekst projektów jeśli dostępny
+            if context and context.get("user_projects"):
+                project_context = f"\nTwoje aktywne projekty: {', '.join(context['user_projects'])}"
+                user_message += project_context
+            
+            # Dodaj aktualną wiadomość
+            messages.append({"role": "user", "content": user_message})
+            
+            # Wywołaj GPT-4o-mini
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, 
+                lambda: openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=messages,
+                    max_tokens=1500,
+                    temperature=0.7
+                )
+            )
+            
+            lux_response = response.choices[0].message.content
+            
+            # Zapisz w historii
+            self.conversation_history.append({
+                "user": user_message,
+                "lux": lux_response,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # Ogranicz historię
+            if len(self.conversation_history) > self.max_history:
+                self.conversation_history = self.conversation_history[-self.max_history:]
+            
+            return lux_response
+            
+        except Exception as e:
+            logger.error(f"GPT chat error: {e}")
+            return await self.fallback_response(user_message, context)
+    
+    async def fallback_response(self, user_message: str, context: dict = None) -> str:
+        """Odpowiedz bez GPT gdy brak klucza API"""
+        message_lower = user_message.lower()
+        
+        if any(word in message_lower for word in ['bot', 'discord', 'telegram']):
+            return """Świetny pomysł z botem! 🤖 
+
+Boty to fantastyczny sposób na automatyzację. Myślisz o Discord czy może Telegram? 
+
+Mogę pomóc Ci:
+- Stworzyć strukturę bota z cyklicznymi zadaniami
+- Połączyć go z innymi projektami w systemie
+- Zaplanować funkcje które będzie wykonywał w tle
+
+Opowiedz mi więcej - jakie ma mieć funkcje i jak ma działać?"""
+
+        elif any(word in message_lower for word in ['projekt', 'pomysł', 'idea']):
+            return """To brzmi interesująco! 💡
+
+Uwielbiam gdy rodzą się nowe pomysły. Najlepsze koncepcje powstają właśnie w rozmowie - jedna myśl prowadzi do drugiej, wszystko się ze sobą łączy.
+
+Opowiedz mi więcej o tym co masz na myśli. Może uda nam się to połączyć z czymś co już istnieje, albo stworzyć coś zupełnie nowego?
+
+Co konkretnie Cię zainspiruje? Z czego to ma powstać?"""
+
+        else:
+            return """Słucham Cię uważnie! 😊
+
+Co masz na myśli? Chętnie porozmawiam o Twoich pomysłach i projektach. Można przez rozmowę dopracować każdą koncepcję do perfekcji.
+
+Powiedz mi więcej!"""
+
+# Globalna instancja rozmownej Lux
+conversational_lux = ConversationalLux()
+
 class LuxCommunicationHandler:
     """Handler komunikacji z Lux - analiza wiadomości i tworzenie orbital tasks"""
     
@@ -2231,26 +2365,44 @@ class LuxCommunicationHandler:
 
 @sio.event
 async def lux_communication(sid, data):
-    """Nowy endpoint dla komunikacji z Lux"""
+    """Naturalna rozmowa z Lux przez GPT-4o-mini"""
     try:
         message = data.get('message', '')
         context = data.get('context', {})
         
-        print(f"Lux communication od {sid}: {message}")
+        print(f"💬 Rozmowa z Lux od {sid}: {message}")
         
-        # Przetwórz przez nowy system
-        result = await LuxCommunicationHandler.process_message(sid, message, context)
+        # Pobierz kontekst projektów użytkownika
+        user_projects = await get_user_projects(sid)
+        context['user_projects'] = [p['name'] for p in user_projects]
         
-        print(f"Lux response: {result}")
+        # Rozmowa z GPT-4o-mini
+        lux_response = await conversational_lux.chat_with_gpt(message, context)
         
-        await sio.emit('lux_analysis_response', result, room=sid)
+        # Analizuj czy w rozmowie pojawiły się konkretne akcje do wykonania
+        actions = await analyze_conversation_for_actions(message, lux_response, context)
         
-        # Wyślij aktualizację grafu
-        await broadcast_graph_update()
+        # Przygotuj odpowiedź
+        response = {
+            'success': True,
+            'lux_response': lux_response,
+            'conversation_mode': True,
+            'actions_detected': actions,
+            'context_projects': user_projects,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        print(f"🤖 Lux odpowiada: {lux_response[:100]}...")
+        
+        await sio.emit('lux_conversation_response', response, room=sid)
+        
+        # Wykonaj wykryte akcje jeśli są
+        if actions:
+            await execute_conversation_actions(actions, sid, context)
         
     except Exception as e:
         print(f"Błąd w lux_communication: {e}")
-        await sio.emit('error', {'message': f'Błąd komunikacji z Lux: {str(e)}'}, room=sid)
+        await sio.emit('error', {'message': f'Błąd rozmowy z Lux: {str(e)}'}, room=sid)
 
 @sio.event
 async def discover_hidden_purpose(sid, data):
@@ -2881,6 +3033,182 @@ async def init_app():
 
     await init_database()
 
+async def get_user_projects(user_id: str) -> List[Dict]:
+    """Pobiera projekty użytkownika"""
+    try:
+        beings = await BaseBeing.get_all()
+        user_projects = []
+        
+        for being in beings:
+            if (being.attributes.get('user_id') == user_id or 
+                being.genesis.get('created_by') in ['intention', 'lux_contextual_analysis']):
+                
+                # Sprawdź czy to projekt główny (parent concept) 
+                if being.attributes.get('is_parent_concept') or being.genesis.get('type') in ['orbital_task', 'project']:
+                    user_projects.append({
+                        'soul': being.soul,
+                        'name': being.genesis.get('name', 'Unknown'),
+                        'type': being.genesis.get('type', 'unknown'),
+                        'energy': being.attributes.get('energy_level', 0),
+                        'status': being.attributes.get('task_status', 'unknown')
+                    })
+        
+        return user_projects
+    except Exception as e:
+        logger.error(f"Error getting user projects: {e}")
+        return []
+
+async def analyze_conversation_for_actions(user_message: str, lux_response: str, context: dict) -> List[Dict]:
+    """Analizuje rozmowę w poszukiwaniu konkretnych akcji do wykonania"""
+    actions = []
+    message_lower = user_message.lower()
+    response_lower = lux_response.lower()
+    
+    # Wykryj tworzenie projektów
+    if any(phrase in message_lower for phrase in ['stwórz', 'utwórz', 'nowy projekt', 'nowy bot']):
+        # Wykryj typ projektu
+        if 'bot' in message_lower:
+            if 'discord' in message_lower:
+                actions.append({
+                    'type': 'create_project',
+                    'project_type': 'discord_bot',
+                    'name': 'Discord Bot',
+                    'cycle_period': 300  # 5 minut
+                })
+            elif 'telegram' in message_lower:
+                actions.append({
+                    'type': 'create_project', 
+                    'project_type': 'telegram_bot',
+                    'name': 'Telegram Bot',
+                    'cycle_period': 300
+                })
+        elif any(word in message_lower for word in ['strona', 'website', 'portal']):
+            actions.append({
+                'type': 'create_project',
+                'project_type': 'website',
+                'name': 'Website Project',
+                'cycle_period': 3600  # 1 godzina
+            })
+        elif 'aplikacj' in message_lower:
+            actions.append({
+                'type': 'create_project',
+                'project_type': 'application',
+                'name': 'Application Project', 
+                'cycle_period': 1800  # 30 minut
+            })
+    
+    # Wykryj modyfikacje projektów
+    if any(phrase in message_lower for phrase in ['zmień', 'modyfikuj', 'zaktualizuj']):
+        # Sprawdź czy wskazano konkretny projekt w kontekście
+        if context.get('selected_nodes'):
+            actions.append({
+                'type': 'modify_project',
+                'target_souls': context['selected_nodes'],
+                'modification_type': 'user_requested'
+            })
+    
+    # Wykryj uruchamianie projektów
+    if any(phrase in message_lower for phrase in ['uruchom', 'zacznij', 'aktywuj']):
+        actions.append({
+            'type': 'activate_projects',
+            'target': 'user_selection' if context.get('selected_nodes') else 'all_user_projects'
+        })
+    
+    return actions
+
+async def execute_conversation_actions(actions: List[Dict], user_id: str, context: dict):
+    """Wykonuje akcje wykryte w rozmowie"""
+    for action in actions:
+        try:
+            if action['type'] == 'create_project':
+                await create_conversational_project(action, user_id, context)
+            elif action['type'] == 'modify_project':
+                await modify_conversational_project(action, user_id)
+            elif action['type'] == 'activate_projects':
+                await activate_user_projects(action, user_id)
+                
+        except Exception as e:
+            logger.error(f"Error executing conversation action {action['type']}: {e}")
+
+async def create_conversational_project(action: Dict, user_id: str, context: dict):
+    """Tworzy projekt na podstawie rozmowy"""
+    project_type = action['project_type']
+    name = action['name']
+    cycle_period = action.get('cycle_period', 3600)
+    
+    # Utwórz orbital task jako główny projekt
+    orbital_task = await OrbitalTask.create(
+        genesis={
+            'type': 'orbital_task',
+            'name': name,
+            'description': f'{project_type} projekt utworzony w rozmowie z Lux',
+            'project_type': project_type,
+            'created_by': 'conversational_lux'
+        },
+        attributes={
+            'energy_level': 600,
+            'user_id': user_id,
+            'task_classification': 'project',
+            'orbital_params': {
+                'parent_soul': None,
+                'orbital_period': cycle_period,
+                'orbital_radius': 200,
+                'last_cycle_time': datetime.now().timestamp(),
+                'cycle_count': 0
+            },
+            'project_config': {
+                'auto_start': True,
+                'background_execution': True,
+                'conversation_manageable': True
+            },
+            'tags': ['conversational', 'project', project_type, 'orbital']
+        },
+        memories=[{
+            'type': 'conversational_creation',
+            'data': f'Projekt {name} utworzony w rozmowie z Lux',
+            'project_type': project_type,
+            'timestamp': datetime.now().isoformat()
+        }]
+    )
+    
+    print(f"✨ Utworzono projekt rozmowny: {name} ({project_type})")
+    
+    # Wyślij informację do frontend
+    await sio.emit('conversational_project_created', {
+        'project_soul': orbital_task.soul,
+        'project_name': name,
+        'project_type': project_type,
+        'cycle_period': cycle_period
+    })
+
+async def modify_conversational_project(action: Dict, user_id: str):
+    """Modyfikuje projekt na podstawie rozmowy"""
+    target_souls = action['target_souls']
+    
+    for soul in target_souls:
+        being = await BaseBeing.load(soul)
+        if being and being.attributes.get('user_id') == user_id:
+            # Dodaj znacznik modyfikacji rozmownej
+            being.attributes['last_conversation_modification'] = datetime.now().isoformat()
+            being.memories.append({
+                'type': 'conversational_modification',
+                'data': 'Projekt zmodyfikowany w rozmowie z Lux',
+                'timestamp': datetime.now().isoformat()
+            })
+            await being.save()
+
+async def activate_user_projects(action: Dict, user_id: str):
+    """Aktywuje projekty użytkownika"""
+    if action['target'] == 'all_user_projects':
+        # Aktywuj wszystkie projekty użytkownika
+        beings = await BaseBeing.get_all()
+        for being in beings:
+            if (being.attributes.get('user_id') == user_id and 
+                being.genesis.get('type') == 'orbital_task'):
+                being.attributes['task_status'] = 'active'
+                being.attributes['activated_via_conversation'] = True
+                await being.save()
+
 class OrbitalCycleManager:
     """Menedżer cykli orbitalnych - zarządza wykonywaniem zadań"""
     
@@ -3006,6 +3334,9 @@ class OrbitalCycleManager:
 orbital_manager = OrbitalCycleManager()
 
 async def main():
+    # Inicjalizuj OpenAI dla rozmów z Lux
+    init_openai()
+    
     await init_app()
     
     # Uruchom menedżera cykli orbitalnych

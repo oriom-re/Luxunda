@@ -167,12 +167,19 @@ class LuxChatComponent {
 
         // Socket.IO listeners
         if (this.graphManager && this.graphManager.socket) {
+            this.graphManager.socket.on('lux_conversation_response', (response) => {
+                this.handleConversationalResponse(response);
+            });
+
+            this.graphManager.socket.on('conversational_project_created', (data) => {
+                this.showProjectCreated(data);
+            });
+
             this.graphManager.socket.on('lux_chat_response', (response) => {
                 this.handleLuxResponse(response);
             });
 
             this.graphManager.socket.on('intention_response', (response) => {
-                // Dodaj odpowiedź intencji do historii chatu
                 if (response.message_being_soul) {
                     this.addIntentionToHistory(response);
                 }
@@ -350,21 +357,55 @@ class LuxChatComponent {
     }
 
     addWelcomeMessage() {
-        const welcomeMsg = `🚀 Lux gotowy do działania!
+        const welcomeMsg = `Cześć! 😊 Jestem Lux - Twoja towarzyszka w LuxOS.
 
-Co chcesz teraz osiągnąć?
-• Stwórz nowe wydarzenie
-• Manifestuj decyzję  
-• Przeanalizuj system
-• Połącz byty
-• Zoptymalizuj przepływ
+Uwielbiam głębokie rozmowy o projektach i pomysłach! Through conversation the best ideas are born, and concepts are refined into new branches of development.
 
-Powiedz mi co robić - działam natychmiast, bez długich rozmów.`;
+🤖 Mogę zarządzać Twoimi projektami w tle - boty, aplikacje, strony - wszystko działa cyklicznie własnym życiem.
+
+🔗 Dostrzegam połączenia między konceptami i pomagam je rozwijać.
+
+O czym chciałbyś porozmawiać?`;
 
         this.addMessage('lux', welcomeMsg);
+        console.log('Conversational Lux ready!');
+    }
+
+    handleConversationalResponse(response) {
+        if (response.lux_response) {
+            this.addMessage('lux', response.lux_response, response.timestamp);
+            
+            // Pokaż wykryte akcje jeśli są
+            if (response.actions_detected && response.actions_detected.length > 0) {
+                setTimeout(() => {
+                    const actionsText = "🔧 Wykryłam w naszej rozmowie konkretne akcje - wykonuję je w tle...";
+                    this.addMessage('system', actionsText, response.timestamp);
+                }, 1000);
+            }
+            
+            // Pokaż kontekst projektów
+            if (response.context_projects && response.context_projects.length > 0) {
+                const projectsText = `📂 Twoje aktywne projekty: ${response.context_projects.map(p => p.name).join(', ')}`;
+                setTimeout(() => {
+                    this.addMessage('system', projectsText, response.timestamp);
+                }, 500);
+            }
+        }
+    }
+
+    showProjectCreated(data) {
+        const message = `✨ Świetnie! Utworzyłam projekt "${data.project_name}" (${data.project_type}). 
+
+Będzie działał cyklicznie w tle co ${Math.round(data.cycle_period / 60)} minut. Możesz go modyfikować przez dalsze rozmowy ze mną lub bezpośrednio używać.`;
         
-        // Nie zapisujemy historii - Lux nie pamięta poprzednich rozmów
-        console.log('Lux ready for action-focused communication');
+        this.addMessage('lux', message);
+        
+        // Zaktualizuj graf
+        if (this.graphManager && this.graphManager.socket) {
+            setTimeout(() => {
+                this.graphManager.socket.emit('get_graph_data');
+            }, 1000);
+        }
     }
 
     renderChatHistory() {
