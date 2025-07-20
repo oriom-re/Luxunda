@@ -620,17 +620,35 @@ class MessageBeing(BaseBeing):
     async def load(cls, soul: str):
         """Ładuje byt z bazy danych"""
         global db_pool
-        async with db_pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
-            if row:
-                return cls(
-                    soul=str(row['soul']),
-                    genesis=row['genesis'],
-                    attributes=row['attributes'],
-                    memories=row['memories'],
-                    self_awareness=row['self_awareness'],
-                    created_at=row['created_at']
-                )
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
+                if row:
+                    return cls(
+                        soul=str(row['soul']),
+                        genesis=row['genesis'],
+                        attributes=row['attributes'],
+                        memories=row['memories'],
+                        self_awareness=row['self_awareness'],
+                        created_at=row['created_at']
+                    )
+        else:
+            # SQLite
+            async with db_pool.execute("SELECT * FROM base_beings WHERE soul = ?", (soul,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    try:
+                        return cls(
+                            soul=row[0],
+                            genesis=json.loads(row[3]) if row[3] else {},
+                            attributes=json.loads(row[4]) if row[4] else {},
+                            memories=json.loads(row[5]) if row[5] else [],
+                            self_awareness=json.loads(row[6]) if row[6] else {},
+                            created_at=row[7]
+                        )
+                    except Exception as e:
+                        print(f"Błąd parsowania bytu {soul}: {e}")
         return None
 
     @classmethod
@@ -1220,8 +1238,37 @@ async def get_graph_data():
         relationships = await Relationship.get_all()
 
         # Konwertuj do JSON-safe format
-        nodes = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
-        links = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
+        nodes = []
+        for being in beings:
+            try:
+                node_dict = {
+                    'soul': being.soul,
+                    'genesis': being.genesis,
+                    'attributes': being.attributes,
+                    'memories': being.memories,
+                    'self_awareness': being.self_awareness,
+                    'created_at': being.created_at.isoformat() if being.created_at else None
+                }
+                nodes.append(node_dict)
+            except Exception as e:
+                print(f"Błąd konwersji bytu {being.soul}: {e}")
+                continue
+
+        links = []
+        for rel in relationships:
+            try:
+                link_dict = {
+                    'id': rel.id,
+                    'source_soul': rel.source_soul,
+                    'target_soul': rel.target_soul,
+                    'genesis': rel.genesis,
+                    'attributes': rel.attributes,
+                    'created_at': rel.created_at.isoformat() if rel.created_at else None
+                }
+                links.append(link_dict)
+            except Exception as e:
+                print(f"Błąd konwersji relacji {rel.id}: {e}")
+                continue
 
         return {
             'nodes': nodes,
@@ -1229,6 +1276,8 @@ async def get_graph_data():
         }
     except Exception as e:
         print(f"Błąd w get_graph_data: {e}")
+        import traceback
+        traceback.print_exc()
         return {'nodes': [], 'links': []}
 
 async def send_graph_data(sid):
