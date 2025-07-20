@@ -148,7 +148,7 @@ class LuxOSUniverse {
             .on("zoom", (event) => {
                 this.container.attr("transform", event.transform);
                 this.zoomLevel = event.transform.k;
-                this.updateDetailsLevel();
+                // Usuń updateDetailsLevel() - zoom nie powinien zmieniać pozycji bytów
             });
 
         this.svg.call(this.zoom);
@@ -162,6 +162,7 @@ class LuxOSUniverse {
         // Grupy dla różne elementy wszechświata
         this.starsGroup = this.container.append("g").attr("class", "stars");
         this.orbitsGroup = this.container.append("g").attr("class", "orbits");
+        this.linksGroup = this.container.append("g").attr("class", "links");
         this.beingsGroup = this.container.append("g").attr("class", "beings");
         this.effectsGroup = this.container.append("g").attr("class", "effects");
 
@@ -206,6 +207,21 @@ class LuxOSUniverse {
             .attr("offset", "100%")
             .attr("stop-color", "#ff8c00")
             .attr("stop-opacity", 0.3);
+
+        // Definicja strzałki dla relacji
+        defs.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "-0 -5 10 10")
+            .attr("refX", 20)
+            .attr("refY", 0)
+            .attr("orient", "auto")
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("xoverflow", "visible")
+            .append("svg:path")
+            .attr("d", "M 0,-5 L 10 ,0 L 0,5")
+            .attr("fill", "#666")
+            .style("stroke", "none");
 
         // Filter dla efektów świetlnych
         const glowFilter = defs.append("filter")
@@ -261,6 +277,10 @@ class LuxOSUniverse {
                 uniqueNodes.push(node);
             }
         });
+
+        // Pobierz relacje między bytami
+        this.relationships = data.relationships || [];
+        console.log('Otrzymano relacje:', this.relationships.length);
 
         this.beings = uniqueNodes.map(node => {
             try {
@@ -413,6 +433,9 @@ class LuxOSUniverse {
         // Renderuj orbity
         this.renderOrbits();
 
+        // Renderuj relacje między bytami
+        this.renderRelationships();
+
         // Renderuj byty jako ciała niebieskie
         this.renderBeings();
 
@@ -423,6 +446,73 @@ class LuxOSUniverse {
     renderOrbits() {
         // Zlikwidowano renderowanie orbit - już nie potrzebne
         this.orbitsGroup.selectAll(".orbit").remove();
+    }
+
+    renderRelationships() {
+        if (!this.relationships || this.relationships.length === 0) {
+            this.linksGroup.selectAll(".relationship").remove();
+            return;
+        }
+
+        // Utwórz mapę bytów dla szybkiego wyszukiwania pozycji
+        const beingsMap = new Map();
+        this.beings.forEach(being => {
+            beingsMap.set(being.soul || being.soul_uid, being);
+        });
+
+        // Przygotuj dane dla relacji - tylko te które mają oba końce
+        const validRelationships = this.relationships.filter(rel => {
+            const source = beingsMap.get(rel.source_soul);
+            const target = beingsMap.get(rel.target_soul);
+            return source && target;
+        }).map(rel => {
+            return {
+                ...rel,
+                source: beingsMap.get(rel.source_soul),
+                target: beingsMap.get(rel.target_soul)
+            };
+        });
+
+        console.log('Renderuję relacje:', validRelationships.length);
+
+        // Renderuj linie relacji
+        const linkSelection = this.linksGroup
+            .selectAll(".relationship")
+            .data(validRelationships, d => `${d.source_soul}-${d.target_soul}`)
+            .join("line")
+            .attr("class", "relationship")
+            .attr("stroke", d => this.getRelationshipColor(d.genesis?.type || 'unknown'))
+            .attr("stroke-width", d => Math.max(1, (d.attributes?.energy_level || 30) / 30))
+            .attr("stroke-opacity", 0.6)
+            .attr("marker-end", "url(#arrowhead)")
+            .style("pointer-events", "none");
+
+        // Aktualizuj pozycje linii na podstawie pozycji bytów
+        this.updateRelationshipPositions = () => {
+            linkSelection
+                .attr("x1", d => d.source.x || 0)
+                .attr("y1", d => d.source.y || 0)
+                .attr("x2", d => d.target.x || 0)
+                .attr("y2", d => d.target.y || 0);
+        };
+
+        // Wywołaj aktualizację pozycji
+        this.updateRelationshipPositions();
+    }
+
+    getRelationshipColor(type) {
+        const colors = {
+            'calls': '#ff6b6b',
+            'inherits': '#4CAF50',
+            'contains': '#2196F3',
+            'depends': '#FF9800',
+            'creates': '#9C27B0',
+            'modifies': '#FF5722',
+            'references': '#607D8B',
+            'extends': '#795548',
+            'unknown': '#666666'
+        };
+        return colors[type] || colors.unknown;
     }
 
     drawMainIntentionOrbit() {
@@ -637,6 +727,11 @@ class LuxOSUniverse {
                 
                 return `translate(${x}, ${y})`;
             });
+
+        // Aktualizuj pozycje relacji jeśli funkcja istnieje
+        if (this.updateRelationshipPositions) {
+            this.updateRelationshipPositions();
+        }
     }
 
     // Obsługa przeciągania
@@ -788,7 +883,7 @@ class LuxOSUniverse {
 
     updateStats() {
         document.getElementById('nodesCount').textContent = this.beings.length;
-        document.getElementById('linksCount').textContent = '∞'; // Wszechświat ma nieskończone połączenia
+        document.getElementById('linksCount').textContent = (this.relationships || []).length;
     }
 
     updateConnectionStatus(connected) {
