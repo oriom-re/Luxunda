@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 
 # Import komponentów aplikacji
+from typing import Optional
 from app.core.kernel import LuxOSKernel
 from app.database.connection import DatabaseManager
 from app.utils.fingerprint import FingerprintManager

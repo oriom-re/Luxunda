@@ -1258,13 +1258,39 @@ class Relationship:
 # Socket.IO event handlers
 @sio.event
 async def connect(sid, environ, auth=None):
+    global luxos_kernel
     print(f"Klient połączony: {sid}")
+    
+    # Zarejestruj połączenie w kernelu jeśli dostępny
+    if luxos_kernel:
+        try:
+            user_id = await luxos_kernel.register_user_connection("test_fingerprint", sid)
+            print(f"🔗 Użytkownik zarejestrowany w kernelu: {user_id}")
+            
+            # Wyślij status kernela
+            await sio.emit('kernel_status', {
+                'active': True,
+                'user_id': user_id,
+                'kernel_soul': luxos_kernel.KERNEL_SOUL_ID
+            }, room=sid)
+        except Exception as e:
+            print(f"Błąd rejestracji użytkownika w kernelu: {e}")
+    
     # Wyślij aktualny stan grafu
     await send_graph_data(sid)
 
 @sio.event
 async def disconnect(sid):
+    global luxos_kernel
     print(f"Klient rozłączony: {sid}")
+    
+    # Wyrejestruj połączenie z kernela
+    if luxos_kernel:
+        try:
+            await luxos_kernel.unregister_user_connection("user_id_placeholder", sid)
+            print(f"🔗 Użytkownik wyrejestrowany z kernela")
+        except Exception as e:
+            print(f"Błąd wyrejestrowania użytkownika z kernela: {e}")
 
 @sio.event
 async def get_graph_data(sid, data=None):
@@ -3006,8 +3032,17 @@ async def setup_sqlite_tables():
 
     await db_pool.commit()
 
+# Import kernela
+from app.core.kernel import LuxOSKernel
+from app.database.connection import DatabaseManager
+
+# Globalna instancja kernela
+luxos_kernel = None
+
 # Konfiguracja aplikacji
 async def init_app():
+    global luxos_kernel
+    
     # Redirect root to landing page
     async def serve_landing(request):
         return web.FileResponse('static/landing.html')
@@ -3022,6 +3057,9 @@ async def init_app():
     app.router.add_route('POST', '/api/beings', api_beings)
     app.router.add_route('GET', '/api/relationships', api_relationships)
     app.router.add_route('POST', '/api/relationships', api_relationships)
+    
+    # Dodaj trasę dla statusu kernela
+    app.router.add_route('GET', '/api/kernel/status', api_kernel_status)
 
     # Konfiguracja CORS tylko dla tras API
     cors = aiohttp_cors.setup(app, defaults={
@@ -3039,6 +3077,9 @@ async def init_app():
             cors.add(route)
 
     await init_database()
+    
+    # Inicjalizuj kernel
+    await init_kernel()
 
 async def get_user_projects(user_id: str) -> List[Dict]:
     """Pobiera projekty użytkownika"""
@@ -3341,6 +3382,8 @@ class OrbitalCycleManager:
 orbital_manager = OrbitalCycleManager()
 
 async def main():
+    global luxos_kernel
+    
     # Inicjalizuj OpenAI dla rozmów z Lux
     init_openai()
     
@@ -3355,15 +3398,22 @@ async def main():
     await site.start()
     print("Serwer uruchomiony na http://0.0.0.0:8000")
     print("🌍 System orbital z hierarchią zadań aktywny!")
+    
+    if luxos_kernel:
+        print(f"🧠 Kernel LuxOS aktywny: {luxos_kernel.KERNEL_SOUL_ID}")
 
     # Trzymaj serwer żywy
     try:
         await asyncio.Event().wait()
     except KeyboardInterrupt:
-        pass
+        print("⚠️ Otrzymano sygnał przerwania...")
     finally:
+        print("🛑 Zamykanie systemu...")
+        if luxos_kernel:
+            await luxos_kernel.shutdown()
         await orbital_manager.stop()
         await runner.cleanup()
+        print("✅ System zamknięty")
 
 class BeingFactory:
     """Factory do tworzenia różnych typów bytów"""
@@ -3463,6 +3513,60 @@ class BeingFactory:
                 self_awareness=self_awareness,
                 created_at=row[7]
             )
+
+async def init_kernel():
+    """Inicjalizuje kernel LuxOS"""
+    global luxos_kernel, db_pool
+    
+    try:
+        print("🚀 Inicjalizacja kernela LuxOS...")
+        
+        # Utwórz DatabaseManager z istniejącym połączeniem
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            db_manager = DatabaseManager(db_type='postgresql', connection_pool=db_pool)
+        else:
+            # SQLite
+            db_manager = DatabaseManager(db_type='sqlite', connection=db_pool)
+        
+        # Utwórz kernel
+        luxos_kernel = LuxOSKernel(db_manager)
+        
+        # Inicjalizuj kernel
+        if await luxos_kernel.initialize():
+            print("✅ Kernel LuxOS zainicjalizowany pomyślnie")
+            
+            # Uruchom główną pętlę kernela w tle
+            asyncio.create_task(luxos_kernel.start_main_loop())
+            print("🌟 Główna pętla kernela uruchomiona w tle")
+        else:
+            print("❌ Nie udało się zainicjalizować kernela")
+            
+    except Exception as e:
+        print(f"💥 Błąd inicjalizacji kernela: {e}")
+
+async def api_kernel_status(request):
+    """API endpoint dla statusu kernela"""
+    global luxos_kernel
+    
+    if luxos_kernel:
+        status = luxos_kernel.get_kernel_state()
+        # Konwertuj dataclass do dict
+        status_dict = {
+            'kernel_soul': status.kernel_soul,
+            'created_at': status.created_at.isoformat(),
+            'last_heartbeat': status.last_heartbeat.isoformat(),
+            'active_users': list(status.active_users),
+            'total_beings': status.total_beings,
+            'uptime_seconds': status.uptime_seconds,
+            'running': luxos_kernel.running
+        }
+        return web.json_response(status_dict)
+    else:
+        return web.json_response({
+            'status': 'not_initialized',
+            'message': 'Kernel nie został zainicjalizowany'
+        })
 
 # Globalna pula połączeń do bazy danych
 
