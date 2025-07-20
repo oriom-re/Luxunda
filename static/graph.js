@@ -576,6 +576,29 @@ class LuxOSUniverse {
                     .attr("r", 40)
                     .attr("fill", "url(#luxStar)")
                     .style("filter", "url(#glow)");
+
+                // Nazwa Lux
+                being.append("text")
+                    .attr("class", "lux-label")
+                    .attr("dy", 55)
+                    .style("text-anchor", "middle")
+                    .style("fill", "#ffff00")
+                    .style("font-size", "12px")
+                    .style("font-weight", "bold")
+                    .style("pointer-events", "none")
+                    .text("LUX");
+
+                // Typ genesis dla Lux
+                being.append("text")
+                    .attr("class", "lux-type")
+                    .attr("dy", 68)
+                    .style("text-anchor", "middle")
+                    .style("fill", "#ffd700")
+                    .style("font-size", "9px")
+                    .style("font-weight", "normal")
+                    .style("pointer-events", "none")
+                    .style("opacity", "0.8")
+                    .text(`[${d.genesis?.type || 'agent'}]`);
             });
 
         // Wiadomości nie są renderowane - tylko na żądanie
@@ -603,7 +626,7 @@ class LuxOSUniverse {
                     .attr("stroke-width", 1)
                     .attr("opacity", 0.4);
 
-                // Etykieta zawsze widoczna
+                // Nazwa zawsze widoczna
                 being.append("text")
                     .attr("class", "being-label")
                     .attr("dy", 25)
@@ -613,6 +636,18 @@ class LuxOSUniverse {
                     .style("font-weight", "bold")
                     .style("pointer-events", "none")
                     .text("LuxOS Intention");
+
+                // Typ genesis
+                being.append("text")
+                    .attr("class", "being-type")
+                    .attr("dy", 38)
+                    .style("text-anchor", "middle")
+                    .style("fill", "#00ff88")
+                    .style("font-size", "8px")
+                    .style("font-weight", "normal")
+                    .style("pointer-events", "none")
+                    .style("opacity", "0.7")
+                    .text(`[${d.genesis?.type || 'intention'}]`);
             });
 
         // Renderuj pozostałe byty jako planety/komety
@@ -630,17 +665,28 @@ class LuxOSUniverse {
                     .attr("stroke-width", 1)
                     .style("filter", d.attributes?.energy_level > 80 ? "url(#glow)" : null);
 
-                // Etykieta (tylko przy odpowiednim zoomie)
-                if (self.zoomLevel > 2) {
-                    being.append("text")
-                        .attr("class", "being-label")
-                        .attr("dy", energySize + 15)
-                        .style("text-anchor", "middle")
-                        .style("fill", "white")
-                        .style("font-size", "10px")
-                        .style("pointer-events", "none")
-                        .text(d.genesis?.name || d.soul?.slice(0, 8) || 'Being');
-                }
+                // Nazwa bytu
+                being.append("text")
+                    .attr("class", "being-name")
+                    .attr("dy", energySize + 15)
+                    .style("text-anchor", "middle")
+                    .style("fill", "white")
+                    .style("font-size", "10px")
+                    .style("font-weight", "bold")
+                    .style("pointer-events", "none")
+                    .text(d.genesis?.name || d.soul?.slice(0, 8) || 'Being');
+
+                // Typ genesis - zawsze widoczny
+                being.append("text")
+                    .attr("class", "being-type")
+                    .attr("dy", energySize + 28)
+                    .style("text-anchor", "middle")
+                    .style("fill", self.getBeingColor ? self.getBeingColor(d) : '#666666')
+                    .style("font-size", "8px")
+                    .style("font-weight", "normal")
+                    .style("pointer-events", "none")
+                    .style("opacity", "0.8")
+                    .text(`[${d.genesis?.type || 'unknown'}]`);
             });
     }
 
