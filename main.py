@@ -254,6 +254,140 @@ class BaseBeing:
         """Pobiera dane binarne"""
         return getattr(self, 'binary_data', None)
 
+    @classmethod
+    async def create(cls, genesis: Dict[str, Any], **kwargs):
+        """Tworzy nowy byt w bazie danych"""
+        soul = str(uuid.uuid4())
+
+        # Przygotuj atrybuty z tags i energy_level
+        attributes = kwargs.get('attributes', {})
+        if 'tags' in kwargs:
+            attributes['tags'] = kwargs['tags']
+        if 'energy_level' in kwargs:
+            attributes['energy_level'] = kwargs['energy_level']
+
+        being = cls(
+            soul=soul,
+            genesis=genesis,
+            attributes=attributes,
+            memories=kwargs.get('memories', []),
+            self_awareness=kwargs.get('self_awareness', {})
+        )
+        await being.save()
+        return being
+
+    async def save(self):
+        """Zapisuje byt do bazy danych"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO base_beings (soul, genesis, attributes, memories, self_awareness, binary_data)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (soul) DO UPDATE SET
+                    genesis = EXCLUDED.genesis,
+                    attributes = EXCLUDED.attributes,
+                    memories = EXCLUDED.memories,
+                    self_awareness = EXCLUDED.self_awareness
+                """, str(self.soul), json.dumps(self.genesis, cls=DateTimeEncoder), 
+                    json.dumps(self.attributes, cls=DateTimeEncoder),
+                    json.dumps(self.memories, cls=DateTimeEncoder), 
+                    json.dumps(self.self_awareness, cls=DateTimeEncoder), None)
+        else:
+            # SQLite fallback
+            await db_pool.execute("""
+                INSERT OR REPLACE INTO base_beings 
+                (soul, tags, energy_level, genesis, attributes, memories, self_awareness, binary_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (str(self.soul), json.dumps(self.tags), self.energy_level, 
+                  json.dumps(self.genesis, cls=DateTimeEncoder), 
+                  json.dumps(self.attributes, cls=DateTimeEncoder),
+                  json.dumps(self.memories, cls=DateTimeEncoder), 
+                  json.dumps(self.self_awareness, cls=DateTimeEncoder), None))
+            await db_pool.commit()
+
+    @classmethod
+    async def load(cls, soul: str):
+        """Ładuje byt z bazy danych"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
+                if row:
+                    return cls(
+                        soul=str(row['soul']),
+                        genesis=row['genesis'],
+                        attributes=row['attributes'],
+                        memories=row['memories'],
+                        self_awareness=row['self_awareness'],
+                        created_at=row['created_at']
+                    )
+        else:
+            # SQLite
+            async with db_pool.execute("SELECT * FROM base_beings WHERE soul = ?", (soul,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    try:
+                        return cls(
+                            soul=row[0],
+                            genesis=json.loads(row[3]) if row[3] else {},
+                            attributes=json.loads(row[4]) if row[4] else {},
+                            memories=json.loads(row[5]) if row[5] else [],
+                            self_awareness=json.loads(row[6]) if row[6] else {},
+                            created_at=row[7]
+                        )
+                    except Exception as e:
+                        print(f"Błąd parsowania bytu {soul}: {e}")
+        return None
+
+    @classmethod
+    async def get_all(cls, limit: int = 100):
+        """Pobiera wszystkie byty"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
+                return [cls(
+                    soul=str(row['soul']),
+                    genesis=row['genesis'],
+                    attributes=row['attributes'],
+                    memories=row['memories'],
+                    self_awareness=row['self_awareness'],
+                    created_at=row['created_at']
+                ) for row in rows]
+        else:
+            # SQLite fallback
+            async with db_pool.execute("SELECT soul, tags, energy_level, genesis, attributes, memories, self_awareness, created_at FROM base_beings LIMIT ?", (limit,)) as cursor:
+                rows = await cursor.fetchall()
+                beings = []
+                for row in rows:
+                    try:
+                        genesis = json.loads(row[3]) if row[3] else {}
+                        attributes = json.loads(row[4]) if row[4] else {}
+                        memories = json.loads(row[5]) if row[5] else []
+                        self_awareness = json.loads(row[6]) if row[6] else {}
+
+                        # Dodaj tags i energy_level do attributes jeśli nie ma
+                        if 'tags' not in attributes and row[1]:
+                            attributes['tags'] = json.loads(row[1])
+                        if 'energy_level' not in attributes and row[2]:
+                            attributes['energy_level'] = row[2]
+
+                        beings.append(cls(
+                            soul=row[0],
+                            genesis=genesis,
+                            attributes=attributes,
+                            memories=memories,
+                            self_awareness=self_awareness,
+                            created_at=row[7]
+                        ))
+                    except Exception as e:
+                        print(f"Błąd parsowania wiersza: {e}, wiersz: {row}")
+                        continue
+                return beings
+
 @dataclass
 class FunctionBeing(BaseBeing):
     """Byt funkcyjny z możliwością wykonania"""
@@ -935,7 +1069,7 @@ class Relationship:
 
 # Socket.IO event handlers
 @sio.event
-async def connect(sid, environ, auth):
+async def connect(sid, environ, auth=None):
     print(f"Klient połączony: {sid}")
     # Wyślij aktualny stan grafu
     await send_graph_data(sid)
