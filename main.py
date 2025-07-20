@@ -1369,8 +1369,7 @@ async def update_being(sid, data):
         UPDATE base_beings SET
             genesis = $2,
             attributes = $3,
-            self_awareness = $4,
-            updated_at = NOW()
+            self_awareness = $4
         WHERE soul = $1
         """
         
