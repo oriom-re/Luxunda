@@ -880,7 +880,7 @@ async def init_database():
     except Exception as e:
         print(f"Nie udało się połączyć z PostgreSQL: {e}")
         print("Używam SQLite jako fallback")
-        db_pool = await aiosqlite.connect('app/db/luxos.db')
+        db_pool = await aiosqlite.connect('luxos.db')
         await setup_sqlite_tables()
 
 async def setup_postgresql_tables():
