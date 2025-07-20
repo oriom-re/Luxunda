@@ -310,6 +310,16 @@ class LuxOSUniverse {
         if (!luxExists) {
             this.createLuxAgent();
         }
+
+        // Upewnij się, że główna intencja LuxOS też istnieje
+        const mainIntentionExists = this.beings.find(being => 
+            being.soul === '11111111-1111-1111-1111-111111111111' ||
+            (being.genesis?.type === 'message' && being.attributes?.metadata?.is_main_intention)
+        );
+
+        if (!mainIntentionExists) {
+            this.createMainIntention();
+        }
     }
 
     createLuxAgent() {
@@ -364,6 +374,43 @@ class LuxOSUniverse {
         });
 
         console.log('Utworzono Lux jako głównego agenta:', luxAgent);
+    }
+
+    createMainIntention() {
+        const mainIntention = {
+            soul: '11111111-1111-1111-1111-111111111111',
+            genesis: {
+                type: 'message',
+                name: 'LuxOS Main Intention',
+                source: 'System.Core.MainIntention.Initialize()',
+                description: 'Główna intencja systemu LuxOS'
+            },
+            attributes: {
+                energy_level: 500,
+                metadata: {
+                    message_type: 'intention',
+                    is_main_intention: true
+                },
+                message_data: {
+                    content: 'System LuxOS Core Intention'
+                },
+                tags: ['intention', 'main', 'core', 'luxos']
+            },
+            self_awareness: {
+                trust_level: 1.0,
+                confidence: 1.0,
+                introspection_depth: 0.8
+            },
+            memories: [{
+                type: 'genesis',
+                data: 'Main system intention initialization',
+                timestamp: new Date().toISOString(),
+                importance: 1.0
+            }]
+        };
+
+        this.beings.push(mainIntention);
+        console.log('Utworzono główną intencję LuxOS:', mainIntention);
     }
 
     renderUniverse() {
@@ -426,24 +473,16 @@ class LuxOSUniverse {
         // Uruchom ciągłą animację orbit
         this.startOrbitalAnimation();
 
-        // Renderuj Lux jako centralną gwiazdę (bez animacji dla wydajności)
+        // Renderuj Lux jako centralną gwiazdę (bez żółtego pierścienia)
         this.beingSelection.filter(d => this.isLuxAgent(d))
             .each(function(d) {
                 const being = d3.select(this);
 
-                // Główna gwiazda
+                // Główna gwiazda - bez dodatkowego pierścienia
                 being.append("circle")
                     .attr("r", 40)
                     .attr("fill", "url(#luxStar)")
                     .style("filter", "url(#glow)");
-
-                // Statyczny pierścień bez animacji
-                being.append("circle")
-                    .attr("r", 60)
-                    .attr("fill", "none")
-                    .attr("stroke", "#ffd700")
-                    .attr("stroke-width", 1)
-                    .attr("opacity", 0.3);
             });
 
         // Renderuj wiadomości/intencje jako małe kropki (bez animacji dla wydajności)
@@ -479,31 +518,23 @@ class LuxOSUniverse {
             .each(function(d) {
                 const being = d3.select(this);
 
-                // Główne ciało intencji - większe i świecące
+                // Główne ciało intencji - pulsujące
                 being.append("circle")
-                    .attr("r", 12)
+                    .attr("r", 8)
                     .attr("fill", "#00ff88")
                     .attr("stroke", "#ffffff")
-                    .attr("stroke-width", 2)
+                    .attr("stroke-width", 1)
                     .style("filter", "url(#glow)")
                     .style("opacity", 0.9);
-
-                // Statyczny pierścień bez animacji
-                being.append("circle")
-                    .attr("r", 18)
-                    .attr("fill", "none")
-                    .attr("stroke", "#00ff88")
-                    .attr("stroke-width", 1)
-                    .attr("opacity", 0.3);
 
                 // Etykieta
                 if (self.zoomLevel > 0.5) {
                     being.append("text")
                         .attr("class", "being-label")
-                        .attr("dy", 25)
+                        .attr("dy", 20)
                         .style("text-anchor", "middle")
                         .style("fill", "#00ff88")
-                        .style("font-size", "8px")
+                        .style("font-size", "6px")
                         .style("font-weight", "bold")
                         .style("pointer-events", "none")
                         .text("LuxOS");
