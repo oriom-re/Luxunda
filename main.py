@@ -2847,36 +2847,43 @@ async def setup_postgresql_tables():
             )
         """)
 
-        # Constraints dla relationships
-        await conn.execute("""
-            ALTER TABLE relationships 
-            DROP CONSTRAINT IF EXISTS valid_source_soul
+        # Najpierw sprawdź czy tabele istnieją
+        tables_exist = await conn.fetchval("""
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_name IN ('base_beings', 'relationships')
         """)
-        await conn.execute("""
-            ALTER TABLE relationships 
-            ADD CONSTRAINT valid_source_soul 
-            FOREIGN KEY (source_soul) REFERENCES base_beings (soul)
-        """)
+        
+        if tables_exist == 2:
+            # Constraints dla relationships - tylko jeśli tabele istnieją
+            await conn.execute("""
+                ALTER TABLE relationships 
+                DROP CONSTRAINT IF EXISTS valid_source_soul
+            """)
+            await conn.execute("""
+                ALTER TABLE relationships 
+                ADD CONSTRAINT valid_source_soul 
+                FOREIGN KEY (source_soul) REFERENCES base_beings (soul) ON DELETE CASCADE
+            """)
 
-        await conn.execute("""
-            ALTER TABLE relationships 
-            DROP CONSTRAINT IF EXISTS valid_target_soul
-        """)
-        await conn.execute("""
-            ALTER TABLE relationships 
-            ADD CONSTRAINT valid_target_soul 
-            FOREIGN KEY (target_soul) REFERENCES base_beings (soul)
-        """)
+            await conn.execute("""
+                ALTER TABLE relationships 
+                DROP CONSTRAINT IF EXISTS valid_target_soul
+            """)
+            await conn.execute("""
+                ALTER TABLE relationships 
+                ADD CONSTRAINT valid_target_soul 
+                FOREIGN KEY (target_soul) REFERENCES base_beings (soul) ON DELETE CASCADE
+            """)
 
-        await conn.execute("""
-            ALTER TABLE relationships 
-            DROP CONSTRAINT IF EXISTS no_self_relationship
-        """)
-        await conn.execute("""
-            ALTER TABLE relationships 
-            ADD CONSTRAINT no_self_relationship 
-            CHECK (source_soul <> target_soul)
-        """)
+            await conn.execute("""
+                ALTER TABLE relationships 
+                DROP CONSTRAINT IF EXISTS no_self_relationship
+            """)
+            await conn.execute("""
+                ALTER TABLE relationships 
+                ADD CONSTRAINT no_self_relationship 
+                CHECK (source_soul <> target_soul)
+            """)
 
         # Tabela binary_storage dla danych binarnych
         await conn.execute("""

@@ -14,6 +14,8 @@ class LuxOSUniverse {
         this.lastUpdateTime = 0;
         this.updateThrottle = 100; // Minimum 100ms between updates
         this.heartbeatInterval = null;
+        this.luxAgentCreated = false;
+        this.mainIntentionCreated = false;
 
         // Inicjalizacja Socket.IO z lepszą konfiguracją
         this.socket = io({
@@ -310,6 +312,11 @@ class LuxOSUniverse {
     }
 
     ensureLuxAgent() {
+        // Sprawdź czy już istnieje w DOM
+        if (this.luxAgentCreated) {
+            return;
+        }
+
         const luxExists = this.beings.find(being => 
             being.soul === '00000000-0000-0000-0000-000000000001' ||
             being.soul_uid === '00000000-0000-0000-0000-000000000001' ||
@@ -319,9 +326,14 @@ class LuxOSUniverse {
 
         if (!luxExists) {
             this.createLuxAgent();
+            this.luxAgentCreated = true;
         }
 
         // Upewnij się, że główna intencja LuxOS też istnieje
+        if (this.mainIntentionCreated) {
+            return;
+        }
+
         const mainIntentionExists = this.beings.find(being => 
             being.soul === '11111111-1111-1111-1111-111111111111' ||
             (being.genesis?.type === 'message' && being.attributes?.metadata?.is_main_intention)
@@ -329,6 +341,7 @@ class LuxOSUniverse {
 
         if (!mainIntentionExists) {
             this.createMainIntention();
+            this.mainIntentionCreated = true;
         }
     }
 
