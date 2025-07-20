@@ -2760,8 +2760,45 @@ class OrbitalCycleManager:
     async def check_and_execute_cycles(self):
         """Sprawdza i wykonuje gotowe cykle orbitalne"""
         try:
-            # Pobierz wszystkie OrbitalTask byty
-            beings = await BaseBeing.get_all()
+            # Pobierz wszystkie OrbitalTask byty - używamy BeingFactory
+            beings = []
+            try:
+                # Spróbuj pobrać z bazy danych bezpośrednio
+                global db_pool
+                if hasattr(db_pool, 'acquire'):
+                    async with db_pool.acquire() as conn:
+                        rows = await conn.fetch("SELECT * FROM base_beings LIMIT 100")
+                        for row in rows:
+                            being = BaseBeing(
+                                soul=str(row['soul']),
+                                genesis=row['genesis'],
+                                attributes=row['attributes'],
+                                memories=row['memories'],
+                                self_awareness=row['self_awareness'],
+                                created_at=row['created_at']
+                            )
+                            beings.append(being)
+                else:
+                    # SQLite fallback
+                    async with db_pool.execute("SELECT * FROM base_beings LIMIT 100") as cursor:
+                        rows = await cursor.fetchall()
+                        for row in rows:
+                            try:
+                                being = BaseBeing(
+                                    soul=row[0],
+                                    genesis=json.loads(row[3]) if row[3] else {},
+                                    attributes=json.loads(row[4]) if row[4] else {},
+                                    memories=json.loads(row[5]) if row[5] else [],
+                                    self_awareness=json.loads(row[6]) if row[6] else {},
+                                    created_at=row[7]
+                                )
+                                beings.append(being)
+                            except Exception as e:
+                                continue  # Pomiń problematyczne rekordy
+            except Exception as e:
+                print(f"Błąd pobierania bytów z bazy: {e}")
+                return
+            
             orbital_tasks = [b for b in beings if b.genesis.get('type') == 'orbital_task']
             
             executed_cycles = 0
