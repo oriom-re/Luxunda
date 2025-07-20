@@ -1352,22 +1352,85 @@ async def read_file(sid, data):
         await sio.emit('error', {'message': f'Błąd odczytu pliku: {str(e)}'}, room=sid)
 
 @sio.event
+async def update_being(sid, data):
+    """Aktualizuje istniejący byt"""
+    try:
+        soul = data.get('soul')
+        if not soul:
+            await sio.emit('error', {'message': 'Brak soul bytu do aktualizacji'}, room=sid)
+            return
+
+        # Przygotuj dane do aktualizacji
+        genesis = data.get('genesis', {})
+        attributes = data.get('attributes', {})
+        self_awareness = data.get('self_awareness', {})
+
+        query = """
+        UPDATE base_beings SET
+            genesis = $2,
+            attributes = $3,
+            self_awareness = $4,
+            updated_at = NOW()
+        WHERE soul = $1
+        """
+        
+        result = await db_pool.execute(
+            query, 
+            soul, 
+            json.dumps(genesis), 
+            json.dumps(attributes), 
+            json.dumps(self_awareness)
+        )
+
+        if result == 'UPDATE 0':
+            await sio.emit('error', {'message': 'Byt nie znaleziony'}, room=sid)
+            return
+
+        # Wyślij aktualizację do wszystkich klientów
+        await broadcast_graph_update()
+        await sio.emit('being_updated', {
+            'soul': soul,
+            'message': 'Byt został zaktualizowany pomyślnie'
+        }, room=sid)
+
+    except Exception as e:
+        logger.error(f"Błąd podczas aktualizacji bytu: {e}")
+        await sio.emit('error', {'message': f'Błąd aktualizacji: {str(e)}'}, room=sid)
+
+@sio.event
 async def delete_being(sid, data):
+    """Usuwa byt z systemu"""
     soul = data.get('soul')
-    if soul:
-        try:
-            query = """
+    if not soul:
+        await sio.emit('error', {'message': 'Brak soul bytu do usunięcia'}, room=sid)
+        return
+        
+    try:
+        # Najpierw usuń powiązane relacje
+        await db_pool.execute("""
+            DELETE FROM relationships 
+            WHERE source_soul = $1 OR target_soul = $1
+        """, soul)
+        
+        # Następnie usuń byt
+        result = await db_pool.execute("""
             DELETE FROM base_beings WHERE soul = $1
-            """
-            await db_pool.execute(query, soul)
+        """, soul)
 
-            # Wyślij aktualizację do wszystkich klientów
-            updated_data = await get_graph_data()
-            await sio.emit('graph_updated', updated_data)
+        if result == 'DELETE 0':
+            await sio.emit('error', {'message': 'Byt nie znaleziony'}, room=sid)
+            return
 
-        except Exception as e:
-            logger.error(f"Błąd podczas usuwania bytu: {e}")
-            await sio.emit('error', {'message': str(e)}, room=sid)
+        # Wyślij aktualizację do wszystkich klientów
+        await broadcast_graph_update()
+        await sio.emit('being_deleted', {
+            'soul': soul,
+            'message': 'Byt został usunięty pomyślnie'
+        })
+
+    except Exception as e:
+        logger.error(f"Błąd podczas usuwania bytu: {e}")
+        await sio.emit('error', {'message': f'Błąd usuwania: {str(e)}'}, room=sid)
 
 @sio.event
 async def delete_relationship(sid, data):

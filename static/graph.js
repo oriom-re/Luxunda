@@ -558,6 +558,10 @@ class LuxOSUniverse {
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.selectBeing(d);
+            })
+            .on("contextmenu", (event, d) => {
+                event.preventDefault();
+                this.showBeingContextMenu(d, event);
             });
 
         // Usuń poprzednie elementy tylko jeśli konieczne
@@ -950,16 +954,21 @@ class LuxOSUniverse {
     showBeingContextMenu(being, event) {
         const contextMenu = [
             {
-                label: '🔭 Zbadaj byt',
+                label: '🧬 Edytuj genetykę',
+                action: () => this.editBeingGenetics(being)
+            },
+            {
+                label: '📋 Szczegóły bytu',
                 action: () => this.showBeingDetails(being)
+            },
+            {
+                label: '🗑️ Usuń byt',
+                action: () => this.deleteBeing(being),
+                dangerous: true
             },
             {
                 label: '🚀 Śledź orbitę',
                 action: () => this.trackBeing(being)
-            },
-            {
-                label: '📊 Parametry orbitalne',
-                action: () => this.showOrbitalParams(being)
             },
             {
                 label: '⭐ Analiza spektralna',
@@ -998,9 +1007,371 @@ class LuxOSUniverse {
             Masa (data): ${JSON.stringify(being.attributes).length} bajtów`);
     }
 
+    editBeingGenetics(being) {
+        this.createGeneticsEditor(being);
+    }
+
+    createGeneticsEditor(being) {
+        // Usuń poprzedni edytor jeśli istnieje
+        const existingEditor = document.getElementById('genetics-editor');
+        if (existingEditor) {
+            existingEditor.remove();
+        }
+
+        // Utwórz kontener edytora
+        const editorContainer = document.createElement('div');
+        editorContainer.id = 'genetics-editor';
+        editorContainer.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            max-height: 80vh;
+            background: rgba(26, 26, 26, 0.98);
+            border: 2px solid #00ff88;
+            border-radius: 15px;
+            padding: 20px;
+            z-index: 3000;
+            overflow-y: auto;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 20px 40px rgba(0, 255, 136, 0.4);
+        `;
+
+        // Nagłówek
+        const header = document.createElement('div');
+        header.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            color: #00ff88;
+            font-size: 18px;
+            font-weight: bold;
+        `;
+        header.innerHTML = `
+            <span>🧬 Genetyka Bytu: ${being.genesis?.name || being.soul?.slice(0, 8)}</span>
+            <button id="close-genetics-editor" style="background: none; border: none; color: #00ff88; font-size: 24px; cursor: pointer;">×</button>
+        `;
+
+        // Sekcja Genesis
+        const genesisSection = this.createEditableSection('Genesis', being.genesis || {}, [
+            { key: 'name', label: 'Nazwa', type: 'text' },
+            { key: 'type', label: 'Typ', type: 'select', options: ['function', 'class', 'data', 'task', 'component', 'message', 'scenario', 'agent'] },
+            { key: 'source', label: 'Źródło', type: 'textarea' },
+            { key: 'description', label: 'Opis', type: 'textarea' },
+            { key: 'created_by', label: 'Utworzony przez', type: 'text' }
+        ]);
+
+        // Sekcja Attributes
+        const attributesSection = this.createEditableSection('Atrybuty', being.attributes || {}, [
+            { key: 'energy_level', label: 'Poziom energii', type: 'number', min: 0, max: 1000 },
+            { key: 'trust_level', label: 'Poziom zaufania', type: 'number', min: 0, max: 1, step: 0.1 },
+            { key: 'tags', label: 'Tagi (oddzielone przecinkami)', type: 'text' }
+        ]);
+
+        // Sekcja Self Awareness
+        const selfAwarenessSection = this.createEditableSection('Samoświadomość', being.self_awareness || {}, [
+            { key: 'confidence', label: 'Pewność siebie', type: 'number', min: 0, max: 1, step: 0.1 },
+            { key: 'trust_level', label: 'Poziom zaufania', type: 'number', min: 0, max: 1, step: 0.1 },
+            { key: 'introspection_depth', label: 'Głębokość introspekcji', type: 'number', min: 0, max: 1, step: 0.1 }
+        ]);
+
+        // Przyciski akcji
+        const actionsDiv = document.createElement('div');
+        actionsDiv.style.cssText = `
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        `;
+        actionsDiv.innerHTML = `
+            <button id="save-genetics" style="background: #00ff88; color: #1a1a1a; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">💾 Zapisz zmiany</button>
+            <button id="cancel-genetics" style="background: #ff4444; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">❌ Anuluj</button>
+        `;
+
+        // Składanie edytora
+        editorContainer.appendChild(header);
+        editorContainer.appendChild(genesisSection);
+        editorContainer.appendChild(attributesSection);
+        editorContainer.appendChild(selfAwarenessSection);
+        editorContainer.appendChild(actionsDiv);
+        document.body.appendChild(editorContainer);
+
+        // Event listenery
+        document.getElementById('close-genetics-editor').onclick = () => editorContainer.remove();
+        document.getElementById('cancel-genetics').onclick = () => editorContainer.remove();
+        document.getElementById('save-genetics').onclick = () => {
+            this.saveBeingGenetics(being, editorContainer);
+        };
+
+        // Zamknięcie na ESC
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                editorContainer.remove();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+    }
+
+    createEditableSection(title, data, fields) {
+        const section = document.createElement('div');
+        section.style.cssText = `
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+        `;
+
+        const sectionTitle = document.createElement('h3');
+        sectionTitle.textContent = title;
+        sectionTitle.style.cssText = `
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 16px;
+        `;
+        section.appendChild(sectionTitle);
+
+        fields.forEach(field => {
+            const fieldDiv = document.createElement('div');
+            fieldDiv.style.cssText = `margin-bottom: 12px;`;
+
+            const label = document.createElement('label');
+            label.textContent = field.label + ':';
+            label.style.cssText = `
+                display: block;
+                color: #ccc;
+                margin-bottom: 5px;
+                font-size: 14px;
+            `;
+
+            let input;
+            const currentValue = data[field.key];
+
+            if (field.type === 'select') {
+                input = document.createElement('select');
+                field.options.forEach(option => {
+                    const optionEl = document.createElement('option');
+                    optionEl.value = option;
+                    optionEl.textContent = option;
+                    optionEl.selected = currentValue === option;
+                    input.appendChild(optionEl);
+                });
+            } else if (field.type === 'textarea') {
+                input = document.createElement('textarea');
+                input.rows = 3;
+                input.value = currentValue || '';
+            } else {
+                input = document.createElement('input');
+                input.type = field.type || 'text';
+                if (field.min !== undefined) input.min = field.min;
+                if (field.max !== undefined) input.max = field.max;
+                if (field.step !== undefined) input.step = field.step;
+                
+                if (field.key === 'tags' && Array.isArray(currentValue)) {
+                    input.value = currentValue.join(', ');
+                } else {
+                    input.value = currentValue || '';
+                }
+            }
+
+            input.dataset.field = field.key;
+            input.dataset.section = title.toLowerCase();
+            input.style.cssText = `
+                width: 100%;
+                padding: 8px;
+                background: #333;
+                border: 1px solid #555;
+                border-radius: 4px;
+                color: white;
+                font-family: inherit;
+            `;
+
+            fieldDiv.appendChild(label);
+            fieldDiv.appendChild(input);
+            section.appendChild(fieldDiv);
+        });
+
+        return section;
+    }
+
+    saveBeingGenetics(being, editorContainer) {
+        try {
+            // Zbierz dane z formularza
+            const inputs = editorContainer.querySelectorAll('input, select, textarea');
+            const updatedData = {
+                genesis: { ...being.genesis },
+                attributes: { ...being.attributes },
+                self_awareness: { ...being.self_awareness }
+            };
+
+            inputs.forEach(input => {
+                const field = input.dataset.field;
+                const section = input.dataset.section;
+                let value = input.value;
+
+                // Specjalna obsługa różnych typów danych
+                if (input.type === 'number') {
+                    value = parseFloat(value) || 0;
+                } else if (field === 'tags') {
+                    value = value.split(',').map(tag => tag.trim()).filter(tag => tag);
+                }
+
+                if (section === 'genesis') {
+                    updatedData.genesis[field] = value;
+                } else if (section === 'atrybuty') {
+                    updatedData.attributes[field] = value;
+                } else if (section === 'samoświadomość') {
+                    updatedData.self_awareness[field] = value;
+                }
+            });
+
+            // Wyślij aktualizację do serwera
+            if (this.socket && this.socket.connected) {
+                this.socket.emit('update_being', {
+                    soul: being.soul || being.soul_uid,
+                    genesis: updatedData.genesis,
+                    attributes: updatedData.attributes,
+                    self_awareness: updatedData.self_awareness
+                });
+
+                this.showSuccessMessage('Genetyka bytu została zaktualizowana!');
+                editorContainer.remove();
+            } else {
+                throw new Error('Brak połączenia z serwerem');
+            }
+
+        } catch (error) {
+            console.error('Błąd zapisywania genetyki:', error);
+            this.showErrorMessage('Błąd zapisywania: ' + error.message);
+        }
+    }
+
+    deleteBeing(being) {
+        // Potwierdź usunięcie
+        const confirmDelete = confirm(`Czy na pewno chcesz usunąć byt "${being.genesis?.name || being.soul?.slice(0, 8)}"?\n\nTa operacja jest nieodwracalna.`);
+        
+        if (confirmDelete) {
+            if (this.socket && this.socket.connected) {
+                this.socket.emit('delete_being', {
+                    soul: being.soul || being.soul_uid
+                });
+                this.showSuccessMessage('Byt został usunięty');
+            } else {
+                this.showErrorMessage('Brak połączenia z serwerem');
+            }
+        }
+    }
+
+    showBeingDetails(being) {
+        // Utwórz okno szczegółów (read-only)
+        const detailsContainer = document.createElement('div');
+        detailsContainer.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            max-height: 80vh;
+            background: rgba(26, 26, 26, 0.98);
+            border: 2px solid #0088ff;
+            border-radius: 15px;
+            padding: 20px;
+            z-index: 3000;
+            overflow-y: auto;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 20px 40px rgba(0, 136, 255, 0.4);
+        `;
+
+        detailsContainer.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; color: #0088ff; font-size: 18px; font-weight: bold;">
+                <span>📋 Szczegóły Bytu</span>
+                <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; color: #0088ff; font-size: 24px; cursor: pointer;">×</button>
+            </div>
+            
+            <div style="color: #ccc; line-height: 1.6;">
+                <h4 style="color: #00ff88; margin-bottom: 10px;">🧬 Genesis</h4>
+                <pre style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">${JSON.stringify(being.genesis, null, 2)}</pre>
+                
+                <h4 style="color: #00ff88; margin-bottom: 10px;">⚡ Atrybuty</h4>
+                <pre style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">${JSON.stringify(being.attributes, null, 2)}</pre>
+                
+                <h4 style="color: #00ff88; margin-bottom: 10px;">🧠 Samoświadomość</h4>
+                <pre style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">${JSON.stringify(being.self_awareness, null, 2)}</pre>
+                
+                <h4 style="color: #00ff88; margin-bottom: 10px;">💭 Wspomnienia (${(being.memories || []).length})</h4>
+                <pre style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; overflow-x: auto;">${JSON.stringify(being.memories || [], null, 2)}</pre>
+            </div>
+        `;
+
+        document.body.appendChild(detailsContainer);
+    }
+
     showContextMenu(items, event) {
-        // Implementacja menu kontekstowego (można wykorzystać istniejącą)
-        console.log('Context menu for universe:', items);
+        // Usuń poprzednie menu kontekstowe
+        const existingMenu = document.getElementById('context-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        // Utwórz menu
+        const menu = document.createElement('div');
+        menu.id = 'context-menu';
+        menu.style.cssText = `
+            position: fixed;
+            left: ${event.pageX}px;
+            top: ${event.pageY}px;
+            background: rgba(26, 26, 26, 0.98);
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            padding: 8px 0;
+            z-index: 4000;
+            min-width: 200px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 25px rgba(0, 255, 136, 0.3);
+        `;
+
+        items.forEach((item, index) => {
+            const menuItem = document.createElement('div');
+            menuItem.textContent = item.label;
+            menuItem.style.cssText = `
+                padding: 10px 15px;
+                color: ${item.dangerous ? '#ff4444' : '#ccc'};
+                cursor: pointer;
+                transition: all 0.2s ease;
+                border-bottom: ${index < items.length - 1 ? '1px solid #333' : 'none'};
+            `;
+
+            menuItem.onmouseover = () => {
+                menuItem.style.background = item.dangerous ? 'rgba(255, 68, 68, 0.2)' : 'rgba(0, 255, 136, 0.2)';
+                menuItem.style.color = item.dangerous ? '#ff6666' : '#00ff88';
+            };
+
+            menuItem.onmouseout = () => {
+                menuItem.style.background = 'transparent';
+                menuItem.style.color = item.dangerous ? '#ff4444' : '#ccc';
+            };
+
+            menuItem.onclick = () => {
+                item.action();
+                menu.remove();
+            };
+
+            menu.appendChild(menuItem);
+        });
+
+        document.body.appendChild(menu);
+
+        // Usuń menu po kliknięciu poza nim
+        const removeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', removeMenu);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', removeMenu), 100);
     }
 
     // Metody kompatybilności z IntentionComponent
