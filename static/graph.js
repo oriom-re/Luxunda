@@ -434,7 +434,7 @@ class LuxOSUniverse {
         this.orbitsGroup.selectAll(".main-intention-orbit").remove();
         
         // Narysuj cienką, prawie przezroczystą orbitę dla głównej intencji
-        const orbitRadius = 80;
+        const orbitRadius = 100; // Dopasuj do nowego promienia
         
         this.orbitsGroup.append("circle")
             .attr("class", "main-intention-orbit")
@@ -444,8 +444,8 @@ class LuxOSUniverse {
             .attr("fill", "none")
             .attr("stroke", "#00ff88")
             .attr("stroke-width", 1)
-            .attr("stroke-dasharray", "3,3")
-            .attr("opacity", 0.2)
+            .attr("stroke-dasharray", "5,5")
+            .attr("opacity", 0.3)
             .style("pointer-events", "none");
     }
 
@@ -485,32 +485,7 @@ class LuxOSUniverse {
                     .style("filter", "url(#glow)");
             });
 
-        // Renderuj wiadomości/intencje jako małe kropki (bez animacji dla wydajności)
-        this.beingSelection.filter(d => d.genesis?.type === 'message')
-            .each(function(d) {
-                const being = d3.select(this);
-                const isIntention = d.attributes?.metadata?.message_type === 'intention';
-
-                // Mała kropka dla wiadomości/intencji
-                being.append("circle")
-                    .attr("r", isIntention ? 4 : 3)
-                    .attr("fill", isIntention ? "#ffff00" : "#87ceeb")
-                    .attr("stroke", "#ffffff")
-                    .attr("stroke-width", 0.5)
-                    .style("opacity", 0.8);
-
-                // Etykieta tylko przy bardzo wysokim zoomie
-                if (self.zoomLevel > 15) {
-                    being.append("text")
-                        .attr("class", "being-label")
-                        .attr("dy", 12)
-                        .style("text-anchor", "middle")
-                        .style("fill", "white")
-                        .style("font-size", "6px")
-                        .style("pointer-events", "none")
-                        .text(d.attributes?.message_data?.content?.slice(0, 8) + '...' || 'Msg');
-                }
-            });
+        // Wiadomości nie są renderowane - tylko na żądanie
 
         // Renderuj główną intencję LuxOS jako specjalny byt
         this.beingSelection.filter(d => d.soul === '11111111-1111-1111-1111-111111111111' || 
@@ -518,27 +493,33 @@ class LuxOSUniverse {
             .each(function(d) {
                 const being = d3.select(this);
 
-                // Główne ciało intencji - pulsujące
+                // Główne ciało intencji - większe i bardziej widoczne
                 being.append("circle")
-                    .attr("r", 8)
+                    .attr("r", 12)
                     .attr("fill", "#00ff88")
                     .attr("stroke", "#ffffff")
-                    .attr("stroke-width", 1)
+                    .attr("stroke-width", 2)
                     .style("filter", "url(#glow)")
-                    .style("opacity", 0.9);
+                    .style("opacity", 1);
 
-                // Etykieta
-                if (self.zoomLevel > 0.5) {
-                    being.append("text")
-                        .attr("class", "being-label")
-                        .attr("dy", 20)
-                        .style("text-anchor", "middle")
-                        .style("fill", "#00ff88")
-                        .style("font-size", "6px")
-                        .style("font-weight", "bold")
-                        .style("pointer-events", "none")
-                        .text("LuxOS");
-                }
+                // Dodatkowy pierścień dla lepszej widoczności
+                being.append("circle")
+                    .attr("r", 16)
+                    .attr("fill", "none")
+                    .attr("stroke", "#00ff88")
+                    .attr("stroke-width", 1)
+                    .attr("opacity", 0.4);
+
+                // Etykieta zawsze widoczna
+                being.append("text")
+                    .attr("class", "being-label")
+                    .attr("dy", 25)
+                    .style("text-anchor", "middle")
+                    .style("fill", "#00ff88")
+                    .style("font-size", "10px")
+                    .style("font-weight", "bold")
+                    .style("pointer-events", "none")
+                    .text("LuxOS Intention");
             });
 
         // Renderuj pozostałe byty jako planety/komety
@@ -1065,21 +1046,21 @@ class LuxOSUniverse {
         }
 
         let lastTime = 0;
-        const targetFPS = 30; // Ograniczenie do 30 FPS dla wydajności
+        const targetFPS = 60; // Zwiększone FPS dla płynniejszej animacji
         const interval = 1000 / targetFPS;
 
         const animate = (currentTime) => {
             if (currentTime - lastTime >= interval) {
                 if (this.beingSelection) {
-                    const time = currentTime * 0.0005; // Wolniejsza animacja
+                    const time = currentTime * 0.002; // Zwiększona prędkość - widoczna dla oka
 
                     // Animuj główną intencję LuxOS na orbicie (jeśli istnieje)
                     this.beingSelection
                         .filter(d => d.soul === '11111111-1111-1111-1111-111111111111' || 
                                    (d.genesis?.type === 'message' && d.attributes?.metadata?.is_main_intention))
                         .attr("transform", d => {
-                            const radius = 80;
-                            const speed = 0.2; // Jeszcze wolniej
+                            const radius = 100; // Nieco większy promień
+                            const speed = 1.0; // Znacznie szybsza prędkość
                             const x = Math.cos(time * speed) * radius;
                             const y = Math.sin(time * speed) * radius;
                             return `translate(${x}, ${y})`;
