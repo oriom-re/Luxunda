@@ -226,6 +226,34 @@ class BaseBeing:
     self_awareness: Dict[str, Any]
     created_at: Optional[datetime] = None
 
+    @property
+    def tags(self) -> List[str]:
+        """Pobiera tagi z atrybutów"""
+        return self.attributes.get('tags', [])
+
+    @tags.setter
+    def tags(self, value: List[str]):
+        """Ustawia tagi w atrybutach"""
+        self.attributes['tags'] = value
+
+    @property
+    def energy_level(self) -> int:
+        """Pobiera poziom energii z atrybutów"""
+        return self.attributes.get('energy_level', 0)
+
+    @energy_level.setter
+    def energy_level(self, value: int):
+        """Ustawia poziom energii w atrybutach"""
+        self.attributes['energy_level'] = value
+
+    def set_binary_data(self, data: bytes):
+        """Ustawia dane binarne"""
+        self.binary_data = data
+
+    def get_binary_data(self) -> Optional[bytes]:
+        """Pobiera dane binarne"""
+        return getattr(self, 'binary_data', None)
+
 @dataclass
 class FunctionBeing(BaseBeing):
     """Byt funkcyjny z możliwością wykonania"""
@@ -511,7 +539,7 @@ class BinaryBeing(BaseBeing):
         """Zapisuje dane binarne i zwraca ID"""
         import uuid
         binary_id = str(uuid.uuid4())
-        
+
         global db_pool
         if hasattr(db_pool, 'acquire'):
             # PostgreSQL
@@ -676,8 +704,8 @@ class MessageBeing(BaseBeing):
         if hasattr(db_pool, 'acquire'):
             async with db_pool.acquire() as conn:
                 await conn.execute("""
-                    INSERT INTO base_beings (soul, genesis, attributes, memories, self_awareness)
-                    VALUES ($1, $2, $3, $4, $5)
+                    INSERT INTO base_beings (soul, genesis, attributes, memories, self_awareness, binary_data)
+                    VALUES ($1, $2, $3, $4, $5, $6)
                     ON CONFLICT (soul) DO UPDATE SET
                     genesis = EXCLUDED.genesis,
                     attributes = EXCLUDED.attributes,
@@ -686,18 +714,18 @@ class MessageBeing(BaseBeing):
                 """, str(self.soul), json.dumps(self.genesis, cls=DateTimeEncoder), 
                     json.dumps(self.attributes, cls=DateTimeEncoder),
                     json.dumps(self.memories, cls=DateTimeEncoder), 
-                    json.dumps(self.self_awareness, cls=DateTimeEncoder))
+                    json.dumps(self.self_awareness, cls=DateTimeEncoder), None)
         else:
             # SQLite fallback
             await db_pool.execute("""
                 INSERT OR REPLACE INTO base_beings 
-                (soul, tags, energy_level, genesis, attributes, memories, self_awareness)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (soul, tags, energy_level, genesis, attributes, memories, self_awareness, binary_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (str(self.soul), json.dumps(self.tags), self.energy_level, 
                   json.dumps(self.genesis, cls=DateTimeEncoder), 
                   json.dumps(self.attributes, cls=DateTimeEncoder),
                   json.dumps(self.memories, cls=DateTimeEncoder), 
-                  json.dumps(self.self_awareness, cls=DateTimeEncoder)))
+                  json.dumps(self.self_awareness, cls=DateTimeEncoder), None))
             await db_pool.commit()
 
     @classmethod
