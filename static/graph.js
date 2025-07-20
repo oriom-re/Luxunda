@@ -266,14 +266,18 @@ class LuxOSUniverse {
                 }
 
                 // Mapuj strukturę dla kompatybilności
-                return {
+                const being = {
                     soul: node.soul_uid || node.soul,
                     soul_uid: node.soul_uid,
                     genesis: node._soul?.genesis || node.genesis || { type: 'unknown', name: 'Unknown' },
                     attributes: node._soul?.attributes || node.attributes || { energy_level: 50 },
                     memories: node._soul?.memories || node.memories || [],
-                    self_awareness: node._soul?.self_awareness || node.self_awareness || {}
+                    self_awareness: node._soul?.self_awareness || node.self_awareness || {},
+                    x: node.x || 0,  // Pozycja z embeddingu
+                    y: node.y || 0   // Pozycja z embeddingu
                 };
+
+                return being;
             } catch (e) {
                 console.warn('Błąd parsowania danych bytu:', e, node);
                 return {
@@ -282,10 +286,16 @@ class LuxOSUniverse {
                     genesis: { type: 'unknown', name: 'Unknown' },
                     attributes: { energy_level: 50 },
                     memories: [],
-                    self_awareness: {}
+                    self_awareness: {},
+                    x: Math.random() * 400 - 200,
+                    y: Math.random() * 400 - 200
                 };
             }
         });
+
+        // Zapisz linki z embeddingów
+        this.embeddingLinks = data.links || [];
+        this.embeddingPositions = data.embedding_positions || {};
 
         this.ensureLuxAgent();
         this.updateStats();
@@ -1823,6 +1833,31 @@ class LuxOSUniverse {
     renderEmbeddingSpaceVisualization(embeddingSpace) {
         // Usuń poprzednie elementy
         this.beingsGroup.selectAll("*").remove();
+        this.container.selectAll(".embedding-connections").remove();
+
+        // Renderuj połączenia embeddingów najpierw (żeby były pod bytami)
+        if (this.embeddingLinks && this.embeddingLinks.length > 0) {
+            const connectionGroup = this.container.append("g")
+                .attr("class", "embedding-connections");
+
+            this.embeddingLinks.forEach(link => {
+                const sourceNode = embeddingSpace.entities.find(e => e.soul === link.source);
+                const targetNode = embeddingSpace.entities.find(e => e.soul === link.target);
+
+                if (sourceNode && targetNode) {
+                    connectionGroup.append("line")
+                        .attr("x1", sourceNode.x)
+                        .attr("y1", sourceNode.y)
+                        .attr("x2", targetNode.x)
+                        .attr("y2", targetNode.y)
+                        .attr("stroke", "#00ff88")
+                        .attr("stroke-width", link.strength * 3)
+                        .attr("stroke-opacity", link.strength * 0.6)
+                        .attr("stroke-dasharray", "3,3")
+                        .style("pointer-events", "none");
+                }
+            });
+        }
 
         // Renderuj byty
         const entityGroup = this.beingsGroup.selectAll(".entity")
@@ -1832,63 +1867,124 @@ class LuxOSUniverse {
             .attr("transform", d => `translate(${d.x}, ${d.y})`);
 
         entityGroup.append("circle")
-            .attr("r", 10)
+            .attr("r", d => {
+                // Rozmiar zależy od energii i typu
+                const baseSize = 8;
+                const energyBonus = (d.attributes?.energy_level || 50) / 100;
+                const typeBonus = d.genesis?.type === 'agent' ? 5 : 0;
+                return baseSize + energyBonus * 5 + typeBonus;
+            })
             .attr("fill", d => this.getBeingColor(d))
+            .attr("stroke", "#ffffff")
+            .attr("stroke-width", 1)
             .style("cursor", "pointer")
+            .style("filter", "drop-shadow(0 0 5px currentColor)")
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.selectBeing(d);
+            })
+            .on("mouseover", (event, d) => {
+                // Podświetl połączone byty
+                this.highlightConnectedBeings(d);
+            })
+            .on("mouseout", () => {
+                this.clearHighlights();
             });
 
+        // Dodaj etykiety z nazwami
         entityGroup.append("text")
-            .attr("dy", -15)
+            .attr("dy", -20)
             .attr("text-anchor", "middle")
+            .style("fill", "#ffffff")
+            .style("font-size", "10px")
+            .style("font-weight", "bold")
+            .style("pointer-events", "none")
+            .style("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)")
             .text(d => d.genesis?.name || "Unknown");
 
-        // Renderuj połączenia (jeśli istnieją)
-        // const connectionGroup = this.container.append("g")
-        //     .attr("class", "connections");
+        // Dodaj wskaźnik podobieństwa embeddingu
+        entityGroup.append("circle")
+            .attr("r", d => {
+                const embedding = d.attributes?.embedding;
+                if (embedding) {
+                    // Użyj sumy pierwszych wymiarów jako wskaźnika aktywności
+                    const activity = embedding.slice(0, 5).reduce((a, b) => a + Math.abs(b), 0);
+                    return Math.max(15, Math.min(30, 15 + activity * 3));
+                }
+                return 20;
+            })
+            .attr("fill", "none")
+            .attr("stroke", d => this.getBeingColor(d))
+            .attr("stroke-width", 0.5)
+            .attr("opacity", 0.3)
+            .style("pointer-events", "none");
+    }
 
-        // embeddingSpace.connections.forEach(connection => {
-        //     connectionGroup.append("line")
-        //         .attr("x1", connection.source.x)
-        //         .attr("y1", connection.source.y)
-        //         .attr("x2", connection.target.x)
-        //         .attr("y2", connection.target.y)
-        //         .attr("stroke", "#999")
-        //         .attr("stroke-opacity", 0.6);
-        // });
+    highlightConnectedBeings(selectedBeing) {
+        // Podświetl wszystkie byty połączone z wybranym
+        if (!this.embeddingLinks) return;
+
+        const connectedSouls = this.embeddingLinks
+            .filter(link => link.source === selectedBeing.soul || link.target === selectedBeing.soul)
+            .map(link => link.source === selectedBeing.soul ? link.target : link.source);
+
+        // Zmniejsz opacity wszystkich bytów
+        this.beingsGroup.selectAll(".entity circle")
+            .transition()
+            .duration(200)
+            .attr("opacity", d => {
+                if (d.soul === selectedBeing.soul || connectedSouls.includes(d.soul)) {
+                    return 1.0;
+                }
+                return 0.3;
+            });
+
+        // Podświetl połączenia
+        this.container.selectAll(".embedding-connections line")
+            .transition()
+            .duration(200)
+            .attr("stroke-opacity", link => {
+                // Znajdź dane o linku
+                const linkData = this.embeddingLinks.find(l => 
+                    (l.source === selectedBeing.soul) || (l.target === selectedBeing.soul)
+                );
+                return linkData ? linkData.strength : 0.1;
+            });
+    }
+
+    clearHighlights() {
+        // Przywróć normalny wygląd wszystkich elementów
+        this.beingsGroup.selectAll(".entity circle")
+            .transition()
+            .duration(200)
+            .attr("opacity", 1.0);
+
+        this.container.selectAll(".embedding-connections line")
+            .transition()
+            .duration(200)
+            .attr("stroke-opacity", d => d.strength * 0.6);
     }
 
     startEmbeddingAnimation() {
-        if (this.embeddingAnimationId) {
-            cancelAnimationFrame(this.embeddingAnimationId);
-        }
-
-        const animate = () => {
-            this.updateEmbeddingPositions();
-            this.embeddingAnimationId = requestAnimationFrame(animate);
-        };
-
-        animate();
+        // Statyczne pozycje oparte na embeddingach - bez animacji
+        // Pozycje są wyliczane na serwerze na podstawie embeddingów
+        
+        // Opcjonalnie można dodać subtelne animacje podobieństwa
+        this.startSimilarityPulse();
     }
 
-    updateEmbeddingPositions() {
-        // Symuluj ruch bytów w przestrzeni embeddingów.
-        // Można użyć sił przyciągania/odpychania na podstawie
-        // podobieństwa embeddingów.
-        this.beingsGroup.selectAll(".entity")
-            .each((d, i, nodes) => {
-                // Prosty przykład: losowe przesunięcia
-                d.x += (Math.random() - 0.5) * 2;
-                d.y += (Math.random() - 0.5) * 2;
-
-                // Ogranicz pozycje do obszaru widoku
-                d.x = Math.max(-this.width / 2, Math.min(this.width / 2, d.x));
-                d.y = Math.max(-this.height / 2, Math.min(this.height / 2, d.y));
-
-                d3.select(nodes[i]).attr("transform", `translate(${d.x}, ${d.y})`);
-            });
+    startSimilarityPulse() {
+        // Subtelne pulsowanie dla bytów o wysokim podobieństwie
+        setInterval(() => {
+            this.beingsGroup.selectAll(".entity")
+                .select("circle:last-child") // Zewnętrzny wskaźnik
+                .transition()
+                .duration(2000)
+                .attr("opacity", 0.1)
+                .transition()
+                .duration(2000)
+                .attr("opacity", 0.3);
+        }, 4000);
     }
 }
 
