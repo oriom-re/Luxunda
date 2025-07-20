@@ -509,16 +509,231 @@ class ScenarioBeing(BaseBeing):
         return {'success': True, 'step': step}
 
 @dataclass
-class TaskBeing(BaseBeing):
-    """Byt zadania z asynchronicznym wykonywaniem"""
+class OrbitalTask(BaseBeing):
+    """Byt orbitalny z cyklicznym wykonywaniem i hierarchią"""
 
     def __post_init__(self):
-        if self.genesis.get('type') != 'task':
-            self.genesis['type'] = 'task'
+        if self.genesis.get('type') != 'orbital_task':
+            self.genesis['type'] = 'orbital_task'
+        
+        # Orbital properties
+        if 'orbital_params' not in self.attributes:
+            self.attributes['orbital_params'] = {
+                'parent_soul': None,  # Wokół kogo orbituje
+                'orbital_period': 86400,  # Sekundy (domyślnie 1 dzień)
+                'orbital_radius': 100,
+                'last_cycle_time': 0,
+                'cycle_count': 0
+            }
+        
+        # Task properties
         if 'task_status' not in self.attributes:
             self.attributes['task_status'] = 'pending'
-        if 'async_result' not in self.attributes:
-            self.attributes['async_result'] = None
+        if 'task_queue' not in self.attributes:
+            self.attributes['task_queue'] = []  # Kolejka zadań
+        if 'child_tasks' not in self.attributes:
+            self.attributes['child_tasks'] = []  # Zadania podrzędne
+        if 'task_classification' not in self.attributes:
+            self.attributes['task_classification'] = 'general'  # idea, task, vision, mission, goal
+
+    def set_orbital_params(self, parent_soul: str, period: int, radius: int = 100):
+        """Ustawia parametry orbitalne"""
+        self.attributes['orbital_params'] = {
+            'parent_soul': parent_soul,
+            'orbital_period': period,
+            'orbital_radius': radius,
+            'last_cycle_time': datetime.now().timestamp(),
+            'cycle_count': 0
+        }
+
+    def classify_task(self, message_content: str) -> str:
+        """Klasyfikuje typ zadania na podstawie treści"""
+        content_lower = message_content.lower()
+        
+        if any(word in content_lower for word in ['idea', 'pomysł', 'myślę', 'może']):
+            return 'idea'
+        elif any(word in content_lower for word in ['zrób', 'wykonaj', 'task', 'zadanie']):
+            return 'task'
+        elif any(word in content_lower for word in ['wizja', 'vision', 'przyszłość', 'chcę']):
+            return 'vision'
+        elif any(word in content_lower for word in ['misja', 'mission', 'cel życia']):
+            return 'mission'
+        elif any(word in content_lower for word in ['cel', 'goal', 'osiągnij']):
+            return 'goal'
+        else:
+            return 'general'
+
+    def determine_orbital_period(self, classification: str) -> int:
+        """Określa okres orbitalny na podstawie klasyfikacji"""
+        periods = {
+            'idea': 3600,      # 1 godzina - szybkie pomysły
+            'task': 60,        # 1 minuta - szybkie zadania
+            'vision': 2592000, # 30 dni - długoterminowe wizje
+            'mission': 31536000, # 1 rok - misje życiowe
+            'goal': 86400,     # 1 dzień - cele
+            'general': 3600    # 1 godzina - domyślnie
+        }
+        return periods.get(classification, 3600)
+
+    async def add_to_queue(self, task_data: dict):
+        """Dodaje zadanie do kolejki"""
+        task_item = {
+            'id': str(uuid.uuid4()),
+            'data': task_data,
+            'created_at': datetime.now().isoformat(),
+            'status': 'queued',
+            'needs_clarification': task_data.get('needs_clarification', False)
+        }
+        self.attributes['task_queue'].append(task_item)
+        await self.save()
+
+    async def process_queue(self):
+        """Przetwarza kolejkę zadań"""
+        queue = self.attributes.get('task_queue', [])
+        processed = []
+        
+        for task_item in queue:
+            if task_item['status'] == 'queued':
+                if task_item.get('needs_clarification', False):
+                    # Zadanie czeka na wyjaśnienie - pomiń
+                    continue
+                
+                # Wykonaj zadanie
+                result = await self.execute_queued_task(task_item)
+                task_item['status'] = 'completed' if result['success'] else 'failed'
+                task_item['result'] = result
+                task_item['completed_at'] = datetime.now().isoformat()
+                
+                processed.append(task_item)
+        
+        # Aktualizuj kolejkę
+        self.attributes['task_queue'] = [t for t in queue if t['status'] == 'queued']
+        
+        # Zapisz przetworzone zadania w pamięci
+        for task in processed:
+            self.memories.append({
+                'type': 'task_execution',
+                'task_id': task['id'],
+                'result': task['result'],
+                'timestamp': task['completed_at']
+            })
+        
+        await self.save()
+        return processed
+
+    async def execute_queued_task(self, task_item: dict) -> dict:
+        """Wykonuje zadanie z kolejki"""
+        try:
+            # Symulacja wykonania zadania
+            await asyncio.sleep(0.1)
+            
+            # Sprawdź czy zadanie może wygenerować subtask
+            if 'generate_subtasks' in task_item['data']:
+                await self.generate_subtasks(task_item)
+            
+            return {
+                'success': True,
+                'result': f"Zadanie {task_item['id']} wykonane",
+                'output': 'Task completed successfully'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'result': None
+            }
+
+    async def generate_subtasks(self, parent_task: dict):
+        """Generuje zadania podrzędne"""
+        # Utwórz subtask jako nowy OrbitalTask
+        subtask = await OrbitalTask.create(
+            genesis={
+                'type': 'orbital_task',
+                'name': f"Subtask of {self.genesis.get('name', 'Unknown')}",
+                'parent_task_id': parent_task['id'],
+                'description': f"Podzadanie wygenerowane przez {self.soul}"
+            },
+            attributes={
+                'task_classification': 'task',
+                'orbital_params': {
+                    'parent_soul': self.soul,
+                    'orbital_period': 300,  # 5 minut
+                    'orbital_radius': 50
+                }
+            }
+        )
+        
+        # Dodaj do listy dzieci
+        self.attributes['child_tasks'].append(subtask.soul)
+        await self.save()
+
+    async def orbital_cycle_check(self) -> bool:
+        """Sprawdza czy nadszedł czas na raport cyklu orbitalnego"""
+        orbital_params = self.attributes.get('orbital_params', {})
+        period = orbital_params.get('orbital_period', 3600)
+        last_cycle = orbital_params.get('last_cycle_time', 0)
+        
+        current_time = datetime.now().timestamp()
+        
+        if current_time - last_cycle >= period:
+            return True
+        return False
+
+    async def execute_orbital_cycle(self):
+        """Wykonuje pełny cykl orbitalny - raport do rodzica"""
+        # Przetwórz kolejkę zadań
+        processed_tasks = await self.process_queue()
+        
+        # Przygotuj raport
+        report = {
+            'cycle_count': self.attributes['orbital_params']['cycle_count'] + 1,
+            'processed_tasks': len(processed_tasks),
+            'queue_size': len(self.attributes.get('task_queue', [])),
+            'child_tasks': len(self.attributes.get('child_tasks', [])),
+            'timestamp': datetime.now().isoformat(),
+            'status': self.attributes.get('task_status', 'unknown')
+        }
+        
+        # Aktualizuj parametry orbitalne
+        self.attributes['orbital_params']['last_cycle_time'] = datetime.now().timestamp()
+        self.attributes['orbital_params']['cycle_count'] += 1
+        
+        # Zapisz raport w pamięci
+        self.memories.append({
+            'type': 'orbital_cycle',
+            'report': report,
+            'timestamp': report['timestamp']
+        })
+        
+        await self.save()
+        
+        # Wyślij raport do rodzica jeśli istnieje
+        parent_soul = self.attributes['orbital_params'].get('parent_soul')
+        if parent_soul:
+            await self.send_report_to_parent(parent_soul, report)
+        
+        return report
+
+    async def send_report_to_parent(self, parent_soul: str, report: dict):
+        """Wysyła raport do bytu rodzica"""
+        parent = await BaseBeing.load(parent_soul)
+        if parent and hasattr(parent, 'receive_child_report'):
+            await parent.receive_child_report(self.soul, report)
+
+    async def receive_child_report(self, child_soul: str, report: dict):
+        """Odbiera raport od dziecka"""
+        self.memories.append({
+            'type': 'child_report',
+            'child_soul': child_soul,
+            'report': report,
+            'timestamp': datetime.now().isoformat()
+        })
+        await self.save()
+
+@dataclass
+class TaskBeing(OrbitalTask):
+    """Kompatybilność wsteczna - TaskBeing dziedzicy po OrbitalTask"""
+    pass
 
     async def execute_async(self, delay: float = 1.0) -> str:
         """Wykonuje zadanie asynchronicznie"""
@@ -1100,40 +1315,205 @@ async def update_being(sid, data):
     except Exception as e:
         await sio.emit('error', {'message': str(e)}, room=sid)
 
-@sio.event
-async def process_intention(sid, data):
-    """Przetwarza intencję użytkownika"""
-    try:
-        intention = data.get('intention', '').lower()
-        context = data.get('context', {})
+class LuxCommunicationHandler:
+    """Handler komunikacji z Lux - analiza wiadomości i tworzenie orbital tasks"""
+    
+    @staticmethod
+    async def get_user_lux(user_id: str) -> BaseBeing:
+        """Pobiera lub tworzy Lux towarzysza dla użytkownika"""
+        # Sprawdź czy istnieje Lux dla tego użytkownika
+        beings = await BaseBeing.get_all()
+        user_lux = None
+        
+        for being in beings:
+            if (being.genesis.get('type') == 'agent' and 
+                being.genesis.get('lux_identifier') == f'lux-companion-{user_id}'):
+                user_lux = being
+                break
+        
+        if not user_lux:
+            # Utwórz nowego Lux towarzysza
+            user_lux = await BaseBeing.create(
+                genesis={
+                    'type': 'agent',
+                    'name': f'Lux Companion for {user_id}',
+                    'lux_identifier': f'lux-companion-{user_id}',
+                    'description': f'Towarzysz Lux dla użytkownika {user_id}'
+                },
+                attributes={
+                    'energy_level': 800,
+                    'agent_level': 8,
+                    'user_id': user_id,
+                    'companion_role': 'user_assistant',
+                    'tags': ['agent', 'lux', 'companion']
+                },
+                self_awareness={
+                    'trust_level': 0.9,
+                    'confidence': 0.8,
+                    'introspection_depth': 0.7
+                }
+            )
+        
+        return user_lux
 
-        print(f"Otrzymano intencję od {sid}: {intention}")
+    @staticmethod
+    async def analyze_message_embeddings(message: str, user_lux: BaseBeing) -> dict:
+        """Analizuje podobieństwo wiadomości do istniejących bytów"""
+        # Prosta analiza na podstawie słów kluczowych
+        # W przyszłości można dodać prawdziwe embeddingi
+        
+        beings = await BaseBeing.get_all()
+        similarities = []
+        
+        message_words = set(message.lower().split())
+        
+        for being in beings:
+            if being.soul == user_lux.soul:
+                continue
+                
+            # Sprawdź podobieństwo w nazwach i opisach
+            being_text = f"{being.genesis.get('name', '')} {being.genesis.get('description', '')}"
+            being_words = set(being_text.lower().split())
+            
+            # Prosta metryka podobieństwa - wspólne słowa
+            common_words = message_words.intersection(being_words)
+            similarity = len(common_words) / max(len(message_words), 1)
+            
+            if similarity > 0.1:  # Próg podobieństwa
+                similarities.append({
+                    'being_soul': being.soul,
+                    'similarity': similarity,
+                    'common_words': list(common_words),
+                    'being_name': being.genesis.get('name', 'Unknown')
+                })
+        
+        # Sortuj według podobieństwa
+        similarities.sort(key=lambda x: x['similarity'], reverse=True)
+        
+        return {
+            'similar_beings': similarities[:5],  # Top 5
+            'analysis': {
+                'total_beings_checked': len(beings),
+                'found_similarities': len(similarities)
+            }
+        }
 
-        # Utwórz duszę dla otrzymanej intencji
-        intention_soul = await Soul.create(
-            content=intention,
-            sender=sid,
-            context=context,
-            message_type='intention',
+    @staticmethod
+    async def process_message(user_id: str, message: str, context: dict = None) -> dict:
+        """Główna funkcja przetwarzania wiadomości"""
+        # 1. Pobierz Lux towarzysza użytkownika
+        user_lux = await LuxCommunicationHandler.get_user_lux(user_id)
+        
+        # 2. Utwórz duszę dla wiadomości
+        message_soul = await Soul.create(
+            content=message,
+            sender=user_id,
+            lux_companion=user_lux.soul,
+            context=context or {},
+            message_type='user_message',
             timestamp=datetime.now().isoformat()
         )
+        
+        # 3. Stwórz relację między Lux a duszą wiadomości
+        await SoulRelation.create(
+            being_soul=user_lux.soul,
+            soul_id=message_soul.id,
+            interpretation={'type': 'user_message', 'analyzed': False},
+            emotional_response=0.5,  # Neutralna reakcja na start
+            relevance=0.8  # Wysokа relevance dla wiadomości użytkownika
+        )
+        
+        # 4. Analizuj podobieństwa do istniejących bytów
+        similarity_analysis = await LuxCommunicationHandler.analyze_message_embeddings(message, user_lux)
+        
+        # 5. Utwórz OrbitalTask na podstawie wiadomości
+        orbital_task = OrbitalTask()
+        classification = orbital_task.classify_task(message)
+        orbital_period = orbital_task.determine_orbital_period(classification)
+        
+        # 6. Utwórz orbital task jako byt
+        task_being = await OrbitalTask.create(
+            genesis={
+                'type': 'orbital_task',
+                'name': f"Task: {message[:50]}...",
+                'description': message,
+                'source_message_soul': message_soul.id,
+                'created_by': 'lux_analysis'
+            },
+            attributes={
+                'task_classification': classification,
+                'orbital_params': {
+                    'parent_soul': user_lux.soul,  # Orbituje wokół Lux towarzysza
+                    'orbital_period': orbital_period,
+                    'orbital_radius': 100 + len(message),  # Radius based on message length
+                    'last_cycle_time': datetime.now().timestamp(),
+                    'cycle_count': 0
+                },
+                'user_id': user_id,
+                'source_message': message,
+                'tags': ['orbital_task', classification, 'user_generated']
+            },
+            memories=[{
+                'type': 'creation_from_message',
+                'message_soul': message_soul.id,
+                'user_id': user_id,
+                'classification': classification,
+                'timestamp': datetime.now().isoformat()
+            }],
+            self_awareness={
+                'trust_level': 0.7,
+                'confidence': 0.6,
+                'purpose': f'Execute {classification} task for user'
+            }
+        )
+        
+        # 7. Uruchom pierwszy cykl analizy
+        if similarity_analysis['similar_beings']:
+            await task_being.add_to_queue({
+                'type': 'analyze_similarities',
+                'similar_beings': similarity_analysis['similar_beings'],
+                'needs_clarification': False
+            })
+        
+        return {
+            'success': True,
+            'user_lux_soul': user_lux.soul,
+            'message_soul_id': message_soul.id,
+            'task_being_soul': task_being.soul,
+            'classification': classification,
+            'orbital_period': orbital_period,
+            'similarity_analysis': similarity_analysis,
+            'lux_response': f"Lux analizuje twoją {classification}. Umieszczam ją na orbicie z cyklem {orbital_period} sekund."
+        }
 
-        # Przetwórz intencję
-        response = await analyze_intention(intention, context)
-
-        # Dodaj informację o duszy do odpowiedzi
-        response['intention_soul_id'] = intention_soul.id
-
-        print(f"Odpowiedź na intencję: {response}")
-
-        await sio.emit('intention_response', response, room=sid)
-
+@sio.event
+async def lux_communication(sid, data):
+    """Nowy endpoint dla komunikacji z Lux"""
+    try:
+        message = data.get('message', '')
+        context = data.get('context', {})
+        
+        print(f"Lux communication od {sid}: {message}")
+        
+        # Przetwórz przez nowy system
+        result = await LuxCommunicationHandler.process_message(sid, message, context)
+        
+        print(f"Lux response: {result}")
+        
+        await sio.emit('lux_analysis_response', result, room=sid)
+        
         # Wyślij aktualizację grafu
         await broadcast_graph_update()
-
+        
     except Exception as e:
-        print(f"Błąd przetwarzania intencji: {e}")
-        await sio.emit('error', {'message': f'Błąd przetwarzania intencji: {str(e)}'}, room=sid)
+        print(f"Błąd w lux_communication: {e}")
+        await sio.emit('error', {'message': f'Błąd komunikacji z Lux: {str(e)}'}, room=sid)
+
+@sio.event
+async def process_intention(sid, data):
+    """Przetwarza intencję użytkownika - kompatybilność wsteczna"""
+    # Przekieruj do nowego systemu
+    await lux_communication(sid, {'message': data.get('intention', ''), 'context': data.get('context', {})})
 
 @sio.event
 async def register_function(sid, data):
@@ -1695,13 +2075,105 @@ async def init_app():
 
     await init_database()
 
+class OrbitalCycleManager:
+    """Menedżer cykli orbitalnych - zarządza wykonywaniem zadań"""
+    
+    def __init__(self):
+        self.running = False
+        self.cycle_task = None
+    
+    async def start(self):
+        """Uruchamia menedżera cykli"""
+        if self.running:
+            return
+        
+        self.running = True
+        self.cycle_task = asyncio.create_task(self.cycle_loop())
+        print("🌍 Orbital Cycle Manager uruchomiony")
+    
+    async def stop(self):
+        """Zatrzymuje menedżera cykli"""
+        self.running = False
+        if self.cycle_task:
+            self.cycle_task.cancel()
+            try:
+                await self.cycle_task
+            except asyncio.CancelledError:
+                pass
+        print("🌍 Orbital Cycle Manager zatrzymany")
+    
+    async def cycle_loop(self):
+        """Główna pętla sprawdzająca cykle orbitalne"""
+        while self.running:
+            try:
+                await self.check_and_execute_cycles()
+                await asyncio.sleep(10)  # Sprawdzaj co 10 sekund
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Błąd w cycle_loop: {e}")
+                await asyncio.sleep(30)  # Długższa pauza przy błędzie
+    
+    async def check_and_execute_cycles(self):
+        """Sprawdza i wykonuje gotowe cykle orbitalne"""
+        try:
+            # Pobierz wszystkie OrbitalTask byty
+            beings = await BaseBeing.get_all()
+            orbital_tasks = [b for b in beings if b.genesis.get('type') == 'orbital_task']
+            
+            executed_cycles = 0
+            
+            for task in orbital_tasks:
+                # Sprawdź czy to rzeczywiście OrbitalTask
+                if 'orbital_params' not in task.attributes:
+                    continue
+                
+                # Przekształć do OrbitalTask (duck typing)
+                orbital_task = OrbitalTask(
+                    soul=task.soul,
+                    genesis=task.genesis,
+                    attributes=task.attributes,
+                    memories=task.memories,
+                    self_awareness=task.self_awareness,
+                    created_at=task.created_at
+                )
+                
+                # Sprawdź czy nadszedł czas na cykl
+                if await orbital_task.orbital_cycle_check():
+                    print(f"🔄 Wykonuję cykl orbitalny dla: {orbital_task.genesis.get('name', 'Unknown')}")
+                    
+                    # Wykonaj cykl
+                    report = await orbital_task.execute_orbital_cycle()
+                    executed_cycles += 1
+                    
+                    # Wyślij informację do frontend (jeśli potrzeba)
+                    await sio.emit('orbital_cycle_completed', {
+                        'task_soul': orbital_task.soul,
+                        'task_name': orbital_task.genesis.get('name', 'Unknown'),
+                        'report': report
+                    })
+            
+            if executed_cycles > 0:
+                print(f"✅ Wykonano {executed_cycles} cykli orbitalnych")
+                
+        except Exception as e:
+            print(f"Błąd w check_and_execute_cycles: {e}")
+
+# Globalny menedżer cykli
+orbital_manager = OrbitalCycleManager()
+
 async def main():
     await init_app()
+    
+    # Uruchom menedżera cykli orbitalnych
+    await orbital_manager.start()
+    
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 8000)
     await site.start()
     print("Serwer uruchomiony na http://0.0.0.0:8000")
+    print("🌍 System orbital z hierarchią zadań aktywny!")
 
     # Trzymaj serwer żywy
     try:
@@ -1709,6 +2181,7 @@ async def main():
     except KeyboardInterrupt:
         pass
     finally:
+        await orbital_manager.stop()
         await runner.cleanup()
 
 class BeingFactory:
@@ -1720,6 +2193,7 @@ class BeingFactory:
         'data': DataBeing,
         'scenario': ScenarioBeing,
         'task': TaskBeing,
+        'orbital_task': OrbitalTask,
         'component': ComponentBeing,
         'binary': BinaryBeing,
         'base': BaseBeing
