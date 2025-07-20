@@ -785,6 +785,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
 
 async def get_graph_data():
     """Pobiera dane grafu do zwrócenia"""
+    global db_pool
     try:
         beings = await BaseBeing.get_all()
         relationships = await Relationship.get_all()
@@ -803,6 +804,7 @@ async def get_graph_data():
 
 async def send_graph_data(sid):
     """Wysyła dane grafu do konkretnego klienta"""
+    global db_pool
     try:
         graph_data = await get_graph_data()
         await sio.emit('graph_data', graph_data, room=sid)
@@ -812,6 +814,7 @@ async def send_graph_data(sid):
 
 async def broadcast_graph_update():
     """Rozgłasza aktualizację grafu do wszystkich klientów"""
+    global db_pool
     try:
         beings = await BaseBeing.get_all()
         relationships = await Relationship.get_all()
