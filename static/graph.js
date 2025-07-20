@@ -450,105 +450,497 @@ class LuxOSUniverse {
     }
 
     renderBeings() {
-        // Limit do 50 bytów dla wydajności
-        const visibleBeings = this.beings.slice(0, 50);
+        // Galaktyczna wizualizacja - grupuj byty w systemy
+        const galacticSystems = this.organizeIntoGalacticSystems(this.beings);
         
-        // Najpierw narysuj orbitę dla głównej intencji (cienka, prawie przezroczysta)
-        this.drawMainIntentionOrbit();
+        // Renderuj ramiona spiralne galaktyki
+        this.drawGalacticSpirals(galacticSystems);
         
+        // Renderuj systemy planetarne
+        this.renderPlanetarySystems(galacticSystems);
+        
+        // Uruchom animacje orbitalne
+        this.startGalacticAnimation();
+    }
+
+    organizeIntoGalacticSystems(beings) {
+        const systems = {
+            projects: new Map(),
+            orbital_tasks: [],
+            intentions: [],
+            standalone: []
+        };
+
+        beings.forEach(being => {
+            const type = being.genesis?.type;
+            const parentConcept = being.attributes?.parent_concept;
+            const userId = being.attributes?.user_id;
+
+            if (parentConcept) {
+                // Należy do projektu nadrzędnego
+                if (!systems.projects.has(parentConcept)) {
+                    systems.projects.set(parentConcept, {
+                        parent: null,
+                        children: [],
+                        orbital_period: null,
+                        user_id: userId
+                    });
+                }
+                systems.projects.get(parentConcept).children.push(being);
+            } else if (type === 'orbital_task') {
+                systems.orbital_tasks.push(being);
+            } else if (type === 'message' && being.attributes?.metadata?.is_main_intention) {
+                systems.intentions.push(being);
+            } else if (!this.isLuxAgent(being)) {
+                systems.standalone.push(being);
+            }
+        });
+
+        // Znajdź projekty nadrzędne
+        systems.projects.forEach((system, projectId) => {
+            const parent = beings.find(b => b.soul === projectId);
+            if (parent) {
+                system.parent = parent;
+                system.orbital_period = this.calculateProjectOrbitalPeriod(system);
+            }
+        });
+
+        return systems;
+    }
+
+    calculateProjectOrbitalPeriod(system) {
+        // Określ okres orbitalny projektu na podstawie jego zawartości
+        const childTypes = system.children.map(c => c.genesis?.type);
+        const hasLongTerm = childTypes.some(t => ['vision', 'mission'].includes(t));
+        const hasShortTerm = childTypes.some(t => ['task', 'idea'].includes(t));
+        
+        if (hasLongTerm && hasShortTerm) return 'mixed';
+        if (hasLongTerm) return 'long';
+        return 'short';
+    }
+
+    drawGalacticSpirals(systems) {
+        // Usuń poprzednie spirale
+        this.orbitsGroup.selectAll(".galactic-spiral").remove();
+        
+        const spiralCount = Math.max(2, Math.min(6, systems.projects.size));
+        const angleStep = (2 * Math.PI) / spiralCount;
+        
+        for (let i = 0; i < spiralCount; i++) {
+            this.drawSpiralArm(i * angleStep, 300, 800);
+        }
+    }
+
+    drawSpiralArm(startAngle, innerRadius, outerRadius) {
+        const points = [];
+        const steps = 100;
+        const spiralTightness = 0.5;
+        
+        for (let i = 0; i <= steps; i++) {
+            const progress = i / steps;
+            const angle = startAngle + progress * 4 * Math.PI * spiralTightness;
+            const radius = innerRadius + progress * (outerRadius - innerRadius);
+            
+            points.push([
+                Math.cos(angle) * radius,
+                Math.sin(angle) * radius
+            ]);
+        }
+        
+        const line = d3.line()
+            .x(d => d[0])
+            .y(d => d[1])
+            .curve(d3.curveCardinal);
+        
+        this.orbitsGroup.append("path")
+            .attr("class", "galactic-spiral")
+            .attr("d", line(points))
+            .attr("fill", "none")
+            .attr("stroke", "#003366")
+            .attr("stroke-width", 2)
+            .attr("opacity", 0.3)
+            .style("pointer-events", "none");
+    }
+
+    renderPlanetarySystems(systems) {
+        // Renderuj Lux jako centrum galaktyki
+        this.renderGalacticCenter();
+        
+        // Renderuj projekty jako systemy planetarne na różnych orbitach
+        let projectIndex = 0;
+        systems.projects.forEach((system, projectId) => {
+            this.renderPlanetarySystem(system, projectIndex);
+            projectIndex++;
+        });
+        
+        // Renderuj samodzielne zadania orbitalne
+        systems.orbital_tasks.forEach((task, index) => {
+            this.renderOrbitalTask(task, index);
+        });
+        
+        // Renderuj intencje
+        systems.intentions.forEach((intention, index) => {
+            this.renderIntention(intention, index);
+        });
+        
+        // Renderuj samodzielne byty
+        systems.standalone.forEach((being, index) => {
+            this.renderStandaloneBeing(being, index);
+        });
+    }
+
+    renderGalacticCenter() {
+        const luxBeing = this.beings.find(b => this.isLuxAgent(b));
+        if (!luxBeing) return;
+
         this.beingSelection = this.beingsGroup
-            .selectAll(".being")
-            .data(visibleBeings, d => d.soul)
+            .selectAll(".galactic-center")
+            .data([luxBeing])
             .join("g")
-            .attr("class", d => `being ${this.isLuxAgent(d) ? 'lux-agent' : d.genesis?.type || 'unknown'}`)
+            .attr("class", "galactic-center lux-agent")
             .style("cursor", "pointer")
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.selectBeing(d);
             });
 
-        // Usuń poprzednie elementy tylko jeśli konieczne
         this.beingSelection.selectAll("*").remove();
 
-        // Uruchom ciągłą animację orbit
-        this.startOrbitalAnimation();
+        // Renderuj jako masywną gwiazdę centralną
+        this.beingSelection.append("circle")
+            .attr("r", 50)
+            .attr("fill", "url(#luxStar)")
+            .style("filter", "url(#glow)");
 
-        // Renderuj Lux jako centralną gwiazdę (bez żółtego pierścienia)
-        this.beingSelection.filter(d => this.isLuxAgent(d))
-            .each(function(d) {
-                const being = d3.select(this);
+        // Dodaj pulsującą aurę
+        this.beingSelection.append("circle")
+            .attr("r", 80)
+            .attr("fill", "none")
+            .attr("stroke", "#ffdd00")
+            .attr("stroke-width", 2)
+            .attr("opacity", 0.4)
+            .style("pointer-events", "none");
+    }
 
-                // Główna gwiazda - bez dodatkowego pierścienia
-                being.append("circle")
-                    .attr("r", 40)
-                    .attr("fill", "url(#luxStar)")
-                    .style("filter", "url(#glow)");
+    renderPlanetarySystem(system, systemIndex) {
+        if (!system.parent) return;
+
+        const orbitRadius = 150 + systemIndex * 120;
+        const angleOffset = systemIndex * (2 * Math.PI / Math.max(1, this.beings.length / 5));
+        
+        // Narysuj orbitę systemu
+        this.orbitsGroup.append("circle")
+            .attr("class", "planetary-orbit")
+            .attr("cx", 0)
+            .attr("cy", 0)
+            .attr("r", orbitRadius)
+            .attr("fill", "none")
+            .attr("stroke", this.getSystemColor(system.orbital_period))
+            .attr("stroke-width", 1.5)
+            .attr("stroke-dasharray", "10,5")
+            .attr("opacity", 0.4)
+            .style("pointer-events", "none");
+
+        // Renderuj projekt nadrzędny jako planetę centralną
+        const projectGroup = this.beingsGroup.append("g")
+            .attr("class", "planetary-system")
+            .attr("data-system-index", systemIndex)
+            .style("cursor", "pointer")
+            .on("click", (event) => {
+                event.stopPropagation();
+                this.selectBeing(system.parent);
             });
 
-        // Wiadomości nie są renderowane - tylko na żądanie
+        const projectSize = 25 + system.children.length * 2;
+        projectGroup.append("circle")
+            .attr("r", projectSize)
+            .attr("fill", this.getBeingColor(system.parent))
+            .attr("stroke", "#ffffff")
+            .attr("stroke-width", 2)
+            .style("filter", "url(#glow)");
 
-        // Renderuj główną intencję LuxOS jako specjalny byt
-        this.beingSelection.filter(d => d.soul === '11111111-1111-1111-1111-111111111111' || 
-                                     (d.genesis?.type === 'message' && d.attributes?.metadata?.is_main_intention))
-            .each(function(d) {
-                const being = d3.select(this);
+        // Renderuj dzieci jako księżyce
+        system.children.forEach((child, childIndex) => {
+            this.renderMoon(projectGroup, child, childIndex, projectSize + 15);
+        });
 
-                // Główne ciało intencji - większe i bardziej widoczne
-                being.append("circle")
-                    .attr("r", 12)
-                    .attr("fill", "#00ff88")
-                    .attr("stroke", "#ffffff")
-                    .attr("stroke-width", 2)
-                    .style("filter", "url(#glow)")
-                    .style("opacity", 1);
+        // Dodaj etykietę systemu
+        projectGroup.append("text")
+            .attr("class", "system-label")
+            .attr("dy", -projectSize - 10)
+            .style("text-anchor", "middle")
+            .style("fill", "#ffffff")
+            .style("font-size", "12px")
+            .style("font-weight", "bold")
+            .style("pointer-events", "none")
+            .text(system.parent.genesis?.name || 'System');
+    }
 
-                // Dodatkowy pierścień dla lepszej widoczności
-                being.append("circle")
-                    .attr("r", 16)
-                    .attr("fill", "none")
-                    .attr("stroke", "#00ff88")
-                    .attr("stroke-width", 1)
-                    .attr("opacity", 0.4);
+    renderMoon(parentGroup, moon, moonIndex, orbitRadius) {
+        const moonAngle = (moonIndex / Math.max(1, parentGroup.selectAll('.moon').size())) * 2 * Math.PI;
+        const moonGroup = parentGroup.append("g")
+            .attr("class", "moon")
+            .attr("data-moon-index", moonIndex);
 
-                // Etykieta zawsze widoczna
-                being.append("text")
-                    .attr("class", "being-label")
-                    .attr("dy", 25)
-                    .style("text-anchor", "middle")
-                    .style("fill", "#00ff88")
-                    .style("font-size", "10px")
-                    .style("font-weight", "bold")
-                    .style("pointer-events", "none")
-                    .text("LuxOS Intention");
+        const moonSize = Math.max(3, Math.min(12, (moon.attributes?.energy_level || 50) / 8));
+        moonGroup.append("circle")
+            .attr("r", moonSize)
+            .attr("fill", this.getBeingColor(moon))
+            .attr("stroke", "#cccccc")
+            .attr("stroke-width", 1)
+            .style("opacity", 0.8);
+
+        // Dodaj orbitę księżyca
+        parentGroup.append("circle")
+            .attr("class", "moon-orbit")
+            .attr("r", orbitRadius)
+            .attr("fill", "none")
+            .attr("stroke", "#444444")
+            .attr("stroke-width", 0.5)
+            .attr("opacity", 0.2)
+            .style("pointer-events", "none");
+    }
+
+    renderOrbitalTask(task, index) {
+        const orbitRadius = 80 + index * 20;
+        const classification = task.attributes?.task_classification || 'general';
+        
+        // Renderuj jako kometę z ogonem
+        const cometGroup = this.beingsGroup.append("g")
+            .attr("class", "orbital-task comet")
+            .attr("data-task-index", index)
+            .style("cursor", "pointer")
+            .on("click", (event) => {
+                event.stopPropagation();
+                this.selectBeing(task);
             });
 
-        // Renderuj pozostałe byty jako planety/komety
-        const self = this;
-        this.beingSelection.filter(d => !this.isLuxAgent(d) && d.genesis?.type !== 'message' && d.soul !== '11111111-1111-1111-1111-111111111111')
-            .each(function(d) {
-                const being = d3.select(this);
-                const energySize = Math.max(5, Math.min(25, (d.attributes?.energy_level || 50) / 4));
+        // Główne ciało komety
+        const cometSize = this.getCometSize(classification);
+        cometGroup.append("circle")
+            .attr("r", cometSize)
+            .attr("fill", this.getCometColor(classification))
+            .attr("stroke", "#ffffff")
+            .attr("stroke-width", 1)
+            .style("filter", "url(#glow)");
 
-                // Główne ciało
-                being.append("circle")
-                    .attr("r", energySize)
-                    .attr("fill", self.getBeingColor ? self.getBeingColor(d) : '#666666')
-                    .attr("stroke", "#ffffff")
-                    .attr("stroke-width", 1)
-                    .style("filter", d.attributes?.energy_level > 80 ? "url(#glow)" : null);
+        // Ogon komety
+        this.addCometTail(cometGroup, cometSize);
+        
+        // Narysuj orbitę
+        this.orbitsGroup.append("circle")
+            .attr("class", "task-orbit")
+            .attr("cx", 0)
+            .attr("cy", 0)
+            .attr("r", orbitRadius)
+            .attr("fill", "none")
+            .attr("stroke", this.getCometColor(classification))
+            .attr("stroke-width", 1)
+            .attr("stroke-dasharray", "5,3")
+            .attr("opacity", 0.3)
+            .style("pointer-events", "none");
+    }
 
-                // Etykieta (tylko przy odpowiednim zoomie)
-                if (self.zoomLevel > 2) {
-                    being.append("text")
-                        .attr("class", "being-label")
-                        .attr("dy", energySize + 15)
-                        .style("text-anchor", "middle")
-                        .style("fill", "white")
-                        .style("font-size", "10px")
-                        .style("pointer-events", "none")
-                        .text(d.genesis?.name || d.soul?.slice(0, 8) || 'Being');
-                }
+    getCometSize(classification) {
+        const sizes = {
+            'idea': 6,
+            'task': 8,
+            'vision': 15,
+            'mission': 20,
+            'goal': 12,
+            'general': 8
+        };
+        return sizes[classification] || 8;
+    }
+
+    getCometColor(classification) {
+        const colors = {
+            'idea': '#ffee58',     // Żółty - szybkie pomysły
+            'task': '#42a5f5',     // Niebieski - zadania
+            'vision': '#ab47bc',   // Fioletowy - wizje
+            'mission': '#ef5350',  // Czerwony - misje
+            'goal': '#66bb6a',     // Zielony - cele
+            'general': '#78909c'   // Szary - ogólne
+        };
+        return colors[classification] || '#78909c';
+    }
+
+    addCometTail(cometGroup, cometSize) {
+        const tailLength = cometSize * 3;
+        const tailPoints = [];
+        
+        for (let i = 0; i < 5; i++) {
+            tailPoints.push([
+                -tailLength + i * (tailLength / 5),
+                (Math.random() - 0.5) * cometSize
+            ]);
+        }
+        
+        const line = d3.line()
+            .x(d => d[0])
+            .y(d => d[1])
+            .curve(d3.curveCardinal);
+        
+        cometGroup.append("path")
+            .attr("d", line(tailPoints))
+            .attr("fill", "none")
+            .attr("stroke", "#ffffff")
+            .attr("stroke-width", 2)
+            .attr("opacity", 0.5)
+            .style("pointer-events", "none");
+    }
+
+    renderIntention(intention, index) {
+        // Renderuj jako pulsującą gwiazdę na bliskiej orbicie
+        const orbitRadius = 60;
+        
+        const intentionGroup = this.beingsGroup.append("g")
+            .attr("class", "intention")
+            .attr("data-intention-index", index)
+            .style("cursor", "pointer")
+            .on("click", (event) => {
+                event.stopPropagation();
+                this.selectBeing(intention);
             });
+
+        intentionGroup.append("circle")
+            .attr("r", 15)
+            .attr("fill", "#00ff88")
+            .attr("stroke", "#ffffff")
+            .attr("stroke-width", 2)
+            .style("filter", "url(#glow)");
+
+        // Dodaj pulsujący efekt
+        intentionGroup.append("circle")
+            .attr("r", 20)
+            .attr("fill", "none")
+            .attr("stroke", "#00ff88")
+            .attr("stroke-width", 1)
+            .attr("opacity", 0.6)
+            .style("pointer-events", "none");
+    }
+
+    renderStandaloneBeing(being, index) {
+        // Renderuj jako asteroidy na zewnętrznych orbitach
+        const orbitRadius = 400 + index * 30;
+        
+        const asteroidGroup = this.beingsGroup.append("g")
+            .attr("class", "standalone-being asteroid")
+            .attr("data-asteroid-index", index)
+            .style("cursor", "pointer")
+            .on("click", (event) => {
+                event.stopPropagation();
+                this.selectBeing(being);
+            });
+
+        const size = Math.max(4, Math.min(12, (being.attributes?.energy_level || 30) / 6));
+        asteroidGroup.append("circle")
+            .attr("r", size)
+            .attr("fill", this.getBeingColor(being))
+            .attr("stroke", "#666666")
+            .attr("stroke-width", 1)
+            .style("opacity", 0.7);
+    }
+
+    getSystemColor(orbitalPeriod) {
+        const colors = {
+            'short': '#42a5f5',    // Niebieski - krótkie cykle
+            'long': '#ef5350',     // Czerwony - długie cykle  
+            'mixed': '#ab47bc'     // Fioletowy - mieszane
+        };
+        return colors[orbitalPeriod] || '#78909c';
+    }
+
+    startGalacticAnimation() {
+        if (this.orbitalAnimationId) {
+            cancelAnimationFrame(this.orbitalAnimationId);
+        }
+
+        let lastTime = 0;
+        const targetFPS = 30;
+        const interval = 1000 / targetFPS;
+
+        const animate = (currentTime) => {
+            if (currentTime - lastTime >= interval) {
+                this.updateGalacticPositions(currentTime * 0.001);
+                lastTime = currentTime;
+            }
+            this.orbitalAnimationId = requestAnimationFrame(animate);
+        };
+
+        animate(0);
+    }
+
+    updateGalacticPositions(time) {
+        // Animuj systemy planetarne
+        this.beingsGroup.selectAll(".planetary-system")
+            .attr("transform", (d, i) => {
+                const systemIndex = parseInt(d3.select(this).attr("data-system-index"));
+                const orbitRadius = 150 + systemIndex * 120;
+                const speed = 0.1 / (systemIndex + 1); // Zewnętrzne systemy wolniejsze
+                const angle = time * speed + systemIndex * (2 * Math.PI / 5);
+                
+                const x = Math.cos(angle) * orbitRadius;
+                const y = Math.sin(angle) * orbitRadius;
+                return `translate(${x}, ${y})`;
+            });
+
+        // Animuj księżyce wokół planet
+        this.beingsGroup.selectAll(".moon")
+            .attr("transform", function(d, i) {
+                const moonIndex = parseInt(d3.select(this).attr("data-moon-index"));
+                const moonOrbitRadius = 40;
+                const moonSpeed = 2; // Księżyce szybsze
+                const moonAngle = time * moonSpeed + moonIndex * (2 * Math.PI / 3);
+                
+                const x = Math.cos(moonAngle) * moonOrbitRadius;
+                const y = Math.sin(moonAngle) * moonOrbitRadius;
+                return `translate(${x}, ${y})`;
+            });
+
+        // Animuj komety (zadania orbitalne)
+        this.beingsGroup.selectAll(".orbital-task")
+            .attr("transform", function(d, i) {
+                const taskIndex = parseInt(d3.select(this).attr("data-task-index"));
+                const orbitRadius = 80 + taskIndex * 20;
+                const speed = 1.5; // Komety szybkie
+                const angle = time * speed + taskIndex * (2 * Math.PI / 4);
+                
+                const x = Math.cos(angle) * orbitRadius;
+                const y = Math.sin(angle) * orbitRadius;
+                return `translate(${x}, ${y}) rotate(${angle * 180 / Math.PI})`;
+            });
+
+        // Animuj intencje
+        this.beingsGroup.selectAll(".intention")
+            .attr("transform", function(d, i) {
+                const intentionIndex = parseInt(d3.select(this).attr("data-intention-index"));
+                const orbitRadius = 60;
+                const speed = 3; // Intencje bardzo szybkie
+                const angle = time * speed + intentionIndex * Math.PI;
+                
+                const x = Math.cos(angle) * orbitRadius;
+                const y = Math.sin(angle) * orbitRadius;
+                return `translate(${x}, ${y})`;
+            });
+
+        // Animuj asteroidy
+        this.beingsGroup.selectAll(".asteroid")
+            .attr("transform", function(d, i) {
+                const asteroidIndex = parseInt(d3.select(this).attr("data-asteroid-index"));
+                const orbitRadius = 400 + asteroidIndex * 30;
+                const speed = 0.02; // Asteroidy bardzo wolne
+                const angle = time * speed + asteroidIndex * (2 * Math.PI / 10);
+                
+                const x = Math.cos(angle) * orbitRadius;
+                const y = Math.sin(angle) * orbitRadius;
+                return `translate(${x}, ${y})`;
+            });
+
+        // Pulsujące efekty dla aury Lux
+        this.beingsGroup.selectAll(".galactic-center circle:nth-child(2)")
+            .attr("r", 80 + Math.sin(time * 2) * 10)
+            .attr("opacity", 0.4 + Math.sin(time * 3) * 0.1);
     }
 
     updateBeingPositions() {
@@ -1081,15 +1473,100 @@ class LuxOSUniverse {
 window.LuxOSGraph = LuxOSUniverse;
 window.luxOSUniverse = null;
 
-// Style CSS dla wszechświata (zoptymalizowane)
+// Style CSS dla galaktycznej wizualizacji
 const universeStyle = document.createElement('style');
 universeStyle.innerHTML = `
     .being {
-        transition: opacity 0.1s ease;
+        transition: opacity 0.3s ease, transform 0.1s ease;
     }
 
     .being:hover {
-        opacity: 0.8;
+        opacity: 0.9;
+        transform: scale(1.1);
+    }
+
+    .galactic-center {
+        filter: drop-shadow(0 0 20px #ffdd00);
+    }
+
+    .planetary-system {
+        transition: transform 0.5s ease;
+    }
+
+    .planetary-system:hover {
+        transform: scale(1.05);
+    }
+
+    .orbital-task {
+        transition: all 0.3s ease;
+    }
+
+    .orbital-task:hover {
+        filter: brightness(1.3);
+    }
+
+    .intention {
+        animation: intentionPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes intentionPulse {
+        0%, 100% { 
+            transform: scale(1);
+            opacity: 1;
+        }
+        50% { 
+            transform: scale(1.1);
+            opacity: 0.8;
+        }
+    }
+
+    .galactic-spiral {
+        animation: spiralRotate 60s linear infinite;
+        transform-origin: center;
+    }
+
+    @keyframes spiralRotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .planetary-orbit {
+        stroke-dasharray: 10,5;
+        animation: orbitDash 4s linear infinite;
+    }
+
+    @keyframes orbitDash {
+        from { stroke-dashoffset: 0; }
+        to { stroke-dashoffset: 15; }
+    }
+
+    .task-orbit {
+        stroke-dasharray: 5,3;
+        animation: orbitDash 2s linear infinite;
+    }
+
+    .moon-orbit {
+        stroke-dasharray: 2,2;
+        animation: orbitDash 1s linear infinite;
+    }
+
+    .comet {
+        filter: drop-shadow(0 0 8px currentColor);
+    }
+
+    .asteroid {
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+    }
+
+    .asteroid:hover {
+        opacity: 1;
+        filter: brightness(1.2);
+    }
+
+    .system-label {
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        pointer-events: none;
     }
 
     .lux-component-container {
@@ -1109,6 +1586,19 @@ universeStyle.innerHTML = `
 
     .success-message {
         transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+    }
+
+    /* Dodatkowe efekty dla różnych typów orbit */
+    .planetary-orbit[stroke="#42a5f5"] {
+        filter: drop-shadow(0 0 5px #42a5f5);
+    }
+
+    .planetary-orbit[stroke="#ef5350"] {
+        filter: drop-shadow(0 0 5px #ef5350);
+    }
+
+    .planetary-orbit[stroke="#ab47bc"] {
+        filter: drop-shadow(0 0 5px #ab47bc);
     }
 `;
 document.head.appendChild(universeStyle);

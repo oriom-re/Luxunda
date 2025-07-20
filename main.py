@@ -1735,6 +1735,337 @@ class LuxCommunicationHandler:
         
         return parent_being
 
+    @staticmethod
+    async def discover_deep_connections(user_id: str) -> dict:
+        """Odkrywa głębokie powiązania między projektami użytkownika - znajduje ukryty cel"""
+        # Pobierz wszystkie byty użytkownika
+        all_beings = await BaseBeing.get_all()
+        user_beings = [b for b in all_beings if b.attributes.get('user_id') == user_id]
+        
+        # Analiza semantyczna - szukaj wspólnych tematów
+        thematic_analysis = await LuxCommunicationHandler.analyze_thematic_connections(user_beings)
+        
+        # Analiza czasowa - szukaj wzorców w czasie
+        temporal_analysis = await LuxCommunicationHandler.analyze_temporal_patterns(user_beings)
+        
+        # Analiza energetyczna - jakie projekty mają najwięcej energii
+        energy_analysis = await LuxCommunicationHandler.analyze_energy_patterns(user_beings)
+        
+        # Synteza - znajdź ukryty cel
+        hidden_purpose = await LuxCommunicationHandler.synthesize_hidden_purpose(
+            thematic_analysis, temporal_analysis, energy_analysis
+        )
+        
+        return {
+            'user_id': user_id,
+            'total_projects': len([b for b in user_beings if b.attributes.get('is_parent_concept')]),
+            'total_beings': len(user_beings),
+            'thematic_connections': thematic_analysis,
+            'temporal_patterns': temporal_analysis,
+            'energy_patterns': energy_analysis,
+            'hidden_purpose': hidden_purpose,
+            'galactic_structure': await LuxCommunicationHandler.generate_galactic_structure(user_beings, hidden_purpose)
+        }
+
+    @staticmethod
+    async def analyze_thematic_connections(beings: list) -> dict:
+        """Analizuje tematyczne połączenia między bytami"""
+        themes = {}
+        cross_project_themes = {}
+        
+        for being in beings:
+            # Ekstraktuj słowa kluczowe z nazw, opisów i wspomnień
+            text_content = f"{being.genesis.get('name', '')} {being.genesis.get('description', '')}"
+            memories_text = " ".join([str(m.get('data', '')) for m in being.memories])
+            full_text = f"{text_content} {memories_text}".lower()
+            
+            words = set(full_text.split())
+            meaningful_words = [w for w in words if len(w) > 3 and w not in ['the', 'and', 'for', 'with', 'from']]
+            
+            parent_concept = being.attributes.get('parent_concept')
+            
+            for word in meaningful_words:
+                if word not in themes:
+                    themes[word] = {'projects': set(), 'beings': [], 'strength': 0}
+                
+                themes[word]['beings'].append(being.soul)
+                themes[word]['strength'] += being.attributes.get('energy_level', 50)
+                
+                if parent_concept:
+                    themes[word]['projects'].add(parent_concept)
+        
+        # Znajdź tematy które łączą różne projekty
+        for theme, data in themes.items():
+            if len(data['projects']) > 1:
+                cross_project_themes[theme] = {
+                    'projects_connected': len(data['projects']),
+                    'total_strength': data['strength'],
+                    'beings_count': len(data['beings']),
+                    'connection_strength': data['strength'] / max(len(data['projects']), 1)
+                }
+        
+        return {
+            'all_themes': dict(list(themes.items())[:20]),  # Top 20 tematów
+            'cross_project_themes': cross_project_themes,
+            'strongest_connecting_theme': max(cross_project_themes.items(), 
+                                            key=lambda x: x[1]['connection_strength']) if cross_project_themes else None
+        }
+
+    @staticmethod
+    async def analyze_temporal_patterns(beings: list) -> dict:
+        """Analizuje wzorce czasowe w tworzeniu projektów"""
+        creation_timeline = []
+        project_sequences = {}
+        
+        for being in beings:
+            if being.created_at:
+                creation_timeline.append({
+                    'soul': being.soul,
+                    'name': being.genesis.get('name', 'Unknown'),
+                    'type': being.genesis.get('type', 'unknown'),
+                    'created_at': being.created_at,
+                    'energy_level': being.attributes.get('energy_level', 0),
+                    'parent_concept': being.attributes.get('parent_concept')
+                })
+        
+        # Sortuj chronologicznie
+        creation_timeline.sort(key=lambda x: x['created_at'])
+        
+        # Znajdź sekwencje projektów
+        current_sequence = []
+        for item in creation_timeline:
+            if item['parent_concept']:
+                if not current_sequence or current_sequence[-1]['parent_concept'] == item['parent_concept']:
+                    current_sequence.append(item)
+                else:
+                    if len(current_sequence) > 1:
+                        project_sequences[current_sequence[0]['parent_concept']] = current_sequence.copy()
+                    current_sequence = [item]
+        
+        # Dodaj ostatnią sekwencję
+        if len(current_sequence) > 1:
+            project_sequences[current_sequence[0]['parent_concept']] = current_sequence
+        
+        return {
+            'timeline': creation_timeline,
+            'project_sequences': project_sequences,
+            'creation_velocity': len(creation_timeline) / max((creation_timeline[-1]['created_at'] - creation_timeline[0]['created_at']).days, 1) if len(creation_timeline) > 1 else 0,
+            'most_active_period': LuxCommunicationHandler.find_most_active_period(creation_timeline)
+        }
+
+    @staticmethod
+    def find_most_active_period(timeline: list) -> dict:
+        """Znajdź okres największej aktywności"""
+        if len(timeline) < 3:
+            return {'period': 'insufficient_data', 'activity_level': 0}
+        
+        # Podziel na tygodnie i zlicz aktywność
+        weekly_activity = {}
+        for item in timeline:
+            week = item['created_at'].strftime('%Y-%W')
+            if week not in weekly_activity:
+                weekly_activity[week] = {'count': 0, 'total_energy': 0}
+            weekly_activity[week]['count'] += 1
+            weekly_activity[week]['total_energy'] += item['energy_level']
+        
+        # Znajdź tydzień z największą aktywnością
+        most_active = max(weekly_activity.items(), key=lambda x: x[1]['count'])
+        
+        return {
+            'period': most_active[0],
+            'activity_level': most_active[1]['count'],
+            'total_energy': most_active[1]['total_energy']
+        }
+
+    @staticmethod
+    async def analyze_energy_patterns(beings: list) -> dict:
+        """Analizuje wzorce energetyczne w projektach"""
+        project_energies = {}
+        energy_distribution = {}
+        
+        for being in beings:
+            energy = being.attributes.get('energy_level', 0)
+            parent_concept = being.attributes.get('parent_concept')
+            
+            if parent_concept:
+                if parent_concept not in project_energies:
+                    project_energies[parent_concept] = {'total_energy': 0, 'beings_count': 0, 'avg_energy': 0}
+                project_energies[parent_concept]['total_energy'] += energy
+                project_energies[parent_concept]['beings_count'] += 1
+        
+        # Oblicz średnie energie
+        for project_id, data in project_energies.items():
+            data['avg_energy'] = data['total_energy'] / data['beings_count']
+        
+        # Rozkład energii
+        energy_ranges = {'low': 0, 'medium': 0, 'high': 0, 'very_high': 0}
+        for being in beings:
+            energy = being.attributes.get('energy_level', 0)
+            if energy < 30:
+                energy_ranges['low'] += 1
+            elif energy < 60:
+                energy_ranges['medium'] += 1
+            elif energy < 90:
+                energy_ranges['high'] += 1
+            else:
+                energy_ranges['very_high'] += 1
+        
+        return {
+            'project_energies': project_energies,
+            'energy_distribution': energy_ranges,
+            'highest_energy_project': max(project_energies.items(), key=lambda x: x[1]['total_energy']) if project_energies else None,
+            'total_user_energy': sum(b.attributes.get('energy_level', 0) for b in beings)
+        }
+
+    @staticmethod
+    async def synthesize_hidden_purpose(thematic_analysis: dict, temporal_analysis: dict, energy_analysis: dict) -> dict:
+        """Syntetyzuje ukryty cel/misję życiową na podstawie analiz"""
+        
+        # Znajdź główny temat który łączy projekty
+        main_connecting_theme = thematic_analysis.get('strongest_connecting_theme')
+        
+        # Znajdź projekt z największą energią
+        highest_energy_project = energy_analysis.get('highest_energy_project')
+        
+        # Analiza wzorców czasowych
+        creation_velocity = temporal_analysis.get('creation_velocity', 0)
+        
+        # Synteza
+        purpose_strength = 0
+        purpose_keywords = []
+        purpose_description = ""
+        
+        if main_connecting_theme:
+            purpose_strength += main_connecting_theme[1]['connection_strength'] / 100
+            purpose_keywords.append(main_connecting_theme[0])
+            purpose_description += f"Łączącym tematem jest '{main_connecting_theme[0]}' "
+        
+        if highest_energy_project:
+            purpose_strength += highest_energy_project[1]['total_energy'] / 1000
+            purpose_description += f"z głównym naciskiem na projekt o ID {highest_energy_project[0]} "
+        
+        if creation_velocity > 1:
+            purpose_strength += 0.2
+            purpose_description += "charakteryzującym się wysoką kreatywnością "
+        
+        # Kategoryzuj ukryty cel
+        if purpose_strength > 0.8:
+            purpose_category = "clear_life_mission"
+            purpose_description = f"WYRAŹNA MISJA ŻYCIOWA: {purpose_description}"
+        elif purpose_strength > 0.5:
+            purpose_category = "emerging_purpose"
+            purpose_description = f"WYŁANIAJĄCY SIĘ CEL: {purpose_description}"
+        elif purpose_strength > 0.2:
+            purpose_category = "scattered_interests"
+            purpose_description = f"ROZPROSZONE ZAINTERESOWANIA: {purpose_description}"
+        else:
+            purpose_category = "exploration_phase"
+            purpose_description = "FAZA EKSPLORACJI: Użytkownik jeszcze poszukuje swojej drogi"
+        
+        return {
+            'category': purpose_category,
+            'strength': purpose_strength,
+            'description': purpose_description,
+            'keywords': purpose_keywords,
+            'main_theme': main_connecting_theme[0] if main_connecting_theme else None,
+            'energy_focus': highest_energy_project[0] if highest_energy_project else None,
+            'recommended_actions': LuxCommunicationHandler.generate_purpose_recommendations(purpose_category, purpose_strength)
+        }
+
+    @staticmethod
+    def generate_purpose_recommendations(category: str, strength: float) -> list:
+        """Generuje rekomendacje na podstawie odkrytego celu"""
+        recommendations = {
+            'clear_life_mission': [
+                "🎯 Skoncentruj się na głównym celu - masz wyraźną misję!",
+                "🚀 Rozwijaj projekty które wspierają Twoją główną misję",
+                "📈 Zwiększ energię w kluczowych obszarach",
+                "🤝 Poszukaj współpracowników którzy podzielają Twoją wizję"
+            ],
+            'emerging_purpose': [
+                "🌱 Twój cel się krystalizuje - kontynuuj eksplorację",
+                "🔍 Pogłęb analizę tematów które Cię łączą",
+                "⚡ Przenieś więcej energii do obiecujących projektów",
+                "📝 Dokumentuj swoje odkrycia i wzorce"
+            ],
+            'scattered_interests': [
+                "🎨 Masz różnorodne zainteresowania - to może być Twoją siłą",
+                "🔗 Szukaj połączeń między projektami",
+                "📊 Przeanalizuj które projekty dają Ci najwięcej energii",
+                "🎯 Rozważ wybranie 1-2 głównych kierunków"
+            ],
+            'exploration_phase': [
+                "🗺️ Eksploruj śmiało - to naturalny etap rozwoju",
+                "📚 Zbieraj doświadczenia z różnych dziedzin",
+                "💡 Dokumentuj co Cię inspiruje i energetyzuje",
+                "🌟 Bądź otwarty na nieoczekiwane połączenia"
+            ]
+        }
+        return recommendations.get(category, ["🤔 Kontynuuj swoją podróż odkrywania"])
+
+    @staticmethod
+    async def generate_galactic_structure(beings: list, hidden_purpose: dict) -> dict:
+        """Generuje strukturę galaktyczną dla wizualizacji"""
+        main_theme = hidden_purpose.get('main_theme')
+        energy_focus = hidden_purpose.get('energy_focus')
+        
+        # Organizuj projekty w ramiona spiralne galaktyki
+        spiral_arms = {
+            'main_purpose': [],  # Główne ramię - projekty związane z głównym celem
+            'supporting': [],    # Ramię wspierające
+            'experimental': [],  # Ramię eksperymentalne
+            'legacy': []        # Ramię dziedzictwa - stare/ukończone projekty
+        }
+        
+        for being in beings:
+            parent_concept = being.attributes.get('parent_concept')
+            if not parent_concept:
+                continue
+                
+            # Klasyfikacja do ramion
+            being_text = f"{being.genesis.get('name', '')} {being.genesis.get('description', '')}".lower()
+            energy = being.attributes.get('energy_level', 0)
+            
+            if main_theme and main_theme in being_text:
+                spiral_arms['main_purpose'].append({
+                    'soul': being.soul,
+                    'name': being.genesis.get('name', 'Unknown'),
+                    'energy': energy,
+                    'distance_from_center': 200,
+                    'spiral_arm': 'main_purpose'
+                })
+            elif energy > 70:
+                spiral_arms['supporting'].append({
+                    'soul': being.soul,
+                    'name': being.genesis.get('name', 'Unknown'),
+                    'energy': energy,
+                    'distance_from_center': 300,
+                    'spiral_arm': 'supporting'
+                })
+            elif energy > 30:
+                spiral_arms['experimental'].append({
+                    'soul': being.soul,
+                    'name': being.genesis.get('name', 'Unknown'),
+                    'energy': energy,
+                    'distance_from_center': 400,
+                    'spiral_arm': 'experimental'
+                })
+            else:
+                spiral_arms['legacy'].append({
+                    'soul': being.soul,
+                    'name': being.genesis.get('name', 'Unknown'),
+                    'energy': energy,
+                    'distance_from_center': 500,
+                    'spiral_arm': 'legacy'
+                })
+        
+        return {
+            'spiral_arms': spiral_arms,
+            'galactic_center': hidden_purpose.get('main_theme', 'Unknown Purpose'),
+            'total_mass': sum(being.attributes.get('energy_level', 0) for being in beings),
+            'structure_type': hidden_purpose.get('category', 'irregular_galaxy')
+        }
+
 @sio.event
 async def lux_communication(sid, data):
     """Nowy endpoint dla komunikacji z Lux"""
@@ -1757,6 +2088,69 @@ async def lux_communication(sid, data):
     except Exception as e:
         print(f"Błąd w lux_communication: {e}")
         await sio.emit('error', {'message': f'Błąd komunikacji z Lux: {str(e)}'}, room=sid)
+
+@sio.event
+async def discover_hidden_purpose(sid, data):
+    """Odkrywa ukryty cel/misję życiową użytkownika"""
+    try:
+        user_id = data.get('user_id', sid)  # Użyj sid jako fallback
+        
+        print(f"Odkrywanie ukrytego celu dla użytkownika: {user_id}")
+        
+        # Przeprowadź głęboką analizę
+        deep_analysis = await LuxCommunicationHandler.discover_deep_connections(user_id)
+        
+        print(f"Odkryto ukryty cel: {deep_analysis['hidden_purpose']['category']}")
+        
+        # Wyślij wyniki
+        await sio.emit('hidden_purpose_discovered', {
+            'success': True,
+            'analysis': deep_analysis,
+            'galactic_view_update': True,
+            'recommendations': deep_analysis['hidden_purpose']['recommended_actions']
+        }, room=sid)
+        
+        # Wyślij zaktualizowaną strukturę galaktyczną
+        await sio.emit('galactic_structure_update', {
+            'structure': deep_analysis['galactic_structure'],
+            'purpose_strength': deep_analysis['hidden_purpose']['strength'],
+            'main_theme': deep_analysis['hidden_purpose']['main_theme']
+        }, room=sid)
+        
+    except Exception as e:
+        print(f"Błąd w discover_hidden_purpose: {e}")
+        await sio.emit('error', {'message': f'Błąd odkrywania ukrytego celu: {str(e)}'}, room=sid)
+
+@sio.event 
+async def get_galactic_view(sid, data):
+    """Zwraca widok galaktyczny dla użytkownika"""
+    try:
+        user_id = data.get('user_id', sid)
+        
+        # Pobierz wszystkie byty użytkownika
+        all_beings = await BaseBeing.get_all()
+        user_beings = [b for b in all_beings if b.attributes.get('user_id') == user_id]
+        
+        if not user_beings:
+            await sio.emit('galactic_view', {
+                'success': False,
+                'message': 'Brak projektów do analizy'
+            }, room=sid)
+            return
+        
+        # Zorganizuj w strukturę galaktyczną
+        galactic_systems = LuxOSUniverse.prototype.organizeIntoGalacticSystems(user_beings)
+        
+        await sio.emit('galactic_view', {
+            'success': True,
+            'systems': galactic_systems,
+            'user_id': user_id,
+            'total_beings': len(user_beings)
+        }, room=sid)
+        
+    except Exception as e:
+        print(f"Błąd w get_galactic_view: {e}")
+        await sio.emit('error', {'message': f'Błąd widoku galaktycznego: {str(e)}'}, room=sid)
 
 @sio.event
 async def process_intention(sid, data):

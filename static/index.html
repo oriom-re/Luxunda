@@ -310,6 +310,8 @@
             <button class="zoom-btn" id="zoomOut">-</button>
             <button class="zoom-btn" id="zoomReset">⌂</button>
             <button class="zoom-btn" id="luxChat" title="Chat z Lux">💬</button>
+            <button class="zoom-btn" id="discoverPurpose" title="Odkryj ukryty cel">🎯</button>
+            <button class="zoom-btn" id="galacticView" title="Widok galaktyczny">🌌</button>
         </div>
 
         <div class="intention-system">
@@ -349,11 +351,30 @@
                 window.intentionComponent = intentionComponent;
                 window.luxChatComponent = luxChatComponent;
                 
-                // Dodaj obsługę kontrolek zoom
+                // Dodaj obsługę kontrolek zoom i galaktycznych
                 document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
                 document.getElementById('zoomOut').addEventListener('click', () => graphManager.zoomOut());
                 document.getElementById('zoomReset').addEventListener('click', () => graphManager.resetZoom());
                 document.getElementById('luxChat').addEventListener('click', () => luxChatComponent.toggle());
+                
+                // Galaktyczne funkcje
+                document.getElementById('discoverPurpose').addEventListener('click', () => {
+                    console.log('Odkrywanie ukrytego celu...');
+                    if (graphManager.socket) {
+                        graphManager.socket.emit('discover_hidden_purpose', {
+                            user_id: 'current_user' // W przyszłości będzie to prawdziwy user ID
+                        });
+                    }
+                });
+                
+                document.getElementById('galacticView').addEventListener('click', () => {
+                    console.log('Przełączanie na widok galaktyczny...');
+                    if (graphManager.socket) {
+                        graphManager.socket.emit('get_galactic_view', {
+                            user_id: 'current_user'
+                        });
+                    }
+                });
                 
                 // Make sure input is visible
                 console.log('Intention input:', document.getElementById('intentionInput'));
