@@ -565,27 +565,27 @@ class LuxOSUniverse {
             .force("charge", d3.forceManyBody()
                 .strength(d => {
                     // Lux ma silniejsze odpychanie
-                    if (this.isLuxAgent(d)) return -800;
+                    if (this.isLuxAgent(d)) return -1500;
                     // Główna intencja ma średnie odpychanie
-                    if (d.soul === '11111111-1111-1111-1111-111111111111') return -200;
-                    return -150;
+                    if (d.soul === '11111111-1111-1111-1111-111111111111') return -400;
+                    return -300; // Znacznie zwiększone odpychanie dla wszystkich bytów
                 }))
-            .force("center", d3.forceCenter(0, 0).strength(0.3))
+            .force("center", d3.forceCenter(0, 0).strength(0.2))
             .force("collision", d3.forceCollide()
                 .radius(d => {
-                    if (this.isLuxAgent(d)) return 50;
-                    if (d.soul === '11111111-1111-1111-1111-111111111111') return 20;
-                    return Math.max(8, Math.min(30, (d.attributes?.energy_level || 50) / 3));
+                    if (this.isLuxAgent(d)) return 60; // Większy promień kolizji
+                    if (d.soul === '11111111-1111-1111-1111-111111111111') return 30;
+                    return Math.max(15, Math.min(40, (d.attributes?.energy_level || 50) / 2.5)); // Większe promienie
                 })
-                .strength(0.7))
+                .strength(1.0)) // Maksymalna siła kolizji
             .force("radial", d3.forceRadial(d => {
                 // Lux w centrum
                 if (this.isLuxAgent(d)) return 0;
                 // Główna intencja na orbicie
-                if (d.soul === '11111111-1111-1111-1111-111111111111') return 100;
-                // Inne byty w różnych odległościach
-                return 80 + Math.random() * 200;
-            }, 0, 0).strength(0.1))
+                if (d.soul === '11111111-1111-1111-1111-111111111111') return 120;
+                // Inne byty w większych odległościach
+                return 100 + Math.random() * 300;
+            }, 0, 0).strength(0.05)) // Mniejsza siła radial żeby nie przyciągała za mocno
             .on("tick", () => {
                 this.updateNodePositions();
             });
@@ -598,9 +598,9 @@ class LuxOSUniverse {
                 d.fx = 0; // Zablokuj Lux w centrum
                 d.fy = 0;
             } else if (!d.x || !d.y) {
-                // Losowa pozycja startowa dla nowych węzłów
+                // Losowa pozycja startowa dla nowych węzłów - znacznie bardziej rozproszona
                 const angle = Math.random() * 2 * Math.PI;
-                const radius = 100 + Math.random() * 150;
+                const radius = 150 + Math.random() * 300; // Większy rozrzut
                 d.x = Math.cos(angle) * radius;
                 d.y = Math.sin(angle) * radius;
             }
