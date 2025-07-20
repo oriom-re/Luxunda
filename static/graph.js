@@ -449,7 +449,10 @@ class LuxOSUniverse {
         // Limit do 50 bytów dla wydajności
         const visibleBeings = this.beings.slice(0, 50);
         
-        // Najpierw narysuj orbitę dla głównej intencji (cienka, prawie przezroczysta)
+        // Inicjalizuj symulację D3 force
+        this.initForceSimulation(visibleBeings);
+        
+        // Narysuj orbitę dla głównej intencji (cienka, prawie przezroczysta)
         this.drawMainIntentionOrbit();
         
         this.beingSelection = this.beingsGroup
@@ -458,6 +461,10 @@ class LuxOSUniverse {
             .join("g")
             .attr("class", d => `being ${this.isLuxAgent(d) ? 'lux-agent' : d.genesis?.type || 'unknown'}`)
             .style("cursor", "pointer")
+            .call(d3.drag()
+                .on("start", this.dragstarted.bind(this))
+                .on("drag", this.dragged.bind(this))
+                .on("end", this.dragended.bind(this)))
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.selectBeing(d);
@@ -466,7 +473,7 @@ class LuxOSUniverse {
         // Usuń poprzednie elementy tylko jeśli konieczne
         this.beingSelection.selectAll("*").remove();
 
-        // Uruchom ciągłą animację orbit
+        // Uruchom ciągłą animację orbit tylko dla specjalnych bytów
         this.startOrbitalAnimation();
 
         // Renderuj Lux jako centralną gwiazdę (bez żółtego pierścienia)
@@ -547,35 +554,94 @@ class LuxOSUniverse {
             });
     }
 
-    updateBeingPositions() {
+    initForceSimulation(nodes) {
+        // Zatrzymaj poprzednią symulację jeśli istnieje
+        if (this.simulation) {
+            this.simulation.stop();
+        }
+
+        // Utwórz symulację D3 force
+        this.simulation = d3.forceSimulation(nodes)
+            .force("charge", d3.forceManyBody()
+                .strength(d => {
+                    // Lux ma silniejsze odpychanie
+                    if (this.isLuxAgent(d)) return -800;
+                    // Główna intencja ma średnie odpychanie
+                    if (d.soul === '11111111-1111-1111-1111-111111111111') return -200;
+                    return -150;
+                }))
+            .force("center", d3.forceCenter(0, 0).strength(0.3))
+            .force("collision", d3.forceCollide()
+                .radius(d => {
+                    if (this.isLuxAgent(d)) return 50;
+                    if (d.soul === '11111111-1111-1111-1111-111111111111') return 20;
+                    return Math.max(8, Math.min(30, (d.attributes?.energy_level || 50) / 3));
+                })
+                .strength(0.7))
+            .force("radial", d3.forceRadial(d => {
+                // Lux w centrum
+                if (this.isLuxAgent(d)) return 0;
+                // Główna intencja na orbicie
+                if (d.soul === '11111111-1111-1111-1111-111111111111') return 100;
+                // Inne byty w różnych odległościach
+                return 80 + Math.random() * 200;
+            }, 0, 0).strength(0.1))
+            .on("tick", () => {
+                this.updateNodePositions();
+            });
+
+        // Ustaw początkowe pozycje
+        nodes.forEach(d => {
+            if (this.isLuxAgent(d)) {
+                d.x = 0;
+                d.y = 0;
+                d.fx = 0; // Zablokuj Lux w centrum
+                d.fy = 0;
+            } else if (!d.x || !d.y) {
+                // Losowa pozycja startowa dla nowych węzłów
+                const angle = Math.random() * 2 * Math.PI;
+                const radius = 100 + Math.random() * 150;
+                d.x = Math.cos(angle) * radius;
+                d.y = Math.sin(angle) * radius;
+            }
+        });
+    }
+
+    updateNodePositions() {
         if (!this.beingSelection) return;
 
-        // Dla głównej intencji nie używamy transition - animacja jest w startOrbitalAnimation
+        // Aktualizuj pozycje wszystkich bytów (oprócz specjalnych)
         this.beingSelection
-            .filter(d => d.soul !== '11111111-1111-1111-1111-111111111111')
-            .transition()
-            .duration(1000)
-            .attr("transform", d => {
-                // Lux zawsze w centrum
-                if (this.isLuxAgent(d)) {
-                    return `translate(0, 0)`;
-                }
+            .filter(d => d.soul !== '11111111-1111-1111-1111-111111111111') // Główna intencja ma własną animację
+            .attr("transform", d => `translate(${d.x || 0}, ${d.y || 0})`);
+    }
 
-                // Sprawdź czy byt ma predefiniowaną pozycję
-                const predefinedPos = d.attributes?.position;
-                if (predefinedPos) {
-                    return `translate(${predefinedPos.x}, ${predefinedPos.y})`;
-                }
+    // Obsługa przeciągania
+    dragstarted(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
 
-                // Użyj pozycji z serwera jeśli dostępne
-                const pos = this.beingsPositions[d.soul];
-                if (pos) {
-                    return `translate(${pos.x}, ${pos.y})`;
-                } 
+    dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
 
-                // Domyślna losowa pozycja
-                return `translate(${Math.random() * 200 - 100}, ${Math.random() * 200 - 100})`;
-            });
+    dragended(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0);
+        // Nie zwalniaj Lux
+        if (!this.isLuxAgent(d)) {
+            d.fx = null;
+            d.fy = null;
+        }
+    }
+
+    updateBeingPositions() {
+        // Ta metoda już nie jest potrzebna - symulacja zarządza pozycjami
+        if (this.simulation) {
+            this.simulation.alpha(0.3).restart();
+        }
     }
 
     updateDetailsLevel() {
@@ -672,7 +738,11 @@ class LuxOSUniverse {
                 // Zaktualizuj istniejący byt
                 this.beings[existingIndex] = processedBeing;
             } else {
-                // Dodaj nowy byt
+                // Dodaj nowy byt z losową pozycją startową
+                const angle = Math.random() * 2 * Math.PI;
+                const radius = 150 + Math.random() * 100;
+                processedBeing.x = Math.cos(angle) * radius;
+                processedBeing.y = Math.sin(angle) * radius;
                 this.beings.push(processedBeing);
             }
 
@@ -1028,6 +1098,10 @@ class LuxOSUniverse {
         if (this.orbitalAnimationId) {
             cancelAnimationFrame(this.orbitalAnimationId);
             this.orbitalAnimationId = null;
+        }
+        // Zatrzymaj symulację fizyki
+        if (this.simulation) {
+            this.simulation.stop();
         }
         this.stopHeartbeat();
         if (this.socket) {
