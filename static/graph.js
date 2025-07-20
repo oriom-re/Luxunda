@@ -381,9 +381,32 @@ class LuxOSUniverse {
         this.orbitsGroup.selectAll(".orbit").remove();
     }
 
+    drawMainIntentionOrbit() {
+        // Usuń poprzednią orbitę
+        this.orbitsGroup.selectAll(".main-intention-orbit").remove();
+        
+        // Narysuj cienką, prawie przezroczystą orbitę dla głównej intencji
+        const orbitRadius = 80;
+        
+        this.orbitsGroup.append("circle")
+            .attr("class", "main-intention-orbit")
+            .attr("cx", 0)
+            .attr("cy", 0)
+            .attr("r", orbitRadius)
+            .attr("fill", "none")
+            .attr("stroke", "#00ff88")
+            .attr("stroke-width", 1)
+            .attr("stroke-dasharray", "3,3")
+            .attr("opacity", 0.2)
+            .style("pointer-events", "none");
+    }
+
     renderBeings() {
         // Limit do 50 bytów dla wydajności
         const visibleBeings = this.beings.slice(0, 50);
+        
+        // Najpierw narysuj orbitę dla głównej intencji (cienka, prawie przezroczysta)
+        this.drawMainIntentionOrbit();
         
         this.beingSelection = this.beingsGroup
             .selectAll(".being")
@@ -396,11 +419,11 @@ class LuxOSUniverse {
                 this.selectBeing(d);
             });
 
-        // Uruchom ciągłą animację orbit
-        this.startOrbitalAnimation();
-
         // Usuń poprzednie elementy tylko jeśli konieczne
         this.beingSelection.selectAll("*").remove();
+
+        // Uruchom ciągłą animację orbit
+        this.startOrbitalAnimation();
 
         // Renderuj Lux jako centralną gwiazdę (uproszczona wersja)
         this.beingSelection.filter(d => this.isLuxAgent(d))
@@ -457,7 +480,7 @@ class LuxOSUniverse {
 
                 // Główne ciało intencji - większe i świecące
                 being.append("circle")
-                    .attr("r", 15)
+                    .attr("r", 12)
                     .attr("fill", "#00ff88")
                     .attr("stroke", "#ffffff")
                     .attr("stroke-width", 2)
@@ -466,21 +489,21 @@ class LuxOSUniverse {
 
                 // Pulsujący pierścień dla głównej intencji
                 being.append("circle")
-                    .attr("r", 25)
+                    .attr("r", 20)
                     .attr("fill", "none")
                     .attr("stroke", "#00ff88")
                     .attr("stroke-width", 1)
-                    .attr("opacity", 0.6)
+                    .attr("opacity", 0.4)
                     .style("animation", "luxPulse 2s ease-in-out infinite");
 
                 // Etykieta
                 if (self.zoomLevel > 1) {
                     being.append("text")
                         .attr("class", "being-label")
-                        .attr("dy", 35)
+                        .attr("dy", 30)
                         .style("text-anchor", "middle")
                         .style("fill", "#00ff88")
-                        .style("font-size", "12px")
+                        .style("font-size", "10px")
                         .style("font-weight", "bold")
                         .style("pointer-events", "none")
                         .text("LuxOS");
@@ -519,22 +542,15 @@ class LuxOSUniverse {
     updateBeingPositions() {
         if (!this.beingSelection) return;
 
+        // Dla głównej intencji nie używamy transition - animacja jest w startOrbitalAnimation
         this.beingSelection
+            .filter(d => d.soul !== '11111111-1111-1111-1111-111111111111')
             .transition()
             .duration(1000)
             .attr("transform", d => {
                 // Lux zawsze w centrum
                 if (this.isLuxAgent(d)) {
                     return `translate(0, 0)`;
-                }
-
-                // Główna intencja LuxOS krąży wokół Lux
-                if (d.soul === '11111111-1111-1111-1111-111111111111') {
-                    const time = Date.now() * 0.001; // Czas w sekundach
-                    const radius = 80; // Promień orbity
-                    const x = Math.cos(time * 0.5) * radius; // Powolna orbita
-                    const y = Math.sin(time * 0.5) * radius;
-                    return `translate(${x}, ${y})`;
                 }
 
                 // Sprawdź czy byt ma predefiniowaną pozycję
@@ -999,6 +1015,18 @@ class LuxOSUniverse {
         }
     }
 
+    destroy() {
+        // Zatrzymaj wszystkie animacje i timery
+        if (this.orbitalAnimationId) {
+            cancelAnimationFrame(this.orbitalAnimationId);
+            this.orbitalAnimationId = null;
+        }
+        this.stopHeartbeat();
+        if (this.socket) {
+            this.socket.disconnect();
+        }
+    }
+
     startOrbitalAnimation() {
         // Zatrzymaj poprzednią animację jeśli istnieje
         if (this.orbitalAnimationId) {
@@ -1007,14 +1035,16 @@ class LuxOSUniverse {
 
         const animate = () => {
             if (this.beingSelection) {
-                const time = Date.now() * 0.001;
+                const time = Date.now() * 0.001; // Czas w sekundach
 
+                // Animuj główną intencję LuxOS na orbicie
                 this.beingSelection
                     .filter(d => d.soul === '11111111-1111-1111-1111-111111111111')
                     .attr("transform", d => {
-                        const radius = 80;
-                        const x = Math.cos(time * 0.5) * radius;
-                        const y = Math.sin(time * 0.5) * radius;
+                        const radius = 80; // Promień orbity
+                        const speed = 0.3; // Prędkość orbity (niższa = wolniej)
+                        const x = Math.cos(time * speed) * radius;
+                        const y = Math.sin(time * speed) * radius;
                         return `translate(${x}, ${y})`;
                     });
             }
@@ -1022,6 +1052,7 @@ class LuxOSUniverse {
             this.orbitalAnimationId = requestAnimationFrame(animate);
         };
 
+        // Rozpocznij animację
         animate();
     }
 }
