@@ -13,9 +13,18 @@ class LuxOSUniverse {
         this.maxReconnectAttempts = 5;
         this.lastUpdateTime = 0;
         this.updateThrottle = 100; // Minimum 100ms between updates
+        this.heartbeatInterval = null;
 
-        // Inicjalizacja Socket.IO
-        this.socket = io();
+        // Inicjalizacja Socket.IO z lepszą konfiguracją
+        this.socket = io({
+            timeout: 20000,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5,
+            maxReconnectionAttempts: 5,
+            forceNew: false,
+            transports: ['websocket', 'polling']
+        });
         this.setupSocketListeners();
 
         // Inicjalizacja SVG
@@ -32,12 +41,29 @@ class LuxOSUniverse {
             console.log('Połączono z wszechświatem');
             this.updateConnectionStatus(true);
             this.reconnectAttempts = 0; // Reset counter on successful connection
+            
+            // Natychmiast poproś o dane po połączeniu
+            setTimeout(() => {
+                this.socket.emit('get_graph_data');
+            }, 100);
+            
+            // Rozpocznij heartbeat monitoring
+            this.startHeartbeat();
         });
 
-        this.socket.on('disconnect', () => {
-            console.log('Rozłączono ze wszechświatem');
+        this.socket.on('disconnect', (reason) => {
+            console.log('Rozłączono ze wszechświatem:', reason);
             this.updateConnectionStatus(false);
-            this.attemptReconnect();
+            
+            // Nie próbuj reconnect jeśli to było ręczne rozłączenie
+            if (reason !== 'io client disconnect') {
+                this.attemptReconnect();
+            }
+        });
+
+        this.socket.on('connect_error', (error) => {
+            console.error('Błąd połączenia z wszechświatem:', error);
+            this.updateConnectionStatus(false);
         });
 
         // Obsługa otrzymanych danych grafu z throttling
@@ -848,18 +874,35 @@ class LuxOSUniverse {
     attemptReconnect() {
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
-            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
+            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 5000);
             
             console.log(`Próba reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} za ${delay}ms`);
             
+            // Aktualizuj status podczas próby reconnect
+            const status = document.getElementById('connectionStatus');
+            if (status) {
+                status.textContent = `Łączenie... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`;
+            }
+            
             setTimeout(() => {
                 if (!this.socket.connected) {
-                    this.socket.connect();
+                    try {
+                        this.socket.connect();
+                    } catch (error) {
+                        console.error('Błąd podczas reconnect:', error);
+                        this.attemptReconnect(); // Spróbuj ponownie
+                    }
                 }
             }, delay);
         } else {
-            console.log('Maksymalna liczba prób reconnect osiągnięta');
-            this.showErrorMessage('Połączenie z wszechświatem zostało przerwane');
+            console.log('Maksymalna liczba prób reconnect osiągnięta - resetuję licznik');
+            this.showErrorMessage('Problemy z połączeniem - spróbuję ponownie...');
+            
+            // Reset licznika po 30 sekundach i spróbuj ponownie
+            setTimeout(() => {
+                this.reconnectAttempts = 0;
+                this.attemptReconnect();
+            }, 30000);
         }
     }
 
@@ -909,6 +952,27 @@ class LuxOSUniverse {
         // Konfiguracja kontrolek dla głównej intencji LuxOS
         // Przyciski, suwaki, itp.
         console.log("Konfiguracja kontrolek dla głównej intencji LuxOS");
+    }
+
+    startHeartbeat() {
+        // Wyczyść poprzedni heartbeat
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+        }
+
+        // Wysyłaj ping co 30 sekund
+        this.heartbeatInterval = setInterval(() => {
+            if (this.socket && this.socket.connected) {
+                this.socket.emit('ping');
+            }
+        }, 30000);
+    }
+
+    stopHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
     }
 }
 

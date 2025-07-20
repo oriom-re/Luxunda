@@ -1611,6 +1611,11 @@ async def disconnect(sid):
     print(f"Klient rozłączony: {sid}")
 
 @sio.event
+async def ping(sid):
+    """Odpowiada na ping od klienta"""
+    await sio.emit('pong', room=sid)
+
+@sio.event
 async def get_graph_data(sid, data=None):
     """Wysyła dane grafu do klienta"""
     await send_graph_data(sid)
