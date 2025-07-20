@@ -9,6 +9,10 @@ class LuxOSUniverse {
         this.viewOffset = { x: 0, y: 0 };
         this.beingsPositions = {};
         this.detailsLevel = 1;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.lastUpdateTime = 0;
+        this.updateThrottle = 100; // Minimum 100ms between updates
 
         // Inicjalizacja Socket.IO
         this.socket = io();
@@ -27,17 +31,19 @@ class LuxOSUniverse {
         this.socket.on('connect', () => {
             console.log('Połączono z wszechświatem');
             this.updateConnectionStatus(true);
+            this.reconnectAttempts = 0; // Reset counter on successful connection
         });
 
         this.socket.on('disconnect', () => {
             console.log('Rozłączono ze wszechświatem');
             this.updateConnectionStatus(false);
+            this.attemptReconnect();
         });
 
-        // Obsługa otrzymanych danych grafu
+        // Obsługa otrzymanych danych grafu z throttling
         this.socket.on('graph_data', (data) => {
             console.log('Aktualizacja wszechświata:', data);
-            this.updateUniverse(data);
+            this.throttledUpdate(data);
         });
 
         // Obsługa kontekstu głównej intencji LuxOS
@@ -189,14 +195,14 @@ class LuxOSUniverse {
     }
 
     createSpaceBackground() {
-        // Utwórz gwiazdy w tle
-        const starCount = 200;
+        // Utwórz gwiazdy w tle (ograniczona liczba dla wydajności)
+        const starCount = 50; // Zmniejszone z 200 na 50
         const stars = [];
 
         for (let i = 0; i < starCount; i++) {
             stars.push({
-                x: (Math.random() - 0.5) * this.width * 4,
-                y: (Math.random() - 0.5) * this.height * 4,
+                x: (Math.random() - 0.5) * this.width * 2,
+                y: (Math.random() - 0.5) * this.height * 2,
                 size: Math.random() * 2,
                 opacity: Math.random() * 0.8 + 0.2
             });
@@ -367,29 +373,24 @@ class LuxOSUniverse {
     }
 
     renderBeings() {
+        // Limit do 50 bytów dla wydajności
+        const visibleBeings = this.beings.slice(0, 50);
+        
         this.beingSelection = this.beingsGroup
             .selectAll(".being")
-            .data(this.beings, d => d.soul)
+            .data(visibleBeings, d => d.soul)
             .join("g")
             .attr("class", d => `being ${this.isLuxAgent(d) ? 'lux-agent' : d.genesis?.type || 'unknown'}`)
             .style("cursor", "pointer")
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.selectBeing(d);
-            })
-            .on("contextmenu", (event, d) => {
-                event.preventDefault();
-                this.showBeingContextMenu(d, event);
-            })
-            .on("dblclick", (event, d) => {
-                event.preventDefault();
-                this.showBeingDetails(d);
             });
 
-        // Usuń poprzednie elementy
+        // Usuń poprzednie elementy tylko jeśli konieczne
         this.beingSelection.selectAll("*").remove();
 
-        // Renderuj Lux jako centralną gwiazdę
+        // Renderuj Lux jako centralną gwiazdę (uproszczona wersja)
         this.beingSelection.filter(d => this.isLuxAgent(d))
             .each(function(d) {
                 const being = d3.select(this);
@@ -400,19 +401,17 @@ class LuxOSUniverse {
                     .attr("fill", "url(#luxStar)")
                     .style("filter", "url(#glow)");
 
-                // Pulsujące pierścienie
-                for (let i = 0; i < 4; i++) {
-                    being.append("circle")
-                        .attr("r", 60 + i * 15)
-                        .attr("fill", "none")
-                        .attr("stroke", "#ffff00")
-                        .attr("stroke-width", 2)
-                        .attr("opacity", 0.4 - i * 0.1)
-                        .style("animation", `luxPulse ${2 + i}s ease-in-out infinite`);
-                }
+                // Tylko jeden pulsujący pierścień dla wydajności
+                being.append("circle")
+                    .attr("r", 70)
+                    .attr("fill", "none")
+                    .attr("stroke", "#ffff00")
+                    .attr("stroke-width", 2)
+                    .attr("opacity", 0.4)
+                    .style("animation", "luxPulse 3s ease-in-out infinite");
             });
 
-        // Renderuj wiadomości/intencje jako małe kropki na mapie dusz
+        // Renderuj wiadomości/intencje jako małe kropki (bez animacji dla wydajności)
         this.beingSelection.filter(d => d.genesis?.type === 'message')
             .each(function(d) {
                 const being = d3.select(this);
@@ -424,22 +423,10 @@ class LuxOSUniverse {
                     .attr("fill", isIntention ? "#ffff00" : "#87ceeb")
                     .attr("stroke", "#ffffff")
                     .attr("stroke-width", 0.5)
-                    .style("opacity", 0.8)
-                    .style("filter", isIntention ? "url(#glow)" : null);
+                    .style("opacity", 0.8);
 
-                // Pulsowanie dla nowych intencji
-                if (isIntention) {
-                    being.append("circle")
-                        .attr("r", 8)
-                        .attr("fill", "none")
-                        .attr("stroke", "#ffff00")
-                        .attr("stroke-width", 1)
-                        .attr("opacity", 0.6)
-                        .style("animation", "intentionPulse 2s ease-in-out infinite");
-                }
-
-                // Etykieta tylko przy wysokim zoomie
-                if (self.zoomLevel > 10) {
+                // Etykieta tylko przy bardzo wysokim zoomie
+                if (self.zoomLevel > 15) {
                     being.append("text")
                         .attr("class", "being-label")
                         .attr("dy", 12)
@@ -447,7 +434,7 @@ class LuxOSUniverse {
                         .style("fill", "white")
                         .style("font-size", "6px")
                         .style("pointer-events", "none")
-                        .text(d.attributes?.message_data?.content?.slice(0, 10) + '...' || 'Msg');
+                        .text(d.attributes?.message_data?.content?.slice(0, 8) + '...' || 'Msg');
                 }
             });
 
@@ -858,6 +845,33 @@ class LuxOSUniverse {
         }, 4000);
     }
 
+    attemptReconnect() {
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
+            
+            console.log(`Próba reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} za ${delay}ms`);
+            
+            setTimeout(() => {
+                if (!this.socket.connected) {
+                    this.socket.connect();
+                }
+            }, delay);
+        } else {
+            console.log('Maksymalna liczba prób reconnect osiągnięta');
+            this.showErrorMessage('Połączenie z wszechświatem zostało przerwane');
+        }
+    }
+
+    throttledUpdate(data) {
+        const now = Date.now();
+        if (now - this.lastUpdateTime < this.updateThrottle) {
+            return; // Skip update if too frequent
+        }
+        this.lastUpdateTime = now;
+        this.updateUniverse(data);
+    }
+
     showErrorMessage(message) {
         // Pokaż komunikat błędu w interfejsie
         const errorDiv = document.createElement('div');
@@ -906,69 +920,36 @@ window.luxOSUniverse = null;
 const universeStyle = document.createElement('style');
 universeStyle.innerHTML = `
     .lux-agent {
-        animation: luxPulse 3s ease-in-out infinite;
+        /* Usunięte ciągłe animacje dla wydajności */
     }
 
     .being {
-        transition: all 0.3s ease;
+        transition: opacity 0.2s ease;
     }
 
     .being:hover {
-        filter: brightness(1.2) drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
-    }
-
-    .orbit {
-        animation: orbitRotate 20s linear infinite;
+        opacity: 0.8;
     }
 
     @keyframes luxPulse {
-        0% { filter: brightness(1) drop-shadow(0 0 20px rgba(255, 255, 0, 0.8)); }
-        50% { filter: brightness(1.3) drop-shadow(0 0 40px rgba(255, 215, 0, 1)); }
-        100% { filter: brightness(1) drop-shadow(0 0 20px rgba(255, 255, 0, 0.8)); }
-    }
-
-    @keyframes orbitRotate {
-        from { stroke-dashoffset: 0; }
-        to { stroke-dashoffset: 31.416; }
-    }
-
-    .star {
-        animation: twinkle 3s ease-in-out infinite;
-    }
-
-    @keyframes twinkle {
-        0%, 100% { opacity: 0.3; }
-        50% { opacity: 1; }
-    }
-
-    @keyframes intentionPulse {
-        0% { transform: scale(1); opacity: 0.6; }
-        50% { transform: scale(1.5); opacity: 0.3; }
-        100% { transform: scale(1); opacity: 0.6; }
+        0% { filter: brightness(1) drop-shadow(0 0 15px rgba(255, 255, 0, 0.6)); }
+        50% { filter: brightness(1.2) drop-shadow(0 0 25px rgba(255, 215, 0, 0.8)); }
+        100% { filter: brightness(1) drop-shadow(0 0 15px rgba(255, 255, 0, 0.6)); }
     }
 
     .lux-component-container {
-        animation: componentAppear 0.5s ease-out;
+        animation: componentAppear 0.3s ease-out;
     }
 
     @keyframes componentAppear {
         from { 
             opacity: 0; 
-            transform: translate(-50%, -50%) scale(0.8);
+            transform: translate(-50%, -50%) scale(0.9);
         }
         to { 
             opacity: 1; 
             transform: translate(-50%, -50%) scale(1);
         }
-    }
-
-    .lux-component-container:hover {
-        box-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
-        border-color: #00cc66;
-    }
-
-    .component-header {
-        text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
     }
 
     .success-message {
