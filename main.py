@@ -1,3 +1,13 @@
+
+#!/usr/bin/env python3
+"""
+LuxOS Main Server - Główny serwer systemu zarządzania bytami
+Zoptymalizowany dla deployment w chmurze (Replit, Cloud Run, itp.)
+"""
+import os
+import sys
+
+
 import asyncio
 import asyncpg
 import json
@@ -2487,6 +2497,53 @@ async def get_galactic_view(sid, data):
             'systems': galactic_systems,
             'user_id': user_id,
             'total_beings': len(user_beings)
+
+
+async def api_healthcheck(request):
+    """Healthcheck endpoint dla cloud deployment"""
+    global luxos_kernel, db_pool
+    
+    health_status = {
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'services': {
+            'database': 'unknown',
+            'kernel': 'unknown',
+            'orbital_manager': 'unknown'
+        }
+    }
+    
+    # Sprawdź bazę danych
+    try:
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                await conn.fetchval('SELECT 1')
+            health_status['services']['database'] = 'healthy'
+        else:
+            await db_pool.execute('SELECT 1')
+            health_status['services']['database'] = 'healthy'
+    except Exception as e:
+        health_status['services']['database'] = f'error: {str(e)}'
+        health_status['status'] = 'degraded'
+    
+    # Sprawdź kernel
+    if luxos_kernel and luxos_kernel.running:
+        health_status['services']['kernel'] = 'healthy'
+    else:
+        health_status['services']['kernel'] = 'not_running'
+        health_status['status'] = 'degraded'
+    
+    # Sprawdź orbital manager
+    if orbital_manager and orbital_manager.running:
+        health_status['services']['orbital_manager'] = 'healthy'
+    else:
+        health_status['services']['orbital_manager'] = 'not_running'
+        health_status['status'] = 'degraded'
+    
+    status_code = 200 if health_status['status'] == 'healthy' else 503
+    return web.json_response(health_status, status=status_code)
+
+
         }, room=sid)
         
     except Exception as e:
@@ -3060,6 +3117,10 @@ async def init_app():
     
     # Dodaj trasę dla statusu kernela
     app.router.add_route('GET', '/api/kernel/status', api_kernel_status)
+    
+    # Healthcheck dla cloud deployment
+    app.router.add_route('GET', '/health', api_healthcheck)
+    app.router.add_route('GET', '/api/health', api_healthcheck)
 
     # Konfiguracja CORS tylko dla tras API
     cors = aiohttp_cors.setup(app, defaults={
@@ -3382,38 +3443,89 @@ class OrbitalCycleManager:
 orbital_manager = OrbitalCycleManager()
 
 async def main():
+    """Główna funkcja uruchamiająca system LuxOS"""
     global luxos_kernel
     
-    # Inicjalizuj OpenAI dla rozmów z Lux
-    init_openai()
+    print("🌟 LuxOS - System Bytów Astralnych - STARTING")
+    print("=" * 60)
     
-    await init_app()
+    # Sprawdź tryb uruchomienia
+    import sys
+    mode = sys.argv[1] if len(sys.argv) > 1 else 'full'
     
-    # Uruchom menedżera cykli orbitalnych
-    await orbital_manager.start()
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 8000)
-    await site.start()
-    print("Serwer uruchomiony na http://0.0.0.0:8000")
-    print("🌍 System orbital z hierarchią zadań aktywny!")
-    
-    if luxos_kernel:
-        print(f"🧠 Kernel LuxOS aktywny: {luxos_kernel.KERNEL_SOUL_ID}")
-
-    # Trzymaj serwer żywy
     try:
-        await asyncio.Event().wait()
-    except KeyboardInterrupt:
-        print("⚠️ Otrzymano sygnał przerwania...")
-    finally:
-        print("🛑 Zamykanie systemu...")
+        # Inicjalizuj OpenAI dla rozmów z Lux
+        init_openai()
+        
+        await init_app()
+        
+        # Uruchom menedżera cykli orbitalnych
+        await orbital_manager.start()
+        
+        # Wybierz port na podstawie środowiska
+        port = int(os.getenv('PORT', 8000))
+        host = '0.0.0.0'  # Dla chmury zawsze 0.0.0.0
+        
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, host, port)
+        await site.start()
+        
+        print(f"🌐 Serwer uruchomiony na http://{host}:{port}")
+        print("🌍 System orbital z hierarchią zadań aktywny!")
+        
         if luxos_kernel:
-            await luxos_kernel.shutdown()
-        await orbital_manager.stop()
-        await runner.cleanup()
-        print("✅ System zamknięty")
+            print(f"🧠 Kernel LuxOS aktywny: {luxos_kernel.KERNEL_SOUL_ID}")
+        
+        print("✅ System LuxOS w pełni aktywny!")
+        print("=" * 60)
+
+        # Trzymaj serwer żywy
+        shutdown_event = asyncio.Event()
+        
+        # Obsługa sygnałów
+        def signal_handler():
+            print("⚠️ Otrzymano sygnał przerwania...")
+            shutdown_event.set()
+        
+        # Rejestruj handlery dla różnych sygnałów
+        try:
+            import signal
+            loop = asyncio.get_event_loop()
+            for sig in [signal.SIGTERM, signal.SIGINT]:
+                loop.add_signal_handler(sig, signal_handler)
+        except (ImportError, NotImplementedError):
+            # Windows lub inne systemy bez sygnałów
+            pass
+        
+        try:
+            await shutdown_event.wait()
+        except KeyboardInterrupt:
+            signal_handler()
+            
+    except Exception as e:
+        print(f"💥 Krytyczny błąd systemu: {e}")
+        raise
+    finally:
+        print("🛑 Zamykanie systemu LuxOS...")
+        if luxos_kernel:
+            try:
+                await luxos_kernel.shutdown()
+            except Exception as e:
+                print(f"Błąd zamykania kernela: {e}")
+        
+        try:
+            await orbital_manager.stop()
+        except Exception as e:
+            print(f"Błąd zamykania orbital manager: {e}")
+        
+        try:
+            await runner.cleanup()
+        except Exception as e:
+            print(f"Błąd zamykania serwera web: {e}")
+        
+        print("✅ System LuxOS zamknięty")
+        print("👋 Do widzenia!")
 
 class BeingFactory:
     """Factory do tworzenia różnych typów bytów"""
