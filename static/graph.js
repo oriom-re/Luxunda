@@ -481,43 +481,72 @@ class LuxOSUniverse {
             thoughts: [],           // Surowe myśli (wiadomości)
             condensing: [],         // Myśli w procesie kondensacji
             condensed_beings: [],   // Skondensowane byty
-            importance_clusters: new Map()  // Klastry według istotności
+            concept_clusters: new Map(),  // Klastry konceptów (LuxUnda, NeuroFala, etc.)
+            dependency_clouds: new Map()  // Chmury zależności
         };
+
+        // Kluczowe koncepty do grupowania
+        const key_concepts = ['luxunda', 'neurofala', 'katamaran', 'oaza', 'strona', 'unity', 'aplikacja'];
 
         beings.forEach(being => {
             const importance = this.calculateThoughtImportance(being);
             const type = being.genesis?.type;
+            const concepts = being.attributes?.concept_clusters || [];
+            const tags = being.attributes?.tags || [];
+
+            // Znajdź główny koncept dla tego bytu
+            let primary_concept = 'general';
+            for (const concept of key_concepts) {
+                if (concepts.includes(concept) || tags.includes(concept) || 
+                    (being.genesis?.name || '').toLowerCase().includes(concept)) {
+                    primary_concept = concept;
+                    break;
+                }
+            }
 
             // Klasyfikuj według stanu kondensacji
             if (type === 'message' || importance < 0.3) {
-                // Surowe myśli - materiał w przestrzeni
                 thoughtSpace.thoughts.push({
                     ...being,
                     importance: importance,
-                    condensation_state: 'dispersed'
+                    condensation_state: 'dispersed',
+                    primary_concept: primary_concept
                 });
             } else if (importance < 0.7) {
-                // Myśli w procesie kondensacji
                 thoughtSpace.condensing.push({
                     ...being,
                     importance: importance,
-                    condensation_state: 'condensing'
+                    condensation_state: 'condensing',
+                    primary_concept: primary_concept
                 });
             } else {
-                // Pełne byty - skondensowana materia myślowa
                 thoughtSpace.condensed_beings.push({
                     ...being,
                     importance: importance,
-                    condensation_state: 'condensed'
+                    condensation_state: 'condensed',
+                    primary_concept: primary_concept
                 });
             }
 
-            // Grupuj w klastry istotności
-            const cluster_level = Math.floor(importance * 10);
-            if (!thoughtSpace.importance_clusters.has(cluster_level)) {
-                thoughtSpace.importance_clusters.set(cluster_level, []);
+            // Grupuj w klastry konceptów
+            if (!thoughtSpace.concept_clusters.has(primary_concept)) {
+                thoughtSpace.concept_clusters.set(primary_concept, []);
             }
-            thoughtSpace.importance_clusters.get(cluster_level).push(being);
+            thoughtSpace.concept_clusters.get(primary_concept).push({
+                ...being,
+                importance: importance,
+                primary_concept: primary_concept
+            });
+
+            // Grupuj w chmury zależności na podstawie dependency_map
+            const dependency_map = being.attributes?.dependency_map;
+            if (dependency_map) {
+                const dep_key = `dep_${being.soul.substring(0, 8)}`;
+                if (!thoughtSpace.dependency_clouds.has(dep_key)) {
+                    thoughtSpace.dependency_clouds.set(dep_key, []);
+                }
+                thoughtSpace.dependency_clouds.get(dep_key).push(being);
+            }
         });
 
         return thoughtSpace;

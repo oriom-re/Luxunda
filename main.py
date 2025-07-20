@@ -1500,69 +1500,133 @@ class LuxCommunicationHandler:
 
     @staticmethod
     async def analyze_contextual_meaning(message: str, focused_beings: list, history: list, user_lux: BaseBeing) -> dict:
-        """Analizuje kontekstowe znaczenie wiadomości"""
+        """Analizuje kontekstowe znaczenie wiadomości z głęboką analizą zależności"""
         analysis = {
             'message_intent': 'unknown',
             'relates_to_focused': [],
             'relates_to_history': [],
-            'new_concept': False,
-            'continuation': False,
-            'grouping_candidate': False,
-            'confidence': 0.0
+            'concept_clusters': [],
+            'potential_connections': [],
+            'needs_clarification': False,
+            'lux_questions': [],
+            'confidence': 0.0,
+            'dependency_strength': 0.0
         }
         
         message_lower = message.lower()
         message_words = set(message_lower.split())
         
+        # Wykryj kluczowe koncepty (LuxUnda, NeuroFala, etc.)
+        key_concepts = {
+            'luxunda': ['luxunda', 'lux', 'unda', 'fala'],
+            'neurofala': ['neurofala', 'neuro', 'fala', 'neural'],
+            'katamaran': ['katamaran', 'łódź', 'statek', 'żeglarstwo'],
+            'oaza': ['oaza', 'pustynia', 'schronienie', 'spokój'],
+            'strona': ['strona', 'website', 'portal', 'web'],
+            'unity': ['unity', 'gra', 'game', 'engine'],
+            'aplikacja': ['aplikacja', 'app', 'program', 'software'],
+            'system': ['system', 'architektura', 'struktura']
+        }
+        
+        detected_concepts = []
+        for concept_name, keywords in key_concepts.items():
+            if any(keyword in message_lower for keyword in keywords):
+                detected_concepts.append(concept_name)
+        
         # Analiza związku z bytami na które patrzy użytkownik
         for being in focused_beings:
-            being_words = set(f"{being.genesis.get('name', '')} {being.genesis.get('description', '')}".lower().split())
+            being_text = f"{being.genesis.get('name', '')} {being.genesis.get('description', '')}".lower()
+            being_words = set(being_text.split())
             common_words = message_words.intersection(being_words)
             
-            if common_words:
-                relevance = len(common_words) / len(message_words)
+            # Sprawdź też koncepty
+            being_concepts = []
+            for concept_name, keywords in key_concepts.items():
+                if any(keyword in being_text for keyword in keywords):
+                    being_concepts.append(concept_name)
+            
+            concept_overlap = set(detected_concepts).intersection(set(being_concepts))
+            
+            if common_words or concept_overlap:
+                relevance = (len(common_words) / max(len(message_words), 1)) + (len(concept_overlap) * 0.5)
                 analysis['relates_to_focused'].append({
                     'being_soul': being.soul,
                     'being_name': being.genesis.get('name', 'Unknown'),
-                    'relevance': relevance,
-                    'common_concepts': list(common_words)
+                    'relevance': min(1.0, relevance),
+                    'common_concepts': list(common_words),
+                    'shared_key_concepts': list(concept_overlap)
                 })
         
-        # Analiza związku z historią
-        for msg_soul in history[-3:]:  # Ostatnie 3 wiadomości
+        # Analiza związku z historią - rozszerzona
+        for msg_soul in history[-5:]:  # Więcej historii
             if hasattr(msg_soul, 'content') and isinstance(msg_soul.content, str):
                 hist_words = set(msg_soul.content.lower().split())
                 common_words = message_words.intersection(hist_words)
                 
-                if common_words:
-                    relevance = len(common_words) / len(message_words)
+                # Sprawdź koncepty w historii
+                hist_concepts = []
+                for concept_name, keywords in key_concepts.items():
+                    if any(keyword in msg_soul.content.lower() for keyword in keywords):
+                        hist_concepts.append(concept_name)
+                
+                concept_overlap = set(detected_concepts).intersection(set(hist_concepts))
+                
+                if common_words or concept_overlap:
+                    relevance = (len(common_words) / max(len(message_words), 1)) + (len(concept_overlap) * 0.3)
                     analysis['relates_to_history'].append({
                         'message_soul_id': msg_soul.id,
-                        'relevance': relevance,
-                        'common_concepts': list(common_words)
+                        'relevance': min(1.0, relevance),
+                        'common_concepts': list(common_words),
+                        'shared_key_concepts': list(concept_overlap)
                     })
         
-        # Określ intent
-        if any(word in message_lower for word in ['nowy', 'nowa', 'stwórz', 'utwórz', 'dodaj']):
+        # Analiza klastrów konceptów
+        if detected_concepts:
+            analysis['concept_clusters'] = detected_concepts
+        
+        # Lux zadaje pytania gdy kontekst nie jest jasny
+        if not analysis['relates_to_focused'] and not analysis['relates_to_history'] and detected_concepts:
+            analysis['needs_clarification'] = True
+            analysis['lux_questions'].append(
+                f"Widzę że piszesz o {', '.join(detected_concepts)}. Czy to ma związek z którymś z istniejących projektów?"
+            )
+        elif len(analysis['relates_to_focused']) > 1:
+            analysis['needs_clarification'] = True
+            focused_names = [rel['being_name'] for rel in analysis['relates_to_focused']]
+            analysis['lux_questions'].append(
+                f"Widzę powiązania z kilkoma projektami: {', '.join(focused_names)}. Któremu z nich to dotyczy najbardziej?"
+            )
+        elif not detected_concepts and not analysis['relates_to_focused']:
+            analysis['needs_clarification'] = True
+            analysis['lux_questions'].append(
+                "To brzmi interesująco! Czy to nowy pomysł, czy rozwój czegoś co już istnieje?"
+            )
+        
+        # Określ intent z większą precyzją
+        if any(word in message_lower for word in ['nowy', 'nowa', 'stwórz', 'utwórz', 'dodaj', 'rozpocznij']):
             analysis['message_intent'] = 'create_new'
-        elif any(word in message_lower for word in ['kontynuuj', 'dalej', 'więcej', 'rozwij']):
+        elif any(word in message_lower for word in ['kontynuuj', 'dalej', 'więcej', 'rozwij', 'dodaj do', 'uzupełnij']):
             analysis['message_intent'] = 'continue'
-        elif any(word in message_lower for word in ['połącz', 'grupuj', 'razem', 'wspólnie']):
+        elif any(word in message_lower for word in ['połącz', 'grupuj', 'razem', 'wspólnie', 'zintegruj']):
             analysis['message_intent'] = 'group_merge'
         elif analysis['relates_to_focused'] or analysis['relates_to_history']:
             analysis['message_intent'] = 'context_related'
+        elif detected_concepts:
+            analysis['message_intent'] = 'concept_development'
         else:
             analysis['message_intent'] = 'new_concept'
-            analysis['new_concept'] = True
         
-        # Ustal confidence
-        confidence_factors = []
+        # Oblicz siłę zależności
+        dependency_factors = []
         if analysis['relates_to_focused']:
-            confidence_factors.append(max(rel['relevance'] for rel in analysis['relates_to_focused']))
+            dependency_factors.append(max(rel['relevance'] for rel in analysis['relates_to_focused']))
         if analysis['relates_to_history']:
-            confidence_factors.append(max(rel['relevance'] for rel in analysis['relates_to_history']))
+            dependency_factors.append(max(rel['relevance'] for rel in analysis['relates_to_history']))
+        if detected_concepts:
+            dependency_factors.append(len(detected_concepts) * 0.2)
         
-        analysis['confidence'] = sum(confidence_factors) / len(confidence_factors) if confidence_factors else 0.1
+        analysis['dependency_strength'] = sum(dependency_factors) / len(dependency_factors) if dependency_factors else 0.0
+        analysis['confidence'] = min(1.0, analysis['dependency_strength'])
         
         return analysis
 
@@ -1597,16 +1661,36 @@ class LuxCommunicationHandler:
 
     @staticmethod
     async def execute_thread_action(decision: dict, message_soul: Soul, user_lux: BaseBeing, context_analysis: dict) -> dict:
-        """Wykonuje decyzję dotyczącą wątku"""
-        result = {'success': False, 'lux_response': ''}
+        """Wykonuje decyzję dotyczącą wątku z aktywnym pytaniem Lux"""
+        result = {'success': False, 'lux_response': '', 'lux_questions': []}
+        
+        # Sprawdź czy Lux ma pytania
+        if context_analysis.get('needs_clarification') and context_analysis.get('lux_questions'):
+            result['lux_questions'] = context_analysis['lux_questions']
         
         if decision['action'] == 'create_new':
             # Utwórz nowy byt z wiadomości
-            new_being = await LuxCommunicationHandler.create_being_from_message(message_soul, user_lux)
+            new_being = await LuxCommunicationHandler.create_being_from_message(message_soul, user_lux, context_analysis)
+            
+            base_response = f"Utworzyłem nowy byt '{new_being.genesis.get('name', 'Unknown')}'"
+            
+            # Dodaj pytania kontekstowe
+            if context_analysis.get('concept_clusters'):
+                concepts = ', '.join(context_analysis['concept_clusters'])
+                base_response += f" w kontekście {concepts}"
+            
+            # Lux pyta o powiązania
+            questions = []
+            if not context_analysis.get('relates_to_focused'):
+                questions.append("Czy ten pomysł ma związek z którymś z twoich innych projektów?")
+            if context_analysis.get('concept_clusters'):
+                questions.append(f"Jak widzisz rozwój tego w kontekście {', '.join(context_analysis['concept_clusters'])}?")
+            
             result = {
                 'success': True,
                 'created_being': new_being.soul,
-                'lux_response': f"Utworzyłem nowy byt '{new_being.genesis.get('name', 'Unknown')}' z twojej wiadomości."
+                'lux_response': base_response + ".",
+                'lux_questions': questions
             }
             
         elif decision['action'] == 'attach_to_focused':
@@ -1616,45 +1700,111 @@ class LuxCommunicationHandler:
                 await SoulRelation.create(
                     being_soul=target_being.soul,
                     soul_id=message_soul.id,
-                    interpretation={'type': 'user_input', 'context': 'visual_focus'},
+                    interpretation={'type': 'user_input', 'context': 'visual_focus', 'concepts': context_analysis.get('concept_clusters', [])},
                     emotional_response=0.7,
                     relevance=decision['confidence']
                 )
+                
+                # Zaktualizuj byt z nowymi konceptami
+                if context_analysis.get('concept_clusters'):
+                    existing_tags = target_being.attributes.get('tags', [])
+                    new_tags = list(set(existing_tags + context_analysis['concept_clusters']))
+                    target_being.attributes['tags'] = new_tags
+                    await target_being.save()
+                
+                base_response = f"Połączyłem to z '{target_being.genesis.get('name', 'Unknown')}'"
+                
+                # Lux pyta o dalsze rozwój
+                questions = ["Jak chcesz to dalej rozwijać?"]
+                if len(context_analysis.get('relates_to_focused', [])) > 1:
+                    questions.append("Widzę też powiązania z innymi projektami - czy mam je też połączyć?")
+                
                 result = {
                     'success': True,
                     'attached_to': target_being.soul,
-                    'lux_response': f"Dodałem twoją wiadomość do kontekstu '{target_being.genesis.get('name', 'Unknown')}'."
+                    'lux_response': base_response + ".",
+                    'lux_questions': questions
                 }
         
         elif decision['action'] == 'create_parent_concept':
             # Utwórz nadrzędny byt który grupuje inne
             parent_being = await LuxCommunicationHandler.create_parent_concept(
-                message_soul, decision['child_beings'], user_lux
+                message_soul, decision['child_beings'], user_lux, context_analysis
             )
+            
+            base_response = f"Utworzyłem nadrzędny koncept '{parent_being.genesis.get('name', 'Unknown')}' grupujący powiązane projekty"
+            
+            # Lux pyta o strukturę
+            questions = [
+                "Jak widzisz hierarchię w tym projekcie?",
+                "Czy mam szukać więcej powiązań z innymi projektami?"
+            ]
+            
             result = {
                 'success': True,
                 'created_parent': parent_being.soul,
                 'grouped_beings': decision['child_beings'],
-                'lux_response': f"Utworzyłem nadrzędny koncept '{parent_being.genesis.get('name', 'Unknown')}' który grupuje powiązane byty."
+                'lux_response': base_response + ".",
+                'lux_questions': questions
+            }
+        
+        elif decision['action'] == 'needs_clarification':
+            # Tylko pytania bez akcji
+            result = {
+                'success': True,
+                'lux_response': "Potrzebuję więcej informacji aby lepiej to zrozumieć.",
+                'lux_questions': context_analysis.get('lux_questions', ['Możesz podać więcej szczegółów?'])
             }
         
         return result
 
     @staticmethod
-    async def create_being_from_message(message_soul: Soul, user_lux: BaseBeing) -> BaseBeing:
-        """Tworzy nowy byt z wiadomości użytkownika"""
+    async def create_being_from_message(message_soul: Soul, user_lux: BaseBeing, context_analysis: dict = None) -> BaseBeing:
+        """Tworzy nowy byt z wiadomości użytkownika z analizą konceptów"""
         message_content = message_soul.content if isinstance(message_soul.content, str) else str(message_soul.content)
+        context_analysis = context_analysis or {}
         
-        # Określ typ i nazwę na podstawie treści
-        if any(word in message_content.lower() for word in ['strona', 'website', 'portal']):
+        # Wykryj typ na podstawie konceptów i treści
+        detected_concepts = context_analysis.get('concept_clusters', [])
+        
+        if 'luxunda' in detected_concepts:
+            being_type = 'luxunda_concept'
+            name = f"LuxUnda: {message_content[:25]}..."
+        elif 'neurofala' in detected_concepts:
+            being_type = 'neurofala_concept'
+            name = f"NeuroFala: {message_content[:25]}..."
+        elif 'katamaran' in detected_concepts:
+            being_type = 'katamaran_project'
+            name = f"Katamaran: {message_content[:25]}..."
+        elif 'oaza' in detected_concepts:
+            being_type = 'oaza_concept'
+            name = f"Oaza: {message_content[:25]}..."
+        elif 'unity' in detected_concepts:
+            being_type = 'unity_project'
+            name = f"Unity: {message_content[:25]}..."
+        elif 'strona' in detected_concepts or any(word in message_content.lower() for word in ['strona', 'website', 'portal']):
             being_type = 'website_project'
-            name = f"Projekt strony: {message_content[:30]}..."
+            name = f"Strona: {message_content[:25]}..."
         elif any(word in message_content.lower() for word in ['aplikacja', 'app', 'program']):
             being_type = 'application_project'
-            name = f"Aplikacja: {message_content[:30]}..."
+            name = f"Aplikacja: {message_content[:25]}..."
         else:
             being_type = 'general_concept'
-            name = f"Idea: {message_content[:30]}..."
+            name = f"Koncepcja: {message_content[:25]}..."
+        
+        # Przygotuj tagi z wykrytymi konceptami
+        tags = ['user_generated', being_type, 'contextual']
+        if detected_concepts:
+            tags.extend(detected_concepts)
+        
+        # Ustaw energię na podstawie liczby wykrytych powiązań
+        base_energy = 300
+        if context_analysis.get('relates_to_focused'):
+            base_energy += len(context_analysis['relates_to_focused']) * 50
+        if context_analysis.get('relates_to_history'):
+            base_energy += len(context_analysis['relates_to_history']) * 30
+        if detected_concepts:
+            base_energy += len(detected_concepts) * 40
         
         new_being = await BaseBeing.create(
             genesis={
@@ -1662,26 +1812,39 @@ class LuxCommunicationHandler:
                 'name': name,
                 'description': message_content,
                 'source_message_soul': message_soul.id,
-                'created_by': 'lux_contextual_analysis'
+                'created_by': 'lux_contextual_analysis',
+                'detected_concepts': detected_concepts,
+                'context_strength': context_analysis.get('dependency_strength', 0.0)
             },
             attributes={
-                'energy_level': 300,
+                'energy_level': min(1000, base_energy),
                 'user_id': message_soul.metadata.get('sender'),
                 'context_aware': True,
-                'tags': ['user_generated', being_type, 'contextual']
+                'concept_clusters': detected_concepts,
+                'dependency_map': {
+                    'focused_beings': [rel['being_soul'] for rel in context_analysis.get('relates_to_focused', [])],
+                    'related_history': [rel['message_soul_id'] for rel in context_analysis.get('relates_to_history', [])]
+                },
+                'tags': tags
             },
             memories=[{
                 'type': 'creation_from_message',
                 'message_soul': message_soul.id,
+                'context_analysis': context_analysis,
                 'timestamp': datetime.now().isoformat()
             }]
         )
         
-        # Stwórz relację z Lux
+        # Stwórz relację z Lux z konceptami
         await SoulRelation.create(
             being_soul=user_lux.soul,
             soul_id=message_soul.id,
-            interpretation={'type': 'user_concept', 'being_created': new_being.soul},
+            interpretation={
+                'type': 'user_concept', 
+                'being_created': new_being.soul,
+                'concepts': detected_concepts,
+                'context_strength': context_analysis.get('dependency_strength', 0.0)
+            },
             emotional_response=0.8,
             relevance=0.9
         )
@@ -1689,7 +1852,7 @@ class LuxCommunicationHandler:
         return new_being
 
     @staticmethod
-    async def create_parent_concept(message_soul: Soul, child_beings: list, user_lux: BaseBeing) -> BaseBeing:
+    async def create_parent_concept(message_soul: Soul, child_beings: list, user_lux: BaseBeing, context_analysis: dict = None) -> BaseBeing:
         """Tworzy nadrzędny koncept grupujący inne byty"""
         message_content = message_soul.content if isinstance(message_soul.content, str) else str(message_soul.content)
         
