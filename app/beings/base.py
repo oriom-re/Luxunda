@@ -17,7 +17,7 @@ class DateTimeEncoder(json.JSONEncoder):
         if isinstance(obj, uuid.UUID):
             return str(obj)
         return super().default(obj)
-    
+
 @dataclass
 class BaseBeing:
     soul: str
@@ -71,7 +71,7 @@ class BaseBeing:
 
     async def save(self):
         """Zapisuje byt do bazy danych"""
-        db_pool = main.db_pool
+        db_pool = await get_db_pool()
         if hasattr(db_pool, 'acquire'):
             async with db_pool.acquire() as conn:
                 await conn.execute("""
@@ -102,7 +102,7 @@ class BaseBeing:
     @classmethod
     async def load(cls, soul: str):
         """Ładuje byt z bazy danych"""
-        db_pool = main.db_pool
+        db_pool = await get_db_pool()
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
             if row:
@@ -119,7 +119,7 @@ class BaseBeing:
     @classmethod
     async def get_all(cls, limit: int = 100):
         """Pobiera wszystkie byty"""
-        db_pool = main.db_pool
+        db_pool = await get_db_pool()
         if hasattr(db_pool, 'acquire'):
             # PostgreSQL
             async with db_pool.acquire() as conn:
@@ -217,7 +217,7 @@ class Relationship:
 
     async def save(self):
         """Zapisuje relację do bazy danych"""
-        db_pool = main.db_pool
+        db_pool = await get_db_pool()
         if hasattr(db_pool, 'acquire'):
             async with db_pool.acquire() as conn:
                 await conn.execute("""
@@ -244,7 +244,7 @@ class Relationship:
     @classmethod
     async def get_all(cls, limit: int = 100):
         """Pobiera wszystkie relacje"""
-        db_pool = main.db_pool
+        db_pool = await get_db_pool()
         if hasattr(db_pool, 'acquire'):
             # PostgreSQL
             async with db_pool.acquire() as conn:

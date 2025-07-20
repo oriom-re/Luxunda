@@ -10,6 +10,7 @@ import os
 from lux_tools import LuxTools
 import asyncpg
 import aiosqlite
+from app.database import set_db_pool, get_db_pool
 from app.beings.base import BaseBeing, Relationship
 from app.beings.being_factory import BeingFactory
 from app.beings.function_router import FunctionRouter
@@ -57,7 +58,6 @@ async def get_graph_data(sid, data=None):
 @sio.event
 async def create_being(sid, data):
     """Tworzy nowy byt"""
-    global db_pool
     try:
         being_type = data.get('being_type', 'base')
         being = await BeingFactory.create_being(
@@ -868,11 +868,9 @@ async def api_relationships(request):
 
 async def init_database():
     """Inicjalizuje połączenie z bazą danych i tworzy tabele"""
-    global db_pool
-
     # Próba połączenia z PostgreSQL, fallback na SQLite
     try:
-        db_pool = await asyncpg.create_pool(
+        pool = await asyncpg.create_pool(
             host='ep-odd-tooth-a2zcp5by-pooler.eu-central-1.aws.neon.tech',
             port=5432,
             user='neondb_owner',
@@ -884,16 +882,19 @@ async def init_database():
                 'statement_cache_size': '0'  # Wyłącz cache statementów
             }
         )
+        set_db_pool(pool)
         print("Połączono z PostgreSQL")
         await setup_postgresql_tables()
     except Exception as e:
         print(f"Nie udało się połączyć z PostgreSQL: {e}")
         print("Używam SQLite jako fallback")
-        db_pool = await aiosqlite.connect('luxos.db')
+        pool = await aiosqlite.connect('luxos.db')
+        set_db_pool(pool)
         await setup_sqlite_tables()
 
 async def setup_postgresql_tables():
     """Tworzy tabele w PostgreSQL"""
+    db_pool = await get_db_pool()
     async with db_pool.acquire() as conn:
         # Tabela base_beings
         await conn.execute("""
@@ -963,6 +964,7 @@ async def setup_postgresql_tables():
 
 async def setup_sqlite_tables():
     """Tworzy tabele w SQLite"""
+    db_pool = await get_db_pool()
     await db_pool.execute("""
         CREATE TABLE IF NOT EXISTS base_beings (
             soul TEXT PRIMARY KEY,

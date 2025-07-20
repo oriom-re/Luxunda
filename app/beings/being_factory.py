@@ -3,11 +3,8 @@ import uuid
 import json
 
 
-# Import db_pool from main
-import sys
-import os
-# sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-# import main
+# Import db_pool from database module
+from app.database import get_db_pool
 from app.beings.function_being import FunctionBeing
 from app.beings.base import BaseBeing
 from app.beings.class_being import ClassBeing
@@ -65,7 +62,7 @@ class BeingFactory:
     @classmethod
     async def load_being(cls, soul: str) -> Optional[BaseBeing]:
         """Ładuje byt odpowiedniego typu z bazy danych"""
-        db_pool = main.db_pool
+        db_pool = await get_db_pool()
         
         if hasattr(db_pool, 'acquire'):
             async with db_pool.acquire() as conn:
