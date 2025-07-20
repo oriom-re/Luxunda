@@ -144,29 +144,19 @@ class IntentionComponent {
         try {
             console.log('Sending thought to Lux:', message);
             
-            // Pobierz kontekst wizualny
-            const visualContext = this.getVisualContext();
-            
-            // Pokaż feedback z kontekstem
-            if (visualContext.focused_beings.length > 0) {
-                this.showFeedback(`Lux analizuje w kontekście: ${visualContext.focused_beings.join(', ')}...`, 'info');
-            } else {
-                this.showFeedback('Lux analizuje twoją myśl...', 'info');
-            }
+            // Pokaż feedback
+            this.showFeedback('Lux analizuje twoją myśl...', 'info');
             
             // Zablokuj przycisk na czas przetwarzania
             this.sendButton.disabled = true;
             this.sendButton.textContent = '🧠 Lux analizuje...';
 
-            // Wyślij przez nowy kanał komunikacyjny z Lux z rozszerzonym kontekstem
+            // Wyślij przez nowy kanał komunikacyjny z Lux
             if (this.graphManager && this.graphManager.socket) {
                 this.graphManager.socket.emit('lux_communication', {
                     message: message,
                     context: {
-                        selected_nodes: visualContext.selected_nodes,
-                        focused_beings: visualContext.focused_beings,
-                        viewport_center: visualContext.viewport_center,
-                        nearby_beings: visualContext.nearby_beings,
+                        selected_nodes: this.graphManager.selectedNodes || [],
                         timestamp: new Date().toISOString()
                     }
                 });
@@ -179,58 +169,6 @@ class IntentionComponent {
             this.showError('Błąd komunikacji z Lux: ' + error.message);
             this.resetSendButton();
         }
-    }
-
-    getVisualContext() {
-        """Pobiera kontekst wizualny - na co użytkownik patrzy"""
-        const context = {
-            selected_nodes: [],
-            focused_beings: [],
-            viewport_center: { x: 0, y: 0 },
-            nearby_beings: []
-        };
-
-        if (!this.graphManager) return context;
-
-        // Pobierz zaznaczone węzły
-        context.selected_nodes = this.graphManager.selectedNodes || [];
-        
-        // Pobierz nazwy bytów dla lepszego feedbacku
-        context.focused_beings = context.selected_nodes.map(nodeId => {
-            const being = this.graphManager.beings.find(b => b.soul === nodeId);
-            return being ? being.genesis.name || 'Unknown' : 'Unknown';
-        });
-
-        // Pobierz centrum widoku
-        if (this.graphManager.svg) {
-            const transform = this.graphManager.svg.node().transform;
-            if (transform) {
-                context.viewport_center = {
-                    x: transform.baseVal.length > 0 ? transform.baseVal[0].matrix.e : 0,
-                    y: transform.baseVal.length > 0 ? transform.baseVal[0].matrix.f : 0
-                };
-            }
-        }
-
-        // Znajdź pobliskie byty (w widoku)
-        if (this.graphManager.beings) {
-            const viewportRadius = 300; // Promień "bliskości"
-            const center = context.viewport_center;
-            
-            context.nearby_beings = this.graphManager.beings
-                .filter(being => {
-                    if (!being.x || !being.y) return false;
-                    const distance = Math.sqrt(
-                        Math.pow(being.x - center.x, 2) + 
-                        Math.pow(being.y - center.y, 2)
-                    );
-                    return distance <= viewportRadius;
-                })
-                .map(being => being.soul)
-                .slice(0, 5); // Maksymalnie 5 najbliższych
-        }
-
-        return context;
     }
 
     handleIntentionResponse(response) {
@@ -294,65 +232,25 @@ class IntentionComponent {
             this.showFeedback(response.lux_response, 'success');
         }
 
-        // Pokaż akcję jaką podjął Lux
-        if (response.action_taken) {
-            this.showActionTaken(response.action_taken, response.result);
-        }
+        // Pokaż klasyfikację
+        const analysis = response.analysis;
+        if (analysis) {
+            const classificationText = this.getClassificationText(analysis.classification);
+            this.showFeedback(`Lux: ${classificationText}`, 'info');
 
-        // Pokaż analizę kontekstu
-        if (response.context_analysis) {
-            this.showContextAnalysis(response.context_analysis);
-        }
+            // Jeśli są sugerowane akcje, pokaż je
+            if (analysis.suggested_actions && analysis.suggested_actions.length > 0) {
+                this.showSuggestedActions(analysis.suggested_actions);
+            }
 
-        // Zaktualizuj graf jeśli coś zostało utworzone
-        if (response.result && (response.result.created_being || response.result.created_parent)) {
-            setTimeout(() => {
-                if (this.graphManager && this.graphManager.socket) {
-                    this.graphManager.socket.emit('get_graph_data');
-                }
-            }, 500);
+            // Jeśli znaleziono podobne intencje
+            if (analysis.matching_intentions && analysis.matching_intentions.length > 0) {
+                this.showMatchingIntentions(analysis.matching_intentions);
+            }
         }
 
         // Wyczyść input po pomyślnej analizie
         this.clearInput();
-    }
-
-    showActionTaken(action, result) {
-        const actionMessages = {
-            'create_new': `🌟 Utworzono nowy byt: ${result.created_being || 'Unknown'}`,
-            'attach_to_focused': `🔗 Dodano do kontekstu: ${result.attached_to || 'Unknown'}`,
-            'continue_thread': `➡️ Kontynuacja wątku`,
-            'create_parent_concept': `🏗️ Utworzono nadrzędny koncept: ${result.created_parent || 'Unknown'}`
-        };
-
-        const message = actionMessages[action] || `⚡ Akcja: ${action}`;
-        this.showFeedback(message, 'success');
-
-        // Dodatkowe informacje dla grupowania
-        if (action === 'create_parent_concept' && result.grouped_beings) {
-            this.showFeedback(`📦 Pogrupowano ${result.grouped_beings.length} bytów`, 'info');
-        }
-    }
-
-    showContextAnalysis(analysis) {
-        let contextInfo = '';
-        
-        if (analysis.relates_to_focused && analysis.relates_to_focused.length > 0) {
-            const focusedNames = analysis.relates_to_focused.map(rel => rel.being_name).join(', ');
-            contextInfo += `👀 Związane z: ${focusedNames}. `;
-        }
-
-        if (analysis.relates_to_history && analysis.relates_to_history.length > 0) {
-            contextInfo += `📚 Nawiązuje do wcześniejszej rozmowy. `;
-        }
-
-        if (analysis.new_concept) {
-            contextInfo += `💡 Nowy koncept. `;
-        }
-
-        if (contextInfo) {
-            this.showFeedback(`🧠 Analiza: ${contextInfo}(Pewność: ${Math.round(analysis.confidence * 100)}%)`, 'info');
-        }
     }
 
     getClassificationText(classification) {

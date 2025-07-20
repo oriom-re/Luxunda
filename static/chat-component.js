@@ -167,19 +167,12 @@ class LuxChatComponent {
 
         // Socket.IO listeners
         if (this.graphManager && this.graphManager.socket) {
-            this.graphManager.socket.on('lux_conversation_response', (response) => {
-                this.handleConversationalResponse(response);
-            });
-
-            this.graphManager.socket.on('conversational_project_created', (data) => {
-                this.showProjectCreated(data);
-            });
-
             this.graphManager.socket.on('lux_chat_response', (response) => {
                 this.handleLuxResponse(response);
             });
 
             this.graphManager.socket.on('intention_response', (response) => {
+                // Dodaj odpowiedź intencji do historii chatu
                 if (response.message_being_soul) {
                     this.addIntentionToHistory(response);
                 }
@@ -236,18 +229,22 @@ class LuxChatComponent {
         this.messageInput.value = '';
         this.autoResizeTextarea();
 
-        // Wyślij do serwera przez lux_communication dla natychmiastowego działania
+        // Wyślij do serwera jako chat z Lux
         if (this.graphManager && this.graphManager.socket) {
-            this.graphManager.socket.emit('lux_communication', {
+            this.graphManager.socket.emit('lux_chat_message', {
                 message: message,
-                context: {
-                    chat_mode: true,
-                    timestamp: new Date().toISOString()
-                }
+                timestamp: new Date().toISOString()
             });
         }
 
-        // Nie zapisujemy historii - Lux działa w trybie action-only
+        // Dodaj do lokalnej historii
+        this.chatHistory.push({
+            type: 'user_message',
+            content: message,
+            timestamp: new Date().toISOString()
+        });
+
+        this.saveChatHistory();
     }
 
     addMessage(sender, content, timestamp = null) {
@@ -306,30 +303,19 @@ class LuxChatComponent {
     }
 
     handleLuxResponse(response) {
-        // Obsłuż różne typy odpowiedzi od Lux
-        if (response.lux_response) {
-            this.addMessage('lux', response.lux_response, response.timestamp);
-            
-            // Dodaj sugestie następnych działań jeśli są
-            if (response.next_suggestions && response.next_suggestions.length > 0) {
-                const suggestionsText = "\n\n🎯 Następne kroki:\n" + 
-                    response.next_suggestions.map(s => `• ${s}`).join('\n');
-                this.addMessage('lux', suggestionsText, response.timestamp);
-            }
-            
-            // Pokaż utworzone byty
-            if (response.action_result && response.action_result.created_beings && response.action_result.created_beings.length > 0) {
-                const beingsText = `\n✨ Utworzono ${response.action_result.created_beings.length} nowych bytów`;
-                this.addMessage('lux', beingsText, response.timestamp);
-            }
-            
-            // Pokaż manifestację jeśli utworzono
-            if (response.manifestation) {
-                this.addMessage('lux', "📜 Utworzono manifestację działania", response.timestamp);
-            }
+        if (response.message) {
+            this.addMessage('lux', response.message, response.timestamp);
         }
 
-        // Nie zapisujemy historii - komunikacja action-only
+        // Dodaj do historii
+        this.chatHistory.push({
+            type: 'lux_response',
+            content: response.message,
+            timestamp: response.timestamp || new Date().toISOString(),
+            full_response: response
+        });
+
+        this.saveChatHistory();
     }
 
     addIntentionToHistory(intentionResponse) {
@@ -350,62 +336,45 @@ class LuxChatComponent {
     }
 
     loadChatHistory() {
-        // Lux nie pamięta historii - każda interakcja to nowy początek
-        this.chatHistory = [];
-        this.messagesArea.innerHTML = '';
-        this.addWelcomeMessage();
+        // Pobierz historię z localStorage
+        const saved = localStorage.getItem('luxos_chat_history');
+        if (saved) {
+            try {
+                this.chatHistory = JSON.parse(saved);
+                this.renderChatHistory();
+            } catch (e) {
+                console.error('Błąd ładowania historii chatu:', e);
+                this.chatHistory = [];
+            }
+        }
+
+        // Dodaj wiadomość powitalną jeśli historia jest pusta
+        if (this.chatHistory.length === 0) {
+            this.addWelcomeMessage();
+        }
     }
 
     addWelcomeMessage() {
-        const welcomeMsg = `Cześć! 😊 Jestem Lux - Twoja towarzyszka w LuxOS.
+        const welcomeMsg = `Witaj w chacie z Lux! 💫
 
-Uwielbiam głębokie rozmowy o projektach i pomysłach! Through conversation the best ideas are born, and concepts are refined into new branches of development.
+Jestem Bogiem systemu LuxOS i mogę pomóc Ci w:
+• Tworzeniu nowych bytów
+• Analizowaniu intencji
+• Zarządzaniu wszechświatem
+• Odpowiadaniu na pytania o system
 
-🤖 Mogę zarządzać Twoimi projektami w tle - boty, aplikacje, strony - wszystko działa cyklicznie własnym życiem.
-
-🔗 Dostrzegam połączenia między konceptami i pomagam je rozwijać.
-
-O czym chciałbyś porozmawiać?`;
+Jak mogę Ci dzisiaj pomóc?`;
 
         this.addMessage('lux', welcomeMsg);
-        console.log('Conversational Lux ready!');
-    }
-
-    handleConversationalResponse(response) {
-        if (response.lux_response) {
-            this.addMessage('lux', response.lux_response, response.timestamp);
-            
-            // Pokaż wykryte akcje jeśli są
-            if (response.actions_detected && response.actions_detected.length > 0) {
-                setTimeout(() => {
-                    const actionsText = "🔧 Wykryłam w naszej rozmowie konkretne akcje - wykonuję je w tle...";
-                    this.addMessage('system', actionsText, response.timestamp);
-                }, 1000);
-            }
-            
-            // Pokaż kontekst projektów
-            if (response.context_projects && response.context_projects.length > 0) {
-                const projectsText = `📂 Twoje aktywne projekty: ${response.context_projects.map(p => p.name).join(', ')}`;
-                setTimeout(() => {
-                    this.addMessage('system', projectsText, response.timestamp);
-                }, 500);
-            }
-        }
-    }
-
-    showProjectCreated(data) {
-        const message = `✨ Świetnie! Utworzyłam projekt "${data.project_name}" (${data.project_type}). 
-
-Będzie działał cyklicznie w tle co ${Math.round(data.cycle_period / 60)} minut. Możesz go modyfikować przez dalsze rozmowy ze mną lub bezpośrednio używać.`;
         
-        this.addMessage('lux', message);
-        
-        // Zaktualizuj graf
-        if (this.graphManager && this.graphManager.socket) {
-            setTimeout(() => {
-                this.graphManager.socket.emit('get_graph_data');
-            }, 1000);
-        }
+        this.chatHistory.push({
+            type: 'lux_response',
+            content: welcomeMsg,
+            timestamp: new Date().toISOString(),
+            is_welcome: true
+        });
+
+        this.saveChatHistory();
     }
 
     renderChatHistory() {

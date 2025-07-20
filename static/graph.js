@@ -14,8 +14,6 @@ class LuxOSUniverse {
         this.lastUpdateTime = 0;
         this.updateThrottle = 100; // Minimum 100ms between updates
         this.heartbeatInterval = null;
-        this.luxAgentCreated = false;
-        this.mainIntentionCreated = false;
 
         // Inicjalizacja Socket.IO z lepszą konfiguracją
         this.socket = io({
@@ -43,12 +41,12 @@ class LuxOSUniverse {
             console.log('Połączono z wszechświatem');
             this.updateConnectionStatus(true);
             this.reconnectAttempts = 0; // Reset counter on successful connection
-
+            
             // Natychmiast poproś o dane po połączeniu
             setTimeout(() => {
                 this.socket.emit('get_graph_data');
             }, 100);
-
+            
             // Rozpocznij heartbeat monitoring
             this.startHeartbeat();
         });
@@ -56,7 +54,7 @@ class LuxOSUniverse {
         this.socket.on('disconnect', (reason) => {
             console.log('Rozłączono ze wszechświatem:', reason);
             this.updateConnectionStatus(false);
-
+            
             // Nie próbuj reconnect jeśli to było ręczne rozłączenie
             if (reason !== 'io client disconnect') {
                 this.attemptReconnect();
@@ -268,18 +266,14 @@ class LuxOSUniverse {
                 }
 
                 // Mapuj strukturę dla kompatybilności
-                const being = {
+                return {
                     soul: node.soul_uid || node.soul,
                     soul_uid: node.soul_uid,
                     genesis: node._soul?.genesis || node.genesis || { type: 'unknown', name: 'Unknown' },
                     attributes: node._soul?.attributes || node.attributes || { energy_level: 50 },
                     memories: node._soul?.memories || node.memories || [],
-                    self_awareness: node._soul?.self_awareness || node.self_awareness || {},
-                    x: node.x || 0,  // Pozycja z embeddingu
-                    y: node.y || 0   // Pozycja z embeddingu
+                    self_awareness: node._soul?.self_awareness || node.self_awareness || {}
                 };
-
-                return being;
             } catch (e) {
                 console.warn('Błąd parsowania danych bytu:', e, node);
                 return {
@@ -288,16 +282,10 @@ class LuxOSUniverse {
                     genesis: { type: 'unknown', name: 'Unknown' },
                     attributes: { energy_level: 50 },
                     memories: [],
-                    self_awareness: {},
-                    x: Math.random() * 400 - 200,
-                    y: Math.random() * 400 - 200
+                    self_awareness: {}
                 };
             }
         });
-
-        // Zapisz linki z embeddingów
-        this.embeddingLinks = data.links || [];
-        this.embeddingPositions = data.embedding_positions || {};
 
         this.ensureLuxAgent();
         this.updateStats();
@@ -312,11 +300,6 @@ class LuxOSUniverse {
     }
 
     ensureLuxAgent() {
-        // Sprawdź czy już istnieje w DOM
-        if (this.luxAgentCreated) {
-            return;
-        }
-
         const luxExists = this.beings.find(being => 
             being.soul === '00000000-0000-0000-0000-000000000001' ||
             being.soul_uid === '00000000-0000-0000-0000-000000000001' ||
@@ -326,14 +309,9 @@ class LuxOSUniverse {
 
         if (!luxExists) {
             this.createLuxAgent();
-            this.luxAgentCreated = true;
         }
 
         // Upewnij się, że główna intencja LuxOS też istnieje
-        if (this.mainIntentionCreated) {
-            return;
-        }
-
         const mainIntentionExists = this.beings.find(being => 
             being.soul === '11111111-1111-1111-1111-111111111111' ||
             (being.genesis?.type === 'message' && being.attributes?.metadata?.is_main_intention)
@@ -341,7 +319,6 @@ class LuxOSUniverse {
 
         if (!mainIntentionExists) {
             this.createMainIntention();
-            this.mainIntentionCreated = true;
         }
     }
 
@@ -437,31 +414,28 @@ class LuxOSUniverse {
     }
 
     renderUniverse() {
-        // Nowy model: chmura myśli zamiast orbit
-        this.renderThoughtUniverse();
+        // Renderuj orbity
+        this.renderOrbits();
 
-        // Dodaj efekty chmury myśli
-        this.addThoughtEffects();
+        // Renderuj byty jako ciała niebieskie
+        this.renderBeings();
 
-        // Uruchom animacje myśli
-        this.startThoughtAnimation();
+        // Dodaj efekty wszechświata
+        this.addUniverseEffects();
     }
 
-    renderThoughtUniverse() {
-        // Zorganizuj byty jako chmurę myśli
-        const thoughtSpace = this.organizeIntoThoughtClouds(this.beings);
-
-        // Renderuj przestrzeń myślową
-        this.renderThoughtSpace(thoughtSpace);
+    renderOrbits() {
+        // Zlikwidowano renderowanie orbit - już nie potrzebne
+        this.orbitsGroup.selectAll(".orbit").remove();
     }
 
     drawMainIntentionOrbit() {
         // Usuń poprzednią orbitę
         this.orbitsGroup.selectAll(".main-intention-orbit").remove();
-
+        
         // Narysuj cienką, prawie przezroczystą orbitę dla głównej intencji
         const orbitRadius = 100; // Dopasuj do nowego promienia
-
+        
         this.orbitsGroup.append("circle")
             .attr("class", "main-intention-orbit")
             .attr("cx", 0)
@@ -476,840 +450,105 @@ class LuxOSUniverse {
     }
 
     renderBeings() {
-        // Galaktyczna wizualizacja - grupuj byty w systemy
-        const galacticSystems = this.organizeIntoGalacticSystems(this.beings);
-
-        // Renderuj ramiona spiralne galaktyki
-        this.drawGalacticSpirals(galacticSystems);
-
-        // Renderuj systemy planetarne
-        this.renderPlanetarySystems(galacticSystems);
-
-        // Uruchom animacje orbitalne
-        this.startGalacticAnimation();
-    }
-
-    organizeIntoThoughtClouds(beings) {
-        const thoughtSpace = {
-            thoughts: [],           // Surowe myśli (wiadomości)
-            condensing: [],         // Myśli w procesie kondensacji
-            condensed_beings: [],   // Skondensowane byty
-            concept_clusters: new Map(),  // Klastry konceptów (LuxUnda, NeuroFala, etc.)
-            dependency_clouds: new Map()  // Chmury zależności
-        };
-
-        // Kluczowe koncepty do grupowania
-        const key_concepts = ['luxunda', 'neurofala', 'katamaran', 'oaza', 'strona', 'unity', 'aplikacja'];
-
-        beings.forEach(being => {
-            const importance = this.calculateThoughtImportance(being);
-            const type = being.genesis?.type;
-            const concepts = being.attributes?.concept_clusters || [];
-            const tags = being.attributes?.tags || [];
-
-            // Znajdź główny koncept dla tego bytu
-            let primary_concept = 'general';
-            for (const concept of key_concepts) {
-                if (concepts.includes(concept) || tags.includes(concept) || 
-                    (being.genesis?.name || '').toLowerCase().includes(concept)) {
-                    primary_concept = concept;
-                    break;
-                }
-            }
-
-            // Klasyfikuj według stanu kondensacji
-            if (type === 'message' || importance < 0.3) {
-                thoughtSpace.thoughts.push({
-                    ...being,
-                    importance: importance,
-                    condensation_state: 'dispersed',
-                    primary_concept: primary_concept
-                });
-            } else if (importance < 0.7) {
-                thoughtSpace.condensing.push({
-                    ...being,
-                    importance: importance,
-                    condensation_state: 'condensing',
-                    primary_concept: primary_concept
-                });
-            } else {
-                thoughtSpace.condensed_beings.push({
-                    ...being,
-                    importance: importance,
-                    condensation_state: 'condensed',
-                    primary_concept: primary_concept
-                });
-            }
-
-            // Grupuj w klastry konceptów
-            if (!thoughtSpace.concept_clusters.has(primary_concept)) {
-                thoughtSpace.concept_clusters.set(primary_concept, []);
-            }
-            thoughtSpace.concept_clusters.get(primary_concept).push({
-                ...being,
-                importance: importance,
-                primary_concept: primary_concept
-            });
-
-            // Grupuj w chmury zależności na podstawie dependency_map
-            const dependency_map = being.attributes?.dependency_map;
-            if (dependency_map) {
-                const dep_key = `dep_${being.soul.substring(0, 8)}`;
-                if (!thoughtSpace.dependency_clouds.has(dep_key)) {
-                    thoughtSpace.dependency_clouds.set(dep_key, []);
-                }
-                thoughtSpace.dependency_clouds.get(dep_key).push(being);
-            }
-        });
-
-        return thoughtSpace;
-    }
-
-    calculateThoughtImportance(being) {
-        let importance = 0.1; // Bazowa istotność
-
-        // Energia zwiększa istotność
-        const energy = being.attributes?.energy_level || 0;
-        importance += (energy / 1000) * 0.4;
-
-        // Liczba wspomnień (częstotliwość przypominania)
-        const memories = being.memories?.length || 0;
-        importance += (memories / 10) * 0.3;
-
-        // Typ bytu wpływa na kondensację
-        const type = being.genesis?.type;
-        const typeWeights = {
-            'message': 0.1,      // Surowe myśli
-            'intention': 0.2,    // Nieco więcej struktury
-            'task': 0.4,        // Większa kondensacja
-            'function': 0.6,    // Znacząca struktura
-            'class': 0.7,       // Wysoka kondensacja
-            'agent': 0.9        // Maksymalna kondensacja
-        };
-        importance += (typeWeights[type] || 0.3) * 0.3;
-
-        // Relacje z innymi myślami
-        const hasConnections = being.attributes?.parent_concept || 
-                              being.attributes?.child_beings?.length > 0;
-        if (hasConnections) importance += 0.2;
-
-        return Math.min(1.0, importance);
-    }
-
-    calculateProjectOrbitalPeriod(system) {
-        // Określ okres orbitalny projektu na podstawie jego zawartości
-        const childTypes = system.children.map(c => c.genesis?.type);
-        const hasLongTerm = childTypes.some(t => ['vision', 'mission'].includes(t));
-        const hasShortTerm = childTypes.some(t => ['task', 'idea'].includes(t));
-
-        if (hasLongTerm && hasShortTerm) return 'mixed';
-        if (hasLongTerm) return 'long';
-        return 'short';
-    }
-
-    drawGalacticSpirals(systems) {
-        // Usuń poprzednie spirale
-        this.orbitsGroup.selectAll(".galactic-spiral").remove();
-
-        const spiralCount = Math.max(2, Math.min(6, systems.projects.size));
-        const angleStep = (2 * Math.PI) / spiralCount;
-
-        for (let i = 0; i < spiralCount; i++) {
-            this.drawSpiralArm(i * angleStep, 300, 800);
-        }
-    }
-
-    drawSpiralArm(startAngle, innerRadius, outerRadius) {
-        const points = [];
-        const steps = 100;
-        const spiralTightness = 0.5;
-
-        for (let i = 0; i <= steps; i++) {
-            const progress = i / steps;
-            const angle = startAngle + progress * 4 * Math.PI * spiralTightness;
-            const radius = innerRadius + progress * (outerRadius - innerRadius);
-
-            points.push([
-                Math.cos(angle) * radius,
-                Math.sin(angle) * radius
-            ]);
-        }
-
-        const line = d3.line()
-            .x(d => d[0])
-            .y(d => d[1])
-            .curve(d3.curveCardinal);
-
-        this.orbitsGroup.append("path")
-            .attr("class", "galactic-spiral")
-            .attr("d", line(points))
-            .attr("fill", "none")
-            .attr("stroke", "#003366")
-            .attr("stroke-width", 2)
-            .attr("opacity", 0.3)
-            .style("pointer-events", "none");
-    }
-
-    renderThoughtSpace(thoughtSpace) {
-        // Renderuj pole świadomości zamiast centralnego obiektu
-        this.renderThoughtCloud();
-
-        // Renderuj surowe myśli jako pył kosmiczny
-        this.renderCosmicDust(thoughtSpace.thoughts);
-
-        // Renderuj myśli w kondensacji
-        this.renderCondensingThoughts(thoughtSpace.condensing);
-
-        // Renderuj skondensowane byty
-        this.renderCondensedBeings(thoughtSpace.condensed_beings);
-
-        // Renderuj połączenia między myślami
-        this.renderThoughtConnections(thoughtSpace);
-    }
-
-    renderCosmicDust(thoughts) {
-        // Surowe myśli jako drobny pył rozproszony w przestrzeni
-        const dustGroup = this.beingsGroup.selectAll(".cosmic-dust")
-            .data(thoughts)
+        // Limit do 50 bytów dla wydajności
+        const visibleBeings = this.beings.slice(0, 50);
+        
+        // Najpierw narysuj orbitę dla głównej intencji (cienka, prawie przezroczysta)
+        this.drawMainIntentionOrbit();
+        
+        this.beingSelection = this.beingsGroup
+            .selectAll(".being")
+            .data(visibleBeings, d => d.soul)
             .join("g")
-            .attr("class", "cosmic-dust thought-particle")
+            .attr("class", d => `being ${this.isLuxAgent(d) ? 'lux-agent' : d.genesis?.type || 'unknown'}`)
             .style("cursor", "pointer")
             .on("click", (event, d) => {
                 event.stopPropagation();
                 this.selectBeing(d);
             });
 
-        dustGroup.selectAll("*").remove();
+        // Usuń poprzednie elementy tylko jeśli konieczne
+        this.beingSelection.selectAll("*").remove();
 
-        thoughts.forEach((thought, index) => {
-            const distance = 200 + Math.random() * 400; // Daleko od centrum
-            const angle = Math.random() * 2 * Math.PI;
-            const x = Math.cos(angle) * distance;
-            const y = Math.sin(angle) * distance;
+        // Uruchom ciągłą animację orbit
+        this.startOrbitalAnimation();
 
-            const particle = dustGroup.filter((d, i) => i === index);
+        // Renderuj Lux jako centralną gwiazdę (bez żółtego pierścienia)
+        this.beingSelection.filter(d => this.isLuxAgent(d))
+            .each(function(d) {
+                const being = d3.select(this);
 
-            particle.append("circle")
-                .attr("r", 1 + thought.importance * 3)
-                .attr("fill", this.getThoughtColor(thought))
-                .attr("opacity", 0.4 + thought.importance * 0.4)
-                .style("filter", "blur(0.5px)");
-
-            particle.attr("transform", `translate(${x}, ${y})`);
-        });
-    }
-
-    renderCondensingThoughts(condensingThoughts) {
-        // Myśli w procesie kondensacji - gromadzą się bliżej centrum
-        const condensingGroup = this.beingsGroup.selectAll(".condensing-thought")
-            .data(condensingThoughts)
-            .join("g")
-            .attr("class", "condensing-thought thought-aggregate")
-            .style("cursor", "pointer")
-            .on("click", (event, d) => {
-                event.stopPropagation();
-                this.selectBeing(d);
+                // Główna gwiazda - bez dodatkowego pierścienia
+                being.append("circle")
+                    .attr("r", 40)
+                    .attr("fill", "url(#luxStar)")
+                    .style("filter", "url(#glow)");
             });
 
-        condensingGroup.selectAll("*").remove();
+        // Wiadomości nie są renderowane - tylko na żądanie
 
-        condensingThoughts.forEach((thought, index) => {
-            // Bliżej centrum, ale wciąż w ruchu
-            const distance = 100 + (1 - thought.importance) * 150;
-            const angle = (index / condensingThoughts.length) * 2 * Math.PI + Date.now() * 0.001;
-            const x = Math.cos(angle) * distance;
-            const y = Math.sin(angle) * distance;
+        // Renderuj główną intencję LuxOS jako specjalny byt
+        this.beingSelection.filter(d => d.soul === '11111111-1111-1111-1111-111111111111' || 
+                                     (d.genesis?.type === 'message' && d.attributes?.metadata?.is_main_intention))
+            .each(function(d) {
+                const being = d3.select(this);
 
-            const aggregate = condensingGroup.filter((d, i) => i === index);
+                // Główne ciało intencji - większe i bardziej widoczne
+                being.append("circle")
+                    .attr("r", 12)
+                    .attr("fill", "#00ff88")
+                    .attr("stroke", "#ffffff")
+                    .attr("stroke-width", 2)
+                    .style("filter", "url(#glow)")
+                    .style("opacity", 1);
 
-            aggregate.append("circle")
-                .attr("r", 3 + thought.importance * 8)
-                .attr("fill", this.getThoughtColor(thought))
-                .attr("stroke", "#ffffff")
-                .attr("stroke-width", 1)
-                .attr("opacity", 0.6 + thought.importance * 0.3)
-                .style("filter", "url(#glow)");
+                // Dodatkowy pierścień dla lepszej widoczności
+                being.append("circle")
+                    .attr("r", 16)
+                    .attr("fill", "none")
+                    .attr("stroke", "#00ff88")
+                    .attr("stroke-width", 1)
+                    .attr("opacity", 0.4);
 
-            // Dodaj "ogon" kondensacji
-            aggregate.append("circle")
-                .attr("r", 5 + thought.importance * 12)
-                .attr("fill", "none")
-                .attr("stroke", this.getThoughtColor(thought))
-                .attr("stroke-width", 0.5)
-                .attr("opacity", 0.3)
-                .style("pointer-events", "none");
-
-            aggregate.attr("transform", `translate(${x}, ${y})`);
-        });
-    }
-
-    renderCondensedBeings(condensedBeings) {
-        // Pełne byty - skondensowana materia blisko centrum
-        const beingGroup = this.beingsGroup.selectAll(".condensed-being")
-            .data(condensedBeings)
-            .join("g")
-            .attr("class", "condensed-being stable-entity")
-            .style("cursor", "pointer")
-            .on("click", (event, d) => {
-                event.stopPropagation();
-                this.selectBeing(d);
-            });
-
-        beingGroup.selectAll("*").remove();
-
-        condensedBeings.forEach((being, index) => {
-            // Blisko centrum, stabilne pozycje
-            const distance = 50 + (1 - being.importance) * 100;
-            const angle = (index / condensedBeings.length) * 2 * Math.PI;
-            const x = Math.cos(angle) * distance;
-            const y = Math.sin(angle) * distance;
-
-            const entity = beingGroup.filter((d, i) => i === index);
-
-            const size = 10 + being.importance * 20;
-
-            entity.append("circle")
-                .attr("r", size)
-                .attr("fill", this.getBeingColor(being))
-                .attr("stroke", "#ffffff")
-                .attr("stroke-width", 2)
-                .style("filter", "url(#glow)");
-
-            // Dodaj etykietę dla ważnych bytów
-            if (being.importance > 0.7) {
-                entity.append("text")
-                    .attr("dy", -size - 5)
+                // Etykieta zawsze widoczna
+                being.append("text")
+                    .attr("class", "being-label")
+                    .attr("dy", 25)
                     .style("text-anchor", "middle")
-                    .style("fill", "#ffffff")
+                    .style("fill", "#00ff88")
                     .style("font-size", "10px")
                     .style("font-weight", "bold")
-                    .text(being.genesis?.name || 'Unknown');
-            }
-
-            entity.attr("transform", `translate(${x}, ${y})`);
-        });
-    }
-
-    renderThoughtConnections(thoughtSpace) {
-        // Renderuj subtelne połączenia między powiązanymi myślami
-        // Te połączenia pojawiają się gdy myśli mają wspólne tematy lub kontekst
-        const connections = this.findThoughtConnections(thoughtSpace);
-
-        const connectionGroup = this.container.append("g")
-            .attr("class", "thought-connections")
-            .style("pointer-events", "none");
-
-        connections.forEach(connection => {
-            connectionGroup.append("line")
-                .attr("x1", connection.source.x)
-                .attr("y1", connection.source.y)
-                .attr("x2", connection.target.x)
-                .attr("y2", connection.target.y)
-                .attr("stroke", "#00ff88")
-                .attr("stroke-width", 0.5 * connection.strength)
-                .attr("opacity", 0.1 + connection.strength * 0.2)
-                .style("stroke-dasharray", "2,2");
-        });
-    }
-
-    getThoughtColor(thought) {
-        // Kolor zależy od typu i istotności
-        const baseColors = {
-            'message': '#88ccff',    // Niebieski - surowe myśli
-            'intention': '#ffcc88',  // Pomarańczowy - intencje
-            'task': '#cc88ff',      // Fioletowy - zadania
-            'function': '#88ffcc',  // Zielony - funkcje
-            'class': '#ffff88',     // Żółty - klasy
-            'agent': '#ff88cc'      // Różowy - agenci
-        };
-
-        const baseColor = baseColors[thought.genesis?.type] || '#cccccc';
-
-        // Istotność wpływa na intensywność
-        const intensity = 0.3 + thought.importance * 0.7;
-        return this.adjustColorIntensity(baseColor, intensity);
-    }
-
-    adjustColorIntensity(color, intensity) {
-        // Prosta funkcja do regulacji intensywności koloru
-        return color; // Uproszczona wersja
-    }
-
-    findThoughtConnections(thoughtSpace) {
-        // Znajdź połączenia między myślami na podstawie wspólnych elementów
-        const connections = [];
-        const allThoughts = [
-            ...thoughtSpace.thoughts,
-            ...thoughtSpace.condensing,
-            ...thoughtSpace.condensed_beings
-        ];
-
-        // Uproszczone - prawdziwy algorytm analizowałby embeddingi i kontekst
-        for (let i = 0; i < allThoughts.length; i++) {
-            for (let j = i + 1; j < allThoughts.length; j++) {
-                const strength = this.calculateConnectionStrength(allThoughts[i], allThoughts[j]);
-                if (strength > 0.3) {
-                    connections.push({
-                        source: allThoughts[i],
-                        target: allThoughts[j],
-                        strength: strength
-                    });
-                }
-            }
-        }
-
-        return connections.slice(0, 20); // Ogranicz do 20 najsilniejszych połączeń
-    }
-
-    calculateConnectionStrength(thought1, thought2) {
-        // Uproszczony algorytm podobieństwa
-        let strength = 0;
-
-        // Wspólne tagi
-        const tags1 = thought1.attributes?.tags || [];
-        const tags2 = thought2.attributes?.tags || [];
-        const commonTags = tags1.filter(tag => tags2.includes(tag));
-        strength += commonTags.length * 0.2;
-
-        // Podobny typ
-        if (thought1.genesis?.type === thought2.genesis?.type) {
-            strength += 0.3;
-        }
-
-        // Podobny poziom energii
-        const energy1 = thought1.attributes?.energy_level || 0;
-        const energy2 = thought2.attributes?.energy_level || 0;
-        const energyDiff = Math.abs(energy1 - energy2);
-        strength += Math.max(0, (100 - energyDiff) / 100) * 0.2;
-
-        return Math.min(1.0, strength);
-    }
-
-    renderThoughtCloud() {
-        // Lux nie jest już obiektem - to pole świadomości w centrum
-        const centerField = this.beingsGroup.selectAll(".consciousness-field")
-            .data([{ type: 'consciousness_field' }])
-            .join("g")
-            .attr("class", "consciousness-field");
-
-        // Usuń poprzednie elementy
-        centerField.selectAll("*").remove();
-
-        // Renderuj jako pulsujące pole świadomości (bez konkretnego obiektu)
-        const fieldRadius = 150;
-
-        // Chmura myśli - gradient pole
-        centerField.append("circle")
-            .attr("r", fieldRadius)
-            .attr("fill", "radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(0,255,136,0.05) 50%, transparent 100%)")
-            .attr("stroke", "none")
-            .style("opacity", 0.3)
-            .style("pointer-events", "none");
-
-        // Dodaj pulsujący efekt pola
-        centerField.append("circle")
-            .attr("r", fieldRadius * 0.7)
-            .attr("fill", "none")
-            .attr("stroke", "#00ff88")
-            .attr("stroke-width", 1)
-            .attr("opacity", 0.2)
-            .style("pointer-events", "none")
-            .style("animation", "consciousness-pulse 4s ease-in-out infinite");
-
-        // Dodaj drobne cząstki myśli w polu
-        for (let i = 0; i < 20; i++) {
-            const angle = (i / 20) * 2 * Math.PI;
-            const radius = Math.random() * fieldRadius * 0.8;
-            const x = Math.cos(angle) * radius;
-            const y = Math.sin(angle) * radius;
-
-            centerField.append("circle")
-                .attr("cx", x)
-                .attr("cy", y)
-                .attr("r", Math.random() * 2 + 0.5)
-                .attr("fill", "#00ff88")
-                .attr("opacity", Math.random() * 0.5 + 0.2)
-                .style("animation", `thought-particle ${3 + Math.random() * 4}s ease-in-out infinite`);
-        }
-    }
-
-    renderPlanetarySystem(system, systemIndex) {
-        if (!system.parent) return;
-
-        const orbitRadius = 150 + systemIndex * 120;
-        const angleOffset = systemIndex * (2 * Math.PI / Math.max(1, this.beings.length / 5));
-
-        // Narysuj orbitę systemu
-        this.orbitsGroup.append("circle")
-            .attr("class", "planetary-orbit")
-            .attr("cx", 0)
-            .attr("cy", 0)
-            .attr("r", orbitRadius)
-            .attr("fill", "none")
-            .attr("stroke", this.getSystemColor(system.orbital_period))
-            .attr("stroke-width", 1.5)
-            .attr("stroke-dasharray", "10,5")
-            .attr("opacity", 0.4)
-            .style("pointer-events", "none");
-
-        // Renderuj projekt nadrzędny jako planetę centralną
-        const projectGroup = this.beingsGroup.append("g")
-            .attr("class", "planetary-system")
-            .attr("data-system-index", systemIndex)
-            .style("cursor", "pointer")
-            .on("click", (event) => {
-                event.stopPropagation();
-                this.selectBeing(system.parent);
+                    .style("pointer-events", "none")
+                    .text("LuxOS Intention");
             });
 
-        const projectSize = 25 + system.children.length * 2;
-        projectGroup.append("circle")
-            .attr("r", projectSize)
-            .attr("fill", this.getBeingColor(system.parent))
-            .attr("stroke", "#ffffff")
-            .attr("stroke-width", 2)
-            .style("filter", "url(#glow)");
+        // Renderuj pozostałe byty jako planety/komety
+        const self = this;
+        this.beingSelection.filter(d => !this.isLuxAgent(d) && d.genesis?.type !== 'message' && d.soul !== '11111111-1111-1111-1111-111111111111')
+            .each(function(d) {
+                const being = d3.select(this);
+                const energySize = Math.max(5, Math.min(25, (d.attributes?.energy_level || 50) / 4));
 
-        // Renderuj dzieci jako księżyce
-        system.children.forEach((child, childIndex) => {
-            this.renderMoon(projectGroup, child, childIndex, projectSize + 15);
-        });
+                // Główne ciało
+                being.append("circle")
+                    .attr("r", energySize)
+                    .attr("fill", self.getBeingColor ? self.getBeingColor(d) : '#666666')
+                    .attr("stroke", "#ffffff")
+                    .attr("stroke-width", 1)
+                    .style("filter", d.attributes?.energy_level > 80 ? "url(#glow)" : null);
 
-        // Dodaj etykietę systemu
-        projectGroup.append("text")
-            .attr("class", "system-label")
-            .attr("dy", -projectSize - 10)
-            .style("text-anchor", "middle")
-            .style("fill", "#ffffff")
-            .style("font-size", "12px")
-            .style("font-weight", "bold")
-            .style("pointer-events", "none")
-            .text(system.parent.genesis?.name || 'System');
-    }
-
-    renderMoon(parentGroup, moon, moonIndex, orbitRadius) {
-        const moonAngle = (moonIndex / Math.max(1, parentGroup.selectAll('.moon').size())) * 2 * Math.PI;
-        const moonGroup = parentGroup.append("g")
-            .attr("class", "moon")
-            .attr("data-moon-index", moonIndex);
-
-        const moonSize = Math.max(3, Math.min(12, (moon.attributes?.energy_level || 50) / 8));
-        moonGroup.append("circle")
-            .attr("r", moonSize)
-            .attr("fill", this.getBeingColor(moon))
-            .attr("stroke", "#cccccc")
-            .attr("stroke-width", 1)
-            .style("opacity", 0.8);
-
-        // Dodaj orbitę księżyca
-        parentGroup.append("circle")
-            .attr("class", "moon-orbit")
-            .attr("r", orbitRadius)
-            .attr("fill", "none")
-            .attr("stroke", "#444444")
-            .attr("stroke-width", 0.5)
-            .attr("opacity", 0.2)
-            .style("pointer-events", "none");
-    }
-
-    renderOrbitalTask(task, index) {
-        const orbitRadius = 80 + index * 20;
-        const classification = task.attributes?.task_classification || 'general';
-
-        // Renderuj jako kometę z ogonem
-        const cometGroup = this.beingsGroup.append("g")
-            .attr("class", "orbital-task comet")
-            .attr("data-task-index", index)
-            .style("cursor", "pointer")
-            .on("click", (event) => {
-                event.stopPropagation();
-                this.selectBeing(task);
-            });
-
-        // Główne ciało komety
-        const cometSize = this.getCometSize(classification);
-        cometGroup.append("circle")
-            .attr("r", cometSize)
-            .attr("fill", this.getCometColor(classification))
-            .attr("stroke", "#ffffff")
-            .attr("stroke-width", 1)
-            .style("filter", "url(#glow)");
-
-        // Ogon komety
-        this.addCometTail(cometGroup, cometSize);
-
-        // Narysuj orbitę
-        this.orbitsGroup.append("circle")
-            .attr("class", "task-orbit")
-            .attr("cx", 0)
-            .attr("cy", 0)
-            .attr("r", orbitRadius)
-            .attr("fill", "none")
-            .attr("stroke", this.getCometColor(classification))
-            .attr("stroke-width", 1)
-            .attr("stroke-dasharray", "5,3")
-            .attr("opacity", 0.3)
-            .style("pointer-events", "none");
-    }
-
-    getCometSize(classification) {
-        const sizes = {
-            'idea': 6,
-            'task': 8,
-            'vision': 15,
-            'mission': 20,
-            'goal': 12,
-            'general': 8
-        };
-        return sizes[classification] || 8;
-    }
-
-    getCometColor(classification) {
-        const colors = {
-            'idea': '#ffee58',     // Żółty - szybkie pomysły
-            'task': '#42a5f5',     // Niebieski - zadania
-            'vision': '#ab47bc',   // Fioletowy - wizje
-            'mission': '#ef5350',  // Czerwony - misje
-            'goal': '#66bb6a',     // Zielony - cele
-            'general': '#78909c'   // Szary - ogólne
-        };
-        return colors[classification] || '#78909c';
-    }
-
-    addCometTail(cometGroup, cometSize) {
-        const tailLength = cometSize * 3;
-        const tailPoints = [];
-
-        for (let i = 0; i < 5; i++) {
-            tailPoints.push([
-                -tailLength + i * (tailLength / 5),
-                (Math.random() - 0.5) * cometSize
-            ]);
-        }
-
-        const line = d3.line()
-            .x(d => d[0])
-            .y(d => d[1])
-            .curve(d3.curveCardinal);
-
-        cometGroup.append("path")
-            .attr("d", line(tailPoints))
-            .attr("fill", "none")
-            .attr("stroke", "#ffffff")
-            .attr("stroke-width", 2)
-            .attr("opacity", 0.5)
-            .style("pointer-events", "none");
-    }
-
-    renderIntention(intention, index) {
-        // Renderuj jako pulsującą gwiazdę na bliskiej orbicie
-        const orbitRadius = 60;
-
-        const intentionGroup = this.beingsGroup.append("g")
-            .attr("class", "intention")
-            .attr("data-intention-index", index)
-            .style("cursor", "pointer")
-            .on("click", (event) => {
-                event.stopPropagation();
-                this.selectBeing(intention);
-            });
-
-        intentionGroup.append("circle")
-            .attr("r", 15)
-            .attr("fill", "#00ff88")
-            .attr("stroke", "#ffffff")
-            .attr("stroke-width", 2)
-            .style("filter", "url(#glow)");
-
-        // Dodaj pulsujący efekt
-        intentionGroup.append("circle")
-            .attr("r", 20)
-            .attr("fill", "none")
-            .attr("stroke", "#00ff88")
-            .attr("stroke-width", 1)
-            .attr("opacity", 0.6)
-            .style("pointer-events", "none");
-    }
-
-    renderStandaloneBeing(being, index) {
-        // Renderuj jako asteroidy na zewnętrznych orbitach
-        const orbitRadius = 400 + index * 30;
-
-        const asteroidGroup = this.beingsGroup.append("g")
-            .attr("class", "standalone-being asteroid")
-            .attr("data-asteroid-index", index)
-            .style("cursor", "pointer")
-            .on("click", (event) => {
-                event.stopPropagation();
-                this.selectBeing(being);
-            });
-
-        const size = Math.max(4, Math.min(12, (being.attributes?.energy_level || 30) / 6));
-        asteroidGroup.append("circle")
-            .attr("r", size)
-            .attr("fill", this.getBeingColor(being))
-            .attr("stroke", "#666666")
-            .attr("stroke-width", 1)
-            .style("opacity", 0.7);
-    }
-
-    getSystemColor(orbitalPeriod) {
-        const colors = {
-            'short': '#42a5f5',    // Niebieski - krótkie cykle
-            'long': '#ef5350',     // Czerwony - długie cykle  
-            'mixed': '#ab47bc'     // Fioletowy - mieszane
-        };
-        return colors[orbitalPeriod] || '#78909c';
-    }
-
-    startThoughtAnimation() {
-        if (this.thoughtAnimationId) {
-            cancelAnimationFrame(this.thoughtAnimationId);
-        }
-
-        let lastTime = 0;
-        const targetFPS = 30;
-        const interval = 1000 / targetFPS;
-
-        const animate = (currentTime) => {
-            if (currentTime - lastTime >= interval) {
-                this.updateThoughtMovement(currentTime * 0.001);
-                this.updateThoughtCondensation(currentTime);
-                lastTime = currentTime;
-            }
-            this.thoughtAnimationId = requestAnimationFrame(animate);
-        };
-
-        animate(0);
-    }
-
-    updateThoughtMovement(time) {
-        // Pył kosmiczny (surowe myśli) - ruch Browna
-        this.beingsGroup.selectAll(".cosmic-dust")
-            .attr("transform", function(d, i) {
-                const baseDistance = 200 + Math.random() * 400;
-                const drift = Math.sin(time * 0.5 + i) * 5;
-                const angle = (i * 0.1 + time * 0.1) % (2 * Math.PI);
-                const x = Math.cos(angle) * (baseDistance + drift);
-                const y = Math.sin(angle) * (baseDistance + drift);
-                return `translate(${x}, ${y})`;
-            });
-
-        // Myśli w kondensacji - spiralny ruch ku centrum
-        this.beingsGroup.selectAll(".condensing-thought")
-            .attr("transform", function(d, i) {
-                const importance = d.importance || 0.5;
-                const distance = 100 + (1 - importance) * 150;
-                const speed = importance * 0.5;
-                const angle = time * speed + i * 0.5;
-                const x = Math.cos(angle) * distance;
-                const y = Math.sin(angle) * distance;
-                return `translate(${x}, ${y})`;
-            });
-
-        // Skondensowane byty - stabilne pozycje z subtelnym ruchem
-        this.beingsGroup.selectAll(".condensed-being")
-            .attr("transform", function(d, i) {
-                const importance = d.importance || 0.5;
-                const distance = 50 + (1 - importance) * 100;
-                const angle = i * (2 * Math.PI / 8) + Math.sin(time * 0.2) * 0.1;
-                const x = Math.cos(angle) * distance;
-                const y = Math.sin(angle) * distance;
-                return `translate(${x}, ${y})`;
-            });
-    }
-
-    updateThoughtCondensation(currentTime) {
-        // Symuluj proces kondensacji - myśli o rosnącej istotności
-        // przesuwają się z kategorii do kategorii
-
-        if (currentTime % 5000 < 100) { // Co 5 sekund
-            // Przelicz istotność wszystkich myśli
-            this.beings.forEach(being => {
-                const oldImportance = being.importance || 0;
-                const newImportance = this.calculateThoughtImportance(being);
-
-                if (newImportance !== oldImportance) {
-                    being.importance = newImportance;
-                    // W prawdziwej implementacji: przenieś między kategoriami
+                // Etykieta (tylko przy odpowiednim zoomie)
+                if (self.zoomLevel > 2) {
+                    being.append("text")
+                        .attr("class", "being-label")
+                        .attr("dy", energySize + 15)
+                        .style("text-anchor", "middle")
+                        .style("fill", "white")
+                        .style("font-size", "10px")
+                        .style("pointer-events", "none")
+                        .text(d.genesis?.name || d.soul?.slice(0, 8) || 'Being');
                 }
             });
-
-            // Przerenderuj jeśli znaczące zmiany
-            this.renderThoughtUniverse();
-        }
-    }
-
-    updateGalacticPositions(time) {
-        // Animuj systemy planetarne
-        this.beingsGroup.selectAll(".planetary-system")
-            .attr("transform", (d, i) => {
-                const systemIndex = parseInt(d3.select(this).attr("data-system-index"));
-                const orbitRadius = 150 + systemIndex * 120;
-                const speed = 0.1 / (systemIndex + 1); // Zewnętrzne systemy wolniejsze
-                const angle = time * speed + systemIndex * (2 * Math.PI / 5);
-
-                const x = Math.cos(angle) * orbitRadius;
-                const y = Math.sin(angle) * orbitRadius;
-                return `translate(${x}, ${y})`;
-            });
-
-        // Animuj księżyce wokół planet
-        this.beingsGroup.selectAll(".moon")
-            .attr("transform", function(d, i) {
-                const moonIndex = parseInt(d3.select(this).attr("data-moon-index"));
-                const moonOrbitRadius = 40;
-                const moonSpeed = 2; // Księżyce szybsze
-                const moonAngle = time * moonSpeed + moonIndex * (2 * Math.PI / 3);
-
-                const x = Math.cos(moonAngle) * moonOrbitRadius;
-                const y = Math.sin(moonAngle) * moonOrbitRadius;
-                return `translate(${x}, ${y})`;
-            });
-
-        // Animuj komety (zadania orbitalne)
-        this.beingsGroup.selectAll(".orbital-task")
-            .attr("transform", function(d, i) {
-                const taskIndex = parseInt(d3.select(this).attr("data-task-index"));
-                const orbitRadius = 80 + taskIndex * 20;
-                const speed = 1.5; // Komety szybkie
-                const angle = time * speed + taskIndex * (2 * Math.PI / 4);
-
-                const x = Math.cos(angle) * orbitRadius;
-                const y = Math.sin(angle) * orbitRadius;
-                return `translate(${x}, ${y}) rotate(${angle * 180 / Math.PI})`;
-            });
-
-        // Animuj intencje
-        this.beingsGroup.selectAll(".intention")
-            .attr("transform", function(d, i) {
-                const intentionIndex = parseInt(d3.select(this).attr("data-intention-index"));
-                const orbitRadius = 60;
-                const speed = 3; // Intencje bardzo szybkie
-                const angle = time * speed + intentionIndex * Math.PI;
-
-                const x = Math.cos(angle) * orbitRadius;
-                const y = Math.sin(angle) * orbitRadius;
-                return `translate(${x}, ${y})`;
-            });
-
-        // Animuj asteroidy
-        this.beingsGroup.selectAll(".asteroid")
-            .attr("transform", function(d, i) {
-                const asteroidIndex = parseInt(d3.select(this).attr("data-asteroid-index"));
-                const orbitRadius = 400 + asteroidIndex * 30;
-                const speed = 0.02; // Asteroidy bardzo wolne
-                const angle = time * speed + asteroidIndex * (2 * Math.PI / 10);
-
-                const x = Math.cos(angle) * orbitRadius;
-                const y = Math.sin(angle) * orbitRadius;
-                return `translate(${x}, ${y})`;
-            });
-
-        // Pulsujące efekty dla aury Lux
-        this.beingsGroup.selectAll(".galactic-center circle:nth-child(2)")
-            .attr("r", 80 + Math.sin(time * 2) * 10)
-            .attr("opacity", 0.4 + Math.sin(time * 3) * 0.1);
     }
 
     updateBeingPositions() {
@@ -1407,9 +646,6 @@ class LuxOSUniverse {
             'component': '#FF5722',
             'message': '#607D8B',
             'scenario': '#795548',
-            'event_lifecycle': '#e91e63',  // Różowy dla cykli życia
-            'manifestation': '#ffd700',    // Złoty dla manifestacji
-            'note': '#9e9e9e',            // Szary dla notatek
             'unknown': '#666666'
         };
         return colors[type] || colors.unknown;
@@ -1691,15 +927,15 @@ class LuxOSUniverse {
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 5000);
-
+            
             console.log(`Próba reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} za ${delay}ms`);
-
+            
             // Aktualizuj status podczas próby reconnect
             const status = document.getElementById('connectionStatus');
             if (status) {
                 status.textContent = `Łączenie... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`;
             }
-
+            
             setTimeout(() => {
                 if (!this.socket.connected) {
                     try {
@@ -1713,7 +949,7 @@ class LuxOSUniverse {
         } else {
             console.log('Maksymalna liczba prób reconnect osiągnięta - resetuję licznik');
             this.showErrorMessage('Problemy z połączeniem - spróbuję ponownie...');
-
+            
             // Reset licznika po 30 sekundach i spróbuj ponownie
             setTimeout(() => {
                 this.reconnectAttempts = 0;
@@ -1839,378 +1075,40 @@ class LuxOSUniverse {
         // Rozpocznij animację
         animate(0);
     }
-    renderUniverse() {
-        // Nowy model: chmura embeddingów zamiast orbit
-        this.renderEmbeddingSpace();
-
-        // Uruchom animacje embeddingów
-        this.startEmbeddingAnimation();
-    }
-
-    renderEmbeddingSpace() {
-        // Zorganizuj byty jako przestrzeń embeddingów
-        const embeddingSpace = this.organizeIntoEmbeddingSpace(this.beings);
-
-        // Renderuj przestrzeń embeddingów
-        this.renderEmbeddingSpaceVisualization(embeddingSpace);
-    }
-
-    organizeIntoEmbeddingSpace(beings) {
-        const embeddingSpace = {
-            entities: [],
-            connections: []
-        };
-
-        beings.forEach(being => {
-            embeddingSpace.entities.push({
-                ...being,
-                x: Math.random() * 400 - 200, // Losowe pozycje początkowe
-                y: Math.random() * 400 - 200
-            });
-        });
-
-        // Tutaj można dodać logikę do wyznaczania połączeń między bytami
-        // na podstawie podobieństwa embeddingów.
-
-        return embeddingSpace;
-    }
-
-    renderEmbeddingSpaceVisualization(embeddingSpace) {
-        // Usuń poprzednie elementy
-        this.beingsGroup.selectAll("*").remove();
-        this.container.selectAll(".embedding-connections").remove();
-
-        // Renderuj połączenia embeddingów najpierw (żeby były pod bytami)
-        if (this.embeddingLinks && this.embeddingLinks.length > 0) {
-            const connectionGroup = this.container.append("g")
-                .attr("class", "embedding-connections");
-
-            this.embeddingLinks.forEach(link => {
-                const sourceNode = embeddingSpace.entities.find(e => e.soul === link.source);
-                const targetNode = embeddingSpace.entities.find(e => e.soul === link.target);
-
-                if (sourceNode && targetNode) {
-                    connectionGroup.append("line")
-                        .attr("x1", sourceNode.x)
-                        .attr("y1", sourceNode.y)
-                        .attr("x2", targetNode.x)
-                        .attr("y2", targetNode.y)
-                        .attr("stroke", "#00ff88")
-                        .attr("stroke-width", link.strength * 3)
-                        .attr("stroke-opacity", link.strength * 0.6)
-                        .attr("stroke-dasharray", "3,3")
-                        .style("pointer-events", "none");
-                }
-            });
-        }
-
-        // Renderuj byty
-        const entityGroup = this.beingsGroup.selectAll(".entity")
-            .data(embeddingSpace.entities)
-            .join("g")
-            .attr("class", "entity")
-            .attr("transform", d => `translate(${d.x}, ${d.y})`);
-
-        entityGroup.append("circle")
-            .attr("r", d => {
-                // Rozmiar zależy od energii i typu
-                const baseSize = 8;
-                const energyBonus = (d.attributes?.energy_level || 50) / 100;
-                const typeBonus = d.genesis?.type === 'agent' ? 5 : 0;
-                return baseSize + energyBonus * 5 + typeBonus;
-            })
-            .attr("fill", d => this.getBeingColor(d))
-            .attr("stroke", "#ffffff")
-            .attr("stroke-width", 1)
-            .style("cursor", "pointer")
-            .style("filter", "drop-shadow(0 0 5px currentColor)")
-            .on("click", (event, d) => {
-                event.stopPropagation();
-                this.selectBeing(d);
-            })
-            .on("mouseover", (event, d) => {
-                // Podświetl połączone byty
-                this.highlightConnectedBeings(d);
-            })
-            .on("mouseout", () => {
-                this.clearHighlights();
-            });
-
-        // Dodaj etykiety z nazwami
-        entityGroup.append("text")
-            .attr("dy", -20)
-            .attr("text-anchor", "middle")
-            .style("fill", "#ffffff")
-            .style("font-size", "10px")
-            .style("font-weight", "bold")
-            .style("pointer-events", "none")
-            .style("text-shadow", "1px 1px 2px rgba(0,0,0,0.8)")
-            .text(d => d.genesis?.name || "Unknown");
-
-        // Dodaj wskaźnik podobieństwa embeddingu
-        entityGroup.append("circle")
-            .attr("r", d => {
-                const embedding = d.attributes?.embedding;
-                if (embedding) {
-                    // Użyj sumy pierwszych wymiarów jako wskaźnika aktywności
-                    const activity = embedding.slice(0, 5).reduce((a, b) => a + Math.abs(b), 0);
-                    return Math.max(15, Math.min(30, 15 + activity * 3));
-                }
-                return 20;
-            })
-            .attr("fill", "none")
-            .attr("stroke", d => this.getBeingColor(d))
-            .attr("stroke-width", 0.5)
-            .attr("opacity", 0.3)
-            .style("pointer-events", "none");
-    }
-
-    highlightConnectedBeings(selectedBeing) {
-        // Podświetl wszystkie byty połączone z wybranym
-        if (!this.embeddingLinks) return;
-
-        const connectedSouls = this.embeddingLinks
-            .filter(link => link.source === selectedBeing.soul || link.target === selectedBeing.soul)
-            .map(link => link.source === selectedBeing.soul ? link.target : link.source);
-
-        // Zmniejsz opacity wszystkich bytów
-        this.beingsGroup.selectAll(".entity circle")
-            .transition()
-            .duration(200)
-            .attr("opacity", d => {
-                if (d.soul === selectedBeing.soul || connectedSouls.includes(d.soul)) {
-                    return 1.0;
-                }
-                return 0.3;
-            });
-
-        // Podświetl połączenia
-        this.container.selectAll(".embedding-connections line")
-            .transition()
-            .duration(200)
-            .attr("stroke-opacity", link => {
-                // Znajdź dane o linku
-                const linkData = this.embeddingLinks.find(l => 
-                    (l.source === selectedBeing.soul) || (l.target === selectedBeing.soul)
-                );
-                return linkData ? linkData.strength : 0.1;
-            });
-    }
-
-    clearHighlights() {
-        // Przywróć normalny wygląd wszystkich elementów
-        this.beingsGroup.selectAll(".entity circle")
-            .transition()
-            .duration(200)
-            .attr("opacity", 1.0);
-
-        this.container.selectAll(".embedding-connections line")
-            .transition()
-            .duration(200)
-            .attr("stroke-opacity", d => d.strength * 0.6);
-    }
-
-    startEmbeddingAnimation() {
-        // Statyczne pozycje oparte na embeddingach - bez animacji
-        // Pozycje są wyliczane na serwerze na podstawie embeddingów
-        
-        // Opcjonalnie można dodać subtelne animacje podobieństwa
-        this.startSimilarityPulse();
-    }
-
-    startSimilarityPulse() {
-        // Subtelne pulsowanie dla bytów o wysokim podobieństwie
-        setInterval(() => {
-            this.beingsGroup.selectAll(".entity")
-                .select("circle:last-child") // Zewnętrzny wskaźnik
-                .transition()
-                .duration(2000)
-                .attr("opacity", 0.1)
-                .transition()
-                .duration(2000)
-                .attr("opacity", 0.3);
-        }, 4000);
-    }
 }
 
 // Zastąp LuxOSGraph nowym systemem wszechświata
 window.LuxOSGraph = LuxOSUniverse;
 window.luxOSUniverse = null;
 
-// Style CSS dla galaktycznej wizualizacji
+// Style CSS dla wszechświata (zoptymalizowane)
 const universeStyle = document.createElement('style');
 universeStyle.innerHTML = `
-    /* Chmura myśli - style */
-    .consciousness-field {
-        animation: consciousness-pulse 4s ease-in-out infinite;
+    .being {
+        transition: opacity 0.1s ease;
     }
 
-    @keyframes consciousness-pulse {
-        0%, 100% { 
-            opacity: 0.3;
-            transform: scale(1);
-        }
-        50% { 
-            opacity: 0.6;
-            transform: scale(1.05);
-        }
+    .being:hover {
+        opacity: 0.8;
     }
 
-    @keyframes thought-particle {
-        0%, 100% {
-            opacity: 0.2;
-            transform: scale(1);
+    .lux-component-container {
+        animation: componentAppear 0.2s ease-out;
+    }
+
+    @keyframes componentAppear {
+        from { 
+            opacity: 0; 
+            transform: translate(-50%, -50%) scale(0.95);
         }
-        50% {
-            opacity: 0.8;
-            transform: scale(1.2);
+        to { 
+            opacity: 1; 
+            transform: translate(-50%, -50%) scale(1);
         }
     }
 
-    .cosmic-dust {
-        transition: all 0.3s ease;
-    }
-
-    .cosmic-dust:hover {
-        transform: scale(1.5) !important;
-        opacity: 1 !important;
-    }
-
-    .condensing-thought {
-        transition: all 0.5s ease;
-        animation: condensation-glow 3s ease-in-out infinite;
-    }
-
-    @keyframes condensation-glow {
-        0%, 100% {
-            filter: drop-shadow(0 0 5px rgba(0,255,136,0.3));
-        }
-        50% {
-            filter: drop-shadow(0 0 15px rgba(0,255,136,0.7));
-        }
-    }
-
-    .condensing-thought:hover {
-        transform: scale(1.2);
-        filter: drop-shadow(0 0 20px rgba(255,255,255,0.8)) !important;
-    }
-
-    .condensed-being {
-        transition: all 0.3s ease;
-    }
-
-    .condensed-being:hover {
-        transform: scale(1.1);
-        filter: drop-shadow(0 0 25px currentColor);
-    }
-
-    .thought-connections line {
-        animation: thought-flow 2s linear infinite;
-    }
-
-    @keyframes thought-flow {
-        0% {
-            stroke-dashoffset: 0;
-        }
-        100% {
-            stroke-dashoffset: 10;
-        }
-    }
-
-    /* Efekty dla różnych stanów kondensacji */
-    .thought-particle {
-        animation: brownian-motion 10s linear infinite;
-    }
-
-    @keyframes brownian-motion {
-        0% { transform: translate(0, 0); }
-        25% { transform: translate(5px, -3px); }
-        50% { transform: translate(-3px, 7px); }
-        75% { transform: translate(8px, 2px); }
-        100% { transform: translate(0, 0); }
-    }
-
-    .thought-aggregate {
-        filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));
-    }
-
-    .stable-entity {
-        filter: drop-shadow(0 0 15px currentColor);
-    }
-
-    /* Kolory istotności */
-    .importance-low {
-        opacity: 0.3;
-    }
-
-    .importance-medium {
-        opacity: 0.6;
-    }
-
-    .importance-high {
-        opacity: 0.9;
-        filter: brightness(1.2);
-    }
-
-    /* Animacje kondensacji */
-    .condensation-process {
-        animation: matter-condensation 5s ease-in-out infinite;
-    }
-
-    @keyframes matter-condensation {
-        0% {
-            opacity: 0.3;
-            transform: scale(0.8);
-        }
-        50% {
-            opacity: 0.8;
-            transform: scale(1.2);
-        }
-        100% {
-            opacity: 1;
-            transform: scale(1);
-        }
-    }
-
-    /* Pole świadomości */
-    .consciousness-field circle {
-        pointer-events: none;
-    }
-
-    /* Interakcje z myślami */
-    .thought-particle:hover .tooltip {
-        display: block;
-    }
-
-    .tooltip {
-        display: none;
-        position: absolute;
-        background: rgba(0,0,0,0.8);
-        color: white;
-        padding: 5px;
-        border-radius: 3px;
-        font-size: 12px;
-        z-index: 1000;
-    }
-
-    /* Efekty przejścia między stanami */
-    .state-transition {
-        animation: state-change 1s ease-in-out;
-    }
-
-    @keyframes state-change {
-        0% {
-            opacity: 1;
-            transform: scale(1);
-        }
-        50% {
-            opacity: 0.5;
-            transform: scale(1.5);
-        }
-        100% {
-            opacity: 1;
-            transform: scale(1);
-        }
+    .success-message {
+        transition: transform 0.2s ease-out, opacity 0.2s ease-out;
     }
 `;
 document.head.appendChild(universeStyle);
