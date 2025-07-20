@@ -1400,91 +1400,340 @@ class LuxCommunicationHandler:
 
     @staticmethod
     async def process_message(user_id: str, message: str, context: dict = None) -> dict:
-        """Główna funkcja przetwarzania wiadomości"""
+        """Główna funkcja przetwarzania wiadomości z kontekstową analizą"""
         # 1. Pobierz Lux towarzysza użytkownika
         user_lux = await LuxCommunicationHandler.get_user_lux(user_id)
         
-        # 2. Utwórz duszę dla wiadomości
+        # 2. Pobierz kontekst z wykresów (na co użytkownik patrzy)
+        visual_context = context.get('selected_nodes', []) if context else []
+        focused_beings = await LuxCommunicationHandler.get_focused_beings(visual_context)
+        
+        # 3. Analizuj historię konwersacji
+        conversation_history = await LuxCommunicationHandler.get_conversation_history(user_lux.soul, limit=10)
+        
+        # 4. Utwórz duszę dla wiadomości
         message_soul = await Soul.create(
             content=message,
             sender=user_id,
             lux_companion=user_lux.soul,
             context=context or {},
             message_type='user_message',
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now().isoformat(),
+            visual_context=visual_context,
+            conversation_context=[msg.id for msg in conversation_history]
         )
         
-        # 3. Stwórz relację między Lux a duszą wiadomości
-        await SoulRelation.create(
-            being_soul=user_lux.soul,
-            soul_id=message_soul.id,
-            interpretation={'type': 'user_message', 'analyzed': False},
-            emotional_response=0.5,  # Neutralna reakcja na start
-            relevance=0.8  # Wysokа relevance dla wiadomości użytkownika
+        # 5. Inteligentna analiza kontekstu
+        context_analysis = await LuxCommunicationHandler.analyze_contextual_meaning(
+            message, focused_beings, conversation_history, user_lux
         )
         
-        # 4. Analizuj podobieństwa do istniejących bytów
-        similarity_analysis = await LuxCommunicationHandler.analyze_message_embeddings(message, user_lux)
-        
-        # 5. Utwórz OrbitalTask na podstawie wiadomości
-        orbital_task = OrbitalTask()
-        classification = orbital_task.classify_task(message)
-        orbital_period = orbital_task.determine_orbital_period(classification)
-        
-        # 6. Utwórz orbital task jako byt
-        task_being = await OrbitalTask.create(
-            genesis={
-                'type': 'orbital_task',
-                'name': f"Task: {message[:50]}...",
-                'description': message,
-                'source_message_soul': message_soul.id,
-                'created_by': 'lux_analysis'
-            },
-            attributes={
-                'task_classification': classification,
-                'orbital_params': {
-                    'parent_soul': user_lux.soul,  # Orbituje wokół Lux towarzysza
-                    'orbital_period': orbital_period,
-                    'orbital_radius': 100 + len(message),  # Radius based on message length
-                    'last_cycle_time': datetime.now().timestamp(),
-                    'cycle_count': 0
-                },
-                'user_id': user_id,
-                'source_message': message,
-                'tags': ['orbital_task', classification, 'user_generated']
-            },
-            memories=[{
-                'type': 'creation_from_message',
-                'message_soul': message_soul.id,
-                'user_id': user_id,
-                'classification': classification,
-                'timestamp': datetime.now().isoformat()
-            }],
-            self_awareness={
-                'trust_level': 0.7,
-                'confidence': 0.6,
-                'purpose': f'Execute {classification} task for user'
-            }
+        # 6. Zdecyduj o akcji: nowy wątek, kontynuacja, czy grupowanie
+        action_decision = await LuxCommunicationHandler.decide_thread_action(
+            message, context_analysis, message_soul
         )
         
-        # 7. Uruchom pierwszy cykl analizy
-        if similarity_analysis['similar_beings']:
-            await task_being.add_to_queue({
-                'type': 'analyze_similarities',
-                'similar_beings': similarity_analysis['similar_beings'],
-                'needs_clarification': False
-            })
+        # 7. Wykonaj akcję
+        result = await LuxCommunicationHandler.execute_thread_action(
+            action_decision, message_soul, user_lux, context_analysis
+        )
         
         return {
             'success': True,
             'user_lux_soul': user_lux.soul,
             'message_soul_id': message_soul.id,
-            'task_being_soul': task_being.soul,
-            'classification': classification,
-            'orbital_period': orbital_period,
-            'similarity_analysis': similarity_analysis,
-            'lux_response': f"Lux analizuje twoją {classification}. Umieszczam ją na orbicie z cyklem {orbital_period} sekund."
+            'action_taken': action_decision['action'],
+            'context_analysis': context_analysis,
+            'result': result,
+            'lux_response': result.get('lux_response', 'Analizuję kontekst twojej wiadomości...')
         }
+
+    @staticmethod
+    async def get_focused_beings(visual_context: list) -> list:
+        """Pobiera byty na które użytkownik aktualnie patrzy"""
+        focused_beings = []
+        for node_id in visual_context:
+            being = await BaseBeing.load(node_id)
+            if being:
+                focused_beings.append(being)
+        return focused_beings
+
+    @staticmethod
+    async def get_conversation_history(lux_soul: str, limit: int = 10) -> list:
+        """Pobiera historię konwersacji z Lux"""
+        # Pobierz ostatnie souls związane z tym Lux
+        global db_pool
+        
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT s.* FROM souls s
+                    JOIN soul_relations sr ON s.id = sr.soul_id
+                    WHERE sr.being_soul = $1 AND s.metadata->>'message_type' = 'user_message'
+                    ORDER BY s.created_at DESC
+                    LIMIT $2
+                """, lux_soul, limit)
+                return [Soul(
+                    id=row['id'],
+                    content=json.loads(row['content']),
+                    metadata=row['metadata'],
+                    created_at=row['created_at']
+                ) for row in rows]
+        else:
+            # SQLite fallback
+            async with db_pool.execute("""
+                SELECT s.* FROM souls s
+                JOIN soul_relations sr ON s.id = sr.soul_id
+                WHERE sr.being_soul = ? AND json_extract(s.metadata, '$.message_type') = 'user_message'
+                ORDER BY s.created_at DESC
+                LIMIT ?
+            """, (lux_soul, limit)) as cursor:
+                rows = await cursor.fetchall()
+                return [Soul(
+                    id=row[0],
+                    content=json.loads(row[1]),
+                    metadata=json.loads(row[2]),
+                    created_at=row[3]
+                ) for row in rows]
+        
+        return []
+
+    @staticmethod
+    async def analyze_contextual_meaning(message: str, focused_beings: list, history: list, user_lux: BaseBeing) -> dict:
+        """Analizuje kontekstowe znaczenie wiadomości"""
+        analysis = {
+            'message_intent': 'unknown',
+            'relates_to_focused': [],
+            'relates_to_history': [],
+            'new_concept': False,
+            'continuation': False,
+            'grouping_candidate': False,
+            'confidence': 0.0
+        }
+        
+        message_lower = message.lower()
+        message_words = set(message_lower.split())
+        
+        # Analiza związku z bytami na które patrzy użytkownik
+        for being in focused_beings:
+            being_words = set(f"{being.genesis.get('name', '')} {being.genesis.get('description', '')}".lower().split())
+            common_words = message_words.intersection(being_words)
+            
+            if common_words:
+                relevance = len(common_words) / len(message_words)
+                analysis['relates_to_focused'].append({
+                    'being_soul': being.soul,
+                    'being_name': being.genesis.get('name', 'Unknown'),
+                    'relevance': relevance,
+                    'common_concepts': list(common_words)
+                })
+        
+        # Analiza związku z historią
+        for msg_soul in history[-3:]:  # Ostatnie 3 wiadomości
+            if hasattr(msg_soul, 'content') and isinstance(msg_soul.content, str):
+                hist_words = set(msg_soul.content.lower().split())
+                common_words = message_words.intersection(hist_words)
+                
+                if common_words:
+                    relevance = len(common_words) / len(message_words)
+                    analysis['relates_to_history'].append({
+                        'message_soul_id': msg_soul.id,
+                        'relevance': relevance,
+                        'common_concepts': list(common_words)
+                    })
+        
+        # Określ intent
+        if any(word in message_lower for word in ['nowy', 'nowa', 'stwórz', 'utwórz', 'dodaj']):
+            analysis['message_intent'] = 'create_new'
+        elif any(word in message_lower for word in ['kontynuuj', 'dalej', 'więcej', 'rozwij']):
+            analysis['message_intent'] = 'continue'
+        elif any(word in message_lower for word in ['połącz', 'grupuj', 'razem', 'wspólnie']):
+            analysis['message_intent'] = 'group_merge'
+        elif analysis['relates_to_focused'] or analysis['relates_to_history']:
+            analysis['message_intent'] = 'context_related'
+        else:
+            analysis['message_intent'] = 'new_concept'
+            analysis['new_concept'] = True
+        
+        # Ustal confidence
+        confidence_factors = []
+        if analysis['relates_to_focused']:
+            confidence_factors.append(max(rel['relevance'] for rel in analysis['relates_to_focused']))
+        if analysis['relates_to_history']:
+            confidence_factors.append(max(rel['relevance'] for rel in analysis['relates_to_history']))
+        
+        analysis['confidence'] = sum(confidence_factors) / len(confidence_factors) if confidence_factors else 0.1
+        
+        return analysis
+
+    @staticmethod
+    async def decide_thread_action(message: str, context_analysis: dict, message_soul: Soul) -> dict:
+        """Decyduje jaką akcję podjąć z wątkiem"""
+        decision = {
+            'action': 'create_new',
+            'target_being': None,
+            'parent_concept': None,
+            'confidence': context_analysis['confidence']
+        }
+        
+        # Na podstawie analizy kontekstu
+        if context_analysis['message_intent'] == 'create_new' and not context_analysis['relates_to_focused']:
+            decision['action'] = 'create_new'
+        elif context_analysis['relates_to_focused'] and context_analysis['confidence'] > 0.6:
+            # Silny związek z bytem na który patrzymy
+            decision['action'] = 'attach_to_focused'
+            decision['target_being'] = context_analysis['relates_to_focused'][0]['being_soul']
+        elif context_analysis['relates_to_history'] and context_analysis['confidence'] > 0.5:
+            # Kontynuacja wcześniejszego wątku
+            decision['action'] = 'continue_thread'
+        elif len(context_analysis['relates_to_focused']) > 1:
+            # Może grupować kilka bytów
+            decision['action'] = 'create_parent_concept'
+            decision['child_beings'] = [rel['being_soul'] for rel in context_analysis['relates_to_focused']]
+        else:
+            decision['action'] = 'create_new'
+        
+        return decision
+
+    @staticmethod
+    async def execute_thread_action(decision: dict, message_soul: Soul, user_lux: BaseBeing, context_analysis: dict) -> dict:
+        """Wykonuje decyzję dotyczącą wątku"""
+        result = {'success': False, 'lux_response': ''}
+        
+        if decision['action'] == 'create_new':
+            # Utwórz nowy byt z wiadomości
+            new_being = await LuxCommunicationHandler.create_being_from_message(message_soul, user_lux)
+            result = {
+                'success': True,
+                'created_being': new_being.soul,
+                'lux_response': f"Utworzyłem nowy byt '{new_being.genesis.get('name', 'Unknown')}' z twojej wiadomości."
+            }
+            
+        elif decision['action'] == 'attach_to_focused':
+            # Dodaj wiadomość jako kontekst do istniejącego bytu
+            target_being = await BaseBeing.load(decision['target_being'])
+            if target_being:
+                await SoulRelation.create(
+                    being_soul=target_being.soul,
+                    soul_id=message_soul.id,
+                    interpretation={'type': 'user_input', 'context': 'visual_focus'},
+                    emotional_response=0.7,
+                    relevance=decision['confidence']
+                )
+                result = {
+                    'success': True,
+                    'attached_to': target_being.soul,
+                    'lux_response': f"Dodałem twoją wiadomość do kontekstu '{target_being.genesis.get('name', 'Unknown')}'."
+                }
+        
+        elif decision['action'] == 'create_parent_concept':
+            # Utwórz nadrzędny byt który grupuje inne
+            parent_being = await LuxCommunicationHandler.create_parent_concept(
+                message_soul, decision['child_beings'], user_lux
+            )
+            result = {
+                'success': True,
+                'created_parent': parent_being.soul,
+                'grouped_beings': decision['child_beings'],
+                'lux_response': f"Utworzyłem nadrzędny koncept '{parent_being.genesis.get('name', 'Unknown')}' który grupuje powiązane byty."
+            }
+        
+        return result
+
+    @staticmethod
+    async def create_being_from_message(message_soul: Soul, user_lux: BaseBeing) -> BaseBeing:
+        """Tworzy nowy byt z wiadomości użytkownika"""
+        message_content = message_soul.content if isinstance(message_soul.content, str) else str(message_soul.content)
+        
+        # Określ typ i nazwę na podstawie treści
+        if any(word in message_content.lower() for word in ['strona', 'website', 'portal']):
+            being_type = 'website_project'
+            name = f"Projekt strony: {message_content[:30]}..."
+        elif any(word in message_content.lower() for word in ['aplikacja', 'app', 'program']):
+            being_type = 'application_project'
+            name = f"Aplikacja: {message_content[:30]}..."
+        else:
+            being_type = 'general_concept'
+            name = f"Idea: {message_content[:30]}..."
+        
+        new_being = await BaseBeing.create(
+            genesis={
+                'type': being_type,
+                'name': name,
+                'description': message_content,
+                'source_message_soul': message_soul.id,
+                'created_by': 'lux_contextual_analysis'
+            },
+            attributes={
+                'energy_level': 300,
+                'user_id': message_soul.metadata.get('sender'),
+                'context_aware': True,
+                'tags': ['user_generated', being_type, 'contextual']
+            },
+            memories=[{
+                'type': 'creation_from_message',
+                'message_soul': message_soul.id,
+                'timestamp': datetime.now().isoformat()
+            }]
+        )
+        
+        # Stwórz relację z Lux
+        await SoulRelation.create(
+            being_soul=user_lux.soul,
+            soul_id=message_soul.id,
+            interpretation={'type': 'user_concept', 'being_created': new_being.soul},
+            emotional_response=0.8,
+            relevance=0.9
+        )
+        
+        return new_being
+
+    @staticmethod
+    async def create_parent_concept(message_soul: Soul, child_beings: list, user_lux: BaseBeing) -> BaseBeing:
+        """Tworzy nadrzędny koncept grupujący inne byty"""
+        message_content = message_soul.content if isinstance(message_soul.content, str) else str(message_soul.content)
+        
+        parent_being = await BaseBeing.create(
+            genesis={
+                'type': 'parent_concept',
+                'name': f"Projekt: {message_content[:40]}...",
+                'description': f"Nadrzędny koncept grupujący powiązane byty: {message_content}",
+                'source_message_soul': message_soul.id,
+                'created_by': 'lux_grouping_analysis'
+            },
+            attributes={
+                'energy_level': 500,
+                'user_id': message_soul.metadata.get('sender'),
+                'child_beings': child_beings,
+                'is_parent_concept': True,
+                'tags': ['user_generated', 'parent_concept', 'grouping']
+            },
+            memories=[{
+                'type': 'creation_as_parent',
+                'message_soul': message_soul.id,
+                'grouped_beings': child_beings,
+                'timestamp': datetime.now().isoformat()
+            }]
+        )
+        
+        # Stwórz relacje z dziećmi
+        for child_soul in child_beings:
+            child_being = await BaseBeing.load(child_soul)
+            if child_being:
+                # Dodaj dziecko do rodzica
+                await SoulRelation.create(
+                    being_soul=parent_being.soul,
+                    soul_id=message_soul.id,
+                    interpretation={'type': 'child_being', 'child_soul': child_soul},
+                    emotional_response=0.7,
+                    relevance=0.8
+                )
+                
+                # Zaktualizuj dziecko z referencją do rodzica
+                child_being.attributes['parent_concept'] = parent_being.soul
+                await child_being.save()
+        
+        return parent_being
 
 @sio.event
 async def lux_communication(sid, data):
