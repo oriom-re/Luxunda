@@ -136,190 +136,6 @@ class SafeCodeExecutor:
         finally:
             sys.stdout = old_stdout
 
-class BeingFactory:
-    """Factory do tworzenia różnych typów bytów"""
-    
-    BEING_TYPES = {
-        'function': FunctionBeing,
-        'class': ClassBeing,
-        'data': DataBeing,
-        'scenario': ScenarioBeing,
-        'task': TaskBeing,
-        'component': ComponentBeing,
-        'message': MessageBeing,
-        'base': BaseBeing
-    }
-    
-    @classmethod
-    async def create_being(cls, being_type: str, genesis: Dict[str, Any], **kwargs) -> BaseBeing:
-        """Tworzy byt odpowiedniego typu"""
-        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
-        
-        # Upewnij się, że typ jest ustawiony w genesis
-        genesis['type'] = being_type
-        
-        # Generuj unikalne soul
-        soul = str(uuid.uuid4())
-        
-        # Przygotuj atrybuty
-        attributes = kwargs.get('attributes', {})
-        if 'tags' in kwargs:
-            attributes['tags'] = kwargs['tags']
-        if 'energy_level' in kwargs:
-            attributes['energy_level'] = kwargs['energy_level']
-        
-        # Utwórz byt
-        being = BeingClass(
-            soul=soul,
-            genesis=genesis,
-            attributes=attributes,
-            memories=kwargs.get('memories', []),
-            self_awareness=kwargs.get('self_awareness', {})
-        )
-        
-        await being.save()
-        return being
-    
-    @classmethod
-    async def load_being(cls, soul: str) -> Optional[BaseBeing]:
-        """Ładuje byt odpowiedniego typu z bazy danych"""
-        global db_pool
-        
-        if hasattr(db_pool, 'acquire'):
-            async with db_pool.acquire() as conn:
-                row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
-        else:
-            async with db_pool.execute("SELECT * FROM base_beings WHERE soul = ?", (soul,)) as cursor:
-                row = await cursor.fetchone()
-        
-        if not row:
-            return None
-        
-        # Określ typ bytu
-        if hasattr(db_pool, 'acquire'):
-            # PostgreSQL
-            genesis = row['genesis']
-            being_type = genesis.get('type', 'base')
-        else:
-            # SQLite
-            genesis = json.loads(row[3]) if row[3] else {}
-            being_type = genesis.get('type', 'base')
-        
-        # Wybierz odpowiednią klasę
-        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
-        
-        # Utwórz instancję
-        if hasattr(db_pool, 'acquire'):
-            # PostgreSQL
-            return BeingClass(
-                soul=str(row['soul']),
-                genesis=row['genesis'],
-                attributes=row['attributes'],
-                memories=row['memories'],
-                self_awareness=row['self_awareness'],
-                created_at=row['created_at']
-            )
-        else:
-            # SQLite
-            attributes = json.loads(row[4]) if row[4] else {}
-            memories = json.loads(row[5]) if row[5] else []
-            self_awareness = json.loads(row[6]) if row[6] else {}
-            
-            return BeingClass(
-                soul=row[0],
-                genesis=genesis,
-                attributes=attributes,
-                memories=memories,
-                self_awareness=self_awareness,
-                created_at=row[7]
-            )
-
-class FunctionRouter:
-    """Router dla funkcji z bytów"""
-
-    def __init__(self):
-        self.registered_functions = {}
-
-    async def register_function_from_being(self, soul: str) -> dict:
-        """Rejestruje funkcję z bytu"""
-        being = await BaseBeing.load(soul)
-        if not being:
-            return {'success': False, 'error': 'Byt nie znaleziony'}
-
-        if being.genesis.get('type') != 'function':
-            return {'success': False, 'error': 'Byt nie jest funkcją'}
-
-        source = being.genesis.get('source', '')
-        name = being.genesis.get('name', 'unknown_function')
-
-        if not source:
-            return {'success': False, 'error': 'Brak kodu źródłowego w bycie'}
-
-        # Waliduj kod
-        is_valid, validation_msg = SafeCodeExecutor.validate_code(source)
-        if not is_valid:
-            return {'success': False, 'error': validation_msg}
-
-        self.registered_functions[soul] = {
-            'name': name,
-            'source': source,
-            'being': being
-        }
-
-        return {'success': True, 'message': f'Funkcja {name} została zarejestrowana'}
-
-    async def execute_function(self, soul: str, *args, **kwargs) -> dict:
-        """Wykonuje funkcję z zarejestrowanego bytu"""
-        if soul not in self.registered_functions:
-            return {'success': False, 'error': 'Funkcja nie jest zarejestrowana'}
-
-        func_info = self.registered_functions[soul]
-        result = await SafeCodeExecutor.execute_function(
-            func_info['source'], 
-            func_info['name'], 
-            *args, **kwargs
-        )
-
-        # Zapisz wykonanie w pamięci bytu
-        if result['success']:
-            being = func_info['being']
-            memory_entry = {
-                'type': 'execution',
-                'timestamp': datetime.now().isoformat(),
-                'args': str(args),
-                'kwargs': str(kwargs),
-                'result': str(result['result']),
-                'output': result['output']
-            }
-            being.memories.append(memory_entry)
-            await being.save()
-
-        return result
-
-    def get_registered_functions(self) -> dict:
-        """Zwraca listę zarejestrowanych funkcji"""
-        return {
-            soul: {
-                'name': info['name'],
-                'source_preview': info['source'][:200] + '...' if len(info['source']) > 200 else info['source']
-            }
-            for soul, info in self.registered_functions.items()
-        }
-
-# Globalna pula połączeń do bazy danych
-db_pool = None
-
-# Socket.IO serwer
-sio = socketio.AsyncServer(cors_allowed_origins="*")
-app = web.Application()
-sio.attach(app)
-
-# Router funkcji
-function_router = FunctionRouter()
-
-# Narzędzia Lux
-lux_tools = LuxTools(openai_api_key=os.getenv('OPENAI_API_KEY'))
-
 @dataclass
 class BaseBeing:
     soul: str
@@ -328,6 +144,143 @@ class BaseBeing:
     memories: List[Dict[str, Any]]
     self_awareness: Dict[str, Any]
     created_at: Optional[datetime] = None
+
+    @property
+    def tags(self) -> List[str]:
+        """Pobiera tagi z atrybutów"""
+        return self.attributes.get('tags', [])
+
+    @tags.setter
+    def tags(self, value: List[str]):
+        """Ustawia tagi w atrybutach"""
+        self.attributes['tags'] = value
+
+    @property
+    def energy_level(self) -> int:
+        """Pobiera poziom energii z atrybutów"""
+        return self.attributes.get('energy_level', 0)
+
+    @energy_level.setter
+    def energy_level(self, value: int):
+        """Ustawia poziom energii w atrybutach"""
+        self.attributes['energy_level'] = value
+
+    @classmethod
+    async def create(cls, genesis: Dict[str, Any], **kwargs):
+        """Tworzy nowy byt w bazie danych"""
+        soul = str(uuid.uuid4())
+
+        # Przygotuj atrybuty z tags i energy_level
+        attributes = kwargs.get('attributes', {})
+        if 'tags' in kwargs:
+            attributes['tags'] = kwargs['tags']
+        if 'energy_level' in kwargs:
+            attributes['energy_level'] = kwargs['energy_level']
+
+        being = cls(
+            soul=soul,
+            genesis=genesis,
+            attributes=attributes,
+            memories=kwargs.get('memories', []),
+            self_awareness=kwargs.get('self_awareness', {})
+        )
+        await being.save()
+        return being
+
+    async def save(self):
+        """Zapisuje byt do bazy danych"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO base_beings (soul, genesis, attributes, memories, self_awareness)
+                    VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (soul) DO UPDATE SET
+                    genesis = EXCLUDED.genesis,
+                    attributes = EXCLUDED.attributes,
+                    memories = EXCLUDED.memories,
+                    self_awareness = EXCLUDED.self_awareness
+                """, str(self.soul), json.dumps(self.genesis, cls=DateTimeEncoder), 
+                    json.dumps(self.attributes, cls=DateTimeEncoder),
+                    json.dumps(self.memories, cls=DateTimeEncoder), 
+                    json.dumps(self.self_awareness, cls=DateTimeEncoder))
+        else:
+            # SQLite fallback
+            await db_pool.execute("""
+                INSERT OR REPLACE INTO base_beings 
+                (soul, tags, energy_level, genesis, attributes, memories, self_awareness)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (str(self.soul), json.dumps(self.tags), self.energy_level, 
+                  json.dumps(self.genesis, cls=DateTimeEncoder), 
+                  json.dumps(self.attributes, cls=DateTimeEncoder),
+                  json.dumps(self.memories, cls=DateTimeEncoder), 
+                  json.dumps(self.self_awareness, cls=DateTimeEncoder)))
+            await db_pool.commit()
+
+    @classmethod
+    async def load(cls, soul: str):
+        """Ładuje byt z bazy danych"""
+        global db_pool
+        async with db_pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
+            if row:
+                return cls(
+                    soul=str(row['soul']),
+                    genesis=row['genesis'],
+                    attributes=row['attributes'],
+                    memories=row['memories'],
+                    self_awareness=row['self_awareness'],
+                    created_at=row['created_at']
+                )
+        return None
+
+    @classmethod
+    async def get_all(cls, limit: int = 100):
+        """Pobiera wszystkie byty"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
+                return [cls(
+                    soul=str(row['soul']),
+                    genesis=row['genesis'],
+                    attributes=row['attributes'],
+                    memories=row['memories'],
+                    self_awareness=row['self_awareness'],
+                    created_at=row['created_at']
+                ) for row in rows]
+        else:
+            # SQLite fallback
+            async with db_pool.execute("SELECT soul, tags, energy_level, genesis, attributes, memories, self_awareness, created_at FROM base_beings LIMIT ?", (limit,)) as cursor:
+                rows = await cursor.fetchall()
+                beings = []
+                for row in rows:
+                    # row[0]=soul, row[1]=tags, row[2]=energy_level, row[3]=genesis, row[4]=attributes, row[5]=memories, row[6]=self_awareness, row[7]=created_at
+                    try:
+                        genesis = json.loads(row[3]) if row[3] else {}
+                        attributes = json.loads(row[4]) if row[4] else {}
+                        memories = json.loads(row[5]) if row[5] else []
+                        self_awareness = json.loads(row[6]) if row[6] else {}
+
+                        # Dodaj tags i energy_level do attributes jeśli nie ma
+                        if 'tags' not in attributes and row[1]:
+                            attributes['tags'] = json.loads(row[1])
+                        if 'energy_level' not in attributes and row[2]:
+                            attributes['energy_level'] = row[2]
+
+                        beings.append(cls(
+                            soul=row[0],
+                            genesis=genesis,
+                            attributes=attributes,
+                            memories=memories,
+                            self_awareness=self_awareness,
+                            created_at=row[7]
+                        ))
+                    except Exception as e:
+                        print(f"Błąd parsowania wiersza: {e}, wiersz: {row}")
+                        continue
+                return beings
 
 @dataclass
 class FunctionBeing(BaseBeing):
@@ -414,7 +367,7 @@ class DataBeing(BaseBeing):
     """Byt danych z operacjami CRUD"""
     
     def __post_init__(self):
-        if self.genesis.get('type') != ' ':
+        if self.genesis.get('type') != 'data':
             self.genesis['type'] = 'data'
         if 'data_schema' not in self.attributes:
             self.attributes['data_schema'] = {}
@@ -647,142 +600,191 @@ class MessageBeing(BaseBeing):
         
         return dot_product / (magnitude1 * magnitude2)
 
-    @property
-    def tags(self) -> List[str]:
-        """Pobiera tagi z atrybutów"""
-        return self.attributes.get('tags', [])
-
-    @tags.setter
-    def tags(self, value: List[str]):
-        """Ustawia tagi w atrybutach"""
-        self.attributes['tags'] = value
-
-    @property
-    def energy_level(self) -> int:
-        """Pobiera poziom energii z atrybutów"""
-        return self.attributes.get('energy_level', 0)
-
-    @energy_level.setter
-    def energy_level(self, value: int):
-        """Ustawia poziom energii w atrybutach"""
-        self.attributes['energy_level'] = value
-
+class BeingFactory:
+    """Factory do tworzenia różnych typów bytów"""
+    
+    BEING_TYPES = {
+        'function': FunctionBeing,
+        'class': ClassBeing,
+        'data': DataBeing,
+        'scenario': ScenarioBeing,
+        'task': TaskBeing,
+        'component': ComponentBeing,
+        'message': MessageBeing,
+        'base': BaseBeing
+    }
+    
     @classmethod
-    async def create(cls, genesis: Dict[str, Any], **kwargs):
-        """Tworzy nowy byt w bazie danych"""
+    async def create_being(cls, being_type: str, genesis: Dict[str, Any], **kwargs) -> BaseBeing:
+        """Tworzy byt odpowiedniego typu"""
+        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
+        
+        # Upewnij się, że typ jest ustawiony w genesis
+        genesis['type'] = being_type
+        
+        # Generuj unikalne soul
         soul = str(uuid.uuid4())
-
-        # Przygotuj atrybuty z tags i energy_level
+        
+        # Przygotuj atrybuty
         attributes = kwargs.get('attributes', {})
         if 'tags' in kwargs:
             attributes['tags'] = kwargs['tags']
         if 'energy_level' in kwargs:
             attributes['energy_level'] = kwargs['energy_level']
-
-        being = cls(
+        
+        # Utwórz byt
+        being = BeingClass(
             soul=soul,
             genesis=genesis,
             attributes=attributes,
             memories=kwargs.get('memories', []),
             self_awareness=kwargs.get('self_awareness', {})
         )
+        
         await being.save()
         return being
-
-    async def save(self):
-        """Zapisuje byt do bazy danych"""
+    
+    @classmethod
+    async def load_being(cls, soul: str) -> Optional[BaseBeing]:
+        """Ładuje byt odpowiedniego typu z bazy danych"""
         global db_pool
+        
         if hasattr(db_pool, 'acquire'):
             async with db_pool.acquire() as conn:
-                await conn.execute("""
-                    INSERT INTO base_beings (soul, genesis, attributes, memories, self_awareness)
-                    VALUES ($1, $2, $3, $4, $5)
-                    ON CONFLICT (soul) DO UPDATE SET
-                    genesis = EXCLUDED.genesis,
-                    attributes = EXCLUDED.attributes,
-                    memories = EXCLUDED.memories,
-                    self_awareness = EXCLUDED.self_awareness
-                """, str(self.soul), json.dumps(self.genesis, cls=DateTimeEncoder), 
-                    json.dumps(self.attributes, cls=DateTimeEncoder),
-                    json.dumps(self.memories, cls=DateTimeEncoder), 
-                    json.dumps(self.self_awareness, cls=DateTimeEncoder))
+                row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
         else:
-            # SQLite fallback
-            await db_pool.execute("""
-                INSERT OR REPLACE INTO base_beings 
-                (soul, tags, energy_level, genesis, attributes, memories, self_awareness)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (str(self.soul), json.dumps(self.tags), self.energy_level, 
-                  json.dumps(self.genesis, cls=DateTimeEncoder), 
-                  json.dumps(self.attributes, cls=DateTimeEncoder),
-                  json.dumps(self.memories, cls=DateTimeEncoder), 
-                  json.dumps(self.self_awareness, cls=DateTimeEncoder)))
-            await db_pool.commit()
-
-    @classmethod
-    async def load(cls, soul: str):
-        """Ładuje byt z bazy danych"""
-        global db_pool
-        async with db_pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
-            if row:
-                return cls(
-                    soul=str(row['soul']),
-                    genesis=row['genesis'],
-                    attributes=row['attributes'],
-                    memories=row['memories'],
-                    self_awareness=row['self_awareness'],
-                    created_at=row['created_at']
-                )
-        return None
-
-    @classmethod
-    async def get_all(cls, limit: int = 100):
-        """Pobiera wszystkie byty"""
-        global db_pool
+            async with db_pool.execute("SELECT * FROM base_beings WHERE soul = ?", (soul,)) as cursor:
+                row = await cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        # Określ typ bytu
         if hasattr(db_pool, 'acquire'):
             # PostgreSQL
-            async with db_pool.acquire() as conn:
-                rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
-                return [cls(
-                    soul=str(row['soul']),
-                    genesis=row['genesis'],
-                    attributes=row['attributes'],
-                    memories=row['memories'],
-                    self_awareness=row['self_awareness'],
-                    created_at=row['created_at']
-                ) for row in rows]
+            genesis = row['genesis']
+            being_type = genesis.get('type', 'base')
         else:
-            # SQLite fallback
-            async with db_pool.execute("SELECT soul, tags, energy_level, genesis, attributes, memories, self_awareness, created_at FROM base_beings LIMIT ?", (limit,)) as cursor:
-                rows = await cursor.fetchall()
-                beings = []
-                for row in rows:
-                    # row[0]=soul, row[1]=tags, row[2]=energy_level, row[3]=genesis, row[4]=attributes, row[5]=memories, row[6]=self_awareness, row[7]=created_at
-                    try:
-                        genesis = json.loads(row[3]) if row[3] else {}
-                        attributes = json.loads(row[4]) if row[4] else {}
-                        memories = json.loads(row[5]) if row[5] else []
-                        self_awareness = json.loads(row[6]) if row[6] else {}
+            # SQLite
+            genesis = json.loads(row[3]) if row[3] else {}
+            being_type = genesis.get('type', 'base')
+        
+        # Wybierz odpowiednią klasę
+        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
+        
+        # Utwórz instancję
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            return BeingClass(
+                soul=str(row['soul']),
+                genesis=row['genesis'],
+                attributes=row['attributes'],
+                memories=row['memories'],
+                self_awareness=row['self_awareness'],
+                created_at=row['created_at']
+            )
+        else:
+            # SQLite
+            attributes = json.loads(row[4]) if row[4] else {}
+            memories = json.loads(row[5]) if row[5] else []
+            self_awareness = json.loads(row[6]) if row[6] else {}
+            
+            return BeingClass(
+                soul=row[0],
+                genesis=genesis,
+                attributes=attributes,
+                memories=memories,
+                self_awareness=self_awareness,
+                created_at=row[7]
+            )
 
-                        # Dodaj tags i energy_level do attributes jeśli nie ma
-                        if 'tags' not in attributes and row[1]:
-                            attributes['tags'] = json.loads(row[1])
-                        if 'energy_level' not in attributes and row[2]:
-                            attributes['energy_level'] = row[2]
+class FunctionRouter:
+    """Router dla funkcji z bytów"""
 
-                        beings.append(cls(
-                            soul=row[0],
-                            genesis=genesis,
-                            attributes=attributes,
-                            memories=memories,
-                            self_awareness=self_awareness,
-                            created_at=row[7]
-                        ))
-                    except Exception as e:
-                        print(f"Błąd parsowania wiersza: {e}, wiersz: {row}")
-                        continue
-                return beings
+    def __init__(self):
+        self.registered_functions = {}
+
+    async def register_function_from_being(self, soul: str) -> dict:
+        """Rejestruje funkcję z bytu"""
+        being = await BaseBeing.load(soul)
+        if not being:
+            return {'success': False, 'error': 'Byt nie znaleziony'}
+
+        if being.genesis.get('type') != 'function':
+            return {'success': False, 'error': 'Byt nie jest funkcją'}
+
+        source = being.genesis.get('source', '')
+        name = being.genesis.get('name', 'unknown_function')
+
+        if not source:
+            return {'success': False, 'error': 'Brak kodu źródłowego w bycie'}
+
+        # Waliduj kod
+        is_valid, validation_msg = SafeCodeExecutor.validate_code(source)
+        if not is_valid:
+            return {'success': False, 'error': validation_msg}
+
+        self.registered_functions[soul] = {
+            'name': name,
+            'source': source,
+            'being': being
+        }
+
+        return {'success': True, 'message': f'Funkcja {name} została zarejestrowana'}
+
+    async def execute_function(self, soul: str, *args, **kwargs) -> dict:
+        """Wykonuje funkcję z zarejestrowanego bytu"""
+        if soul not in self.registered_functions:
+            return {'success': False, 'error': 'Funkcja nie jest zarejestrowana'}
+
+        func_info = self.registered_functions[soul]
+        result = await SafeCodeExecutor.execute_function(
+            func_info['source'], 
+            func_info['name'], 
+            *args, **kwargs
+        )
+
+        # Zapisz wykonanie w pamięci bytu
+        if result['success']:
+            being = func_info['being']
+            memory_entry = {
+                'type': 'execution',
+                'timestamp': datetime.now().isoformat(),
+                'args': str(args),
+                'kwargs': str(kwargs),
+                'result': str(result['result']),
+                'output': result['output']
+            }
+            being.memories.append(memory_entry)
+            await being.save()
+
+        return result
+
+    def get_registered_functions(self) -> dict:
+        """Zwraca listę zarejestrowanych funkcji"""
+        return {
+            soul: {
+                'name': info['name'],
+                'source_preview': info['source'][:200] + '...' if len(info['source']) > 200 else info['source']
+            }
+            for soul, info in self.registered_functions.items()
+        }
+
+# Globalna pula połączeń do bazy danych
+db_pool = None
+
+# Socket.IO serwer
+sio = socketio.AsyncServer(cors_allowed_origins="*")
+app = web.Application()
+sio.attach(app)
+
+# Router funkcji
+function_router = FunctionRouter()
+
+# Narzędzia Lux
+lux_tools = LuxTools(openai_api_key=os.getenv('OPENAI_API_KEY'))
+
+
 
 @dataclass
 class Relationship:
