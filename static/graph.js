@@ -19,9 +19,11 @@ class LuxOSUniverse {
         this.socket = io({
             timeout: 20000,
             reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionAttempts: 5,
-            maxReconnectionAttempts: 5,
+            reconnectionDelay: 2000,
+            reconnectionDelayMax: 10000,
+            randomizationFactor: 0.5,
+            reconnectionAttempts: 10,
+            maxReconnectionAttempts: 10,
             forceNew: false,
             transports: ['websocket', 'polling']
         });
@@ -248,8 +250,19 @@ class LuxOSUniverse {
     updateUniverse(data) {
         console.log('Aktualizacja wszechświata:', data);
 
-        // Bezpieczna deserializacja danych
-        this.beings = (data.nodes || []).map(node => {
+        // Bezpieczna deserializacja danych - usuń duplikaty po soul_uid
+        const uniqueNodes = [];
+        const seenSouls = new Set();
+        
+        (data.nodes || []).forEach(node => {
+            const soulId = node.soul_uid || node.soul;
+            if (!seenSouls.has(soulId)) {
+                seenSouls.add(soulId);
+                uniqueNodes.push(node);
+            }
+        });
+
+        this.beings = uniqueNodes.map(node => {
             try {
                 // Parsuj stringi JSON z backendu
                 if (typeof node._soul?.genesis === 'string') {
@@ -300,26 +313,9 @@ class LuxOSUniverse {
     }
 
     ensureLuxAgent() {
-        const luxExists = this.beings.find(being => 
-            being.soul === '00000000-0000-0000-0000-000000000001' ||
-            being.soul_uid === '00000000-0000-0000-0000-000000000001' ||
-            being.genesis?.lux_identifier === 'lux-core-consciousness' ||
-            (being.genesis?.name === 'Lux' && being.genesis?.type === 'agent')
-        );
-
-        if (!luxExists) {
-            this.createLuxAgent();
-        }
-
-        // Upewnij się, że główna intencja LuxOS też istnieje
-        const mainIntentionExists = this.beings.find(being => 
-            being.soul === '11111111-1111-1111-1111-111111111111' ||
-            (being.genesis?.type === 'message' && being.attributes?.metadata?.is_main_intention)
-        );
-
-        if (!mainIntentionExists) {
-            this.createMainIntention();
-        }
+        // Nie twórz duplikatów - backend już zapewnia istnienie tych bytów
+        // Ta funkcja była przyczynq duplikowania bytów w frontend
+        console.log('Kernel i Lux są zarządzane przez backend - nie tworzę duplikatów');
     }
 
     createLuxAgent() {
