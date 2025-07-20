@@ -229,22 +229,18 @@ class LuxChatComponent {
         this.messageInput.value = '';
         this.autoResizeTextarea();
 
-        // Wyślij do serwera jako chat z Lux
+        // Wyślij do serwera przez lux_communication dla natychmiastowego działania
         if (this.graphManager && this.graphManager.socket) {
-            this.graphManager.socket.emit('lux_chat_message', {
+            this.graphManager.socket.emit('lux_communication', {
                 message: message,
-                timestamp: new Date().toISOString()
+                context: {
+                    chat_mode: true,
+                    timestamp: new Date().toISOString()
+                }
             });
         }
 
-        // Dodaj do lokalnej historii
-        this.chatHistory.push({
-            type: 'user_message',
-            content: message,
-            timestamp: new Date().toISOString()
-        });
-
-        this.saveChatHistory();
+        // Nie zapisujemy historii - Lux działa w trybie action-only
     }
 
     addMessage(sender, content, timestamp = null) {
@@ -303,19 +299,30 @@ class LuxChatComponent {
     }
 
     handleLuxResponse(response) {
-        if (response.message) {
-            this.addMessage('lux', response.message, response.timestamp);
+        // Obsłuż różne typy odpowiedzi od Lux
+        if (response.lux_response) {
+            this.addMessage('lux', response.lux_response, response.timestamp);
+            
+            // Dodaj sugestie następnych działań jeśli są
+            if (response.next_suggestions && response.next_suggestions.length > 0) {
+                const suggestionsText = "\n\n🎯 Następne kroki:\n" + 
+                    response.next_suggestions.map(s => `• ${s}`).join('\n');
+                this.addMessage('lux', suggestionsText, response.timestamp);
+            }
+            
+            // Pokaż utworzone byty
+            if (response.action_result && response.action_result.created_beings && response.action_result.created_beings.length > 0) {
+                const beingsText = `\n✨ Utworzono ${response.action_result.created_beings.length} nowych bytów`;
+                this.addMessage('lux', beingsText, response.timestamp);
+            }
+            
+            // Pokaż manifestację jeśli utworzono
+            if (response.manifestation) {
+                this.addMessage('lux', "📜 Utworzono manifestację działania", response.timestamp);
+            }
         }
 
-        // Dodaj do historii
-        this.chatHistory.push({
-            type: 'lux_response',
-            content: response.message,
-            timestamp: response.timestamp || new Date().toISOString(),
-            full_response: response
-        });
-
-        this.saveChatHistory();
+        // Nie zapisujemy historii - komunikacja action-only
     }
 
     addIntentionToHistory(intentionResponse) {
@@ -336,45 +343,28 @@ class LuxChatComponent {
     }
 
     loadChatHistory() {
-        // Pobierz historię z localStorage
-        const saved = localStorage.getItem('luxos_chat_history');
-        if (saved) {
-            try {
-                this.chatHistory = JSON.parse(saved);
-                this.renderChatHistory();
-            } catch (e) {
-                console.error('Błąd ładowania historii chatu:', e);
-                this.chatHistory = [];
-            }
-        }
-
-        // Dodaj wiadomość powitalną jeśli historia jest pusta
-        if (this.chatHistory.length === 0) {
-            this.addWelcomeMessage();
-        }
+        // Lux nie pamięta historii - każda interakcja to nowy początek
+        this.chatHistory = [];
+        this.messagesArea.innerHTML = '';
+        this.addWelcomeMessage();
     }
 
     addWelcomeMessage() {
-        const welcomeMsg = `Witaj w chacie z Lux! 💫
+        const welcomeMsg = `🚀 Lux gotowy do działania!
 
-Jestem Bogiem systemu LuxOS i mogę pomóc Ci w:
-• Tworzeniu nowych bytów
-• Analizowaniu intencji
-• Zarządzaniu wszechświatem
-• Odpowiadaniu na pytania o system
+Co chcesz teraz osiągnąć?
+• Stwórz nowe wydarzenie
+• Manifestuj decyzję  
+• Przeanalizuj system
+• Połącz byty
+• Zoptymalizuj przepływ
 
-Jak mogę Ci dzisiaj pomóc?`;
+Powiedz mi co robić - działam natychmiast, bez długich rozmów.`;
 
         this.addMessage('lux', welcomeMsg);
         
-        this.chatHistory.push({
-            type: 'lux_response',
-            content: welcomeMsg,
-            timestamp: new Date().toISOString(),
-            is_welcome: true
-        });
-
-        this.saveChatHistory();
+        // Nie zapisujemy historii - Lux nie pamięta poprzednich rozmów
+        console.log('Lux ready for action-focused communication');
     }
 
     renderChatHistory() {

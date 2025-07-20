@@ -1394,6 +1394,9 @@ class LuxOSUniverse {
             'component': '#FF5722',
             'message': '#607D8B',
             'scenario': '#795548',
+            'event_lifecycle': '#e91e63',  // Różowy dla cykli życia
+            'manifestation': '#ffd700',    // Złoty dla manifestacji
+            'note': '#9e9e9e',            // Szary dla notatek
             'unknown': '#666666'
         };
         return colors[type] || colors.unknown;
