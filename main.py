@@ -341,52 +341,7 @@ class BaseBeing:
                         print(f"Błąd parsowania bytu {soul}: {e}")
         return None
 
-    @classmethod
-    async def get_all(cls, limit: int = 100):
-        """Pobiera wszystkie byty"""
-        global db_pool
-        if hasattr(db_pool, 'acquire'):
-            # PostgreSQL
-            async with db_pool.acquire() as conn:
-                rows = await conn.fetch("SELECT * FROM base_beings LIMIT $1", limit)
-                return [cls(
-                    soul=str(row['soul']),
-                    genesis=row['genesis'],
-                    attributes=row['attributes'],
-                    memories=row['memories'],
-                    self_awareness=row['self_awareness'],
-                    created_at=row['created_at']
-                ) for row in rows]
-        else:
-            # SQLite fallback
-            async with db_pool.execute("SELECT soul, tags, energy_level, genesis, attributes, memories, self_awareness, created_at FROM base_beings LIMIT ?", (limit,)) as cursor:
-                rows = await cursor.fetchall()
-                beings = []
-                for row in rows:
-                    try:
-                        genesis = json.loads(row[3]) if row[3] else {}
-                        attributes = json.loads(row[4]) if row[4] else {}
-                        memories = json.loads(row[5]) if row[5] else []
-                        self_awareness = json.loads(row[6]) if row[6] else {}
-
-                        # Dodaj tags i energy_level do attributes jeśli nie ma
-                        if 'tags' not in attributes and row[1]:
-                            attributes['tags'] = json.loads(row[1])
-                        if 'energy_level' not in attributes and row[2]:
-                            attributes['energy_level'] = row[2]
-
-                        beings.append(cls(
-                            soul=row[0],
-                            genesis=genesis,
-                            attributes=attributes,
-                            memories=memories,
-                            self_awareness=self_awareness,
-                            created_at=row[7]
-                        ))
-                    except Exception as e:
-                        print(f"Błąd parsowania wiersza: {e}, wiersz: {row}")
-                        continue
-                return beings
+    
 
 @dataclass
 class FunctionBeing(BaseBeing):
@@ -1022,50 +977,7 @@ class Relationship:
                   json.dumps(self.attributes, cls=DateTimeEncoder)))
             await db_pool.commit()
 
-    @classmethod
-    async def get_all(cls, limit: int = 100):
-        """Pobiera wszystkie relacje"""
-        global db_pool
-        if hasattr(db_pool, 'acquire'):
-            # PostgreSQL
-            async with db_pool.acquire() as conn:
-                rows = await conn.fetch("SELECT * FROM relationships LIMIT $1", limit)
-                return [cls(
-                    id=str(row['id']),
-                    source_soul=str(row['source_soul']),
-                    target_soul=str(row['target_soul']),
-                    genesis=row['genesis'],
-                    attributes=row['attributes'],
-                    created_at=row['created_at']
-                ) for row in rows]
-        else:
-            # SQLite fallback
-            async with db_pool.execute("SELECT id, tags, energy_level, source_soul, target_soul, genesis, attributes, created_at FROM relationships LIMIT ?", (limit,)) as cursor:
-                rows = await cursor.fetchall()
-                relationships = []
-                for row in rows:
-                    try:
-                        genesis = json.loads(row[5]) if row[5] else {}
-                        attributes = json.loads(row[6]) if row[6] else {}
-
-                        # Dodaj tags i energy_level do attributes jeśli nie ma
-                        if 'tags' not in attributes and row[1]:
-                            attributes['tags'] = json.loads(row[1])
-                        if 'energy_level' not in attributes and row[2]:
-                            attributes['energy_level'] = row[2]
-
-                        relationships.append(cls(
-                            id=row[0],
-                            source_soul=row[3],
-                            target_soul=row[4],
-                            genesis=genesis,
-                            attributes=attributes,
-                            created_at=row[7]
-                        ))
-                    except Exception as e:
-                        print(f"Błąd parsowania relacji: {e}, wiersz: {row}")
-                        continue
-                return relationships
+    
 
 # Socket.IO event handlers
 @sio.event
@@ -1477,53 +1389,8 @@ async def analyze_intention(intention: str, context: dict) -> dict:
     }
 
 async def get_graph_data():
-    """Pobiera dane grafu do zwrócenia"""
-    try:
-        beings = await BaseBeing.get_all()
-        relationships = await Relationship.get_all()
-
-        # Konwertuj do JSON-safe format
-        nodes = []
-        for being in beings:
-            try:
-                node_dict = {
-                    'soul': being.soul,
-                    'genesis': being.genesis,
-                    'attributes': being.attributes,
-                    'memories': being.memories,
-                    'self_awareness': being.self_awareness,
-                    'created_at': being.created_at.isoformat() if being.created_at else None
-                }
-                nodes.append(node_dict)
-            except Exception as e:
-                print(f"Błąd konwersji bytu {being.soul}: {e}")
-                continue
-
-        links = []
-        for rel in relationships:
-            try:
-                link_dict = {
-                    'id': rel.id,
-                    'source_soul': rel.source_soul,
-                    'target_soul': rel.target_soul,
-                    'genesis': rel.genesis,
-                    'attributes': rel.attributes,
-                    'created_at': rel.created_at.isoformat() if rel.created_at else None
-                }
-                links.append(link_dict)
-            except Exception as e:
-                print(f"Błąd konwersji relacji {rel.id}: {e}")
-                continue
-
-        return {
-            'nodes': nodes,
-            'links': links
-        }
-    except Exception as e:
-        print(f"Błąd w get_graph_data: {e}")
-        import traceback
-        traceback.print_exc()
-        return {'nodes': [], 'links': []}
+    """Zwraca puste dane grafu - frontend generuje lokalnie"""
+    return {'nodes': [], 'links': []}
 
 async def send_graph_data(sid):
     """Wysyła dane grafu do konkretnego klienta"""
@@ -1535,23 +1402,8 @@ async def send_graph_data(sid):
         await sio.emit('error', {'message': f'Błąd ładowania danych: {str(e)}'}, room=sid)
 
 async def broadcast_graph_update():
-    """Rozgłasza aktualizację grafu do wszystkich klientów"""
-    try:
-        beings = await BaseBeing.get_all()
-        relationships = await Relationship.get_all()
-
-        # Konwertuj do JSON-safe format
-        nodes = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
-        links = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
-
-        graph_data = {
-            'nodes': nodes,
-            'links': links
-        }
-
-        await sio.emit('graph_updated', graph_data)
-    except Exception as e:
-        print(f"Błąd w broadcast_graph_update: {e}")
+    """Frontend zarządza danymi lokalnie - nie potrzebujemy rozgłaszać"""
+    pass
 
 # HTTP API endpoints
 async def api_beings(request):
