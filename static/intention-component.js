@@ -55,6 +55,10 @@ class IntentionComponent {
 
         // Socket.IO listeners
         if (this.graphManager && this.graphManager.socket) {
+            this.graphManager.socket.on('lux_analysis_response', (response) => {
+                this.handleLuxAnalysisResponse(response);
+            });
+
             this.graphManager.socket.on('intention_response', (response) => {
                 this.handleIntentionResponse(response);
             });
@@ -125,38 +129,44 @@ class IntentionComponent {
     }
 
     sendIntention() {
-        const intention = this.intentionInput.value.trim();
+        const message = this.intentionInput.value.trim();
         
-        if (!intention) {
-            this.showError('Wprowadź intencję przed wysłaniem');
+        if (!message) {
+            this.showError('Wprowadź myśl przed wysłaniem');
             return;
         }
 
-        if (intention.length > 500) {
-            this.showError('Intencja jest za długa (maksymalnie 500 znaków)');
+        if (message.length > 500) {
+            this.showError('Wiadomość jest za długa (maksymalnie 500 znaków)');
             return;
         }
 
         try {
-            console.log('Sending intention:', intention);
+            console.log('Sending thought to Lux:', message);
             
             // Pokaż feedback
-            this.showFeedback('Wysyłanie intencji...', 'info');
+            this.showFeedback('Lux analizuje twoją myśl...', 'info');
             
             // Zablokuj przycisk na czas przetwarzania
             this.sendButton.disabled = true;
-            this.sendButton.textContent = '⏳ Przetwarzanie...';
+            this.sendButton.textContent = '🧠 Lux analizuje...';
 
-            // Wyślij przez graph manager
-            if (this.graphManager) {
-                this.graphManager.processIntention(intention);
+            // Wyślij przez nowy kanał komunikacyjny z Lux
+            if (this.graphManager && this.graphManager.socket) {
+                this.graphManager.socket.emit('lux_communication', {
+                    message: message,
+                    context: {
+                        selected_nodes: this.graphManager.selectedNodes || [],
+                        timestamp: new Date().toISOString()
+                    }
+                });
             } else {
-                throw new Error('Graph manager nie jest dostępny');
+                throw new Error('Połączenie z Lux niedostępne');
             }
 
         } catch (error) {
-            console.error('Error sending intention:', error);
-            this.showError('Błąd wysyłania intencji: ' + error.message);
+            console.error('Error sending to Lux:', error);
+            this.showError('Błąd komunikacji z Lux: ' + error.message);
             this.resetSendButton();
         }
     }
@@ -211,9 +221,66 @@ class IntentionComponent {
         }
     }
 
+    handleLuxAnalysisResponse(response) {
+        console.log('Lux analysis response:', response);
+
+        // Resetuj przycisk
+        this.resetSendButton();
+
+        // Pokaż odpowiedź Lux
+        if (response.lux_response) {
+            this.showFeedback(response.lux_response, 'success');
+        }
+
+        // Pokaż klasyfikację
+        const analysis = response.analysis;
+        if (analysis) {
+            const classificationText = this.getClassificationText(analysis.classification);
+            this.showFeedback(`Lux: ${classificationText}`, 'info');
+
+            // Jeśli są sugerowane akcje, pokaż je
+            if (analysis.suggested_actions && analysis.suggested_actions.length > 0) {
+                this.showSuggestedActions(analysis.suggested_actions);
+            }
+
+            // Jeśli znaleziono podobne intencje
+            if (analysis.matching_intentions && analysis.matching_intentions.length > 0) {
+                this.showMatchingIntentions(analysis.matching_intentions);
+            }
+        }
+
+        // Wyczyść input po pomyślnej analizie
+        this.clearInput();
+    }
+
+    getClassificationText(classification) {
+        const classifications = {
+            'new_intention': '🌟 Nowa intencja! Umieszczę ją na orbicie.',
+            'intention_extension': '🔗 Rozszerzenie istniejącej intencji.',
+            'question': '❓ Pytanie - przeszukuję wiedzę...',
+            'general_thought': '💭 Myśl dodana do kontekstu.',
+            'error': '❌ Błąd analizy.'
+        };
+        return classifications[classification] || '🤔 Analizuję...';
+    }
+
+    showSuggestedActions(actions) {
+        // Pokaż sugerowane akcje w interfejsie
+        const actionsText = actions.map(action => `${action.icon} ${action.description}`).join('\n');
+        this.showFeedback(`Sugerowane akcje:\n${actionsText}`, 'info');
+    }
+
+    showMatchingIntentions(intentions) {
+        // Pokaż podobne intencje
+        const intentionsText = intentions.map((intent, i) => 
+            `${i+1}. ${intent.content} (${(intent.similarity * 100).toFixed(0)}% podobieństwa)`
+        ).join('\n');
+        this.showFeedback(`Znalezione podobne intencje:\n${intentionsText}`, 'info');
+    }
+
     resetSendButton() {
         this.sendButton.disabled = false;
-        this.sendButton.textContent = '🎯 Przetwórz Intencję';
+        this.sendButton.textContent = '🧠 Wyślij do Lux';
     }
 
     showFeedback(message, type = 'info') {

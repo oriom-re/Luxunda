@@ -1700,87 +1700,89 @@ async def update_being(sid, data):
         await sio.emit('error', {'message': str(e)}, room=sid)
 
 @sio.event
-async def process_intention(sid, data):
-    """Przetwarza intencję użytkownika"""
+async def lux_communication(sid, data):
+    """Kanał komunikacyjny z Lux - analiza myśli użytkownika"""
     try:
-        intention = data.get('intention', '').lower()
+        message = data.get('message', '').strip()
         context = data.get('context', {})
 
-        print(f"Otrzymano intencję od {sid}: {intention}")
+        print(f"Otrzymano myśl od {sid}: {message}")
 
-        # Utwórz byt wiadomości dla otrzymanej intencji
-        try:
-            message_being = await BeingFactory.create_being(
-                being_type='message',
-                genesis={
-                    'type': 'message',
-                    'name': f'Intention_Message_{datetime.now().strftime("%H%M%S")}',
-                    'created_by': 'user_intention',
-                    'source': 'user_input'
-                },
-                attributes={
-                    'message_data': {
-                        'content': intention,
-                        'length': len(intention),
-                        'timestamp': datetime.now().isoformat()
-                    },
-                    'metadata': {
-                        'sender': sid,
-                        'context': context,
-                        'message_type': 'intention'
-                    },
-                    'connected_to_main_intention': True,  # Oznacz jako połączone z główną intencją
-                    'main_intention_context': 'luxos-main-intention-context'
-                },
-                memories=[{
-                    'type': 'creation',
-                    'data': f'Intention message from user {sid}',
+        # Utwórz byt wiadomości dla myśli użytkownika
+        message_being = await BeingFactory.create_being(
+            being_type='message',
+            genesis={
+                'type': 'user_thought',
+                'name': f'User_Thought_{datetime.now().strftime("%H%M%S")}',
+                'created_by': 'user_communication',
+                'source': 'lux_channel'
+            },
+            attributes={
+                'message_data': {
+                    'content': message,
+                    'length': len(message),
                     'timestamp': datetime.now().isoformat()
-                }],
-                tags=['message', 'intention', 'user_input', 'luxos_context'],
-                energy_level=80
-            )
+                },
+                'metadata': {
+                    'sender': sid,
+                    'context': context,
+                    'message_type': 'user_thought'
+                },
+                'analysis_status': 'pending',
+                'connected_intentions': [],  # Lista intencji które mogą być związane
+                'orbital_position': None  # Pozycja na orbicie (null = jeszcze nie przypisana)
+            },
+            memories=[{
+                'type': 'creation',
+                'data': f'User thought from {sid}',
+                'timestamp': datetime.now().isoformat()
+            }],
+            tags=['message', 'user_thought', 'lux_channel'],
+            energy_level=60
+        )
 
-            # Załaduj duszę żeby właściwości były dostępne
-            await message_being.connect_to_soul()
+        # Lux analizuje myśl i określa jej naturę
+        lux_analysis = await lux_analyze_user_thought(message, context, sid)
 
-            # Połącz z główną intencją LuxOS przez relację
-            if message_being:
-                await connect_message_to_main_intention(message_being.soul_uid)
+        # Zaktualizuj byt wiadomości z analizą Lux
+        soul = await message_being.connect_to_soul()
+        if soul:
+            soul.attributes['lux_analysis'] = lux_analysis
+            soul.attributes['analysis_status'] = 'analyzed'
+            soul.memories.append({
+                'type': 'lux_analysis',
+                'data': f'Lux classified as: {lux_analysis.get("classification")}',
+                'timestamp': datetime.now().isoformat(),
+                'importance': lux_analysis.get('importance', 0.5)
+            })
+            await message_being.save_soul()
 
-        except Exception as e:
-            print(f"Błąd tworzenia message being: {e}")
-            message_being = None
+        # Jeśli Lux identyfikuje to jako intencję, może utworzyć lub połączyć z istniejącą
+        if lux_analysis.get('is_intention'):
+            intention_response = await handle_intention_identified(message_being, lux_analysis, context)
+            lux_analysis['intention_response'] = intention_response
 
-        # Sprawdź czy intencja dotyczy wizualizacji/komponentów
-        if any(word in intention for word in ['wizualizacja', 'wykres', 'graf', 'komponent', 'animacja', 'd3']):
-            component_being = await create_visual_component(intention, context, sid)
-            if component_being:
-                await sio.emit('component_created', {
-                    'soul_uid': component_being.soul_uid,
-                    'genesis': component_being._soul.genesis,
-                    'attributes': component_being._soul.attributes,
-                    'd3_code': component_being._soul.genesis.get('d3_code', ''),
-                    'config': component_being._soul.attributes.get('d3_config', {})
-                }, room=sid)
-
-        # Przetwórz intencję
-        response = await analyze_intention(intention, context)
-
-        # Dodaj informację o bycie wiadomości do odpowiedzi
-        if message_being:
-            response['message_being_soul'] = message_being.soul_uid
-
-        print(f"Odpowiedź na intencję: {response}")
-
-        await sio.emit('intention_response', response, room=sid)
+        # Wyślij odpowiedź Lux
+        await sio.emit('lux_analysis_response', {
+            'message_being_soul': message_being.soul_uid,
+            'analysis': lux_analysis,
+            'lux_response': lux_analysis.get('lux_message', 'Przeanalizowałem twoją myśl.'),
+            'actions': lux_analysis.get('suggested_actions', [])
+        }, room=sid)
 
         # Wyślij aktualizację grafu
         await broadcast_graph_update()
 
     except Exception as e:
-        print(f"Błąd przetwarzania intencji: {e}")
-        await sio.emit('error', {'message': f'Błąd przetwarzania intencji: {str(e)}'}, room=sid)
+        print(f"Błąd w komunikacji z Lux: {e}")
+        await sio.emit('error', {'message': f'Błąd komunikacji z Lux: {str(e)}'}, room=sid)
+
+# Zachowaj też stary endpoint dla kompatybilności
+@sio.event  
+async def process_intention(sid, data):
+    """Przekierowanie na nowy system komunikacji z Lux"""
+    # Przekieruj na nowy system
+    await lux_communication(sid, {'message': data.get('intention', ''), 'context': data.get('context', {})})
 
 @sio.event
 async def register_function(sid, data):
@@ -2077,36 +2079,96 @@ async def get_graph_data():
         beings = await BaseBeing.get_all()
         relationships = await Relationship.get_all()
 
+        print(f"Ładowanie danych: {len(beings)} bytów, {len(relationships)} relacji")
+
         # Konwertuj do JSON-safe format bez asdict()
         nodes = []
         for being in beings:
-            soul = await being.connect_to_soul()
-            if soul:
-                nodes.append({
-                    'soul': being.soul_uid,
-                    'soul_uid': being.soul_uid,
-                    'genesis': soul.genesis,
-                    'attributes': soul.attributes,
-                    'memories': soul.memories,
-                    'self_awareness': soul.self_awareness
-                })
+            try:
+                soul = await being.connect_to_soul()
+                if soul:
+                    # Upewnij się, że wszystkie dane są dict, nie string
+                    genesis = soul.genesis if isinstance(soul.genesis, dict) else {}
+                    attributes = soul.attributes if isinstance(soul.attributes, dict) else {}
+                    memories = soul.memories if isinstance(soul.memories, list) else []
+                    self_awareness = soul.self_awareness if isinstance(soul.self_awareness, dict) else {}
+                    
+                    # Jeśli dane są stringami, sparsuj je
+                    if isinstance(soul.genesis, str):
+                        try:
+                            genesis = json.loads(soul.genesis)
+                        except:
+                            genesis = {'type': 'unknown', 'name': 'Parse_Error'}
+                    
+                    if isinstance(soul.attributes, str):
+                        try:
+                            attributes = json.loads(soul.attributes)
+                        except:
+                            attributes = {'energy_level': 0}
+                    
+                    if isinstance(soul.memories, str):
+                        try:
+                            memories = json.loads(soul.memories)
+                        except:
+                            memories = []
+                    
+                    if isinstance(soul.self_awareness, str):
+                        try:
+                            self_awareness = json.loads(soul.self_awareness)
+                        except:
+                            self_awareness = {'trust_level': 0.5}
+
+                    nodes.append({
+                        'soul': being.soul_uid,
+                        'soul_uid': being.soul_uid,
+                        'genesis': genesis,
+                        'attributes': attributes,
+                        'memories': memories,
+                        'self_awareness': self_awareness
+                    })
+            except Exception as e:
+                print(f"Błąd parsowania bytu {being.soul_uid}: {e}")
+                continue
 
         links = []
         for rel in relationships:
-            links.append({
-                'id': rel.id,
-                'source_soul': rel.source_soul,
-                'target_soul': rel.target_soul,
-                'genesis': rel.genesis,
-                'attributes': rel.attributes
-            })
+            try:
+                # Podobnie dla relacji
+                genesis = rel.genesis if isinstance(rel.genesis, dict) else {}
+                attributes = rel.attributes if isinstance(rel.attributes, dict) else {}
+                
+                if isinstance(rel.genesis, str):
+                    try:
+                        genesis = json.loads(rel.genesis)
+                    except:
+                        genesis = {'type': 'unknown'}
+                
+                if isinstance(rel.attributes, str):
+                    try:
+                        attributes = json.loads(rel.attributes)
+                    except:
+                        attributes = {'energy_level': 0}
 
+                links.append({
+                    'id': rel.id,
+                    'source_soul': rel.source_soul,
+                    'target_soul': rel.target_soul,
+                    'genesis': genesis,
+                    'attributes': attributes
+                })
+            except Exception as e:
+                print(f"Błąd parsowania relacji {rel.id}: {e}")
+                continue
+
+        print(f"Zwracam graf: {len(nodes)} węzłów, {len(links)} linków")
         return {
             'nodes': nodes,
             'links': links
         }
     except Exception as e:
         print(f"Błąd w get_graph_data: {e}")
+        import traceback
+        traceback.print_exc()
         return {'nodes': [], 'links': []}
 
 async def send_graph_data(sid):
@@ -3051,6 +3113,296 @@ async def create_lux_agent():
     except Exception as e:
         print(f"Błąd tworzenia agenta Lux: {e}")
         return None
+
+async def lux_analyze_user_thought(message: str, context: dict, user_sid: str) -> dict:
+    """Lux analizuje myśl użytkownika i określa jej naturę"""
+    try:
+        # Załaduj Lux
+        lux_uuid = "00000000-0000-0000-0000-000000000001"
+        lux_being = await BaseBeing.load(lux_uuid)
+        
+        if not lux_being:
+            return {'error': 'Lux niedostępny', 'classification': 'unknown'}
+
+        soul = await lux_being.connect_to_soul()
+        if not soul:
+            return {'error': 'Brak połączenia z Lux', 'classification': 'unknown'}
+
+        # Analiza myśli przez Lux
+        message_lower = message.lower()
+        
+        # Sprawdź czy to intencja
+        intention_keywords = ['utwórz', 'stwórz', 'dodaj', 'zrób', 'buduj', 'twórz', 'generuj']
+        is_intention = any(keyword in message_lower for keyword in intention_keywords)
+        
+        # Sprawdź czy to pytanie
+        is_question = any(word in message_lower for word in ['co', 'jak', 'gdzie', 'dlaczego', 'kiedy', '?'])
+        
+        # Sprawdź ważność
+        importance = 0.5
+        if len(message.split()) > 5:
+            importance += 0.2
+        if any(word in message_lower for word in ['system', 'lux', 'wszechświat', 'kod']):
+            importance += 0.3
+            
+        importance = min(importance, 1.0)
+
+        # Znajdź istniejące intencje które mogą pasować
+        matching_intentions = await find_matching_intentions(message)
+
+        # Lux generuje odpowiedź
+        if is_intention:
+            if matching_intentions:
+                lux_message = f"Widzę że chcesz coś stworzyć. Znalazłem {len(matching_intentions)} podobnych intencji. Czy chcesz rozwinąć jedną z nich czy stworzyć nową?"
+                classification = 'intention_extension'
+            else:
+                lux_message = f"Rozpoznaję nową intencję do realizacji. Czy mam ją umieścić na orbicie jako nowy projekt?"
+                classification = 'new_intention'
+        elif is_question:
+            lux_message = f"Masz pytanie. Przeszukuję swoją wiedzę żeby ci pomóc..."
+            classification = 'question'
+        else:
+            lux_message = f"Przeanalizowałem twoją myśl. Kontekst będzie się rozwijał wraz z kolejnymi wiadomościami."
+            classification = 'general_thought'
+
+        # Dodaj analizę do pamięci Lux
+        soul.memories.append({
+            'type': 'user_thought_analysis',
+            'data': f'Analyzed thought from {user_sid}: {classification}',
+            'user_message': message,
+            'timestamp': datetime.now().isoformat(),
+            'importance': importance
+        })
+        await lux_being.save_soul()
+
+        return {
+            'classification': classification,
+            'is_intention': is_intention,
+            'is_question': is_question,
+            'importance': importance,
+            'matching_intentions': matching_intentions,
+            'lux_message': lux_message,
+            'suggested_actions': generate_suggested_actions(classification, matching_intentions),
+            'analysis_timestamp': datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        print(f"Błąd analizy Lux: {e}")
+        return {
+            'error': str(e),
+            'classification': 'error',
+            'lux_message': 'Przepraszam, wystąpił błąd w mojej analizie...'
+        }
+
+async def find_matching_intentions(message: str) -> list:
+    """Znajduje istniejące intencje które mogą pasować do wiadomości"""
+    try:
+        # Szukaj w głównej intencji LuxOS
+        main_intention_uuid = "11111111-1111-1111-1111-111111111111"
+        main_intention = await BaseBeing.load(main_intention_uuid)
+        
+        if not main_intention:
+            return []
+
+        soul = await main_intention.connect_to_soul()
+        if not soul:
+            return []
+
+        # Znajdź połączone wiadomości i sprawdź podobieństwo
+        connected_messages = soul.attributes.get('connected_messages', [])
+        matching = []
+
+        for msg_uid in connected_messages[-10:]:  # Sprawdź ostatnie 10
+            msg_being = await BaseBeing.load(msg_uid)
+            if msg_being:
+                msg_soul = await msg_being.connect_to_soul()
+                if msg_soul:
+                    msg_content = msg_soul.attributes.get('message_data', {}).get('content', '')
+                    if calculate_text_similarity(message, msg_content) > 0.6:
+                        matching.append({
+                            'soul_uid': msg_uid,
+                            'content': msg_content[:100] + '...' if len(msg_content) > 100 else msg_content,
+                            'similarity': calculate_text_similarity(message, msg_content)
+                        })
+
+        return sorted(matching, key=lambda x: x['similarity'], reverse=True)[:3]
+
+    except Exception as e:
+        print(f"Błąd wyszukiwania intencji: {e}")
+        return []
+
+def calculate_text_similarity(text1: str, text2: str) -> float:
+    """Prosta kalkulacja podobieństwa tekstów"""
+    words1 = set(text1.lower().split())
+    words2 = set(text2.lower().split())
+    
+    if not words1 or not words2:
+        return 0.0
+    
+    intersection = words1.intersection(words2)
+    union = words1.union(words2)
+    
+    return len(intersection) / len(union) if union else 0.0
+
+def generate_suggested_actions(classification: str, matching_intentions: list) -> list:
+    """Generuje sugerowane akcje dla Lux"""
+    actions = []
+    
+    if classification == 'new_intention':
+        actions.append({
+            'type': 'create_orbital_intention',
+            'description': 'Utwórz nową intencję krążącą po orbicie',
+            'icon': '🌌'
+        })
+    
+    elif classification == 'intention_extension':
+        actions.append({
+            'type': 'connect_to_existing',
+            'description': 'Połącz z istniejącą intencją',
+            'icon': '🔗'
+        })
+        if matching_intentions:
+            actions.append({
+                'type': 'show_similar',
+                'description': f'Pokaż {len(matching_intentions)} podobnych intencji',
+                'icon': '👁️'
+            })
+    
+    elif classification == 'question':
+        actions.append({
+            'type': 'search_knowledge',
+            'description': 'Przeszukaj bazę wiedzy',
+            'icon': '🔍'
+        })
+    
+    actions.append({
+        'type': 'add_to_context',
+        'description': 'Dodaj do kontekstu rozmowy',
+        'icon': '💭'
+    })
+    
+    return actions
+
+async def handle_intention_identified(message_being, lux_analysis: dict, context: dict) -> dict:
+    """Obsługuje sytuację gdy Lux identyfikuje intencję"""
+    try:
+        if lux_analysis.get('classification') == 'new_intention':
+            # Utwórz nową intencję krążącą po orbicie
+            intention_being = await create_orbital_intention(message_being, lux_analysis)
+            return {
+                'action': 'created_orbital_intention',
+                'intention_soul': intention_being.soul_uid if intention_being else None,
+                'message': 'Utworzona nowa intencja na orbicie!'
+            }
+        
+        elif lux_analysis.get('classification') == 'intention_extension':
+            # Połącz z istniejącą intencją
+            matching = lux_analysis.get('matching_intentions', [])
+            if matching:
+                best_match = matching[0]
+                await connect_message_to_intention(message_being.soul_uid, best_match['soul_uid'])
+                return {
+                    'action': 'connected_to_existing',
+                    'connected_to': best_match['soul_uid'],
+                    'message': f'Połączono z istniejącą intencją (podobieństwo: {best_match["similarity"]:.2f})'
+                }
+        
+        return {'action': 'none', 'message': 'Intencja zidentyfikowana ale brak akcji'}
+
+    except Exception as e:
+        print(f"Błąd obsługi intencji: {e}")
+        return {'action': 'error', 'message': str(e)}
+
+async def create_orbital_intention(message_being, lux_analysis: dict):
+    """Tworzy nową intencję krążącą po orbicie wokół Lux"""
+    try:
+        soul = await message_being.connect_to_soul()
+        if not soul:
+            return None
+
+        message_content = soul.attributes.get('message_data', {}).get('content', '')
+
+        # Utwórz intencję orbital
+        intention_being = await BeingFactory.create_being(
+            being_type='message',  # Używamy message jako typ dla intencji
+            genesis={
+                'type': 'orbital_intention',
+                'name': f'Intention_{datetime.now().strftime("%H%M%S")}',
+                'created_by': 'lux_analysis',
+                'source': 'user_thought_evolution',
+                'original_message': message_content
+            },
+            attributes={
+                'intention_data': {
+                    'content': message_content,
+                    'classification': lux_analysis.get('classification'),
+                    'importance': lux_analysis.get('importance', 0.5),
+                    'creation_timestamp': datetime.now().isoformat()
+                },
+                'orbital_params': {
+                    'parent_agent': '00000000-0000-0000-0000-000000000001',  # Lux
+                    'orbital_radius': 150,
+                    'orbital_speed': 0.02,
+                    'orbital_angle': hash(message_content) % 360,  # Losowy kąt startowy
+                    'orbit_center': {'x': 0, 'y': 0}
+                },
+                'connected_messages': [message_being.soul_uid],  # Połączone wiadomości
+                'status': 'orbiting',
+                'energy_level': int(lux_analysis.get('importance', 0.5) * 100)
+            },
+            memories=[{
+                'type': 'orbital_creation',
+                'data': f'Created as orbital intention from message {message_being.soul_uid}',
+                'timestamp': datetime.now().isoformat(),
+                'importance': 0.9
+            }],
+            tags=['intention', 'orbital', 'lux_created', 'active']
+        )
+
+        # Połącz wiadomość z intencją relacją
+        await Relationship.create(
+            source_soul=intention_being.soul_uid,
+            target_soul=message_being.soul_uid,
+            genesis={
+                'type': 'evolved_from',
+                'name': 'Message_To_Intention_Evolution',
+                'created_by': 'lux_analysis'
+            },
+            attributes={
+                'relationship_type': 'evolution',
+                'evolution_stage': 'message_to_intention',
+                'energy_level': 80
+            }
+        )
+
+        print(f"Utworzono intencję orbitalną: {intention_being.soul_uid}")
+        return intention_being
+
+    except Exception as e:
+        print(f"Błąd tworzenia intencji orbitalnej: {e}")
+        return None
+
+async def connect_message_to_intention(message_soul: str, intention_soul: str):
+    """Łączy wiadomość z istniejącą intencją"""
+    try:
+        await Relationship.create(
+            source_soul=intention_soul,
+            target_soul=message_soul,
+            genesis={
+                'type': 'contains_context',
+                'name': 'Intention_Message_Context',
+                'created_by': 'lux_analysis'
+            },
+            attributes={
+                'relationship_type': 'context_addition',
+                'connection_strength': 0.8,
+                'energy_level': 70
+            }
+        )
+        print(f"Połączono wiadomość {message_soul} z intencją {intention_soul}")
+
+    except Exception as e:
+        print(f"Błąd łączenia wiadomości z intencją: {e}")
 
 async def generate_lux_chat_response(message: str, user_sid: str) -> str:
     """Generuje odpowiedź Lux na wiadomość w chacie"""
