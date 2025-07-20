@@ -15,6 +15,8 @@ import sys
 from io import StringIO
 import traceback
 import logging
+import os
+from lux_tools import LuxTools
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -314,6 +316,9 @@ sio.attach(app)
 
 # Router funkcji
 function_router = FunctionRouter()
+
+# Narzędzia Lux
+lux_tools = LuxTools(openai_api_key=os.getenv('OPENAI_API_KEY'))
 
 @dataclass
 class BaseBeing:
@@ -1103,6 +1108,122 @@ async def get_being_source(sid, data):
         await sio.emit('error', {'message': f'Błąd pobierania kodu: {str(e)}'}, room=sid)
 
 @sio.event
+async def lux_use_tool(sid, data):
+    """Wykonuje narzędzie przez Lux"""
+    try:
+        tool_name = data.get('tool_name')
+        parameters = data.get('parameters', {})
+        
+        if not tool_name:
+            await sio.emit('error', {'message': 'Brak nazwy narzędzia'}, room=sid)
+            return
+        
+        print(f"Lux używa narzędzia: {tool_name} z parametrami: {parameters}")
+        
+        result = await lux_tools.execute_tool(tool_name, parameters)
+        
+        # Zapisz użycie narzędzia w pamięci Lux
+        if result['success']:
+            # Znajdź byt Lux i zapisz w pamięci
+            lux_soul = '00000000-0000-0000-0000-000000000001'
+            lux_being = await BaseBeing.load(lux_soul)
+            if lux_being:
+                memory_entry = {
+                    'type': 'tool_usage',
+                    'tool_name': tool_name,
+                    'parameters': parameters,
+                    'result_summary': str(result.get('result', {}))[:200],
+                    'timestamp': datetime.now().isoformat(),
+                    'success': True
+                }
+                lux_being.memories.append(memory_entry)
+                await lux_being.save()
+        
+        await sio.emit('lux_tool_result', result, room=sid)
+        
+    except Exception as e:
+        error_result = {
+            'success': False,
+            'error': f'Błąd wykonania narzędzia: {str(e)}',
+            'tool_name': tool_name if 'tool_name' in locals() else 'unknown'
+        }
+        await sio.emit('lux_tool_result', error_result, room=sid)
+
+@sio.event
+async def lux_communication(sid, data):
+    """Obsługuje komunikację z Lux - zastępuje process_intention"""
+    try:
+        message = data.get('message', '').lower()
+        context = data.get('context', {})
+
+        print(f"Lux otrzymuje komunikat od {sid}: {message}")
+
+        # Utwórz byt wiadomości
+        message_being = await BeingFactory.create_being(
+            being_type='message',
+            genesis={
+                'type': 'message',
+                'name': f'Lux_Communication_{datetime.now().strftime("%H%M%S")}',
+                'created_by': 'lux_communication',
+                'source': 'user_input'
+            },
+            attributes={
+                'message_data': {
+                    'content': message,
+                    'length': len(message),
+                    'timestamp': datetime.now().isoformat()
+                },
+                'metadata': {
+                    'sender': sid,
+                    'context': context,
+                    'message_type': 'lux_communication'
+                }
+            },
+            memories=[{
+                'type': 'creation',
+                'data': f'Lux communication from user {sid}',
+                'timestamp': datetime.now().isoformat()
+            }],
+            tags=['message', 'lux_communication', 'user_input'],
+            energy_level=80
+        )
+
+        # Analiza wiadomości i określenie czy Lux powinna użyć narzędzi
+        response = await analyze_lux_communication(message, context)
+        response['message_being_soul'] = message_being.soul
+
+        print(f"Odpowiedź Lux: {response}")
+
+        await sio.emit('lux_communication_response', response, room=sid)
+        await broadcast_graph_update()
+
+    except Exception as e:
+        print(f"Błąd komunikacji z Lux: {e}")
+        await sio.emit('error', {'message': f'Błąd komunikacji z Lux: {str(e)}'}, room=sid)
+
+@sio.event
+async def get_available_tools(sid, data):
+    """Zwraca listę dostępnych narzędzi"""
+    try:
+        tools_info = {
+            'read_file': 'Odczytuje zawartość pliku',
+            'write_file': 'Zapisuje zawartość do pliku', 
+            'list_files': 'Listuje pliki w katalogu',
+            'analyze_code': 'Analizuje kod Python',
+            'run_tests': 'Uruchamia testy',
+            'ask_gpt': 'Wysyła zapytanie do GPT',
+            'create_directory': 'Tworzy katalog',
+            'delete_file': 'Usuwa plik',
+            'check_syntax': 'Sprawdza składnię kodu',
+            'search_in_files': 'Wyszukuje w plikach'
+        }
+        
+        await sio.emit('available_tools', tools_info, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd pobierania narzędzi: {str(e)}'}, room=sid)
+
+@sio.event
 async def delete_being(sid, data):
     soul = data.get('soul')
     if soul:
@@ -1137,6 +1258,76 @@ async def delete_relationship(sid, data):
         except Exception as e:
             logger.error(f"Błąd podczas usuwania relacji: {e}")
             await sio.emit('error', {'message': str(e)}, room=sid)
+
+async def analyze_lux_communication(message: str, context: dict) -> dict:
+    """Analizuje komunikację z Lux i określa czy powinna użyć narzędzi"""
+    
+    # Słowa kluczowe dla różnych narzędzi
+    file_keywords = ['plik', 'kod', 'odczytaj', 'zapisz', 'utwórz plik']
+    analysis_keywords = ['analizuj', 'sprawdź', 'testuj', 'składnia']
+    gpt_keywords = ['gpt', 'zapytaj', 'co myślisz', 'pomóż', 'wyjaśnij']
+    search_keywords = ['znajdź', 'szukaj', 'gdzie jest']
+    
+    response = {
+        'message': 'Analizuję twoją prośbę...',
+        'suggested_tools': [],
+        'actions': []
+    }
+    
+    # Sprawdź czy użytkownik prosi o użycie konkretnych narzędzi
+    if any(keyword in message for keyword in file_keywords):
+        if 'odczytaj' in message or 'pokaż' in message:
+            response['suggested_tools'].append({
+                'tool': 'read_file',
+                'reason': 'Wykryto prośbę o odczyt pliku',
+                'parameters': {'file_path': 'main.py'}  # domyślnie
+            })
+        elif 'zapisz' in message or 'utwórz' in message:
+            response['suggested_tools'].append({
+                'tool': 'write_file', 
+                'reason': 'Wykryto prośbę o zapis pliku'
+            })
+        elif 'listuj' in message or 'lista' in message:
+            response['suggested_tools'].append({
+                'tool': 'list_files',
+                'reason': 'Wykryto prośbę o listowanie plików'
+            })
+    
+    if any(keyword in message for keyword in analysis_keywords):
+        response['suggested_tools'].append({
+            'tool': 'analyze_code',
+            'reason': 'Wykryto prośbę o analizę kodu'
+        })
+        if 'test' in message:
+            response['suggested_tools'].append({
+                'tool': 'run_tests',
+                'reason': 'Wykryto prośbę o uruchomienie testów'
+            })
+    
+    if any(keyword in message for keyword in gpt_keywords):
+        response['suggested_tools'].append({
+            'tool': 'ask_gpt',
+            'reason': 'Wykryto prośbę o konsultację z GPT',
+            'parameters': {'prompt': message}
+        })
+    
+    if any(keyword in message for keyword in search_keywords):
+        response['suggested_tools'].append({
+            'tool': 'search_in_files',
+            'reason': 'Wykryto prośbę o wyszukiwanie'
+        })
+    
+    # Jeśli nie wykryto konkretnych narzędzi, zasugeruj GPT
+    if not response['suggested_tools']:
+        response['suggested_tools'].append({
+            'tool': 'ask_gpt',
+            'reason': 'Przekażę twoją prośbę do GPT dla lepszej analizy',
+            'parameters': {'prompt': f"Użytkownik napisał: '{message}'. Jak mogę pomóc?"}
+        })
+    
+    response['message'] = f"Wykryłem {len(response['suggested_tools'])} potencjalnych narzędzi do użycia."
+    
+    return response
 
 async def analyze_intention(intention: str, context: dict) -> dict:
     """Analizuje intencję i zwraca odpowiedz z akcjami"""

@@ -1,15 +1,14 @@
-
 class LuxChatComponent {
     constructor(graphManager) {
         this.graphManager = graphManager;
         this.isOpen = false;
         this.chatHistory = [];
         this.luxSoul = '00000000-0000-0000-0000-000000000001';
-        
+
         this.createChatInterface();
         this.setupEventListeners();
         this.loadChatHistory();
-        
+
         console.log('LuxChatComponent initialized');
     }
 
@@ -167,8 +166,16 @@ class LuxChatComponent {
 
         // Socket.IO listeners
         if (this.graphManager && this.graphManager.socket) {
-            this.graphManager.socket.on('lux_chat_response', (response) => {
-                this.handleLuxResponse(response);
+            this.graphManager.socket.on('lux_communication_response', (data) => {
+                this.handleLuxCommunicationResponse(data);
+            });
+
+            this.graphManager.socket.on('lux_tool_result', (data) => {
+                this.handleToolResult(data);
+            });
+
+            this.graphManager.socket.on('available_tools', (data) => {
+                this.handleAvailableTools(data);
             });
 
             this.graphManager.socket.on('intention_response', (response) => {
@@ -193,11 +200,11 @@ class LuxChatComponent {
         this.isOpen = true;
         this.chatContainer.style.display = 'flex';
         this.messageInput.focus();
-        
+
         // Animacja wejścia
         this.chatContainer.style.transform = 'translateY(20px)';
         this.chatContainer.style.opacity = '0';
-        
+
         setTimeout(() => {
             this.chatContainer.style.transition = 'all 0.3s ease';
             this.chatContainer.style.transform = 'translateY(0)';
@@ -212,7 +219,7 @@ class LuxChatComponent {
         this.isOpen = false;
         this.chatContainer.style.transform = 'translateY(20px)';
         this.chatContainer.style.opacity = '0';
-        
+
         setTimeout(() => {
             this.chatContainer.style.display = 'none';
         }, 300);
@@ -229,31 +236,28 @@ class LuxChatComponent {
         this.messageInput.value = '';
         this.autoResizeTextarea();
 
-        // Wyślij do serwera jako chat z Lux
+        // Wyślij do Lux przez nowy kanał komunikacyjny
         if (this.graphManager && this.graphManager.socket) {
-            this.graphManager.socket.emit('lux_chat_message', {
+            this.graphManager.socket.emit('lux_communication', {
                 message: message,
-                timestamp: new Date().toISOString()
+                context: {
+                    chat_mode: true,
+                    timestamp: new Date().toISOString()
+                }
             });
         }
 
-        // Dodaj do lokalnej historii
-        this.chatHistory.push({
-            type: 'user_message',
-            content: message,
-            timestamp: new Date().toISOString()
-        });
-
-        this.saveChatHistory();
+        // Dodaj wiadomość "Lux pisze..."
+        this.addMessage('lux', 'Analizuję...', true);
     }
 
-    addMessage(sender, content, timestamp = null) {
+    addMessage(sender, content, isTemporary = false, timestamp = null) {
         const messageElement = document.createElement('div');
         messageElement.className = `chat-message ${sender}-message`;
-        
+
         const isUser = sender === 'user';
         const time = timestamp ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-        
+
         messageElement.style.cssText = `
             margin-bottom: 15px;
             padding: 12px 16px;
@@ -302,26 +306,155 @@ class LuxChatComponent {
         this.messagesArea.scrollTop = this.messagesArea.scrollHeight;
     }
 
-    handleLuxResponse(response) {
-        if (response.message) {
-            this.addMessage('lux', response.message, response.timestamp);
+    handleLuxCommunicationResponse(data) {
+        // Usuń wiadomość "Analizuję..." jeśli istnieje
+        const messages = this.messagesArea.querySelectorAll('.chat-message.lux-message');
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage && lastMessage.textContent.includes('Analizuję...')) {
+            lastMessage.remove();
         }
 
-        // Dodaj do historii
-        this.chatHistory.push({
-            type: 'lux_response',
-            content: response.message,
-            timestamp: response.timestamp || new Date().toISOString(),
-            full_response: response
+        this.addMessage('lux', data.message || 'Przeanalizowałem twoją prośbę.');
+
+        // Jeśli Lux sugeruje narzędzia, pokaż je
+        if (data.suggested_tools && data.suggested_tools.length > 0) {
+            this.showSuggestedTools(data.suggested_tools);
+        }
+    }
+
+    handleToolResult(data) {
+        if (data.success) {
+            const toolName = data.tool;
+            const result = data.result;
+
+            let message = `✅ Użyłem narzędzia "${toolName}":`;
+
+            // Formatuj wynik w zależności od narzędzia
+            if (toolName === 'read_file') {
+                message += `\n📄 Plik: ${result.file_path}\n📊 Rozmiar: ${result.size} znaków, ${result.lines} linii`;
+                if (result.content && result.content.length < 500) {
+                    message += `\n\n${result.content}`;
+                }
+            } else if (toolName === 'analyze_code') {
+                message += `\n📊 Analiza kodu:\n- Składnia: ${result.syntax_valid ? '✅ Poprawna' : '❌ Błędna'}`;
+                if (result.metrics) {
+                    message += `\n- Linii kodu: ${result.metrics.code_lines}\n- Funkcji: ${result.metrics.functions_count}\n- Klas: ${result.metrics.classes_count}`;
+                }
+            } else if (toolName === 'ask_gpt') {
+                message += `\n🤖 GPT odpowiada:\n${result.response}`;
+            } else if (toolName === 'list_files') {
+                message += `\n📁 Znaleziono ${result.total_count} elementów w ${result.directory}`;
+            } else {
+                message += `\n${JSON.stringify(result, null, 2)}`;
+            }
+
+            this.addMessage('lux', message);
+        } else {
+            this.addMessage('lux', `❌ Błąd narzędzia "${data.tool}": ${data.error}`);
+        }
+    }
+
+    showSuggestedTools(tools) {
+        let message = '🛠️ Mogę użyć następujących narzędzi:\n\n';
+
+        tools.forEach((tool, index) => {
+            message += `${index + 1}. **${tool.tool}** - ${tool.reason}\n`;
         });
 
-        this.saveChatHistory();
+        message += '\nCzy chcesz, żebym użył któregoś z tych narzędzi?';
+
+        this.addMessage('lux', message);
+
+        // Dodaj przyciski do wykonania narzędzi
+        this.addToolButtons(tools);
+    }
+
+    addToolButtons(tools) {
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.className = 'tool-buttons-container';
+        buttonsContainer.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 8px;
+        `;
+
+        tools.forEach((tool) => {
+            const button = document.createElement('button');
+            button.textContent = tool.tool;
+            button.className = 'tool-button';
+            button.style.cssText = `
+                background: #00ff88;
+                color: #1a1a1a;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                font-weight: bold;
+                transition: all 0.3s ease;
+            `;
+
+            button.addEventListener('click', () => {
+                this.executeTool(tool);
+                buttonsContainer.remove();
+            });
+
+            button.addEventListener('mouseenter', () => {
+                button.style.background = '#00cc66';
+                button.style.transform = 'scale(1.05)';
+            });
+
+            button.addEventListener('mouseleave', () => {
+                button.style.background = '#00ff88';
+                button.style.transform = 'scale(1)';
+            });
+
+            buttonsContainer.appendChild(button);
+        });
+
+        this.messagesArea.appendChild(buttonsContainer);
+        this.scrollToBottom();
+    }
+
+    executeTool(tool) {
+        this.addMessage('user', `Użyj narzędzia: ${tool.tool}`);
+
+        if (this.graphManager && this.graphManager.socket) {
+            const parameters = tool.parameters || {};
+
+            // Jeśli nie ma parametrów, spróbuj dodać domyślne
+            if (tool.tool === 'read_file' && !parameters.file_path) {
+                parameters.file_path = prompt('Podaj ścieżkę do pliku:') || 'main.py';
+            } else if (tool.tool === 'write_file' && !parameters.file_path) {
+                parameters.file_path = prompt('Podaj ścieżkę do nowego pliku:');
+                parameters.content = prompt('Podaj zawartość pliku:') || '';
+            }
+
+            this.graphManager.socket.emit('lux_use_tool', {
+                tool_name: tool.tool,
+                parameters: parameters
+            });
+        }
+    }
+
+    handleAvailableTools(tools) {
+        let message = '🔧 Dostępne narzędzia:\n\n';
+
+        Object.entries(tools).forEach(([name, description]) => {
+            message += `• **${name}** - ${description}\n`;
+        });
+
+        this.addMessage('lux', message);
     }
 
     addIntentionToHistory(intentionResponse) {
         // Dodaj wpis o intencji do historii chatu
         const intentionSummary = `Intencja: "${intentionResponse.intention}" - ${intentionResponse.message}`;
-        
+
         this.addMessage('system', intentionSummary, new Date().toISOString());
 
         this.chatHistory.push({
@@ -366,7 +499,7 @@ Jestem Bogiem systemu LuxOS i mogę pomóc Ci w:
 Jak mogę Ci dzisiaj pomóc?`;
 
         this.addMessage('lux', welcomeMsg);
-        
+
         this.chatHistory.push({
             type: 'lux_response',
             content: welcomeMsg,
@@ -379,10 +512,10 @@ Jak mogę Ci dzisiaj pomóc?`;
 
     renderChatHistory() {
         this.messagesArea.innerHTML = '';
-        
+
         // Pokaż tylko ostatnie 20 wiadomości
         const recentHistory = this.chatHistory.slice(-20);
-        
+
         recentHistory.forEach(item => {
             switch (item.type) {
                 case 'user_message':
@@ -404,19 +537,19 @@ Jak mogę Ci dzisiaj pomóc?`;
         if (this.chatHistory.length > 50) {
             this.chatHistory = this.chatHistory.slice(-50);
         }
-        
+
         localStorage.setItem('luxos_chat_history', JSON.stringify(this.chatHistory));
     }
 
     // Metoda do otwierania chatu z zewnątrz (np. po kliknięciu na Lux)
     openChatWithLux() {
         this.openChat();
-        
+
         // Jeśli chat był zamknięty przez dłuższy czas, dodaj informację o statusie
         const lastMessage = this.chatHistory[this.chatHistory.length - 1];
         const timeSinceLastMessage = lastMessage ? 
             (Date.now() - new Date(lastMessage.timestamp).getTime()) / 1000 / 60 : 0;
-        
+
         if (timeSinceLastMessage > 30) { // 30 minut
             this.addMessage('lux', `Witaj ponownie! Czy jest coś, z czym mogę Ci pomóc?`);
         }
