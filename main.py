@@ -1231,6 +1231,127 @@ async def get_available_tools(sid, data):
         await sio.emit('error', {'message': f'Błąd pobierania narzędzi: {str(e)}'}, room=sid)
 
 @sio.event
+async def get_file_structure(sid, data):
+    """Zwraca strukturę plików z pominięciem .gitignore"""
+    try:
+        from pathlib import Path
+        import fnmatch
+        
+        root_path = Path(data.get('path', '.'))
+        gitignore_patterns = []
+        
+        # Wczytaj .gitignore jeśli istnieje
+        gitignore_file = Path('.gitignore')
+        if gitignore_file.exists():
+            with open(gitignore_file, 'r', encoding='utf-8') as f:
+                gitignore_patterns = [line.strip() for line in f.readlines() 
+                                    if line.strip() and not line.startswith('#')]
+        
+        # Dodaj podstawowe wzorce do ignorowania
+        default_ignore = ['.git/', '__pycache__/', '*.pyc', '.vscode/', 'node_modules/', '.config/']
+        gitignore_patterns.extend(default_ignore)
+        
+        def should_ignore(path_str):
+            for pattern in gitignore_patterns:
+                if fnmatch.fnmatch(path_str, pattern) or fnmatch.fnmatch(path_str, pattern.rstrip('/')):
+                    return True
+                # Sprawdź czy ścieżka zawiera ignorowany katalog
+                if '/' in pattern and pattern.endswith('/'):
+                    if f"/{pattern.rstrip('/')}/" in f"/{path_str}/":
+                        return True
+            return False
+        
+        def get_file_structure_recursive(path):
+            items = []
+            
+            if not path.exists() or should_ignore(str(path.relative_to('.'))):
+                return items
+                
+            try:
+                for item in sorted(path.iterdir()):
+                    relative_path = item.relative_to('.')
+                    
+                    # Pomiń pliki/foldery z .gitignore
+                    if should_ignore(str(relative_path)):
+                        continue
+                    
+                    item_data = {
+                        'name': item.name,
+                        'type': 'folder' if item.is_dir() else 'file',
+                        'path': str(relative_path),
+                        'size': item.stat().st_size if item.is_file() else 0
+                    }
+                    
+                    if item.is_dir():
+                        item_data['children'] = get_file_structure_recursive(item)
+                    
+                    items.append(item_data)
+                    
+            except PermissionError:
+                pass  # Pomiń katalogi bez dostępu
+                
+            return items
+        
+        file_structure = {
+            'name': 'LuxOS',
+            'type': 'folder', 
+            'path': '.',
+            'children': get_file_structure_recursive(Path('.'))
+        }
+        
+        await sio.emit('file_structure', file_structure, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd pobierania struktury plików: {str(e)}'}, room=sid)
+
+@sio.event
+async def read_file(sid, data):
+    """Odczytuje zawartość pliku"""
+    try:
+        file_path = data.get('file_path', '')
+        
+        if not file_path:
+            await sio.emit('error', {'message': 'Brak ścieżki pliku'}, room=sid)
+            return
+        
+        from pathlib import Path
+        
+        path = Path(file_path)
+        
+        if not path.exists():
+            await sio.emit('error', {'message': f'Plik nie istnieje: {file_path}'}, room=sid)
+            return
+        
+        if not path.is_file():
+            await sio.emit('error', {'message': f'Ścieżka nie jest plikiem: {file_path}'}, room=sid)
+            return
+        
+        # Sprawdź czy plik nie jest zbyt duży (max 1MB)
+        if path.stat().st_size > 1024 * 1024:
+            await sio.emit('error', {'message': f'Plik zbyt duży: {file_path}'}, room=sid)
+            return
+        
+        try:
+            # Spróbuj odczytać jako tekst
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            # Jeśli nie można jako tekst, oznacz jako binarny
+            content = f"[Plik binarny: {path.name}]"
+        
+        file_data = {
+            'file_path': file_path,
+            'content': content,
+            'size': path.stat().st_size,
+            'extension': path.suffix
+        }
+        
+        await sio.emit('file_content', file_data, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd odczytu pliku: {str(e)}'}, room=sid)
+
+@sio.event
 async def delete_being(sid, data):
     soul = data.get('soul')
     if soul:

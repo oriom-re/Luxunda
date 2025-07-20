@@ -68,9 +68,11 @@
         }
 
         #graph {
-            width: 100%;
+            width: calc(100% - 280px);
             height: calc(100vh - 70px - 120px);
+            margin-left: 280px;
             background: radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
+            transition: all 0.3s ease;
         }
 
         .node {
@@ -331,6 +333,7 @@
     <script src="graph.js"></script>
     <script src="intention-component.js"></script>
     <script src="chat-component.js"></script>
+    <script src="file-explorer.js"></script>
     <script>
         // Inicjalizacja aplikacji
         document.addEventListener('DOMContentLoaded', function() {
@@ -343,11 +346,13 @@
                 const graphManager = new LuxOSGraph();
                 const intentionComponent = new IntentionComponent(graphManager);
                 const luxChatComponent = new LuxChatComponent(graphManager);
+                const fileExplorer = new FileExplorer(graphManager);
                 
                 // Zapisz globalne referencje dla debugowania
                 window.luxOSUniverse = graphManager;
                 window.intentionComponent = intentionComponent;
                 window.luxChatComponent = luxChatComponent;
+                window.fileExplorer = fileExplorer;
                 
                 // Dodaj obsługę kontrolek zoom
                 document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
