@@ -167,22 +167,32 @@ class LuxChatComponent {
         // Socket.IO listeners
         if (this.graphManager && this.graphManager.socket) {
             this.graphManager.socket.on('lux_communication_response', (data) => {
+                console.log('Otrzymano odpowiedź Lux:', data);
                 this.handleLuxCommunicationResponse(data);
             });
 
             this.graphManager.socket.on('lux_tool_result', (data) => {
+                console.log('Otrzymano wynik narzędzia:', data);
                 this.handleToolResult(data);
             });
 
             this.graphManager.socket.on('available_tools', (data) => {
+                console.log('Otrzymano dostępne narzędzia:', data);
                 this.handleAvailableTools(data);
             });
 
             this.graphManager.socket.on('intention_response', (response) => {
+                console.log('Otrzymano odpowiedź na intencję:', response);
                 // Dodaj odpowiedź intencji do historii chatu
                 if (response.message_being_soul) {
                     this.addIntentionToHistory(response);
                 }
+            });
+
+            // Dodaj obsługę błędów
+            this.graphManager.socket.on('error', (error) => {
+                console.error('Błąd Socket.IO:', error);
+                this.addMessage('system', `❌ Błąd: ${error.message || error}`);
             });
         }
     }
@@ -229,8 +239,18 @@ class LuxChatComponent {
         const message = this.messageInput.value.trim();
         if (!message) return;
 
+        console.log('Wysyłanie wiadomości do Lux:', message);
+
         // Dodaj wiadomość użytkownika do interfejsu
         this.addMessage('user', message);
+
+        // Zapisz w historii
+        this.chatHistory.push({
+            type: 'user_message',
+            content: message,
+            timestamp: new Date().toISOString()
+        });
+        this.saveChatHistory();
 
         // Wyczyść input
         this.messageInput.value = '';
@@ -238,6 +258,7 @@ class LuxChatComponent {
 
         // Wyślij do Lux przez nowy kanał komunikacyjny
         if (this.graphManager && this.graphManager.socket) {
+            console.log('Socket dostępny, wysyłam do Lux...');
             this.graphManager.socket.emit('lux_communication', {
                 message: message,
                 context: {
@@ -245,6 +266,9 @@ class LuxChatComponent {
                     timestamp: new Date().toISOString()
                 }
             });
+        } else {
+            console.error('Brak połączenia socket.io!');
+            this.addMessage('system', '❌ Brak połączenia z serwerem');
         }
 
         // Dodaj wiadomość "Lux pisze..."
@@ -307,6 +331,8 @@ class LuxChatComponent {
     }
 
     handleLuxCommunicationResponse(data) {
+        console.log('Przetwarzanie odpowiedzi Lux:', data);
+        
         // Usuń wiadomość "Analizuję..." jeśli istnieje
         const messages = this.messagesArea.querySelectorAll('.chat-message.lux-message');
         const lastMessage = messages[messages.length - 1];
@@ -314,7 +340,17 @@ class LuxChatComponent {
             lastMessage.remove();
         }
 
-        this.addMessage('lux', data.message || 'Przeanalizowałem twoją prośbę.');
+        const responseMessage = data.message || 'Przeanalizowałem twoją prośbę.';
+        this.addMessage('lux', responseMessage);
+
+        // Zapisz odpowiedź Lux w historii
+        this.chatHistory.push({
+            type: 'lux_response',
+            content: responseMessage,
+            timestamp: new Date().toISOString(),
+            full_data: data
+        });
+        this.saveChatHistory();
 
         // Jeśli Lux sugeruje narzędzia, pokaż je
         if (data.suggested_tools && data.suggested_tools.length > 0) {

@@ -1195,12 +1195,17 @@ async def lux_communication(sid, data):
         response['message_being_soul'] = message_being.soul
 
         print(f"Odpowiedź Lux: {response}")
+        print(f"Wysyłam odpowiedź do klienta {sid}")
 
         await sio.emit('lux_communication_response', response, room=sid)
+        print(f"Odpowiedź wysłana pomyślnie")
+        
         await broadcast_graph_update()
 
     except Exception as e:
         print(f"Błąd komunikacji z Lux: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         await sio.emit('error', {'message': f'Błąd komunikacji z Lux: {str(e)}'}, room=sid)
 
 @sio.event
