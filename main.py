@@ -57,6 +57,7 @@ async def get_graph_data(sid, data=None):
 @sio.event
 async def create_being(sid, data):
     """Tworzy nowy byt"""
+    global db_pool
     try:
         being_type = data.get('being_type', 'base')
         being = await BeingFactory.create_being(
@@ -77,6 +78,7 @@ async def create_being(sid, data):
 @sio.event
 async def create_relationship(sid, data):
     """Tworzy nową relację"""
+    global db_pool
     try:
         relationship = await Relationship.create(
             source_soul=data['source_soul'],
@@ -96,6 +98,7 @@ async def create_relationship(sid, data):
 @sio.event
 async def update_being(sid, data):
     """Aktualizuje byt"""
+    global db_pool
     try:
         being = await BaseBeing.load(data['soul'])
         if being:
@@ -116,6 +119,7 @@ async def update_being(sid, data):
 @sio.event
 async def process_intention(sid, data):
     """Przetwarza intencję użytkownika"""
+    global db_pool
     try:
         intention = data.get('intention', '').lower()
         context = data.get('context', {})
@@ -284,6 +288,7 @@ async def lux_use_tool(sid, data):
 @sio.event
 async def lux_communication(sid, data):
     """Obsługuje komunikację z Lux - zastępuje process_intention"""
+    global db_pool
     try:
         message = data.get('message', '').lower()
         context = data.get('context', {})
@@ -529,6 +534,7 @@ async def update_being(sid, data):
 @sio.event
 async def delete_being(sid, data):
     """Usuwa byt z systemu"""
+    global db_pool
     soul = data.get('soul')
     if not soul:
         await sio.emit('error', {'message': 'Brak soul bytu do usunięcia'}, room=sid)
@@ -563,6 +569,7 @@ async def delete_being(sid, data):
 
 @sio.event
 async def delete_relationship(sid, data):
+    global db_pool
     relationship_id = data.get('id')
     if relationship_id:
         try:
@@ -835,6 +842,7 @@ async def broadcast_graph_update():
 # HTTP API endpoints
 async def api_beings(request):
     """REST API dla bytów"""
+    global db_pool
     if request.method == 'GET':
         beings = await BaseBeing.get_all()
         beings_data = [json.loads(json.dumps(asdict(being), cls=DateTimeEncoder)) for being in beings]
@@ -847,6 +855,7 @@ async def api_beings(request):
 
 async def api_relationships(request):
     """REST API dla relacji"""
+    global db_pool
     if request.method == 'GET':
         relationships = await Relationship.get_all()
         relationships_data = [json.loads(json.dumps(asdict(rel), cls=DateTimeEncoder)) for rel in relationships]
