@@ -1268,71 +1268,33 @@ async def delete_relationship(sid, data):
 
 async def analyze_lux_communication(message: str, context: dict) -> dict:
     """Analizuje komunikację z Lux i określa czy powinna użyć narzędzi"""
+    from tool_parser import analyze_message_for_tools
     
-    # Słowa kluczowe dla różnych narzędzi
-    file_keywords = ['plik', 'kod', 'odczytaj', 'zapisz', 'utwórz plik']
-    analysis_keywords = ['analizuj', 'sprawdź', 'testuj', 'składnia']
-    gpt_keywords = ['gpt', 'zapytaj', 'co myślisz', 'pomóż', 'wyjaśnij']
-    search_keywords = ['znajdź', 'szukaj', 'gdzie jest']
+    # Użyj parsera narzędzi
+    parser_result = analyze_message_for_tools(message)
     
     response = {
         'message': 'Analizuję twoją prośbę...',
-        'suggested_tools': [],
+        'suggested_tools': parser_result['suggested_tools'],
         'actions': []
     }
     
-    # Sprawdź czy użytkownik prosi o użycie konkretnych narzędzi
-    if any(keyword in message for keyword in file_keywords):
-        if 'odczytaj' in message or 'pokaż' in message:
-            response['suggested_tools'].append({
-                'tool': 'read_file',
-                'reason': 'Wykryto prośbę o odczyt pliku',
-                'parameters': {'file_path': 'main.py'}  # domyślnie
-            })
-        elif 'zapisz' in message or 'utwórz' in message:
-            response['suggested_tools'].append({
-                'tool': 'write_file', 
-                'reason': 'Wykryto prośbę o zapis pliku'
-            })
-        elif 'listuj' in message or 'lista' in message:
-            response['suggested_tools'].append({
-                'tool': 'list_files',
-                'reason': 'Wykryto prośbę o listowanie plików'
-            })
-    
-    if any(keyword in message for keyword in analysis_keywords):
-        response['suggested_tools'].append({
-            'tool': 'analyze_code',
-            'reason': 'Wykryto prośbę o analizę kodu'
-        })
-        if 'test' in message:
-            response['suggested_tools'].append({
-                'tool': 'run_tests',
-                'reason': 'Wykryto prośbę o uruchomienie testów'
-            })
-    
-    if any(keyword in message for keyword in gpt_keywords):
-        response['suggested_tools'].append({
-            'tool': 'ask_gpt',
-            'reason': 'Wykryto prośbę o konsultację z GPT',
-            'parameters': {'prompt': message}
-        })
-    
-    if any(keyword in message for keyword in search_keywords):
-        response['suggested_tools'].append({
-            'tool': 'search_in_files',
-            'reason': 'Wykryto prośbę o wyszukiwanie'
-        })
-    
-    # Jeśli nie wykryto konkretnych narzędzi, zasugeruj GPT
-    if not response['suggested_tools']:
+    # Jeśli parser nie wykrył narzędzi z wystarczającą pewnością, dodaj GPT jako fallback
+    if not response['suggested_tools'] or parser_result['highest_confidence'] < 0.5:
         response['suggested_tools'].append({
             'tool': 'ask_gpt',
             'reason': 'Przekażę twoją prośbę do GPT dla lepszej analizy',
-            'parameters': {'prompt': f"Użytkownik napisał: '{message}'. Jak mogę pomóc?"}
+            'parameters': {'prompt': f"Użytkownik napisał: '{message}'. Jak mogę pomóc?"},
+            'confidence': 0.4
         })
     
-    response['message'] = f"Wykryłem {len(response['suggested_tools'])} potencjalnych narzędzi do użycia."
+    # Aktualizuj wiadomość na podstawie wyników parsera
+    if parser_result['total_detected'] > 0:
+        highest_confidence = parser_result['highest_confidence']
+        confidence_text = "wysoką" if highest_confidence > 0.8 else "średnią" if highest_confidence > 0.5 else "niską"
+        response['message'] = f"Wykryłem {parser_result['total_detected']} narzędzi z {confidence_text} pewnością."
+    else:
+        response['message'] = "Nie wykryłem konkretnych narzędzi, przekażę zapytanie do GPT."
     
     return response
 
