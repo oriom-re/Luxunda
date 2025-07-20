@@ -377,25 +377,8 @@ class LuxOSUniverse {
     }
 
     renderOrbits() {
-        const orbitData = this.beings
-            .filter(being => being.attributes?.orbital_params?.orbital_radius > 0)
-            .map(being => ({
-                soul: being.soul,
-                radius: being.attributes.orbital_params.orbital_radius,
-                center: { x: 0, y: 0 } // Wszyscy orbitują wokół Lux na razie
-            }));
-
-        this.orbitsGroup.selectAll(".orbit")
-            .data(orbitData, d => d.soul)
-            .join("circle")
-            .attr("class", "orbit")
-            .attr("cx", d => d.center.x)
-            .attr("cy", d => d.center.y)
-            .attr("r", d => d.radius)
-            .attr("fill", "none")
-            .attr("stroke", "rgba(100, 100, 100, 0.3)")
-            .attr("stroke-width", 1)
-            .attr("stroke-dasharray", "5,5");
+        // Zlikwidowano renderowanie orbit - już nie potrzebne
+        this.orbitsGroup.selectAll(".orbit").remove();
     }
 
     renderBeings() {
@@ -412,6 +395,9 @@ class LuxOSUniverse {
                 event.stopPropagation();
                 this.selectBeing(d);
             });
+
+        // Uruchom ciągłą animację orbit
+        this.startOrbitalAnimation();
 
         // Usuń poprzednie elementy tylko jeśli konieczne
         this.beingSelection.selectAll("*").remove();
@@ -464,9 +450,46 @@ class LuxOSUniverse {
                 }
             });
 
+        // Renderuj główną intencję LuxOS jako specjalny byt
+        this.beingSelection.filter(d => d.soul === '11111111-1111-1111-1111-111111111111')
+            .each(function(d) {
+                const being = d3.select(this);
+
+                // Główne ciało intencji - większe i świecące
+                being.append("circle")
+                    .attr("r", 15)
+                    .attr("fill", "#00ff88")
+                    .attr("stroke", "#ffffff")
+                    .attr("stroke-width", 2)
+                    .style("filter", "url(#glow)")
+                    .style("opacity", 0.9);
+
+                // Pulsujący pierścień dla głównej intencji
+                being.append("circle")
+                    .attr("r", 25)
+                    .attr("fill", "none")
+                    .attr("stroke", "#00ff88")
+                    .attr("stroke-width", 1)
+                    .attr("opacity", 0.6)
+                    .style("animation", "luxPulse 2s ease-in-out infinite");
+
+                // Etykieta
+                if (self.zoomLevel > 1) {
+                    being.append("text")
+                        .attr("class", "being-label")
+                        .attr("dy", 35)
+                        .style("text-anchor", "middle")
+                        .style("fill", "#00ff88")
+                        .style("font-size", "12px")
+                        .style("font-weight", "bold")
+                        .style("pointer-events", "none")
+                        .text("LuxOS");
+                }
+            });
+
         // Renderuj pozostałe byty jako planety/komety
         const self = this;
-        this.beingSelection.filter(d => !this.isLuxAgent(d) && d.genesis?.type !== 'message')
+        this.beingSelection.filter(d => !this.isLuxAgent(d) && d.genesis?.type !== 'message' && d.soul !== '11111111-1111-1111-1111-111111111111')
             .each(function(d) {
                 const being = d3.select(this);
                 const energySize = Math.max(5, Math.min(25, (d.attributes?.energy_level || 50) / 4));
@@ -500,6 +523,20 @@ class LuxOSUniverse {
             .transition()
             .duration(1000)
             .attr("transform", d => {
+                // Lux zawsze w centrum
+                if (this.isLuxAgent(d)) {
+                    return `translate(0, 0)`;
+                }
+
+                // Główna intencja LuxOS krąży wokół Lux
+                if (d.soul === '11111111-1111-1111-1111-111111111111') {
+                    const time = Date.now() * 0.001; // Czas w sekundach
+                    const radius = 80; // Promień orbity
+                    const x = Math.cos(time * 0.5) * radius; // Powolna orbita
+                    const y = Math.sin(time * 0.5) * radius;
+                    return `translate(${x}, ${y})`;
+                }
+
                 // Sprawdź czy byt ma predefiniowaną pozycję
                 const predefinedPos = d.attributes?.position;
                 if (predefinedPos) {
@@ -511,11 +548,6 @@ class LuxOSUniverse {
                 if (pos) {
                     return `translate(${pos.x}, ${pos.y})`;
                 } 
-
-                // Lux zawsze w centrum
-                if (this.isLuxAgent(d)) {
-                    return `translate(0, 0)`;
-                }
 
                 // Domyślna losowa pozycja
                 return `translate(${Math.random() * 200 - 100}, ${Math.random() * 200 - 100})`;
@@ -592,16 +624,8 @@ class LuxOSUniverse {
     }
 
     selectBeing(being) {
-        const isSelected = this.selectedNodes.some(n => n.soul === being.soul);
-
-        if (isSelected) {
-            this.selectedNodes = this.selectedNodes.filter(n => n.soul !== being.soul);
-        } else {
-            this.selectedNodes.push(being);
-        }
-
-        console.log('Wybrane byty:', this.selectedNodes.map(n => n.soul));
-        this.updateBeingStyles();
+        // Zlikwidowano zaznaczanie bytów - teraz tylko logowanie
+        console.log('Kliknięto byt:', being.soul, being.genesis?.name);
     }
 
     addBeing(being) {
@@ -637,11 +661,11 @@ class LuxOSUniverse {
     }
 
     updateBeingStyles() {
+        // Zlikwidowano stylowanie zaznaczonych bytów
         if (this.beingSelection) {
             this.beingSelection.selectAll("circle")
-                .attr("stroke", d => this.selectedNodes.some(n => n.soul === d.soul) ? "#ffff00" : 
-                    (this.isLuxAgent(d) ? "#ffff00" : "#ffffff"))
-                .attr("stroke-width", d => this.selectedNodes.some(n => n.soul === d.soul) ? 3 : 1);
+                .attr("stroke", d => this.isLuxAgent(d) ? "#ffff00" : "#ffffff")
+                .attr("stroke-width", 1);
         }
     }
 
@@ -973,6 +997,32 @@ class LuxOSUniverse {
             clearInterval(this.heartbeatInterval);
             this.heartbeatInterval = null;
         }
+    }
+
+    startOrbitalAnimation() {
+        // Zatrzymaj poprzednią animację jeśli istnieje
+        if (this.orbitalAnimationId) {
+            cancelAnimationFrame(this.orbitalAnimationId);
+        }
+
+        const animate = () => {
+            if (this.beingSelection) {
+                const time = Date.now() * 0.001;
+
+                this.beingSelection
+                    .filter(d => d.soul === '11111111-1111-1111-1111-111111111111')
+                    .attr("transform", d => {
+                        const radius = 80;
+                        const x = Math.cos(time * 0.5) * radius;
+                        const y = Math.sin(time * 0.5) * radius;
+                        return `translate(${x}, ${y})`;
+                    });
+            }
+
+            this.orbitalAnimationId = requestAnimationFrame(animate);
+        };
+
+        animate();
     }
 }
 
