@@ -41,12 +41,12 @@ class LuxOSUniverse {
             console.log('Połączono z wszechświatem');
             this.updateConnectionStatus(true);
             this.reconnectAttempts = 0; // Reset counter on successful connection
-            
+
             // Natychmiast poproś o dane po połączeniu
             setTimeout(() => {
                 this.socket.emit('get_graph_data');
             }, 100);
-            
+
             // Rozpocznij heartbeat monitoring
             this.startHeartbeat();
         });
@@ -54,7 +54,7 @@ class LuxOSUniverse {
         this.socket.on('disconnect', (reason) => {
             console.log('Rozłączono ze wszechświatem:', reason);
             this.updateConnectionStatus(false);
-            
+
             // Nie próbuj reconnect jeśli to było ręczne rozłączenie
             if (reason !== 'io client disconnect') {
                 this.attemptReconnect();
@@ -419,7 +419,7 @@ class LuxOSUniverse {
 
         // Dodaj efekty chmury myśli
         this.addThoughtEffects();
-        
+
         // Uruchom animacje myśli
         this.startThoughtAnimation();
     }
@@ -427,7 +427,7 @@ class LuxOSUniverse {
     renderThoughtUniverse() {
         // Zorganizuj byty jako chmurę myśli
         const thoughtSpace = this.organizeIntoThoughtClouds(this.beings);
-        
+
         // Renderuj przestrzeń myślową
         this.renderThoughtSpace(thoughtSpace);
     }
@@ -435,10 +435,10 @@ class LuxOSUniverse {
     drawMainIntentionOrbit() {
         // Usuń poprzednią orbitę
         this.orbitsGroup.selectAll(".main-intention-orbit").remove();
-        
+
         // Narysuj cienką, prawie przezroczystą orbitę dla głównej intencji
         const orbitRadius = 100; // Dopasuj do nowego promienia
-        
+
         this.orbitsGroup.append("circle")
             .attr("class", "main-intention-orbit")
             .attr("cx", 0)
@@ -455,13 +455,13 @@ class LuxOSUniverse {
     renderBeings() {
         // Galaktyczna wizualizacja - grupuj byty w systemy
         const galacticSystems = this.organizeIntoGalacticSystems(this.beings);
-        
+
         // Renderuj ramiona spiralne galaktyki
         this.drawGalacticSpirals(galacticSystems);
-        
+
         // Renderuj systemy planetarne
         this.renderPlanetarySystems(galacticSystems);
-        
+
         // Uruchom animacje orbitalne
         this.startGalacticAnimation();
     }
@@ -477,7 +477,7 @@ class LuxOSUniverse {
         beings.forEach(being => {
             const importance = this.calculateThoughtImportance(being);
             const type = being.genesis?.type;
-            
+
             // Klasyfikuj według stanu kondensacji
             if (type === 'message' || importance < 0.3) {
                 // Surowe myśli - materiał w przestrzeni
@@ -515,15 +515,15 @@ class LuxOSUniverse {
 
     calculateThoughtImportance(being) {
         let importance = 0.1; // Bazowa istotność
-        
+
         // Energia zwiększa istotność
         const energy = being.attributes?.energy_level || 0;
         importance += (energy / 1000) * 0.4;
-        
+
         // Liczba wspomnień (częstotliwość przypominania)
         const memories = being.memories?.length || 0;
         importance += (memories / 10) * 0.3;
-        
+
         // Typ bytu wpływa na kondensację
         const type = being.genesis?.type;
         const typeWeights = {
@@ -535,12 +535,12 @@ class LuxOSUniverse {
             'agent': 0.9        // Maksymalna kondensacja
         };
         importance += (typeWeights[type] || 0.3) * 0.3;
-        
+
         // Relacje z innymi myślami
         const hasConnections = being.attributes?.parent_concept || 
                               being.attributes?.child_beings?.length > 0;
         if (hasConnections) importance += 0.2;
-        
+
         return Math.min(1.0, importance);
     }
 
@@ -549,7 +549,7 @@ class LuxOSUniverse {
         const childTypes = system.children.map(c => c.genesis?.type);
         const hasLongTerm = childTypes.some(t => ['vision', 'mission'].includes(t));
         const hasShortTerm = childTypes.some(t => ['task', 'idea'].includes(t));
-        
+
         if (hasLongTerm && hasShortTerm) return 'mixed';
         if (hasLongTerm) return 'long';
         return 'short';
@@ -558,10 +558,10 @@ class LuxOSUniverse {
     drawGalacticSpirals(systems) {
         // Usuń poprzednie spirale
         this.orbitsGroup.selectAll(".galactic-spiral").remove();
-        
+
         const spiralCount = Math.max(2, Math.min(6, systems.projects.size));
         const angleStep = (2 * Math.PI) / spiralCount;
-        
+
         for (let i = 0; i < spiralCount; i++) {
             this.drawSpiralArm(i * angleStep, 300, 800);
         }
@@ -571,23 +571,23 @@ class LuxOSUniverse {
         const points = [];
         const steps = 100;
         const spiralTightness = 0.5;
-        
+
         for (let i = 0; i <= steps; i++) {
             const progress = i / steps;
             const angle = startAngle + progress * 4 * Math.PI * spiralTightness;
             const radius = innerRadius + progress * (outerRadius - innerRadius);
-            
+
             points.push([
                 Math.cos(angle) * radius,
                 Math.sin(angle) * radius
             ]);
         }
-        
+
         const line = d3.line()
             .x(d => d[0])
             .y(d => d[1])
             .curve(d3.curveCardinal);
-        
+
         this.orbitsGroup.append("path")
             .attr("class", "galactic-spiral")
             .attr("d", line(points))
@@ -601,16 +601,16 @@ class LuxOSUniverse {
     renderThoughtSpace(thoughtSpace) {
         // Renderuj pole świadomości zamiast centralnego obiektu
         this.renderThoughtCloud();
-        
+
         // Renderuj surowe myśli jako pył kosmiczny
         this.renderCosmicDust(thoughtSpace.thoughts);
-        
+
         // Renderuj myśli w kondensacji
         this.renderCondensingThoughts(thoughtSpace.condensing);
-        
+
         // Renderuj skondensowane byty
         this.renderCondensedBeings(thoughtSpace.condensed_beings);
-        
+
         // Renderuj połączenia między myślami
         this.renderThoughtConnections(thoughtSpace);
     }
@@ -634,15 +634,15 @@ class LuxOSUniverse {
             const angle = Math.random() * 2 * Math.PI;
             const x = Math.cos(angle) * distance;
             const y = Math.sin(angle) * distance;
-            
+
             const particle = dustGroup.filter((d, i) => i === index);
-            
+
             particle.append("circle")
                 .attr("r", 1 + thought.importance * 3)
                 .attr("fill", this.getThoughtColor(thought))
                 .attr("opacity", 0.4 + thought.importance * 0.4)
                 .style("filter", "blur(0.5px)");
-            
+
             particle.attr("transform", `translate(${x}, ${y})`);
         });
     }
@@ -667,9 +667,9 @@ class LuxOSUniverse {
             const angle = (index / condensingThoughts.length) * 2 * Math.PI + Date.now() * 0.001;
             const x = Math.cos(angle) * distance;
             const y = Math.sin(angle) * distance;
-            
+
             const aggregate = condensingGroup.filter((d, i) => i === index);
-            
+
             aggregate.append("circle")
                 .attr("r", 3 + thought.importance * 8)
                 .attr("fill", this.getThoughtColor(thought))
@@ -677,7 +677,7 @@ class LuxOSUniverse {
                 .attr("stroke-width", 1)
                 .attr("opacity", 0.6 + thought.importance * 0.3)
                 .style("filter", "url(#glow)");
-            
+
             // Dodaj "ogon" kondensacji
             aggregate.append("circle")
                 .attr("r", 5 + thought.importance * 12)
@@ -686,7 +686,7 @@ class LuxOSUniverse {
                 .attr("stroke-width", 0.5)
                 .attr("opacity", 0.3)
                 .style("pointer-events", "none");
-            
+
             aggregate.attr("transform", `translate(${x}, ${y})`);
         });
     }
@@ -711,18 +711,18 @@ class LuxOSUniverse {
             const angle = (index / condensedBeings.length) * 2 * Math.PI;
             const x = Math.cos(angle) * distance;
             const y = Math.sin(angle) * distance;
-            
+
             const entity = beingGroup.filter((d, i) => i === index);
-            
+
             const size = 10 + being.importance * 20;
-            
+
             entity.append("circle")
                 .attr("r", size)
                 .attr("fill", this.getBeingColor(being))
                 .attr("stroke", "#ffffff")
                 .attr("stroke-width", 2)
                 .style("filter", "url(#glow)");
-            
+
             // Dodaj etykietę dla ważnych bytów
             if (being.importance > 0.7) {
                 entity.append("text")
@@ -733,7 +733,7 @@ class LuxOSUniverse {
                     .style("font-weight", "bold")
                     .text(being.genesis?.name || 'Unknown');
             }
-            
+
             entity.attr("transform", `translate(${x}, ${y})`);
         });
     }
@@ -742,11 +742,11 @@ class LuxOSUniverse {
         // Renderuj subtelne połączenia między powiązanymi myślami
         // Te połączenia pojawiają się gdy myśli mają wspólne tematy lub kontekst
         const connections = this.findThoughtConnections(thoughtSpace);
-        
+
         const connectionGroup = this.container.append("g")
             .attr("class", "thought-connections")
             .style("pointer-events", "none");
-        
+
         connections.forEach(connection => {
             connectionGroup.append("line")
                 .attr("x1", connection.source.x)
@@ -770,9 +770,9 @@ class LuxOSUniverse {
             'class': '#ffff88',     // Żółty - klasy
             'agent': '#ff88cc'      // Różowy - agenci
         };
-        
+
         const baseColor = baseColors[thought.genesis?.type] || '#cccccc';
-        
+
         // Istotność wpływa na intensywność
         const intensity = 0.3 + thought.importance * 0.7;
         return this.adjustColorIntensity(baseColor, intensity);
@@ -791,7 +791,7 @@ class LuxOSUniverse {
             ...thoughtSpace.condensing,
             ...thoughtSpace.condensed_beings
         ];
-        
+
         // Uproszczone - prawdziwy algorytm analizowałby embeddingi i kontekst
         for (let i = 0; i < allThoughts.length; i++) {
             for (let j = i + 1; j < allThoughts.length; j++) {
@@ -805,31 +805,31 @@ class LuxOSUniverse {
                 }
             }
         }
-        
+
         return connections.slice(0, 20); // Ogranicz do 20 najsilniejszych połączeń
     }
 
     calculateConnectionStrength(thought1, thought2) {
         // Uproszczony algorytm podobieństwa
         let strength = 0;
-        
+
         // Wspólne tagi
         const tags1 = thought1.attributes?.tags || [];
         const tags2 = thought2.attributes?.tags || [];
         const commonTags = tags1.filter(tag => tags2.includes(tag));
         strength += commonTags.length * 0.2;
-        
+
         // Podobny typ
         if (thought1.genesis?.type === thought2.genesis?.type) {
             strength += 0.3;
         }
-        
+
         // Podobny poziom energii
         const energy1 = thought1.attributes?.energy_level || 0;
         const energy2 = thought2.attributes?.energy_level || 0;
         const energyDiff = Math.abs(energy1 - energy2);
         strength += Math.max(0, (100 - energyDiff) / 100) * 0.2;
-        
+
         return Math.min(1.0, strength);
     }
 
@@ -845,7 +845,7 @@ class LuxOSUniverse {
 
         // Renderuj jako pulsujące pole świadomości (bez konkretnego obiektu)
         const fieldRadius = 150;
-        
+
         // Chmura myśli - gradient pole
         centerField.append("circle")
             .attr("r", fieldRadius)
@@ -886,7 +886,7 @@ class LuxOSUniverse {
 
         const orbitRadius = 150 + systemIndex * 120;
         const angleOffset = systemIndex * (2 * Math.PI / Math.max(1, this.beings.length / 5));
-        
+
         // Narysuj orbitę systemu
         this.orbitsGroup.append("circle")
             .attr("class", "planetary-orbit")
@@ -963,7 +963,7 @@ class LuxOSUniverse {
     renderOrbitalTask(task, index) {
         const orbitRadius = 80 + index * 20;
         const classification = task.attributes?.task_classification || 'general';
-        
+
         // Renderuj jako kometę z ogonem
         const cometGroup = this.beingsGroup.append("g")
             .attr("class", "orbital-task comet")
@@ -985,7 +985,7 @@ class LuxOSUniverse {
 
         // Ogon komety
         this.addCometTail(cometGroup, cometSize);
-        
+
         // Narysuj orbitę
         this.orbitsGroup.append("circle")
             .attr("class", "task-orbit")
@@ -1027,19 +1027,19 @@ class LuxOSUniverse {
     addCometTail(cometGroup, cometSize) {
         const tailLength = cometSize * 3;
         const tailPoints = [];
-        
+
         for (let i = 0; i < 5; i++) {
             tailPoints.push([
                 -tailLength + i * (tailLength / 5),
                 (Math.random() - 0.5) * cometSize
             ]);
         }
-        
+
         const line = d3.line()
             .x(d => d[0])
             .y(d => d[1])
             .curve(d3.curveCardinal);
-        
+
         cometGroup.append("path")
             .attr("d", line(tailPoints))
             .attr("fill", "none")
@@ -1052,7 +1052,7 @@ class LuxOSUniverse {
     renderIntention(intention, index) {
         // Renderuj jako pulsującą gwiazdę na bliskiej orbicie
         const orbitRadius = 60;
-        
+
         const intentionGroup = this.beingsGroup.append("g")
             .attr("class", "intention")
             .attr("data-intention-index", index)
@@ -1082,7 +1082,7 @@ class LuxOSUniverse {
     renderStandaloneBeing(being, index) {
         // Renderuj jako asteroidy na zewnętrznych orbitach
         const orbitRadius = 400 + index * 30;
-        
+
         const asteroidGroup = this.beingsGroup.append("g")
             .attr("class", "standalone-being asteroid")
             .attr("data-asteroid-index", index)
@@ -1170,19 +1170,19 @@ class LuxOSUniverse {
     updateThoughtCondensation(currentTime) {
         // Symuluj proces kondensacji - myśli o rosnącej istotności
         // przesuwają się z kategorii do kategorii
-        
+
         if (currentTime % 5000 < 100) { // Co 5 sekund
             // Przelicz istotność wszystkich myśli
             this.beings.forEach(being => {
                 const oldImportance = being.importance || 0;
                 const newImportance = this.calculateThoughtImportance(being);
-                
+
                 if (newImportance !== oldImportance) {
                     being.importance = newImportance;
                     // W prawdziwej implementacji: przenieś między kategoriami
                 }
             });
-            
+
             // Przerenderuj jeśli znaczące zmiany
             this.renderThoughtUniverse();
         }
@@ -1196,7 +1196,7 @@ class LuxOSUniverse {
                 const orbitRadius = 150 + systemIndex * 120;
                 const speed = 0.1 / (systemIndex + 1); // Zewnętrzne systemy wolniejsze
                 const angle = time * speed + systemIndex * (2 * Math.PI / 5);
-                
+
                 const x = Math.cos(angle) * orbitRadius;
                 const y = Math.sin(angle) * orbitRadius;
                 return `translate(${x}, ${y})`;
@@ -1209,7 +1209,7 @@ class LuxOSUniverse {
                 const moonOrbitRadius = 40;
                 const moonSpeed = 2; // Księżyce szybsze
                 const moonAngle = time * moonSpeed + moonIndex * (2 * Math.PI / 3);
-                
+
                 const x = Math.cos(moonAngle) * moonOrbitRadius;
                 const y = Math.sin(moonAngle) * moonOrbitRadius;
                 return `translate(${x}, ${y})`;
@@ -1222,7 +1222,7 @@ class LuxOSUniverse {
                 const orbitRadius = 80 + taskIndex * 20;
                 const speed = 1.5; // Komety szybkie
                 const angle = time * speed + taskIndex * (2 * Math.PI / 4);
-                
+
                 const x = Math.cos(angle) * orbitRadius;
                 const y = Math.sin(angle) * orbitRadius;
                 return `translate(${x}, ${y}) rotate(${angle * 180 / Math.PI})`;
@@ -1235,7 +1235,7 @@ class LuxOSUniverse {
                 const orbitRadius = 60;
                 const speed = 3; // Intencje bardzo szybkie
                 const angle = time * speed + intentionIndex * Math.PI;
-                
+
                 const x = Math.cos(angle) * orbitRadius;
                 const y = Math.sin(angle) * orbitRadius;
                 return `translate(${x}, ${y})`;
@@ -1248,7 +1248,7 @@ class LuxOSUniverse {
                 const orbitRadius = 400 + asteroidIndex * 30;
                 const speed = 0.02; // Asteroidy bardzo wolne
                 const angle = time * speed + asteroidIndex * (2 * Math.PI / 10);
-                
+
                 const x = Math.cos(angle) * orbitRadius;
                 const y = Math.sin(angle) * orbitRadius;
                 return `translate(${x}, ${y})`;
@@ -1636,15 +1636,15 @@ class LuxOSUniverse {
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 5000);
-            
+
             console.log(`Próba reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} za ${delay}ms`);
-            
+
             // Aktualizuj status podczas próby reconnect
             const status = document.getElementById('connectionStatus');
             if (status) {
                 status.textContent = `Łączenie... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`;
             }
-            
+
             setTimeout(() => {
                 if (!this.socket.connected) {
                     try {
@@ -1658,7 +1658,7 @@ class LuxOSUniverse {
         } else {
             console.log('Maksymalna liczba prób reconnect osiągnięta - resetuję licznik');
             this.showErrorMessage('Problemy z połączeniem - spróbuję ponownie...');
-            
+
             // Reset licznika po 30 sekundach i spróbuj ponownie
             setTimeout(() => {
                 this.reconnectAttempts = 0;
@@ -1783,6 +1783,112 @@ class LuxOSUniverse {
 
         // Rozpocznij animację
         animate(0);
+    }
+    renderUniverse() {
+        // Nowy model: chmura embeddingów zamiast orbit
+        this.renderEmbeddingSpace();
+
+        // Uruchom animacje embeddingów
+        this.startEmbeddingAnimation();
+    }
+
+    renderEmbeddingSpace() {
+        // Zorganizuj byty jako przestrzeń embeddingów
+        const embeddingSpace = this.organizeIntoEmbeddingSpace(this.beings);
+
+        // Renderuj przestrzeń embeddingów
+        this.renderEmbeddingSpaceVisualization(embeddingSpace);
+    }
+
+    organizeIntoEmbeddingSpace(beings) {
+        const embeddingSpace = {
+            entities: [],
+            connections: []
+        };
+
+        beings.forEach(being => {
+            embeddingSpace.entities.push({
+                ...being,
+                x: Math.random() * 400 - 200, // Losowe pozycje początkowe
+                y: Math.random() * 400 - 200
+            });
+        });
+
+        // Tutaj można dodać logikę do wyznaczania połączeń między bytami
+        // na podstawie podobieństwa embeddingów.
+
+        return embeddingSpace;
+    }
+
+    renderEmbeddingSpaceVisualization(embeddingSpace) {
+        // Usuń poprzednie elementy
+        this.beingsGroup.selectAll("*").remove();
+
+        // Renderuj byty
+        const entityGroup = this.beingsGroup.selectAll(".entity")
+            .data(embeddingSpace.entities)
+            .join("g")
+            .attr("class", "entity")
+            .attr("transform", d => `translate(${d.x}, ${d.y})`);
+
+        entityGroup.append("circle")
+            .attr("r", 10)
+            .attr("fill", d => this.getBeingColor(d))
+            .style("cursor", "pointer")
+            .on("click", (event, d) => {
+                event.stopPropagation();
+                this.selectBeing(d);
+            });
+
+        entityGroup.append("text")
+            .attr("dy", -15)
+            .attr("text-anchor", "middle")
+            .text(d => d.genesis?.name || "Unknown");
+
+        // Renderuj połączenia (jeśli istnieją)
+        // const connectionGroup = this.container.append("g")
+        //     .attr("class", "connections");
+
+        // embeddingSpace.connections.forEach(connection => {
+        //     connectionGroup.append("line")
+        //         .attr("x1", connection.source.x)
+        //         .attr("y1", connection.source.y)
+        //         .attr("x2", connection.target.x)
+        //         .attr("y2", connection.target.y)
+        //         .attr("stroke", "#999")
+        //         .attr("stroke-opacity", 0.6);
+        // });
+    }
+
+    startEmbeddingAnimation() {
+        if (this.embeddingAnimationId) {
+            cancelAnimationFrame(this.embeddingAnimationId);
+        }
+
+        const animate = () => {
+            this.updateEmbeddingPositions();
+            this.embeddingAnimationId = requestAnimationFrame(animate);
+        };
+
+        animate();
+    }
+
+    updateEmbeddingPositions() {
+        // Symuluj ruch bytów w przestrzeni embeddingów.
+        // Można użyć sił przyciągania/odpychania na podstawie
+        // podobieństwa embeddingów.
+        this.beingsGroup.selectAll(".entity")
+            .each((d, i, nodes) => {
+                // Prosty przykład: losowe przesunięcia
+                d.x += (Math.random() - 0.5) * 2;
+                d.y += (Math.random() - 0.5) * 2;
+
+                // Ogranicz pozycje do obszaru widoku
+                d.x = Math.max(-this.width / 2, Math.min(this.width / 2, d.x));
+                d.y = Math.max(-this.height / 2, Math.min(this.height / 2, d.y));
+
+                d3.select(nodes[i]).attr("transform", `translate(${d.x}, ${d.y})`);
+            });
     }
 }
 
