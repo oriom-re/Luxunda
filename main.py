@@ -845,8 +845,7 @@ async def create_being(sid, data):
         being = await BeingFactory.create_being(
             being_type=being_type,
             genesis=data.get('genesis', {}),
-            tags=data.get('tags', []),
-            energy_level=data.get('energy_level', 0),
+            tags=data.get('tags', []),            energy_level=data.get('energy_level', 0),
             attributes=data.get('attributes', {}),
             memories=data.get('memories', []),
             self_awareness=data.get('self_awareness', {})
