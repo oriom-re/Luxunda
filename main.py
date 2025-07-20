@@ -496,6 +496,90 @@ const simulation = d3.forceSimulation()
             return f"// Basic D3.js component for {self.genesis.get('name', 'Unknown')}"
 
 @dataclass
+class BinaryBeing(BaseBeing):
+    """Byt z danymi binarnymi (pliki, obrazy, etc.)"""
+
+    def __post_init__(self):
+        if self.genesis.get('type') != 'binary':
+            self.genesis['type'] = 'binary'
+        if 'file_info' not in self.attributes:
+            self.attributes['file_info'] = {}
+        if 'binary_ids' not in self.attributes:
+            self.attributes['binary_ids'] = []
+
+    async def store_binary_data(self, data: bytes, filename: str = None, mime_type: str = None) -> str:
+        """Zapisuje dane binarne i zwraca ID"""
+        import uuid
+        binary_id = str(uuid.uuid4())
+        
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO binary_storage (id, being_soul, file_name, mime_type, file_size, binary_data)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                """, binary_id, self.soul, filename, mime_type, len(data), data)
+        else:
+            # SQLite
+            await db_pool.execute("""
+                INSERT INTO binary_storage (id, being_soul, file_name, mime_type, file_size, binary_data)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (binary_id, self.soul, filename, mime_type, len(data), data))
+            await db_pool.commit()
+
+        # Dodaj ID do listy plików
+        self.attributes['binary_ids'].append(binary_id)
+        self.attributes['file_info'][binary_id] = {
+            'filename': filename,
+            'mime_type': mime_type,
+            'size': len(data),
+            'uploaded_at': datetime.now().isoformat()
+        }
+
+        # Zapisz w pamięci
+        self.memories.append({
+            'type': 'binary_upload',
+            'binary_id': binary_id,
+            'filename': filename,
+            'size': len(data),
+            'timestamp': datetime.now().isoformat()
+        })
+
+        await self.save()
+        return binary_id
+
+    async def get_binary_data(self, binary_id: str) -> Optional[bytes]:
+        """Pobiera dane binarne po ID"""
+        global db_pool
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT binary_data FROM binary_storage 
+                    WHERE id = $1 AND being_soul = $2
+                """, binary_id, self.soul)
+                return row['binary_data'] if row else None
+        else:
+            # SQLite
+            async with db_pool.execute("""
+                SELECT binary_data FROM binary_storage 
+                WHERE id = ? AND being_soul = ?
+            """, (binary_id, self.soul)) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else None
+
+    def get_file_list(self) -> List[Dict[str, Any]]:
+        """Zwraca listę plików"""
+        return [
+            {
+                'id': binary_id,
+                'info': self.attributes['file_info'].get(binary_id, {})
+            }
+            for binary_id in self.attributes.get('binary_ids', [])
+        ]
+
+@dataclass
 class MessageBeing(BaseBeing):
     """Byt wiadomości z metadanymi i embedingami"""
 
@@ -1369,6 +1453,7 @@ async def setup_postgresql_tables():
                 attributes JSONB NOT NULL,
                 memories JSONB NOT NULL,
                 self_awareness JSONB NOT NULL,
+                binary_data BYTEA,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -1416,11 +1501,28 @@ async def setup_postgresql_tables():
             CHECK (source_soul <> target_soul)
         """)
 
+        # Tabela binary_storage dla danych binarnych
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS binary_storage (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                being_soul UUID NOT NULL,
+                file_name VARCHAR(255),
+                mime_type VARCHAR(100),
+                file_size INTEGER,
+                binary_data BYTEA NOT NULL,
+                metadata JSONB DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (being_soul) REFERENCES base_beings(soul) ON DELETE CASCADE
+            )
+        """)
+
         # Indeksy
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_genesis ON base_beings USING gin (genesis)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_attributes ON base_beings USING gin (attributes)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_memories ON base_beings USING gin (memories)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_base_beings_self_awareness ON base_beings USING gin (self_awareness)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_binary_storage_being_soul ON binary_storage (being_soul)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_binary_storage_mime_type ON binary_storage (mime_type)")
 
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_genesis ON relationships USING gin (genesis)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_attributes ON relationships USING gin (attributes)")
@@ -1438,6 +1540,7 @@ async def setup_sqlite_tables():
             attributes TEXT NOT NULL,
             memories TEXT NOT NULL,
             self_awareness TEXT NOT NULL,
+            binary_data BLOB,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -1452,6 +1555,20 @@ async def setup_sqlite_tables():
             genesis TEXT NOT NULL,
             attributes TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    await db_pool.execute("""
+        CREATE TABLE IF NOT EXISTS binary_storage (
+            id TEXT PRIMARY KEY,
+            being_soul TEXT NOT NULL,
+            file_name TEXT,
+            mime_type TEXT,
+            file_size INTEGER,
+            binary_data BLOB NOT NULL,
+            metadata TEXT DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (being_soul) REFERENCES base_beings(soul) ON DELETE CASCADE
         )
     """)
 
@@ -1518,6 +1635,7 @@ class BeingFactory:
         'task': TaskBeing,
         'component': ComponentBeing,
         'message': MessageBeing,
+        'binary': BinaryBeing,
         'base': BaseBeing
     }
 
