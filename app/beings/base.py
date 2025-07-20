@@ -4,6 +4,12 @@ import uuid
 import json
 from datetime import datetime
 
+# Import db_pool from main
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+import main
+
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
@@ -65,7 +71,7 @@ class BaseBeing:
 
     async def save(self):
         """Zapisuje byt do bazy danych"""
-        global db_pool
+        db_pool = main.db_pool
         if hasattr(db_pool, 'acquire'):
             async with db_pool.acquire() as conn:
                 await conn.execute("""
@@ -96,7 +102,7 @@ class BaseBeing:
     @classmethod
     async def load(cls, soul: str):
         """Ładuje byt z bazy danych"""
-        global db_pool
+        db_pool = main.db_pool
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM base_beings WHERE soul = $1", soul)
             if row:
@@ -113,7 +119,7 @@ class BaseBeing:
     @classmethod
     async def get_all(cls, limit: int = 100):
         """Pobiera wszystkie byty"""
-        global db_pool
+        db_pool = main.db_pool
         if hasattr(db_pool, 'acquire'):
             # PostgreSQL
             async with db_pool.acquire() as conn:
@@ -211,7 +217,7 @@ class Relationship:
 
     async def save(self):
         """Zapisuje relację do bazy danych"""
-        global db_pool
+        db_pool = main.db_pool
         if hasattr(db_pool, 'acquire'):
             async with db_pool.acquire() as conn:
                 await conn.execute("""
@@ -238,7 +244,7 @@ class Relationship:
     @classmethod
     async def get_all(cls, limit: int = 100):
         """Pobiera wszystkie relacje"""
-        global db_pool
+        db_pool = main.db_pool
         if hasattr(db_pool, 'acquire'):
             # PostgreSQL
             async with db_pool.acquire() as conn:
