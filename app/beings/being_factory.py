@@ -1,14 +1,15 @@
 from typing import Dict, Any, Optional
 import uuid
 import json
-from app.beings.base import BaseBeing
+
 
 # Import db_pool from main
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-import main
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+# import main
 from app.beings.function_being import FunctionBeing
+from app.beings.base import BaseBeing
 from app.beings.class_being import ClassBeing
 from app.beings.data_being import DataBeing
 from app.beings.scenario_being import ScenarioBeing
