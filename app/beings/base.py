@@ -85,10 +85,9 @@ class BaseBeing:
             # SQLite fallback
             await db_pool.execute("""
                 INSERT OR REPLACE INTO base_beings 
-                (soul, tags, energy_level, genesis, attributes, memories, self_awareness)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (str(self.soul), json.dumps(self.tags), self.energy_level, 
-                  json.dumps(self.genesis, cls=DateTimeEncoder), 
+                (soul, genesis, attributes, memories, self_awareness)
+                VALUES (?, ?, ?, ?, ?)
+            """, (str(self.soul), json.dumps(self.genesis, cls=DateTimeEncoder), 
                   json.dumps(self.attributes, cls=DateTimeEncoder),
                   json.dumps(self.memories, cls=DateTimeEncoder), 
                   json.dumps(self.self_awareness, cls=DateTimeEncoder)))
@@ -129,16 +128,16 @@ class BaseBeing:
                 ) for row in rows]
         else:
             # SQLite fallback
-            async with db_pool.execute("SELECT soul, tags, energy_level, genesis, attributes, memories, self_awareness, created_at FROM base_beings LIMIT ?", (limit,)) as cursor:
+            async with db_pool.execute("SELECT soul, genesis, attributes, memories, self_awareness, created_at FROM base_beings LIMIT ?", (limit,)) as cursor:
                 rows = await cursor.fetchall()
                 beings = []
                 for row in rows:
-                    # row[0]=soul, row[1]=tags, row[2]=energy_level, row[3]=genesis, row[4]=attributes, row[5]=memories, row[6]=self_awareness, row[7]=created_at
+                    # row[0]=soul, row[1]=genesis, row[2]=attributes, row[3]=memories, row[4]=self_awareness, row[5]=created_at
                     try:
-                        genesis = json.loads(row[3]) if row[3] else {}
-                        attributes = json.loads(row[4]) if row[4] else {}
-                        memories = json.loads(row[5]) if row[5] else []
-                        self_awareness = json.loads(row[6]) if row[6] else {}
+                        genesis = json.loads(row[1]) if row[1] else {}
+                        attributes = json.loads(row[2]) if row[2] else {}
+                        memories = json.loads(row[3]) if row[3] else []
+                        self_awareness = json.loads(row[4]) if row[4] else {}
 
                         # Dodaj tags i energy_level do attributes jeśli nie ma
                         if 'tags' not in attributes and row[1]:
@@ -152,7 +151,7 @@ class BaseBeing:
                             attributes=attributes,
                             memories=memories,
                             self_awareness=self_awareness,
-                            created_at=row[7]
+                            created_at=row[5]
                         ))
                     except Exception as e:
                         print(f"Błąd parsowania wiersza: {e}, wiersz: {row}")
@@ -228,10 +227,9 @@ class Relationship:
             # SQLite fallback
             await db_pool.execute("""
                 INSERT OR REPLACE INTO relationships 
-                (id, tags, energy_level, source_soul, target_soul, genesis, attributes)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (str(self.id), json.dumps(self.tags), self.energy_level,
-                  str(self.source_soul), str(self.target_soul),
+                (id, source_soul, target_soul, genesis, attributes)
+                VALUES (?, ?, ?, ?, ?)
+            """, (str(self.id), str(self.source_soul), str(self.target_soul),
                   json.dumps(self.genesis, cls=DateTimeEncoder), 
                   json.dumps(self.attributes, cls=DateTimeEncoder)))
             await db_pool.commit()
@@ -254,13 +252,13 @@ class Relationship:
                 ) for row in rows]
         else:
             # SQLite fallback
-            async with db_pool.execute("SELECT id, tags, energy_level, source_soul, target_soul, genesis, attributes, created_at FROM relationships LIMIT ?", (limit,)) as cursor:
+            async with db_pool.execute("SELECT id, source_soul, target_soul, genesis, attributes, created_at FROM relationships LIMIT ?", (limit,)) as cursor:
                 rows = await cursor.fetchall()
                 relationships = []
                 for row in rows:
                     try:
-                        genesis = json.loads(row[5]) if row[5] else {}
-                        attributes = json.loads(row[6]) if row[6] else {}
+                        genesis = json.loads(row[3]) if row[3] else {}
+                        attributes = json.loads(row[4]) if row[4] else {}
 
                         # Dodaj tags i energy_level do attributes jeśli nie ma
                         if 'tags' not in attributes and row[1]:

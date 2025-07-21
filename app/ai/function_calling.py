@@ -7,6 +7,7 @@ from app.beings.base import BaseBeing
 from app.beings.function_being import FunctionBeing
 from app.beings.being_factory import BeingFactory
 from app.safety.executor import SafeCodeExecutor
+import ast
 
 class OpenAIFunctionCaller:
     """System wywoływania funkcji przez OpenAI"""
@@ -48,8 +49,14 @@ class OpenAIFunctionCaller:
     
     def _extract_function_parameters(self, source: str, function_name: str) -> Dict[str, Any]:
         """Ekstraktuje parametry funkcji z kodu źródłowego"""
-        import ast
-        import inspect
+        type_map = {
+            "str": "string",
+            "int": "integer",
+            "float": "number",
+            "bool": "boolean",
+            "dict": "object",
+            "list": "array"
+        }
         
         try:
             tree = ast.parse(source)
@@ -60,21 +67,31 @@ class OpenAIFunctionCaller:
                         "properties": {},
                         "required": []
                     }
-                    
+
                     for arg in node.args.args:
                         arg_name = arg.arg
+                        annotation = None
+                        if arg.annotation:
+                            if isinstance(arg.annotation, ast.Name):
+                                annotation = type_map.get(arg.annotation.id, "string")
+                            elif isinstance(arg.annotation, ast.Subscript):
+                                annotation = "array" if arg.annotation.value.id == "list" else "object"
+                            else:
+                                annotation = "string"
+                        else:
+                            annotation = "string"
+
                         parameters["properties"][arg_name] = {
-                            "type": "string",
+                            "type": annotation,
                             "description": f"Parametr {arg_name}"
                         }
                         parameters["required"].append(arg_name)
-                    
+
                     return parameters
-                    
+
         except Exception as e:
             print(f"Błąd ekstraktowania parametrów: {e}")
-            
-        # Fallback - podstawowe parametry
+        
         return {
             "type": "object",
             "properties": {},
@@ -85,8 +102,12 @@ class OpenAIFunctionCaller:
         """Wywołuje OpenAI z dostępnymi funkcjami"""
         try:
             # Przygotuj schemat funkcji dla OpenAI
-            tools = [func_info["schema"] for func_info in self.available_functions.values()]
-            
+            # tools = [func_info["schema"] for func_info in self.available_functions.values()]
+            tools = []
+            for func_info in self.available_functions.values():
+                tools.append(func_info["schema"])
+                print(f"Zarejestrowano funkcję: {func_info['schema']}")
+
             messages = [
                 {
                     "role": "system", 
@@ -104,7 +125,8 @@ class OpenAIFunctionCaller:
                 })
             
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.1-mini",
+                # model="gpt-3.5-turbo",
                 messages=messages,
                 tools=tools if tools else None,
                 tool_choice="auto" if tools else None,
@@ -186,7 +208,6 @@ class OpenAIFunctionCaller:
             }
             function_being.memories.append(memory_entry)
             await function_being.save()
-            
             return {
                 "success": result.get('success', False),
                 "result": result.get('result'),

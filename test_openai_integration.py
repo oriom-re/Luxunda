@@ -39,10 +39,10 @@ async def test_real_openai_integration():
     functions_data = [
         {
             'name': 'calculate_area',
-            'source': '''def calculate_area(length: float, width: float) -> float:
+            'source': '''def calculate_area(length: float, heigh: float) -> float:
     """Oblicza pole prostokąta"""
-    return length * width''',
-            'description': 'Oblicza pole prostokąta na podstawie długości i szerokości'
+    return length * heigh''',
+            'description': 'Oblicza pole prostokąta na podstawie długości i wysokość'
         },
         {
             'name': 'generate_password',
@@ -105,7 +105,7 @@ async def test_real_openai_integration():
     
     # Test różnych promptów
     test_prompts = [
-        "Oblicz pole prostokąta o długości 5.5 i szerokości 3.2",
+        "Oblicz pole prostokąta o długości 5.5 i wysokości 3.2",
         "Wygeneruj bezpieczne hasło długości 12 znaków",
         "Przeanalizuj ten tekst: 'Python jest fantastyczny język Python do programowania Python aplikacji'",
         "Pomóż mi obliczyć pole prostokąta 10x8 metrów i wygenerować hasło na 8 znaków",
