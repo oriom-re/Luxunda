@@ -19,7 +19,7 @@ class SafeCodeExecutor:
         'math', 'random', 'datetime', 'json', 'uuid', 'hashlib',
         'base64', 'urllib.parse', 'collections', 'itertools',
         'functools', 'operator', 'string', 'textwrap',
-        're', 'decimal', 'fractions', 'statistics'
+        're', 'decimal', 'fractions', 'statistics', 'string', 'random'
     }
 
     # Bezpieczne imports z modułów
@@ -58,23 +58,27 @@ class SafeCodeExecutor:
                 for alias in node.names:
                     module_name = alias.name
                     if module_name not in cls.SAFE_IMPORTS:
+                        print(f"❌ Zabroniony import modułu: {module_name}")
                         return False, f"Zabroniony import modułu: {module_name}"
 
             if isinstance(node, ast.ImportFrom):
                 module_name = node.module
                 if module_name not in cls.SAFE_FROM_IMPORTS:
+                    print(f"❌ Zabroniony import z modułu: {module_name}")
                     return False, f"Zabroniony import z modułu: {module_name}"
                 
                 # Sprawdź czy importowane elementy są bezpieczne
                 allowed_names = cls.SAFE_FROM_IMPORTS[module_name]
                 for alias in node.names:
                     if alias.name not in allowed_names and alias.name != '*':
+                        print(f"❌ Zabroniony import {alias.name} z modułu {module_name}")
                         return False, f"Zabroniony import {alias.name} z modułu {module_name}"
 
             # Sprawdź dostęp do atrybutów
             if isinstance(node, ast.Attribute):
                 attr_name = node.attr
                 if attr_name.startswith('_') or attr_name in ['__import__', 'exec', 'eval']:
+                    print(f"❌ Zabroniony dostęp do atrybutu: {attr_name}")
                     return False, f"Zabroniony dostęp do atrybutu: {attr_name}"
 
         return True, "Kod jest bezpieczny"

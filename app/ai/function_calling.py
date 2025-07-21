@@ -208,6 +208,7 @@ class OpenAIFunctionCaller:
             }
             function_being.memories.append(memory_entry)
             await function_being.save()
+            print(f"✅ Wykonano funkcję {function_name} z argumentami {arguments} rezultatem {result}") 
             return {
                 "success": result.get('success', False),
                 "result": result.get('result'),
