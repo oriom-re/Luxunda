@@ -15,6 +15,7 @@ from app.beings.base import BaseBeing, Relationship
 from app.beings.being_factory import BeingFactory
 from app.beings.function_router import FunctionRouter
 from app.beings import DateTimeEncoder
+from app.ai.function_calling import OpenAIFunctionCaller
 
 
 
@@ -34,6 +35,11 @@ function_router = FunctionRouter()
 
 # Narzędzia Lux
 lux_tools = LuxTools(openai_api_key=os.getenv('OPENAI_API_KEY'))
+
+# OpenAI Function Caller
+openai_function_caller = None
+if os.getenv('OPENAI_API_KEY'):
+    openai_function_caller = OpenAIFunctionCaller(openai_api_key=os.getenv('OPENAI_API_KEY'))
 
 
 
@@ -440,6 +446,90 @@ async def get_file_structure(sid, data):
         await sio.emit('error', {'message': f'Błąd pobierania struktury plików: {str(e)}'}, room=sid)
 
 @sio.event
+async def call_openai_with_functions(sid, data):
+    """Wywołuje OpenAI z dostępnymi funkcjami"""
+    try:
+        if not openai_function_caller:
+            await sio.emit('error', {'message': 'OpenAI Function Caller nie jest skonfigurowany'}, room=sid)
+            return
+        
+        prompt = data.get('prompt', '')
+        context = data.get('context', {})
+        
+        if not prompt:
+            await sio.emit('error', {'message': 'Brak prompt dla OpenAI'}, room=sid)
+            return
+        
+        result = await openai_function_caller.call_with_functions(prompt, context)
+        
+        await sio.emit('openai_function_result', result, room=sid)
+        
+        # Aktualizuj graf jeśli funkcje były wykonywane
+        if result.get('tool_calls'):
+            await broadcast_graph_update()
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd wywołania OpenAI: {str(e)}'}, room=sid)
+
+@sio.event
+async def register_function_for_openai(sid, data):
+    """Rejestruje funkcję dla OpenAI"""
+    try:
+        if not openai_function_caller:
+            await sio.emit('error', {'message': 'OpenAI Function Caller nie jest skonfigurowany'}, room=sid)
+            return
+        
+        soul = data.get('soul')
+        if not soul:
+            await sio.emit('error', {'message': 'Brak soul bytu funkcyjnego'}, room=sid)
+            return
+        
+        # Załaduj byt
+        being = await BaseBeing.load(soul)
+        if not being or being.genesis.get('type') != 'function':
+            await sio.emit('error', {'message': 'Byt nie jest funkcją'}, room=sid)
+            return
+        
+        # Konwertuj na FunctionBeing
+        from app.beings.function_being import FunctionBeing
+        function_being = FunctionBeing(
+            soul=being.soul,
+            genesis=being.genesis,
+            attributes=being.attributes,
+            memories=being.memories,
+            self_awareness=being.self_awareness,
+            created_at=being.created_at
+        )
+        
+        success = await openai_function_caller.register_function_being(function_being)
+        
+        if success:
+            await sio.emit('function_registered_for_openai', {
+                'soul': soul,
+                'name': being.genesis.get('name', 'unknown'),
+                'message': 'Funkcja zarejestrowana dla OpenAI'
+            }, room=sid)
+        else:
+            await sio.emit('error', {'message': 'Nie udało się zarejestrować funkcji'}, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd rejestracji funkcji: {str(e)}'}, room=sid)
+
+@sio.event
+async def get_openai_functions(sid, data):
+    """Zwraca listę funkcji dostępnych dla OpenAI"""
+    try:
+        if not openai_function_caller:
+            await sio.emit('openai_functions_list', {'functions': []}, room=sid)
+            return
+        
+        functions = openai_function_caller.get_available_functions()
+        await sio.emit('openai_functions_list', {'functions': functions}, room=sid)
+        
+    except Exception as e:
+        await sio.emit('error', {'message': f'Błąd pobierania funkcji: {str(e)}'}, room=sid)
+
+@sio.event
 async def read_file(sid, data):
     """Odczytuje zawartość pliku"""
     try:
@@ -587,16 +677,39 @@ async def delete_relationship(sid, data):
             await sio.emit('error', {'message': str(e)}, room=sid)
 
 async def analyze_lux_communication(message: str, context: dict) -> dict:
-    """Analizuje komunikację z Lux i określa czy powinna użyć narzędzi"""
+    """Analizuje komunikację z Lux i określa czy powinna użyć narzędzi lub funkcji"""
+    # Najpierw spróbuj OpenAI Function Calling jeśli dostępne
+    if openai_function_caller and openai_function_caller.get_available_functions():
+        try:
+            result = await openai_function_caller.call_with_functions(message, context)
+            
+            response = {
+                'message': result.get('final_response') or result.get('response') or 'Przeanalizowałem twoją prośbę.',
+                'openai_response': True,
+                'function_calls': result.get('tool_calls', []),
+                'actions': []
+            }
+            
+            # Jeśli były wywołania funkcji, dodaj informacje
+            if result.get('tool_calls'):
+                response['message'] += f"\n\nWykonałem {len(result['tool_calls'])} funkcji z bytów astralnych."
+            
+            return response
+            
+        except Exception as e:
+            print(f"Błąd OpenAI Function Calling: {e}")
+            # Fallback do starego systemu
+    
+    # Fallback - użyj starego parsera narzędzi
     from tool_parser import analyze_message_for_tools
     
-    # Użyj parsera narzędzi
     parser_result = analyze_message_for_tools(message)
     
     response = {
         'message': 'Analizuję twoją prośbę...',
         'suggested_tools': parser_result['suggested_tools'],
-        'actions': []
+        'actions': [],
+        'openai_response': False
     }
     
     # Jeśli parser nie wykrył narzędzi z wystarczającą pewnością, dodaj GPT jako fallback
@@ -890,6 +1003,11 @@ async def init_database():
         pool = await aiosqlite.connect('luxos.db')
         set_db_pool(pool)
         await setup_sqlite_tables()
+    
+    # Auto-rejestruj funkcje w OpenAI Function Caller
+    if openai_function_caller:
+        registered_count = await openai_function_caller.auto_register_function_beings()
+        print(f"Zarejestrowano {registered_count} funkcji w OpenAI Function Caller")
 
 async def setup_postgresql_tables():
     """Tworzy tabele w PostgreSQL"""
