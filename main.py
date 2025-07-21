@@ -792,7 +792,6 @@ async def analyze_intention(intention: str, context: dict) -> dict:
 
 async def get_graph_data():
     """Pobiera dane grafu do zwrócenia"""
-    global db_pool
     try:
         beings = await BaseBeing.get_all()
         relationships = await Relationship.get_all()

@@ -3,12 +3,7 @@ from typing import Dict, Any, List, Optional
 import uuid
 import json
 from datetime import datetime
-
-# Import db_pool from main
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-import main
+from app.database import get_db_pool
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
