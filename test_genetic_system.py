@@ -2,9 +2,9 @@ import asyncio
 from app.beings.genetic_being import GeneticBeing
 import app.genetics  # To trigger gene registration
 from datetime import datetime
-from app.genes.communication_gene import CommunicationGene
-from app.genes.database_gene import DatabaseGene
-from app.context.gene_activation_context import GeneActivationContext
+from app.genetics.communication_gene import CommunicationGene
+from app.genetics.database_gene import DatabaseGene
+from app.genetics.base_gene import GeneActivationContext
 
 
 async def test_genetic_system():
