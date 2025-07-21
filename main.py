@@ -30,6 +30,11 @@ sio = socketio.AsyncServer(cors_allowed_origins="*")
 app = web.Application()
 sio.attach(app)
 
+# Socket.IO client
+sio_client = socketio.AsyncClient()
+app = web.Application()
+sio_client.attach(app)
+
 # Router funkcji
 function_router = FunctionRouter()
 
