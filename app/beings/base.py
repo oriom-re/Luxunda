@@ -21,6 +21,12 @@ class BaseBeing:
     memories: List[Dict[str, Any]]
     self_awareness: Dict[str, Any]
     created_at: Optional[datetime] = None
+    
+    def __post_init__(self):
+        """Initialize genetic system"""
+        self.active_genes: Dict[str, 'BaseGene'] = {}
+        self.gene_library: List[Dict[str, Any]] = []  # Zbiór dostępnych genów
+        self.genetic_memories: List[Dict[str, Any]] = []
 
     @property
     def tags(self) -> List[str]:
