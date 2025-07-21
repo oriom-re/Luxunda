@@ -1,13 +1,16 @@
-
 import asyncio
 from app.beings.genetic_being import GeneticBeing
 import app.genetics  # To trigger gene registration
+from datetime import datetime
+from app.genes.communication_gene import CommunicationGene
+from app.genes.database_gene import DatabaseGene
+from app.context.gene_activation_context import GeneActivationContext
 
 
 async def test_genetic_system():
     """Test podstawowych funkcji systemu genowego"""
     print("🧬 Testowanie systemu genowego...")
-    
+
     # Utwórz genetyczną istotę
     being = GeneticBeing(
         soul="test-genetic-being",
@@ -16,14 +19,25 @@ async def test_genetic_system():
         memories=[],
         self_awareness={}
     )
-    
+
     print(f"✅ Utworzono genetyczną istotę: {being.soul}")
-    
+
+    # Test CommunicationGene
+    print("\n📡 Test CommunicationGene...")
+    comm_gene = CommunicationGene()
+    # Ustaw protokoły po inicjalizacji
+    comm_gene.protocols = ['socket_io']
+
+    context = GeneActivationContext(
+        activator_soul=being.soul,
+        activation_time=datetime.now(),
+        activation_params={'protocol': 'socket_io'}
+    )
     # Test dodawania genu komunikacyjnego
     print("\n📡 Testowanie genu komunikacyjnego...")
     comm_success = await being.add_gene('communication')
     print(f"Gen komunikacyjny dodany: {comm_success}")
-    
+
     if comm_success:
         # Test wyrażenia genu
         message_result = await being.express_gene(
@@ -36,12 +50,25 @@ async def test_genetic_system():
             }
         )
         print(f"Wysłano wiadomość: {message_result}")
-    
+
     # Test dodawania genu bazy danych
     print("\n💾 Testowanie genu bazy danych...")
     db_success = await being.add_gene('database_sqlite', is_memory_db=True)
     print(f"Gen bazy danych dodany: {db_success}")
-    
+
+    # Test DatabaseGene z pamięcią
+    print("\n🗄️ Test DatabaseGene...")
+    db_gene = DatabaseGene()
+    # Ustaw parametry po inicjalizacji
+    db_gene.is_memory_db = True
+    db_gene.sync_interval = 60
+
+    context = GeneActivationContext(
+        activator_soul=being.soul,
+        activation_time=datetime.now(),
+        activation_params={'memory_db': True}
+    )
+
     if db_success:
         # Znajdź gen bazy danych
         db_gene_id = None
@@ -49,7 +76,7 @@ async def test_genetic_system():
             if gene.gene_type == 'database_sqlite':
                 db_gene_id = gene_id
                 break
-        
+
         if db_gene_id:
             # Test operacji na bazie
             insert_result = await being.express_gene(
@@ -61,7 +88,7 @@ async def test_genetic_system():
                 }
             )
             print(f"Wstawiono dane: {insert_result}")
-            
+
             query_result = await being.express_gene(
                 db_gene_id,
                 {
@@ -70,19 +97,19 @@ async def test_genetic_system():
                 }
             )
             print(f"Zapytanie do bazy: {query_result}")
-            
+
             stats_result = await being.express_gene(
                 db_gene_id,
                 {'action': 'get_stats'}
             )
             print(f"Statystyki bazy: {stats_result}")
-    
+
     # Test statusu genetycznego
     print("\n🧬 Status genetyczny istoty:")
     genetic_status = await being.get_genetic_status()
     print(f"Aktywne geny: {genetic_status['active_genes_count']}/{genetic_status['max_active_genes']}")
     print(f"Typy aktywnych genów: {[info['type'] for info in genetic_status['active_genes'].values()]}")
-    
+
     # Test ewolucji genów
     print("\n🔄 Testowanie ewolucji genów...")
     await being.evolve_genes({
@@ -90,15 +117,15 @@ async def test_genetic_system():
         'reason': 'successful_operations',
         'context': 'test_evolution'
     })
-    
+
     # Sprawdź poziomy autonomii
     for gene_id, gene in being.active_genes.items():
         print(f"Gen {gene.gene_type} (autonomia: {gene.autonomy_level})")
         if await gene.can_become_independent():
             print(f"  ⚡ Gen {gene.gene_type} może się usamodzielnić!")
-    
+
     print("\n✅ Test systemu genowego zakończony pomyślnie!")
-    
+
     # Cleanup
     for gene_id in list(being.active_genes.keys()):
         await being.deactivate_gene(gene_id)
