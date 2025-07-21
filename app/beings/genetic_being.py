@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional
 from app.beings.base import BaseBeing
 from app.genetics.base_gene import BaseGene, GeneActivationContext
 from app.genetics.gene_registry import GeneRegistry
+from app.genetics.self_contained_gene import SelfContainedGene
 from datetime import datetime
 import asyncio
 
@@ -15,6 +16,49 @@ class GeneticBeing(BaseBeing):
         self.max_active_genes = self.attributes.get('max_genes', 5)
         self.gene_compatibility_matrix: Dict[str, List[str]] = {}
     
+    async def add_gene_from_dict(self, gene_data: Dict[str, Any]) -> bool:
+        """Dodaj gen z pełnej definicji słownikowej"""
+        if len(self.active_genes) >= self.max_active_genes:
+            return False
+        
+        gene_type = gene_data.get('gene_type')
+        
+        # Import odpowiedniej klasy genu
+        if gene_type == 'self_contained_database':
+            from app.genetics.self_contained_gene import SelfContainedDatabaseGene
+            gene = SelfContainedDatabaseGene.from_serializable_dict(gene_data)
+        elif gene_type == 'self_contained_communication':
+            from app.genetics.self_contained_gene import SelfContainedCommunicationGene
+            gene = SelfContainedCommunicationGene.from_serializable_dict(gene_data)
+        else:
+            return False
+        
+        if self.energy_level < gene._configuration['required_energy']:
+            return False
+        
+        # Aktywuj gen
+        context = GeneActivationContext(
+            activator_soul=self.soul,
+            activation_time=datetime.now(),
+            activation_params={'from_dict': True}
+        )
+        
+        success = await gene.activate(self, context)
+        
+        if success:
+            self.active_genes[gene.gene_id] = gene
+            
+            # Dodaj do biblioteki
+            self.gene_library.append({
+                'gene_type': gene_type,
+                'gene_id': gene.gene_id,
+                'added_at': datetime.now().isoformat(),
+                'status': 'active',
+                'full_definition': gene_data
+            })
+        
+        return success
+
     async def add_gene(self, gene_type: str, **gene_kwargs) -> bool:
         """Dodaj gen do biblioteki i opcjonalnie aktywuj"""
         if len(self.active_genes) >= self.max_active_genes:
