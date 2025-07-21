@@ -14,9 +14,26 @@ class SafeCodeExecutor:
         'sorted', 'str', 'sum', 'tuple', 'zip', 'print'
     }
 
+    # Bezpieczne moduły/pakiety do importu
+    SAFE_IMPORTS = {
+        'math', 'random', 'datetime', 'json', 'uuid', 'hashlib',
+        'base64', 'urllib.parse', 'collections', 'itertools',
+        'functools', 'operator', 'string', 'textwrap',
+        're', 'decimal', 'fractions', 'statistics'
+    }
+
+    # Bezpieczne imports z modułów
+    SAFE_FROM_IMPORTS = {
+        'datetime': {'datetime', 'date', 'time', 'timedelta'},
+        'collections': {'namedtuple', 'defaultdict', 'Counter', 'deque'},
+        'typing': {'List', 'Dict', 'Set', 'Tuple', 'Optional', 'Union', 'Any'},
+        'math': {'pi', 'e', 'sin', 'cos', 'tan', 'sqrt', 'log', 'exp'},
+        'json': {'loads', 'dumps'},
+        'random': {'randint', 'random', 'choice', 'shuffle'}
+    }
+
     # Zabronione wyrażenia AST
     FORBIDDEN_NODES = {
-        ast.Import, ast.ImportFrom,
         ast.Call  # Będziemy sprawdzać wywołania funkcji osobno
     }
 
@@ -35,8 +52,24 @@ class SafeCodeExecutor:
                     # Sprawdź czy wywołanie funkcji jest dozwolone
                     if hasattr(node.func, 'id') and node.func.id not in cls.ALLOWED_BUILTINS:
                         return False, f"Zabronione wywołanie funkcji: {node.func.id}"
-                else:
-                    return False, f"Zabroniona operacja: {type(node).__name__}"
+
+            # Sprawdź importy
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    module_name = alias.name
+                    if module_name not in cls.SAFE_IMPORTS:
+                        return False, f"Zabroniony import modułu: {module_name}"
+
+            if isinstance(node, ast.ImportFrom):
+                module_name = node.module
+                if module_name not in cls.SAFE_FROM_IMPORTS:
+                    return False, f"Zabroniony import z modułu: {module_name}"
+                
+                # Sprawdź czy importowane elementy są bezpieczne
+                allowed_names = cls.SAFE_FROM_IMPORTS[module_name]
+                for alias in node.names:
+                    if alias.name not in allowed_names and alias.name != '*':
+                        return False, f"Zabroniony import {alias.name} z modułu {module_name}"
 
             # Sprawdź dostęp do atrybutów
             if isinstance(node, ast.Attribute):
@@ -59,8 +92,19 @@ class SafeCodeExecutor:
             }
 
         # Przygotuj bezpieczne środowisko wykonania
+        safe_builtins = {name: getattr(builtins, name) for name in cls.ALLOWED_BUILTINS}
+        
+        # Dodaj bezpieczne moduły do środowiska
+        safe_modules = {}
+        for module_name in cls.SAFE_IMPORTS:
+            try:
+                safe_modules[module_name] = __import__(module_name)
+            except ImportError:
+                pass  # Ignoruj moduły których nie ma
+        
         safe_globals = {
-            '__builtins__': {name: getattr(builtins, name) for name in cls.ALLOWED_BUILTINS}
+            '__builtins__': safe_builtins,
+            **safe_modules
         }
         safe_locals = {}
 
