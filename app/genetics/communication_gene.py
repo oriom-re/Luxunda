@@ -2,6 +2,7 @@
 from typing import Dict, Any, List
 from app.genetics.base_gene import BaseGene, GeneActivationContext
 from app.beings.base import BaseBeing
+from datetime import datetime
 import asyncio
 import json
 
