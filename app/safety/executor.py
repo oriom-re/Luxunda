@@ -11,7 +11,7 @@ class SafeCodeExecutor:
     ALLOWED_BUILTINS = {
         'abs', 'all', 'any', 'bool', 'dict', 'enumerate', 'filter', 'float',
         'int', 'len', 'list', 'max', 'min', 'range', 'reversed', 'round',
-        'sorted', 'str', 'sum', 'tuple', 'zip', 'print'
+        'sorted', 'str', 'sum', 'tuple', 'zip', 'print', '__import__'
     }
 
     # Bezpieczne moduły/pakiety do importu
@@ -19,7 +19,7 @@ class SafeCodeExecutor:
         'math', 'random', 'datetime', 'json', 'uuid', 'hashlib',
         'base64', 'urllib.parse', 'collections', 'itertools',
         'functools', 'operator', 'string', 'textwrap',
-        're', 'decimal', 'fractions', 'statistics', 'string', 'random'
+        're', 'decimal', 'fractions', 'statistics'
     }
 
     # Bezpieczne imports z modułów
