@@ -56,7 +56,7 @@ class GeneticSystem:
             json.dump(default_manifest, f, indent=2, ensure_ascii=False)
     
     async def load_gene_from_path(self, gene_path: str):
-        """Ładuje gen z pliku"""
+        """Ładuje gen z pliku i zapisuje jako byt w bazie"""
         try:
             # Importuj moduł genu dynamicznie
             module_path = gene_path.replace('.py', '').replace('/', '.')
@@ -67,15 +67,49 @@ class GeneticSystem:
                 attr = getattr(gene_module, attr_name)
                 if hasattr(attr, '__gene_metadata__'):
                     gene_soul = str(uuid.uuid4())
-                    self.genes[gene_soul] = {
-                        'soul': gene_soul,
+                    
+                    # Zapisz gen jako byt w bazie danych
+                    gene_being = await BaseBeing.create(
+                        genesis={
+                            'type': 'gene',
+                            'name': attr.__gene_metadata__.get('name', 'UnknownGene'),
+                            'description': attr.__gene_metadata__.get('description', 'Genetic code component'),
+                            'source': gene_path,
+                            'gene_class': attr_name,
+                            'created_by': 'genetic_system'
+                        },
+                        attributes={
+                            'energy_level': 100,
+                            'gene_metadata': attr.__gene_metadata__,
+                            'gene_path': gene_path,
+                            'gene_module': module_path,
+                            'tags': ['gene', 'genetic', 'autoload'] + attr.__gene_metadata__.get('tags', [])
+                        },
+                        memories=[{
+                            'type': 'gene_load',
+                            'data': f'Gene loaded from {gene_path}',
+                            'timestamp': datetime.now().isoformat(),
+                            'module_path': module_path
+                        }],
+                        self_awareness={
+                            'trust_level': 0.9,
+                            'confidence': 0.8,
+                            'genetic_component': True
+                        }
+                    )
+                    
+                    # Zapisz w pamięci systemu genetycznego
+                    self.genes[gene_being.soul] = {
+                        'soul': gene_being.soul,
+                        'being': gene_being,
                         'module': gene_module,
                         'class': attr,
                         'metadata': attr.__gene_metadata__,
                         'path': gene_path,
                         'loaded_at': datetime.now()
                     }
-                    print(f"🧬 Załadowano gen: {attr.__gene_metadata__.get('name', gene_path)}")
+                    
+                    print(f"🧬 Załadowano i zapisano gen: {attr.__gene_metadata__.get('name', gene_path)} (UUID: {gene_being.soul})")
                     
         except Exception as e:
             print(f"❌ Błąd ładowania genu {gene_path}: {e}")
