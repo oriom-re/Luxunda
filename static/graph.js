@@ -1218,23 +1218,37 @@ class LuxOSUniverse {
         if (confirmDelete) {
             if (this.socket && this.socket.connected) {
                 console.log('🗑️ Usuwam byt:', being.soul);
-                
+
                 this.socket.emit('delete_being', {
                     soul: being.soul || being.soul_uid
                 });
-                
+
                 // Dodaj nasłuchiwanie na potwierdzenie usunięcia
-                this.socket.once('being_deleted', (response) => {
-                    console.log('✅ Byt usunięty:', response);
-                    this.showSuccessMessage(`Byt "${beingName}" został usunięty`);
-                });
-                
-                // Obsługa błędów
-                this.socket.once('error', (error) => {
-                    console.error('❌ Błąd usuwania:', error);
-                    this.showErrorMessage('Błąd usuwania: ' + error.message);
-                });
-                
+        this.socket.once('being_deleted', (response) => {
+            console.log('✅ Byt usunięty:', response);
+            this.showSuccessMessage(`Byt "${beingName}" został usunięty`);
+
+            // Usuń byt z lokalnej listy
+            this.beings = this.beings.filter(b => b.soul !== being.soul && b.soul_uid !== being.soul);
+
+            // Usuń relacje związane z tym bytem
+            if (this.relationships) {
+                this.relationships = this.relationships.filter(rel => 
+                    rel.source_soul !== being.soul && rel.target_soul !== being.soul
+                );
+            }
+
+            // Przerenderuj graf
+            this.renderUniverse();
+            this.updateStats();
+        });
+
+        // Obsługa błędów
+        this.socket.once('error', (error) => {
+            console.error('❌ Błąd usuwania:', error);
+            this.showErrorMessage('Błąd usuwania: ' + error.message);
+        });
+
             } else {
                 this.showErrorMessage('Brak połączenia z serwerem');
             }
@@ -1540,8 +1554,7 @@ class LuxOSUniverse {
         if (now - this.lastUpdateTime < this.updateThrottle) {
             return; // Skip update if too frequent
         }
-        this.lastUpdateTime =```python
-now;
+        this.lastUpdateTime = now;
         this.updateUniverse(data);
     }
 
@@ -1551,8 +1564,7 @@ now;
         errorDiv.className = 'error-message';
         errorDiv.textContent = message;
         errorDiv.style.cssText = `
-            position: fixed;
-            top: 100px;
+            position: fixed;top: 100px;
             right: 20px;
             background: #ff4444;
             color: white;
