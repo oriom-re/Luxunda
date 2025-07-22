@@ -100,6 +100,14 @@ class LuxOSUniverse {
             }
         });
 
+        // Obsługa odpowiedzi na zadania z callback systemem
+        this.socket.on('task_response', (response) => {
+            console.log('🔄 Otrzymano odpowiedź na zadanie:', response);
+            if (response.taskId) {
+                this.socket.emit(`task_response_${response.taskId}`, response);
+            }
+        });
+
         this.socket.on('intention_response', (response) => {
             try {
                 console.log('Odpowiedź na intencję:', response);
@@ -1219,35 +1227,52 @@ class LuxOSUniverse {
             if (this.socket && this.socket.connected) {
                 console.log('🗑️ Usuwam byt:', being.soul);
 
-                this.socket.emit('delete_being', {
-                    soul: being.soul || being.soul_uid
+                // Generuj unikalny ID zadania
+                const taskId = `delete_${being.soul}_${Date.now()}`;
+                
+                // Dodaj nasłuchiwanie na odpowiedź z tym konkretnym task ID
+                this.socket.once(`task_response_${taskId}`, (response) => {
+                    console.log('🔄 Otrzymano odpowiedź na zadanie:', taskId, response);
+                    
+                    if (response.success) {
+                        console.log('✅ Byt usunięty pomyślnie:', response);
+                        this.showSuccessMessage(`Byt "${beingName}" został usunięty`);
+
+                        // Usuń byt z lokalnej listy - sprawdź wszystkie możliwe identyfikatory
+                        this.beings = this.beings.filter(b => {
+                            const bSoul = b.soul || b.soul_uid;
+                            const targetSoul = being.soul || being.soul_uid;
+                            return bSoul !== targetSoul;
+                        });
+
+                        // Usuń relacje związane z tym bytem
+                        if (this.relationships) {
+                            const targetSoul = being.soul || being.soul_uid;
+                            this.relationships = this.relationships.filter(rel => 
+                                rel.source_soul !== targetSoul && rel.target_soul !== targetSoul
+                            );
+                        }
+
+                        // Przerenderuj graf
+                        this.renderUniverse();
+                        this.updateStats();
+                    } else {
+                        console.error('❌ Błąd usuwania bytu:', response);
+                        this.showErrorMessage(`Błąd usuwania: ${response.error || 'Nieznany błąd'}`);
+                    }
                 });
 
-                // Dodaj nasłuchiwanie na potwierdzenie usunięcia
-        this.socket.once('being_deleted', (response) => {
-            console.log('✅ Byt usunięty:', response);
-            this.showSuccessMessage(`Byt "${beingName}" został usunięty`);
+                // Wyślij żądanie z task ID
+                this.socket.emit('delete_being', {
+                    soul: being.soul || being.soul_uid,
+                    taskId: taskId
+                });
 
-            // Usuń byt z lokalnej listy
-            this.beings = this.beings.filter(b => b.soul !== being.soul && b.soul_uid !== being.soul);
-
-            // Usuń relacje związane z tym bytem
-            if (this.relationships) {
-                this.relationships = this.relationships.filter(rel => 
-                    rel.source_soul !== being.soul && rel.target_soul !== being.soul
-                );
-            }
-
-            // Przerenderuj graf
-            this.renderUniverse();
-            this.updateStats();
-        });
-
-        // Obsługa błędów
-        this.socket.once('error', (error) => {
-            console.error('❌ Błąd usuwania:', error);
-            this.showErrorMessage('Błąd usuwania: ' + error.message);
-        });
+                // Timeout po 10 sekundach
+                setTimeout(() => {
+                    this.socket.off(`task_response_${taskId}`);
+                    this.showErrorMessage('Timeout - operacja usuwania nie została potwierdzona');
+                }, 10000);
 
             } else {
                 this.showErrorMessage('Brak połączenia z serwerem');

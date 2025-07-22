@@ -65,6 +65,8 @@ async def get_graph_data(sid, data=None):
 @sio.event
 async def create_being(sid, data):
     """Tworzy nowy byt"""
+    task_id = data.get('taskId')
+    
     try:
         being_type = data.get('being_type', 'base')
         
@@ -72,9 +74,12 @@ async def create_being(sid, data):
         genesis = data.get('genesis', {})
         if (genesis.get('name') == 'Lux' or 
             genesis.get('type') == 'agent' and 'lux' in genesis.get('name', '').lower()):
-            await sio.emit('error', {
-                'message': 'BŁĄD: Nie można tworzyć agenta Lux przez frontend. Lux jest zarządzana przez system genetyczny.'
-            }, room=sid)
+            response = {
+                'success': False,
+                'error': 'BŁĄD: Nie można tworzyć agenta Lux przez frontend. Lux jest zarządzana przez system genetyczny.',
+                'taskId': task_id
+            }
+            await sio.emit('task_response', response, room=sid)
             return
         
         being = await BeingFactory.create_being(
@@ -86,12 +91,31 @@ async def create_being(sid, data):
             memories=data.get('memories', []),
             self_awareness=data.get('self_awareness', {})
         )
+        
         # Konwertuj do JSON-safe format
         being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
+        
+        # Wyślij potwierdzenie sukcesu
+        if task_id:
+            response = {
+                'success': True,
+                'being': being_dict,
+                'message': 'Byt został utworzony pomyślnie',
+                'taskId': task_id
+            }
+            await sio.emit('task_response', response, room=sid)
+        
+        # Wyślij do wszystkich klientów
         await sio.emit('being_created', being_dict)
         await sio.emit('node_added', being_dict)
+        
     except Exception as e:
-        await sio.emit('error', {'message': str(e)}, room=sid)
+        response = {
+            'success': False,
+            'error': str(e),
+            'taskId': task_id
+        }
+        await sio.emit('task_response', response, room=sid)
 
 @sio.event
 async def create_relationship(sid, data):
@@ -637,19 +661,29 @@ async def update_being(sid, data):
 async def delete_being(sid, data):
     """Usuwa byt z systemu"""
     soul = data.get('soul')
+    task_id = data.get('taskId')
+    
     if not soul:
-        await sio.emit('error', {'message': 'Brak soul bytu do usunięcia'}, room=sid)
+        response = {
+            'success': False,
+            'error': 'Brak soul bytu do usunięcia',
+            'taskId': task_id
+        }
+        await sio.emit('task_response', response, room=sid)
         return
 
     try:
-        print(f"🗑️ Usuwam byt: {soul}")
+        print(f"🗑️ Usuwam byt: {soul} (Task ID: {task_id})")
         
-        # BLOKUJ usuwanie agenta Lux
+        # BLOKUJ usywanie agenta Lux
         lux_soul = '00000000-0000-0000-0000-000000000001'
         if soul == lux_soul:
-            await sio.emit('error', {
-                'message': 'BŁĄD: Nie można usunąć agenta Lux! To główny agent świadomości systemu.'
-            }, room=sid)
+            response = {
+                'success': False,
+                'error': 'BŁĄD: Nie można usunąć agenta Lux! To główny agent świadomości systemu.',
+                'taskId': task_id
+            }
+            await sio.emit('task_response', response, room=sid)
             return
 
         db_pool = await get_db_pool()
@@ -670,7 +704,12 @@ async def delete_being(sid, data):
                 """, soul)
                 
                 if result == 'DELETE 0':
-                    await sio.emit('error', {'message': 'Byt nie znaleziony w bazie danych'}, room=sid)
+                    response = {
+                        'success': False,
+                        'error': 'Byt nie znaleziony w bazie danych',
+                        'taskId': task_id
+                    }
+                    await sio.emit('task_response', response, room=sid)
                     return
                     
                 print(f"✅ Usunięto byt z bazy: {result}")
@@ -688,7 +727,12 @@ async def delete_being(sid, data):
             """, (soul,))
             
             if cursor.rowcount == 0:
-                await sio.emit('error', {'message': 'Byt nie znaleziony w bazie danych'}, room=sid)
+                response = {
+                    'success': False,
+                    'error': 'Byt nie znaleziony w bazie danych',
+                    'taskId': task_id
+                }
+                await sio.emit('task_response', response, room=sid)
                 return
                 
             await db_pool.commit()
@@ -699,11 +743,14 @@ async def delete_being(sid, data):
             del genetic_system.beings[soul]
             print(f"🧬 Usunięto byt z systemu genetycznego")
 
-        # Wyślij potwierdzenie do klienta
-        await sio.emit('being_deleted', {
+        # Wyślij potwierdzenie sukcesu do klienta
+        response = {
+            'success': True,
             'soul': soul,
-            'message': 'Byt został usunięty pomyślnie'
-        }, room=sid)
+            'message': 'Byt został usunięty pomyślnie',
+            'taskId': task_id
+        }
+        await sio.emit('task_response', response, room=sid)
 
         # Wyślij aktualizację do wszystkich klientów
         await broadcast_graph_update()
@@ -713,7 +760,13 @@ async def delete_being(sid, data):
         print(f"❌ Błąd podczas usuwania bytu {soul}: {e}")
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
-        await sio.emit('error', {'message': f'Błąd usuwania: {str(e)}'}, room=sid)
+        
+        response = {
+            'success': False,
+            'error': f'Błąd usuwania: {str(e)}',
+            'taskId': task_id
+        }
+        await sio.emit('task_response', response, room=sid)
 
 @sio.event
 async def delete_relationship(sid, data):
