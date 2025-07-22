@@ -426,7 +426,22 @@ class GeneticSystem:
             
         print(f"✨ System genetyczny gotowy z {len(self.beings)} bytami")
         print(f"🧬 Dostępne geny: {len(self.genes)}")
-        print(f"🔗 Relacje genetyczne: {len([r for r in self.relationships.values() if r.genesis.get('type') == 'genetic_relationship'])}")
+        genetic_relationships = []
+        for r in self.relationships.values():
+            try:
+                # Sprawdź czy genesis to string czy dict
+                if isinstance(r.genesis, str):
+                    import json
+                    genesis_dict = json.loads(r.genesis)
+                else:
+                    genesis_dict = r.genesis
+                    
+                if genesis_dict.get('type') == 'genetic_relationship':
+                    genetic_relationships.append(r)
+            except (json.JSONDecodeError, AttributeError):
+                continue
+                
+        print(f"🔗 Relacje genetyczne: {len(genetic_relationships)}")
 
     async def get_lux_status(self) -> Dict[str, Any]:
         """Zwraca status agenta Lux"""
