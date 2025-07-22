@@ -926,8 +926,74 @@ async def send_graph_data(sid):
     """Wysyła dane grafu do konkretnego klienta"""
     global db_pool
     try:
-        graph_data = await get_graph_data()
-        await sio.emit('graph_data', graph_data, room=sid)
+        # Pobierz dane wszechświata z systemu genetycznego
+        beings_data = []
+        relationships_data = []
+
+        # Pobierz wszystkie byty
+        all_beings = await BaseBeing.get_all()
+        for being in all_beings:
+            try:
+                being_data = {
+                    'soul': being.soul,
+                    'soul_uid': being.soul,
+                    'genesis': being.genesis if isinstance(being.genesis, dict) else json.loads(being.genesis),
+                    'attributes': being.attributes if isinstance(being.attributes, dict) else json.loads(being.attributes),
+                    'memories': being.memories if isinstance(being.memories, list) else json.loads(being.memories),
+                    'self_awareness': being.self_awareness if isinstance(being.self_awareness, dict) else json.loads(being.self_awareness),
+                    'created_at': being.created_at.isoformat() if being.created_at else None
+                }
+                beings_data.append(being_data)
+            except Exception as e:
+                print(f"❌ Błąd serializacji bytu {being.soul}: {e}")
+
+        # Pobierz wszystkie relacje
+        all_relationships = await Relationship.get_all()
+        print(f"🔗 Znaleziono {len(all_relationships)} relacji w bazie")
+
+        for rel in all_relationships:
+            try:
+                # Bezpieczne parsowanie genesis
+                genesis_data = rel.genesis
+                if isinstance(rel.genesis, str):
+                    try:
+                        genesis_data = json.loads(rel.genesis)
+                    except json.JSONDecodeError:
+                        print(f"⚠️ Błąd parsowania genesis relacji {rel.id}")
+                        genesis_data = {'type': 'unknown'}
+
+                # Bezpieczne parsowanie attributes
+                attributes_data = rel.attributes
+                if isinstance(rel.attributes, str):
+                    try:
+                        attributes_data = json.loads(rel.attributes)
+                    except json.JSONDecodeError:
+                        print(f"⚠️ Błąd parsowania attributes relacji {rel.id}")
+                        attributes_data = {}
+
+                rel_data = {
+                    'id': rel.id,
+                    'source_soul': rel.source_soul,
+                    'target_soul': rel.target_soul,
+                    'genesis': genesis_data,
+                    'attributes': attributes_data,
+                    'created_at': rel.created_at.isoformat() if rel.created_at else None
+                }
+                relationships_data.append(rel_data)
+                print(f"🔗 Relacja: {rel.source_soul} → {rel.target_soul} ({genesis_data.get('type', 'unknown')})")
+
+            except Exception as e:
+                print(f"❌ Błąd serializacji relacji {rel.id}: {e}")
+
+        print(f"📊 Wysyłam do frontendu: {len(beings_data)} bytów, {len(relationships_data)} relacji")
+
+        data = {
+            'nodes': beings_data,
+            'relationships': relationships_data,
+            'links': relationships_data  # Dodaj również jako 'links' dla kompatybilności
+        }
+
+        await sio.emit('graph_data', data)
     except Exception as e:
         print(f"Błąd w send_graph_data: {e}")
         await sio.emit('error', {'message': f'Błąd ładowania danych: {str(e)}'}, room=sid)
@@ -1143,7 +1209,7 @@ async def init_app():
         if hasattr(route, 'resource') and route.resource.canonical.startswith('/api/'):
             cors.add(route)
 
-    
+
 
 async def main():
     print("🚀 Uruchamianie serwera LuxOS...")
@@ -1218,12 +1284,12 @@ async def get_lux_status(sid):
     try:
         lux_status = await genetic_system.get_lux_status()
         await sio.emit('lux_status', lux_status, room=sid)
-        
+
         if lux_status.get('exists'):
             print(f"✨ Agent Lux aktywny: {lux_status}")
         else:
             print("❌ Agent Lux nie został znaleziony")
-            
+
     except Exception as e:
         print(f"Błąd pobierania statusu Lux: {e}")
         await sio.emit('error', {'message': str(e)}, room=sid)
@@ -1234,12 +1300,12 @@ async def initialize_lux_agent(sid):
     try:
         await genetic_system.create_initial_beings()
         lux_status = await genetic_system.get_lux_status()
-        
+
         await sio.emit('lux_initialized', lux_status, room=sid)
         await broadcast_graph_update()
-        
+
         print(f"🧬 Agent Lux zainicjalizowany: {lux_status}")
-        
+
     except Exception as e:
         print(f"Błąd inicjalizacji Lux: {e}")
         await sio.emit('error', {'message': str(e)}, room=sid)

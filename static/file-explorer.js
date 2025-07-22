@@ -435,17 +435,28 @@ class FileExplorer {
         const graphElement = document.getElementById('graph');
         if (graphElement) {
             if (this.isVisible) {
+                graphElement.classList.remove('explorer-collapsed');
                 graphElement.style.marginLeft = '280px';
                 graphElement.style.width = 'calc(100% - 280px)';
             } else {
+                graphElement.classList.add('explorer-collapsed');
                 graphElement.style.marginLeft = '40px';
                 graphElement.style.width = 'calc(100% - 40px)';
             }
         }
 
-        // Powiadom graf o zmianie rozmiaru
-        if (window.luxOSUniverse && window.luxOSUniverse.resizeGraph) {
-            window.luxOSUniverse.resizeGraph();
+        // Poinformuj wszechświat o zmianie rozmiaru
+        if (window.luxOSUniverse) {
+            // Daj chwilę na zakończenie animacji CSS
+            setTimeout(() => {
+                if (window.luxOSUniverse.resizeGraph) {
+                    window.luxOSUniverse.resizeGraph();
+                }
+                // Restart symulacji dla lepszego układu
+                if (window.luxOSUniverse.simulation) {
+                    window.luxOSUniverse.simulation.alpha(0.3).restart();
+                }
+            }, 300);
         }
     }
 

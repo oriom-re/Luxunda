@@ -767,7 +767,8 @@ class LuxOSUniverse {
                 // Jeśli byt jest zbyt daleko od centrum, przyciągnij go
                 const distance = Math.sqrt(x * x + y * y);
                 if (distance > maxDistance && !this.isLuxAgent(d)) {
-                    const scale = maxDistance / distance;                    x = x * scale;
+                    const scale = maxDistance / distance;```python
+                    x = x * scale;
                     y = y * scale;
                     // Aktualizuj pozycję w danych
                     d.x = x;
@@ -1563,8 +1564,8 @@ class LuxOSUniverse {
         if (now - this.lastUpdateTime < this.updateThrottle) {
             return; // Skip update if too frequent
         }
-        this.lastUpdateTime = now;
-```python
+        this.lastUpdateTime =```python
+now;
         this.updateUniverse(data);
     }
 
@@ -1768,5 +1769,19 @@ universeStyle.innerHTML = `
     .success-message {
         transition: transform 0.2s ease-out, opacity 0.2s ease-out;
     }
+
+    #graph {
+            width: calc(100% - 280px);
+            height: calc(100vh - 70px - 120px);
+            margin-left: 280px;
+            background: radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        #graph.explorer-collapsed {
+            width: calc(100% - 40px);
+            margin-left: 40px;
+        }
 `;
 document.head.appendChild(universeStyle);
