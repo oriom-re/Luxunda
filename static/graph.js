@@ -149,6 +149,23 @@ class LuxOSUniverse {
                 this.gentleUpdateGraphData(data);
             }
         });
+
+        // Obsłuż płynne usuwanie bytów
+        this.socket.on('being_removed_smoothly', (data) => {
+            console.log('🎯 Otrzymano powiadomienie o płynnym usunięciu:', data.soul);
+            
+            // Znajdź byt w lokalnych danych
+            const beingToRemove = this.beings.find(b => 
+                (b.soul || b.soul_uid) === data.soul
+            );
+            
+            if (beingToRemove) {
+                // Użyj płynnego usuwania
+                this.smoothRemoveBeing(beingToRemove);
+            } else {
+                console.warn(`⚠️ Byt ${data.soul} nie znaleziony w lokalnych danych`);
+            }
+        });
     }
 
     initUniverse() {
@@ -1814,32 +1831,63 @@ class LuxOSUniverse {
         this.updateStats();
     }
 
-    // Płynne usuwanie bytu z animacją
+    // Płynne usuwanie bytu z animacją BEZ pełnego odświeżania
     smoothRemoveBeing(being) {
         const targetSoul = being.soul || being.soul_uid;
+        console.log(`🎯 Płynne usuwanie bytu: ${targetSoul}`);
 
-        // Znajdź element SVG bytu
-        const beingElement = this.beingSelection.filter(d => d.soul === targetSoul).node();
+        // Znajdź element SVG bytu w aktualnej selekcji
+        const beingElement = this.beingSelection ? 
+            this.beingSelection.filter(d => (d.soul || d.soul_uid) === targetSoul).node() : null;
 
         if (beingElement) {
-            // Animacja zanikania
+            console.log(`✨ Znaleziono element SVG - rozpoczynam animację zanikania`);
+            
+            // Animacja zanikania z płynnym przejściem
             d3.select(beingElement)
                 .transition()
-                .duration(500)
+                .duration(800)
                 .style("opacity", 0)
-                .remove()
+                .style("transform", "scale(0.1)")
                 .on("end", () => {
-                    // Usuń byt z danych po animacji
+                    // Usuń element z DOM
+                    d3.select(beingElement).remove();
+                    console.log(`🗑️ Element SVG usunięty z DOM`);
+                    
+                    // Usuń byt z lokalnej listy
+                    const beforeCount = this.beings.length;
                     this.beings = this.beings.filter(b => (b.soul || b.soul_uid) !== targetSoul);
-                    this.renderRelationships(); // Zaktualizuj relacje
-                    this.updateStats(); // Zaktualizuj statystyki
+                    const afterCount = this.beings.length;
+                    console.log(`📊 Usunięto z lokalnej listy: ${beforeCount} → ${afterCount} bytów`);
+                    
+                    // TYLKO aktualizuj statystyki - NIE renderuj całości
+                    this.updateStats();
+                    
+                    // Zaktualizuj symulację bez pełnego re-render
+                    if (this.simulation) {
+                        this.simulation.nodes(this.beings);
+                        this.simulation.alpha(0.1).restart();
+                    }
+                    
+                    console.log(`✅ Płynne usuwanie zakończone`);
                 });
         } else {
-            console.warn(`❌ Nie znaleziono bytu do usunięcia: ${targetSoul}`);
-            // Usuń byt z danych
+            console.warn(`⚠️ Nie znaleziono elementu SVG dla bytu: ${targetSoul}`);
+            
+            // Fallback - usuń z danych bez animacji
+            const beforeCount = this.beings.length;
             this.beings = this.beings.filter(b => (b.soul || b.soul_uid) !== targetSoul);
-            this.renderRelationships(); // Zaktualizuj relacje
-            this.updateStats(); // Zaktualizuj statystyki
+            const afterCount = this.beings.length;
+            console.log(`📊 Fallback usunięcie: ${beforeCount} → ${afterCount} bytów`);
+            
+            // TYLKO aktualizuj statystyki
+            this.updateStats();
+            
+            // Zaktualizuj symulację
+            if (this.simulation) {
+                this.simulation.nodes(this.beings);
+                this.simulation.alpha(0.1).restart();
+            }
         }
     }
 }

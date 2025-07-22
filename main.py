@@ -751,23 +751,17 @@ async def delete_being(sid, data):
         }
         await sio.emit('task_response', response, room=sid)
 
-        # NATYCHMIASTOWA aktualizacja do wszystkich klientów - wielokrotna dla pewności
+        # Wyślij delikatne powiadomienie o usunięciu - NIE pełne odświeżanie
         try:
-            # 1. Wyślij do wszystkich
-            await broadcast_graph_update()
-            print(f"📡 1/3 Wysłano broadcast po usunięciu: {soul}")
-            
-            # 2. Wyślij bezpośrednio do klienta który usuwał
-            await send_graph_data(sid)
-            print(f"📡 2/3 Wysłano bezpośrednio do klienta {sid}")
-            
-            # 3. Dodatkowa aktualizacja po 200ms dla pewności
-            await asyncio.sleep(0.2)
-            await sio.emit('graph_data_force_refresh', await get_graph_data())
-            print(f"📡 3/3 Wymuszona aktualizacja po 200ms")
+            # Wyślij TYLKO informację o usuniętym bycie
+            await sio.emit('being_removed_smoothly', {
+                'soul': soul,
+                'message': f'Byt {soul} został usunięty płynnie'
+            })
+            print(f"🎯 Wysłano delikatne powiadomienie o usunięciu: {soul}")
             
         except Exception as e:
-            print(f"❌ Błąd wysyłania aktualizacji grafu: {e}")
+            print(f"❌ Błąd wysyłania powiadomienia o usunięciu: {e}")
 
     except Exception as e:
         print(f"❌ Błąd podczas usuwania bytu {soul}: {e}")
