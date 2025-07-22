@@ -1423,5 +1423,22 @@ async def create_genetic_thought(sid, data):
         print(f"Błąd tworzenia myśli: {e}")
         await sio.emit('error', {'message': str(e)}, room=sid)
 
+@sio.event
+async def clean_duplicate_genes(sid, data):
+    """Endpoint do czyszczenia duplikatów genów"""
+    try:
+        removed_count = await genetic_system.clean_duplicate_genes()
+        
+        await sio.emit('duplicate_genes_cleaned', {
+            'removed_count': removed_count,
+            'message': f'Usunięto {removed_count} duplikatów genów'
+        }, room=sid)
+
+        await broadcast_graph_update()
+
+    except Exception as e:
+        print(f"Błąd czyszczenia duplikatów genów: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
+
 if __name__ == '__main__':
     asyncio.run(main())
