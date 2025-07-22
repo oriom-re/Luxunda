@@ -1143,7 +1143,7 @@ async def init_app():
         if hasattr(route, 'resource') and route.resource.canonical.startswith('/api/'):
             cors.add(route)
 
-    await init_database()
+    
 
 async def main():
     print("🚀 Uruchamianie serwera LuxOS...")
