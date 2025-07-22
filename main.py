@@ -746,18 +746,26 @@ async def delete_being(sid, data):
             'success': True,
             'soul': soul,
             'message': 'Byt został usunięty pomyślnie',
-            'taskId': task_id
+            'taskId': task_id,
+            'deleted_soul': soul  # Dodaj explicit info o usuniętym bycie
         }
         await sio.emit('task_response', response, room=sid)
 
-        # Wyślij natychmiastową aktualizację do wszystkich klientów
+        # NATYCHMIASTOWA aktualizacja do wszystkich klientów - wielokrotna dla pewności
         try:
+            # 1. Wyślij do wszystkich
             await broadcast_graph_update()
-            print(f"📡 Wysłano aktualizację grafu po usunięciu: {soul}")
+            print(f"📡 1/3 Wysłano broadcast po usunięciu: {soul}")
             
-            # Dodatkowe wysłanie do konkretnego klienta dla pewności
+            # 2. Wyślij bezpośrednio do klienta który usuwał
             await send_graph_data(sid)
-            print(f"📡 Dodatkowe wysłanie danych do klienta {sid}")
+            print(f"📡 2/3 Wysłano bezpośrednio do klienta {sid}")
+            
+            # 3. Dodatkowa aktualizacja po 200ms dla pewności
+            await asyncio.sleep(0.2)
+            await sio.emit('graph_data_force_refresh', await get_graph_data())
+            print(f"📡 3/3 Wymuszona aktualizacja po 200ms")
+            
         except Exception as e:
             print(f"❌ Błąd wysyłania aktualizacji grafu: {e}")
 

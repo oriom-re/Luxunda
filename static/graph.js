@@ -402,7 +402,7 @@ class LuxOSUniverse {
 
     renderUniverse() {
         console.log(`🌌 Renderuję wszechświat z ${this.beings.length} bytami`);
-        
+
         // Renderuj orbity
         this.renderOrbits();
 
@@ -1233,57 +1233,40 @@ class LuxOSUniverse {
 
                 // Generuj unikalny ID zadania
                 const taskId = `delete_${being.soul}_${Date.now()}`;
-                
+
                 // Dodaj nasłuchiwanie na odpowiedź z tym konkretnym task ID
                 this.socket.once(`task_response_${taskId}`, (response) => {
                     console.log('🔄 Otrzymano odpowiedź na zadanie:', taskId, response);
-                    
-                    if (response.success) {
-                        console.log('✅ Byt usunięty pomyślnie:', response);
-                        this.showSuccessMessage(`Byt "${beingName}" został usunięty`);
 
-                        // Usuń byt z lokalnej listy - sprawdź wszystkie możliwe identyfikatory
+                    if (response.success) {
+                        console.log(`✅ Byt "${beingName}" został usunięty z backendu`);
+
+                        // NATYCHMIASTOWE usunięcie z lokalnej listy
                         const targetSoul = being.soul || being.soul_uid;
                         const beforeCount = this.beings.length;
-                        
+
+                        // Usuń ze wszystkich struktur danych
                         this.beings = this.beings.filter(b => {
                             const bSoul = b.soul || b.soul_uid;
-                            const matches = bSoul === targetSoul;
-                            if (matches) {
-                                console.log(`🗑️ Usuwam z lokalnej listy: ${bSoul}`);
+                            const shouldKeep = bSoul !== targetSoul;
+                            if (!shouldKeep) {
+                                console.log(`🗑️ Usuwam lokalnie: ${bSoul}`);
                             }
-                            return !matches;
+                            return shouldKeep;
                         });
-                        
-                        const afterCount = this.beings.length;
-                        console.log(`🔄 Usunięto ${beforeCount - afterCount} bytów z lokalnej listy (${beforeCount} → ${afterCount})`);
 
-                        // NIE usuwamy relacji - to historia! Zostawiamy je
-                        console.log(`📚 Relacje zostają jako historia - nie usuwam relacji z bytem ${targetSoul}`);
+                        // Wymuś kompletną regenerację grafu
+                        this.forceCompleteRerender();
 
-                        // Zatrzymaj symulację przed re-renderowaniem
-                        if (this.simulation) {
-                            this.simulation.stop();
-                            this.simulation = null;
-                        }
+                        // Pokaż sukces
+                        this.showSuccessMessage(`Byt "${beingName}" został usunięty`);
 
-                        // Wyczyść graf przed ponownym renderowaniem
-                        if (this.beingsGroup) {
-                            this.beingsGroup.selectAll(".being").remove();
-                        }
-                        if (this.linksGroup) {
-                            this.linksGroup.selectAll(".relationship").remove();
-                        }
+                        console.log(`📊 Lokalnie usunięto ${beforeCount - this.beings.length} bytów (${beforeCount} → ${this.beings.length})`);
 
-                        // Wymuś natychmiastowe re-renderowanie
+                        // Dodatkowe żądanie odświeżenia danych z serwera
                         setTimeout(() => {
-                            this.renderUniverse();
-                            this.updateStats();
-                            console.log(`📊 Graf zaktualizowany - pozostało ${this.beings.length} bytów`);
-                        }, 100);
-
-                        // Natychmiastowa aktualizacja statystyk
-                        this.updateStats();
+                            this.socket.emit('get_graph_data');
+                        }, 500);
                     } else {
                         console.error('❌ Błąd usuwania bytu:', response);
                         this.showErrorMessage(`Błąd usuwania: ${response.error || 'Nieznany błąd'}`);
@@ -1570,7 +1553,7 @@ class LuxOSUniverse {
     attemptReconnect() {
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
-            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 5000);
+            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts -1), 5000);
 
             console.log(`Próba reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} za ${delay}ms`);
 
@@ -1767,6 +1750,37 @@ class LuxOSUniverse {
             'unknown': '#666666'
         };
         return colors[type] || colors.unknown;
+    }
+
+    // Wymusza kompletny rerender grafu
+    forceCompleteRerender() {
+        console.warn('🔄 Wymuszam kompletną regenerację grafu');
+
+        // Zatrzymaj symulację
+        if (this.simulation) {
+            this.simulation.stop();
+            this.simulation = null;
+        }
+
+        // Wyczyść grupy SVG
+        if (this.beingsGroup) {
+            this.beingsGroup.selectAll(".being").remove();
+        }
+        if (this.linksGroup) {
+            this.linksGroup.selectAll(".relationship").remove();
+        }
+        if (this.orbitsGroup) {
+            this.orbitsGroup.selectAll(".main-intention-orbit").remove();
+        }
+
+        // Zresetuj zaznaczone węzły
+        this.selectedNodes = [];
+
+        // Przerenderuj wszystko od nowa
+        this.renderUniverse();
+        this.updateStats();
+
+        console.warn(`📊 Graf zregenerowany - pozostało ${this.beings.length} bytów`);
     }
 
     // Obsługa tick simulation
