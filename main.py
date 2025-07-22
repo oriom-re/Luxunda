@@ -1148,7 +1148,10 @@ async def init_app():
 async def main():
     print("🚀 Uruchamianie serwera LuxOS...")
 
-    # Inicjalizuj system genetyczny
+    # Najpierw inicjalizuj bazę danych
+    await init_database()
+
+    # Potem inicjalizuj system genetyczny
     await genetic_system.initialize()
 
     # Uruchom serwer
