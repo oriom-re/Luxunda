@@ -1,0 +1,20 @@
+
+{
+  "autoload": [
+    {"path": "app/genetics/genes/gen_clock.py"},
+    {"path": "app/genetics/genes/gen_logger.py"},
+    {"path": "app/genetics/genes/gen_executor.py"}
+  ],
+  "universe_config": {
+    "max_beings": 1000,
+    "max_relationships": 10000,
+    "memory_retention_days": 365,
+    "auto_evolution": true,
+    "genetic_diversity_threshold": 0.7
+  },
+  "default_being_attributes": {
+    "energy_level": 100,
+    "trust_level": 0.5,
+    "learning_rate": 0.1
+  }
+}

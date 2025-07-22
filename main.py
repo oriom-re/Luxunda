@@ -16,6 +16,7 @@ from app.beings.being_factory import BeingFactory
 from app.beings.function_router import FunctionRouter
 from app.beings import DateTimeEncoder
 from app.ai.function_calling import OpenAIFunctionCaller
+from app.genetics.genetic_system import genetic_system
 
 
 
@@ -171,7 +172,7 @@ async def process_intention(sid, data):
         print(f"Odpowiedź na intencję: {response}")
 
         await sio.emit('intention_response', response, room=sid)
-        
+
         # Wyślij aktualizację grafu
         await broadcast_graph_update()
 
@@ -255,15 +256,15 @@ async def lux_use_tool(sid, data):
     try:
         tool_name = data.get('tool_name')
         parameters = data.get('parameters', {})
-        
+
         if not tool_name:
             await sio.emit('error', {'message': 'Brak nazwy narzędzia'}, room=sid)
             return
-        
+
         print(f"Lux używa narzędzia: {tool_name} z parametrami: {parameters}")
-        
+
         result = await lux_tools.execute_tool(tool_name, parameters)
-        
+
         # Zapisz użycie narzędzia w pamięci Lux
         if result['success']:
             # Znajdź byt Lux i zapisz w pamięci
@@ -280,9 +281,9 @@ async def lux_use_tool(sid, data):
                 }
                 lux_being.memories.append(memory_entry)
                 await lux_being.save()
-        
+
         await sio.emit('lux_tool_result', result, room=sid)
-        
+
     except Exception as e:
         error_result = {
             'success': False,
@@ -340,7 +341,7 @@ async def lux_communication(sid, data):
 
         await sio.emit('lux_communication_response', response, room=sid)
         print(f"Odpowiedź wysłana pomyślnie")
-        
+
         await broadcast_graph_update()
 
     except Exception as e:
@@ -365,9 +366,9 @@ async def get_available_tools(sid, data):
             'check_syntax': 'Sprawdza składnię kodu',
             'search_in_files': 'Wyszukuje w plikach'
         }
-        
+
         await sio.emit('available_tools', tools_info, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd pobierania narzędzi: {str(e)}'}, room=sid)
 
@@ -377,21 +378,21 @@ async def get_file_structure(sid, data):
     try:
         from pathlib import Path
         import fnmatch
-        
+
         root_path = Path(data.get('path', '.'))
         gitignore_patterns = []
-        
+
         # Wczytaj .gitignore jeśli istnieje
         gitignore_file = Path('.gitignore')
         if gitignore_file.exists():
             with open(gitignore_file, 'r', encoding='utf-8') as f:
                 gitignore_patterns = [line.strip() for line in f.readlines() 
                                     if line.strip() and not line.startswith('#')]
-        
+
         # Dodaj podstawowe wzorce do ignorowania
         default_ignore = ['.git/', '__pycache__/', '*.pyc', '.vscode/', 'node_modules/', '.config/']
         gitignore_patterns.extend(default_ignore)
-        
+
         def should_ignore(path_str):
             for pattern in gitignore_patterns:
                 if fnmatch.fnmatch(path_str, pattern) or fnmatch.fnmatch(path_str, pattern.rstrip('/')):
@@ -401,47 +402,47 @@ async def get_file_structure(sid, data):
                     if f"/{pattern.rstrip('/')}/" in f"/{path_str}/":
                         return True
             return False
-        
+
         def get_file_structure_recursive(path):
             items = []
-            
+
             if not path.exists() or should_ignore(str(path.relative_to('.'))):
                 return items
-                
+
             try:
                 for item in sorted(path.iterdir()):
                     relative_path = item.relative_to('.')
-                    
+
                     # Pomiń pliki/foldery z .gitignore
                     if should_ignore(str(relative_path)):
                         continue
-                    
+
                     item_data = {
                         'name': item.name,
                         'type': 'folder' if item.is_dir() else 'file',
                         'path': str(relative_path),
                         'size': item.stat().st_size if item.is_file() else 0
                     }
-                    
+
                     if item.is_dir():
                         item_data['children'] = get_file_structure_recursive(item)
-                    
+
                     items.append(item_data)
-                    
+
             except PermissionError:
                 pass  # Pomiń katalogi bez dostępu
-                
+
             return items
-        
+
         file_structure = {
             'name': 'LuxOS',
             'type': 'folder', 
             'path': '.',
             'children': get_file_structure_recursive(Path('.'))
         }
-        
+
         await sio.emit('file_structure', file_structure, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd pobierania struktury plików: {str(e)}'}, room=sid)
 
@@ -452,22 +453,22 @@ async def call_openai_with_functions(sid, data):
         if not openai_function_caller:
             await sio.emit('error', {'message': 'OpenAI Function Caller nie jest skonfigurowany'}, room=sid)
             return
-        
+
         prompt = data.get('prompt', '')
         context = data.get('context', {})
-        
+
         if not prompt:
             await sio.emit('error', {'message': 'Brak prompt dla OpenAI'}, room=sid)
             return
-        
+
         result = await openai_function_caller.call_with_functions(prompt, context)
-        
+
         await sio.emit('openai_function_result', result, room=sid)
-        
+
         # Aktualizuj graf jeśli funkcje były wykonywane
         if result.get('tool_calls'):
             await broadcast_graph_update()
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd wywołania OpenAI: {str(e)}'}, room=sid)
 
@@ -478,18 +479,18 @@ async def register_function_for_openai(sid, data):
         if not openai_function_caller:
             await sio.emit('error', {'message': 'OpenAI Function Caller nie jest skonfigurowany'}, room=sid)
             return
-        
+
         soul = data.get('soul')
         if not soul:
             await sio.emit('error', {'message': 'Brak soul bytu funkcyjnego'}, room=sid)
             return
-        
+
         # Załaduj byt
         being = await BaseBeing.load(soul)
         if not being or being.genesis.get('type') != 'function':
             await sio.emit('error', {'message': 'Byt nie jest funkcją'}, room=sid)
             return
-        
+
         # Konwertuj na FunctionBeing
         from app.beings.function_being import FunctionBeing
         function_being = FunctionBeing(
@@ -500,9 +501,9 @@ async def register_function_for_openai(sid, data):
             self_awareness=being.self_awareness,
             created_at=being.created_at
         )
-        
+
         success = await openai_function_caller.register_function_being(function_being)
-        
+
         if success:
             await sio.emit('function_registered_for_openai', {
                 'soul': soul,
@@ -511,7 +512,7 @@ async def register_function_for_openai(sid, data):
             }, room=sid)
         else:
             await sio.emit('error', {'message': 'Nie udało się zarejestrować funkcji'}, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd rejestracji funkcji: {str(e)}'}, room=sid)
 
@@ -522,10 +523,10 @@ async def get_openai_functions(sid, data):
         if not openai_function_caller:
             await sio.emit('openai_functions_list', {'functions': []}, room=sid)
             return
-        
+
         functions = openai_function_caller.get_available_functions()
         await sio.emit('openai_functions_list', {'functions': functions}, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd pobierania funkcji: {str(e)}'}, room=sid)
 
@@ -534,28 +535,28 @@ async def read_file(sid, data):
     """Odczytuje zawartość pliku"""
     try:
         file_path = data.get('file_path', '')
-        
+
         if not file_path:
             await sio.emit('error', {'message': 'Brak ścieżki pliku'}, room=sid)
             return
-        
+
         from pathlib import Path
-        
+
         path = Path(file_path)
-        
+
         if not path.exists():
             await sio.emit('error', {'message': f'Plik nie istnieje: {file_path}'}, room=sid)
             return
-        
+
         if not path.is_file():
             await sio.emit('error', {'message': f'Ścieżka nie jest plikiem: {file_path}'}, room=sid)
             return
-        
+
         # Sprawdź czy plik nie jest zbyt duży (max 1MB)
         if path.stat().st_size > 1024 * 1024:
             await sio.emit('error', {'message': f'Plik zbyt duży: {file_path}'}, room=sid)
             return
-        
+
         try:
             # Spróbuj odczytać jako tekst
             with open(path, 'r', encoding='utf-8') as f:
@@ -563,16 +564,16 @@ async def read_file(sid, data):
         except UnicodeDecodeError:
             # Jeśli nie można jako tekst, oznacz jako binarny
             content = f"[Plik binarny: {path.name}]"
-        
+
         file_data = {
             'file_path': file_path,
             'content': content,
             'size': path.stat().st_size,
             'extension': path.suffix
         }
-        
+
         await sio.emit('file_content', file_data, room=sid)
-        
+
     except Exception as e:
         await sio.emit('error', {'message': f'Błąd odczytu pliku: {str(e)}'}, room=sid)
 
@@ -597,7 +598,7 @@ async def update_being(sid, data):
             self_awareness = $4
         WHERE soul = $1
         """
-        
+
         result = await db_pool.execute(
             query, 
             soul, 
@@ -629,14 +630,14 @@ async def delete_being(sid, data):
     if not soul:
         await sio.emit('error', {'message': 'Brak soul bytu do usunięcia'}, room=sid)
         return
-        
+
     try:
         # Najpierw usuń powiązane relacje
         await db_pool.execute("""
             DELETE FROM relationships 
             WHERE source_soul = $1 OR target_soul = $1
         """, soul)
-        
+
         # Następnie usuń byt
         result = await db_pool.execute("""
             DELETE FROM base_beings WHERE soul = $1
@@ -682,36 +683,36 @@ async def analyze_lux_communication(message: str, context: dict) -> dict:
     if openai_function_caller and openai_function_caller.get_available_functions():
         try:
             result = await openai_function_caller.call_with_functions(message, context)
-            
+
             response = {
                 'message': result.get('final_response') or result.get('response') or 'Przeanalizowałem twoją prośbę.',
                 'openai_response': True,
                 'function_calls': result.get('tool_calls', []),
                 'actions': []
             }
-            
+
             # Jeśli były wywołania funkcji, dodaj informacje
             if result.get('tool_calls'):
                 response['message'] += f"\n\nWykonałem {len(result['tool_calls'])} funkcji z bytów astralnych."
-            
+
             return response
-            
+
         except Exception as e:
             print(f"Błąd OpenAI Function Calling: {e}")
             # Fallback do starego systemu
-    
+
     # Fallback - użyj starego parsera narzędzi
     from tool_parser import analyze_message_for_tools
-    
+
     parser_result = analyze_message_for_tools(message)
-    
+
     response = {
         'message': 'Analizuję twoją prośbę...',
         'suggested_tools': parser_result['suggested_tools'],
         'actions': [],
         'openai_response': False
     }
-    
+
     # Jeśli parser nie wykrył narzędzi z wystarczającą pewnością, dodaj GPT jako fallback
     if not response['suggested_tools'] or parser_result['highest_confidence'] < 0.5:
         response['suggested_tools'].append({
@@ -720,7 +721,7 @@ async def analyze_lux_communication(message: str, context: dict) -> dict:
             'parameters': {'prompt': f"Użytkownik napisał: '{message}'. Jak mogę pomóc?"},
             'confidence': 0.4
         })
-    
+
     # Aktualizuj wiadomość na podstawie wyników parsera
     if parser_result['total_detected'] > 0:
         highest_confidence = parser_result['highest_confidence']
@@ -728,7 +729,7 @@ async def analyze_lux_communication(message: str, context: dict) -> dict:
         response['message'] = f"Wykryłem {parser_result['total_detected']} narzędzi z {confidence_text} pewnością."
     else:
         response['message'] = "Nie wykryłem konkretnych narzędzi, przekażę zapytanie do GPT."
-    
+
     return response
 
 async def analyze_intention(intention: str, context: dict) -> dict:
@@ -799,7 +800,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                 }
             })
             message = f"Utworzono byt klasy: {name}"
-            
+
         elif 'task' in intention or 'zadani' in intention:
             words = intention.split()
             name = "Nowe_Zadanie"
@@ -826,9 +827,10 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                 }
             })
             message = f"Utworzono byt zadania: {name}"
-            
+
         elif 'komponent' in intention or 'd3' in intention:
             words = intention.split()
+```tool_code
             name = "Nowy_Komponent"
             for i, word in enumerate(words):
                 if word in ['komponent', 'komponentu', 'd3'] and i < len(words) - 1:
@@ -1003,7 +1005,7 @@ async def init_database():
         pool = await aiosqlite.connect('luxos.db')
         set_db_pool(pool)
         await setup_sqlite_tables()
-    
+
     # Auto-rejestruj funkcje w OpenAI Function Caller
     if openai_function_caller:
         registered_count = await openai_function_caller.auto_register_function_beings()
@@ -1145,6 +1147,12 @@ async def init_app():
     await init_database()
 
 async def main():
+    print("🚀 Uruchamianie serwera LuxOS...")
+
+    # Inicjalizuj system genetyczny
+    await genetic_system.initialize()
+
+    # Uruchom serwer
     await init_app()
     runner = web.AppRunner(app)
     await runner.setup()
@@ -1159,6 +1167,104 @@ async def main():
         pass
     finally:
         await runner.cleanup()
+
+@sio.event
+async def get_beings(sid):
+    """Pobierz wszystkie byty"""
+    try:
+        beings = await BaseBeing.get_all()
+        relationships = await Relationship.get_all()
+
+        beings_data = []
+        for being in beings:
+            beings_data.append({
+                'soul': being.soul,
+                'genesis': being.genesis,
+                'attributes': being.attributes,
+                'memories': being.memories,
+                'self_awareness': being.self_awareness,
+                'created_at': being.created_at.isoformat() if being.created_at else None
+            })
+
+        relationships_data = []
+        for rel in relationships:
+            relationships_data.append({
+                'id': rel.id,
+                'source_soul': rel.source_soul,
+                'target_soul': rel.target_soul,
+                'genesis': rel.genesis,
+                'attributes': rel.attributes,
+                'created_at': rel.created_at.isoformat() if rel.created_at else None
+            })
+
+        # Dodaj status systemu genetycznego
+        genetic_status = await genetic_system.get_universe_status()
+
+        await sio.emit('beings_data', {
+            'beings': beings_data,
+            'relationships': relationships_data,
+            'genetic_status': genetic_status
+        }, room=sid)
+
+    except Exception as e:
+        print(f"Błąd pobierania bytów: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
+
+@sio.event 
+async def genetic_evolution(sid, data):
+    """Endpoint do ewolucji bytów"""
+    try:
+        being_soul = data.get('being_soul')
+        gene_path = data.get('gene_path')
+
+        if not being_soul or not gene_path:
+            await sio.emit('error', {
+                'message': 'Brak wymaganych parametrów: being_soul, gene_path'
+            }, room=sid)
+            return
+
+        await genetic_system.evolve_being(being_soul, gene_path)
+
+        await sio.emit('genetic_evolution_complete', {
+            'being_soul': being_soul,
+            'gene_path': gene_path,
+            'success': True
+        }, room=sid)
+
+        await broadcast_graph_update()
+
+    except Exception as e:
+        print(f"Błąd ewolucji genetycznej: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
+
+@sio.event
+async def create_genetic_thought(sid, data):
+    """Endpoint do tworzenia myśli/relacji subiektywnych"""
+    try:
+        source_soul = data.get('source_soul')
+        target_soul = data.get('target_soul') 
+        thought = data.get('thought')
+
+        if not all([source_soul, target_soul, thought]):
+            await sio.emit('error', {
+                'message': 'Brak wymaganych parametrów: source_soul, target_soul, thought'
+            }, room=sid)
+            return
+
+        await genetic_system.think_about_relationship(source_soul, target_soul, thought)
+
+        await sio.emit('genetic_thought_created', {
+            'source_soul': source_soul,
+            'target_soul': target_soul,
+            'thought': thought,
+            'success': True
+        }, room=sid)
+
+        await broadcast_graph_update()
+
+    except Exception as e:
+        print(f"Błąd tworzenia myśli: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
 
 if __name__ == '__main__':
     asyncio.run(main())
