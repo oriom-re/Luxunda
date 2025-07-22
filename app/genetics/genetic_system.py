@@ -306,12 +306,21 @@ class GeneticSystem:
     
     async def create_initial_beings(self):
         """Tworzy początkowe byty w systemie"""
-        # Sprawdź czy agent Lux już istnieje
+        # Sprawdź czy agent Lux już istnieje w bazie danych
         lux_soul = '00000000-0000-0000-0000-000000000001'
-        lux_exists = any(being.soul == lux_soul for being in self.beings.values())
         
-        if not lux_exists:
-            print("🌱 Tworzę agenta Lux z systemem genetycznym...")
+        # Sprawdź w pamięci systemu genetycznego
+        lux_exists_in_memory = any(being.soul == lux_soul for being in self.beings.values())
+        
+        # Sprawdź w bazie danych
+        lux_being_from_db = await BaseBeing.load(lux_soul)
+        
+        if lux_being_from_db and not lux_exists_in_memory:
+            # Lux istnieje w bazie, ale nie w pamięci - załaduj
+            self.beings[lux_soul] = lux_being_from_db
+            print(f"📚 Załadowano istniejącego agenta Lux z bazy: {lux_soul}")
+        elif not lux_being_from_db and not lux_exists_in_memory:
+            print("🌱 Tworzę pierwszego i jedynego agenta Lux z systemem genetycznym...")
             
             # Agent Lux z ustaloną duszą
             lux_being = BaseBeing(
@@ -366,6 +375,8 @@ class GeneticSystem:
             
             print(f"✨ Agent Lux został utworzony z UUID: {lux_soul}")
             print(f"🧬 Lux ma dostęp do {len(self.genes)} genów")
+        else:
+            print(f"✅ Agent Lux już istnieje: {lux_soul}")
         
         # Sprawdź czy mamy wystarczającą liczbę innych bytów dla demonstracji
         if len(self.beings) < 3:

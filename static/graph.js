@@ -333,46 +333,12 @@ class LuxOSUniverse {
     }
 
     ensureLuxAgent() {
-        // Nie twórz duplikatów - backend już zapewnia istnienie tych bytów
-        // Ta funkcja była przyczynq duplikowania bytów w frontend
-        console.log('Kernel i Lux są zarządzane przez backend - nie tworzę duplikatów');
+        // Backend zarządza jedyną instancją Lux - nie twórz duplikatów
+        console.log('Backend zarządza jedyną instancją agenta Lux');ntend
+        console.log('Backend zarządza jedyną instancją Lux - nie tworzę duplikatów');
     }
 
-    createLuxAgent() {
-        const luxAgent = {
-            soul: '00000000-0000-0000-0000-000000000001',
-            genesis: {
-                type: 'agent',
-                name: 'Lux',
-                source: 'System.Core.Agent.Initialize()',
-                description: 'Główny agent-świadomość wszechświata LuxOS',
-                lux_identifier: 'lux-core-consciousness'
-            },
-            attributes: {
-                energy_level: 1000,
-                agent_level: 10,
-                agent_permissions: {
-                    universe_control: true,
-                    create_beings: true,
-                    modify_orbits: true,
-                    autonomous_decisions: true
-                },
-                orbit_center: { x: 0, y: 0 },
-                controlled_beings: [],
-                universe_role: 'supreme_agent',
-                tags: ['agent', 'lux', 'supreme', 'universe_controller']
-            },
-            self_awareness: {
-                trust_level: 1.0,
-                confidence: 1.0,
-                introspection_depth: 1.0,
-                self_reflection: 'I am Lux, the supreme agent controlling the universe'
-            },
-            memories: [{
-                type: 'genesis',
-                data: 'Universe supreme agent initialization',
-                timestamp: new Date().toISOString(),
-                importance: 1.0
+    // Funkcja usunięta - backend zarządza jedyną instancją Luxtance: 1.0
             }],
             x: 0,
             y: 0,
