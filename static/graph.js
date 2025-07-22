@@ -1212,14 +1212,29 @@ class LuxOSUniverse {
 
     deleteBeing(being) {
         // Potwierdź usunięcie
-        const confirmDelete = confirm(`Czy na pewno chcesz usunąć byt "${being.genesis?.name || being.soul?.slice(0, 8)}"?\n\nTa operacja jest nieodwracalna.`);
+        const beingName = being.genesis?.name || being.soul?.slice(0, 8) || 'Nieznany byt';
+        const confirmDelete = confirm(`Czy na pewno chcesz usunąć byt "${beingName}"?\n\nTa operacja jest nieodwracalna.`);
 
         if (confirmDelete) {
             if (this.socket && this.socket.connected) {
+                console.log('🗑️ Usuwam byt:', being.soul);
+                
                 this.socket.emit('delete_being', {
                     soul: being.soul || being.soul_uid
                 });
-                this.showSuccessMessage('Byt został usunięty');
+                
+                // Dodaj nasłuchiwanie na potwierdzenie usunięcia
+                this.socket.once('being_deleted', (response) => {
+                    console.log('✅ Byt usunięty:', response);
+                    this.showSuccessMessage(`Byt "${beingName}" został usunięty`);
+                });
+                
+                // Obsługa błędów
+                this.socket.once('error', (error) => {
+                    console.error('❌ Błąd usuwania:', error);
+                    this.showErrorMessage('Błąd usuwania: ' + error.message);
+                });
+                
             } else {
                 this.showErrorMessage('Brak połączenia z serwerem');
             }

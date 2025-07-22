@@ -636,37 +636,83 @@ async def update_being(sid, data):
 @sio.event
 async def delete_being(sid, data):
     """Usuwa byt z systemu"""
-    global db_pool
     soul = data.get('soul')
     if not soul:
         await sio.emit('error', {'message': 'Brak soul bytu do usunięcia'}, room=sid)
         return
 
     try:
-        # Najpierw usuń powiązane relacje
-        await db_pool.execute("""
-            DELETE FROM relationships 
-            WHERE source_soul = $1 OR target_soul = $1
-        """, soul)
-
-        # Następnie usuń byt
-        result = await db_pool.execute("""
-            DELETE FROM base_beings WHERE soul = $1
-        """, soul)
-
-        if result == 'DELETE 0':
-            await sio.emit('error', {'message': 'Byt nie znaleziony'}, room=sid)
+        print(f"🗑️ Usuwam byt: {soul}")
+        
+        # BLOKUJ usuwanie agenta Lux
+        lux_soul = '00000000-0000-0000-0000-000000000001'
+        if soul == lux_soul:
+            await sio.emit('error', {
+                'message': 'BŁĄD: Nie można usunąć agenta Lux! To główny agent świadomości systemu.'
+            }, room=sid)
             return
 
-        # Wyślij aktualizację do wszystkich klientów
-        await broadcast_graph_update()
+        db_pool = await get_db_pool()
+        
+        if hasattr(db_pool, 'acquire'):
+            # PostgreSQL
+            async with db_pool.acquire() as conn:
+                # Najpierw usuń powiązane relacje
+                result_rel = await conn.execute("""
+                    DELETE FROM relationships 
+                    WHERE source_soul = $1 OR target_soul = $1
+                """, soul)
+                print(f"🔗 Usunięto relacje: {result_rel}")
+
+                # Następnie usuń byt
+                result = await conn.execute("""
+                    DELETE FROM base_beings WHERE soul = $1
+                """, soul)
+                
+                if result == 'DELETE 0':
+                    await sio.emit('error', {'message': 'Byt nie znaleziony w bazie danych'}, room=sid)
+                    return
+                    
+                print(f"✅ Usunięto byt z bazy: {result}")
+        else:
+            # SQLite fallback
+            # Usuń relacje
+            await db_pool.execute("""
+                DELETE FROM relationships 
+                WHERE source_soul = ? OR target_soul = ?
+            """, (soul, soul))
+            
+            # Usuń byt
+            cursor = await db_pool.execute("""
+                DELETE FROM base_beings WHERE soul = ?
+            """, (soul,))
+            
+            if cursor.rowcount == 0:
+                await sio.emit('error', {'message': 'Byt nie znaleziony w bazie danych'}, room=sid)
+                return
+                
+            await db_pool.commit()
+            print(f"✅ Usunięto byt z SQLite")
+
+        # Usuń z systemu genetycznego jeśli istnieje
+        if hasattr(genetic_system, 'beings') and soul in genetic_system.beings:
+            del genetic_system.beings[soul]
+            print(f"🧬 Usunięto byt z systemu genetycznego")
+
+        # Wyślij potwierdzenie do klienta
         await sio.emit('being_deleted', {
             'soul': soul,
             'message': 'Byt został usunięty pomyślnie'
-        })
+        }, room=sid)
+
+        # Wyślij aktualizację do wszystkich klientów
+        await broadcast_graph_update()
+        print(f"📡 Wysłano aktualizację grafu po usunięciu: {soul}")
 
     except Exception as e:
-        logger.error(f"Błąd podczas usuwania bytu: {e}")
+        print(f"❌ Błąd podczas usuwania bytu {soul}: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         await sio.emit('error', {'message': f'Błąd usuwania: {str(e)}'}, room=sid)
 
 @sio.event
@@ -1235,9 +1281,9 @@ async def main():
     await init_app()
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 5000)
+    site = web.TCPSite(runner, '0.0.0.0', 3000)
     await site.start()
-    print("Serwer uruchomiony na http://0.0.0.0:5000")
+    print("Serwer uruchomiony na http://0.0.0.0:3000")
 
     # Trzymaj serwer żywy
     try:
