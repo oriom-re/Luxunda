@@ -13,5 +13,8 @@ dependencies = [
     "aiosqlite",
     "openai>=1.0.0",
     "numpy",
-    "scikit-learn"
+    "scikit-learn",
+    "aiofiles>=24.1.0",
+    "pytest>=8.4.1",
+    "socketio>=0.2.1",
 ]

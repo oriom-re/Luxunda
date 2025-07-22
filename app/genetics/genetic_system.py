@@ -25,6 +25,7 @@ class GeneticSystem:
         await self.load_existing_beings()
         await self.load_existing_relationships()
         await self.load_genes_from_manifest()
+        await self.create_initial_beings()
         print("✅ System genetyczny zainicjalizowany")
     
     async def load_genes_from_manifest(self, manifest_path: str = "genetic_manifest.json"):
@@ -269,6 +270,88 @@ class GeneticSystem:
             self.relationships[relationship.id] = relationship
         print(f"🔗 Załadowano {len(relationships)} relacji")
     
+    async def create_initial_beings(self):
+        """Tworzy początkowe byty w systemie"""
+        # Sprawdź czy mamy wystarczającą liczbę bytów
+        if len(self.beings) < 3:
+            print("🌱 Tworzę początkowe byty...")
+            
+            # Agent Lux
+            lux_being = await BaseBeing.create(
+                genesis={
+                    'type': 'agent',
+                    'name': 'Lux',
+                    'description': 'Główny agent świadomości LuxOS',
+                    'source': 'System.Core.Agent.Initialize()'
+                },
+                attributes={
+                    'energy_level': 1000,
+                    'agent_level': 10,
+                    'universe_role': 'supreme_agent',
+                    'tags': ['agent', 'lux', 'supreme']
+                },
+                memories=[{
+                    'type': 'genesis',
+                    'data': 'Universe supreme agent initialization',
+                    'timestamp': datetime.now().isoformat()
+                }],
+                self_awareness={
+                    'trust_level': 1.0,
+                    'confidence': 1.0,
+                    'introspection_depth': 1.0
+                }
+            )
+            self.beings[lux_being.soul] = lux_being
+            
+            # Przykładowa funkcja
+            function_being = await BaseBeing.create(
+                genesis={
+                    'type': 'function',
+                    'name': 'HelloWorld',
+                    'source': 'def hello_world():\n    return "Hello from LuxOS!"',
+                    'signature': 'hello_world()'
+                },
+                attributes={
+                    'energy_level': 80,
+                    'tags': ['function', 'example']
+                },
+                memories=[{
+                    'type': 'creation',
+                    'data': 'Example function created during system initialization',
+                    'timestamp': datetime.now().isoformat()
+                }],
+                self_awareness={
+                    'trust_level': 0.8,
+                    'confidence': 0.9
+                }
+            )
+            self.beings[function_being.soul] = function_being
+            
+            # Przykładowe zadanie
+            task_being = await BaseBeing.create(
+                genesis={
+                    'type': 'task',
+                    'name': 'SystemMonitor',
+                    'description': 'Monitoruje stan systemu genetycznego'
+                },
+                attributes={
+                    'energy_level': 60,
+                    'tags': ['task', 'monitoring']
+                },
+                memories=[{
+                    'type': 'creation',
+                    'data': 'System monitoring task created',
+                    'timestamp': datetime.now().isoformat()
+                }],
+                self_awareness={
+                    'trust_level': 0.7,
+                    'confidence': 0.8
+                }
+            )
+            self.beings[task_being.soul] = task_being
+            
+            print(f"✨ Utworzono {len(self.beings)} początkowych bytów")
+
     async def get_universe_status(self) -> Dict[str, Any]:
         """Zwraca status całego wszechświata genetycznego"""
         return {
