@@ -193,9 +193,12 @@ class Being(Soul):
         self.db_pool = None
         self.task_queue = asyncio.Queue()
         self.active_genes: Dict[str, BaseGene] = {}
+        self.relationships: Dict[str, Dict[str, Any]] = {}
+        self.forced_relationships: List[Dict[str, Any]] = []
         self.available_genes = {
             'postgresql': PostgreSQLGene
         }
+        self.soul_discovery_enabled = True
 
     @property
     def energy_level(self) -> int:
@@ -330,12 +333,41 @@ class Being(Soul):
         """)
 
         await self.db_pool.execute("""
+            CREATE TABLE IF NOT EXISTS relationships (
+                id TEXT PRIMARY KEY,
+                source_soul TEXT NOT NULL,
+                target_soul TEXT NOT NULL,
+                relationship_type TEXT NOT NULL,
+                genesis TEXT NOT NULL,
+                attributes TEXT DEFAULT '{}',
+                is_forced BOOLEAN DEFAULT FALSE,
+                is_permanent BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (source_soul) REFERENCES beings (soul),
+                FOREIGN KEY (target_soul) REFERENCES beings (soul)
+            )
+        """)
+
+        await self.db_pool.execute("""
             CREATE TABLE IF NOT EXISTS gene_backups (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 gene_id TEXT NOT NULL,
                 gene_type TEXT NOT NULL,
                 backup_data BLOB NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        await self.db_pool.execute("""
+            CREATE TABLE IF NOT EXISTS soul_discoveries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                discoverer_soul TEXT NOT NULL,
+                discovered_soul TEXT NOT NULL,
+                discovery_method TEXT NOT NULL,
+                analysis_result TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (discoverer_soul) REFERENCES beings (soul),
+                FOREIGN KEY (discovered_soul) REFERENCES beings (soul)
             )
         """)
 
@@ -389,8 +421,248 @@ class Being(Soul):
                     gene = gene_class(gene_id=gene_info['gene_id'])
                     gene.gene_data = gene_info.get('gene_data', {})
                     # Geny będą reaktywowane przez użytkownika gdy będzie potrzeba
+            
+            # Załaduj relacje
+            await self._load_relationships()
+            
+            # Sprawdź relacje wymuszone
+            await self._process_forced_relationships()
                     
             print(f"[{self.soul}] Stan załadowany z bazy danych")
+
+    async def _load_relationships(self):
+        """Ładuje relacje z bazy danych"""
+        cursor = await self.db_pool.execute("""
+            SELECT * FROM relationships 
+            WHERE source_soul = ? OR target_soul = ?
+        """, (str(self.soul), str(self.soul)))
+        
+        rows = await cursor.fetchall()
+        for row in rows:
+            rel_id = row[0]
+            source_soul = row[1]
+            target_soul = row[2]
+            rel_type = row[3]
+            genesis = json.loads(row[4]) if row[4] else {}
+            attributes = json.loads(row[5]) if row[5] else {}
+            is_forced = bool(row[6])
+            is_permanent = bool(row[7])
+            
+            self.relationships[rel_id] = {
+                'source_soul': source_soul,
+                'target_soul': target_soul,
+                'type': rel_type,
+                'genesis': genesis,
+                'attributes': attributes,
+                'is_forced': is_forced,
+                'is_permanent': is_permanent
+            }
+            
+            if is_forced:
+                self.forced_relationships.append(self.relationships[rel_id])
+
+    async def _process_forced_relationships(self):
+        """Przetwarza relacje wymuszone i inicjuje geny z souls"""
+        for rel in self.forced_relationships:
+            if rel['type'] == 'gene_initialization':
+                target_soul = rel['target_soul'] if rel['source_soul'] == str(self.soul) else rel['source_soul']
+                gene_type = rel['attributes'].get('gene_type')
+                
+                if gene_type and gene_type in self.available_genes:
+                    print(f"[{self.soul}] Inicjalizacja wymuszonego genu {gene_type} z soul {target_soul}")
+                    await self._initialize_gene_from_soul(gene_type, target_soul)
+
+    async def _initialize_gene_from_soul(self, gene_type: str, source_soul: str):
+        """Inicjalizuje gen na podstawie danych z innego soul"""
+        # Odczytaj dane z soul źródłowego
+        cursor = await self.db_pool.execute(
+            "SELECT genesis, attributes FROM beings WHERE soul = ?", (source_soul,)
+        )
+        row = await cursor.fetchone()
+        
+        if row:
+            source_genesis = json.loads(row[0]) if row[0] else {}
+            source_attributes = json.loads(row[1]) if row[1] else {}
+            
+            # Aktywuj gen z kontekstem źródłowym
+            context = {
+                'source_soul': source_soul,
+                'source_genesis': source_genesis,
+                'source_attributes': source_attributes
+            }
+            
+            await self.activate_gene(gene_type, context)
+
+    async def discover_other_souls(self) -> List[Dict[str, Any]]:
+        """Odkrywa inne souls w bazie i analizuje ich kod"""
+        if not self.soul_discovery_enabled:
+            return []
+        
+        cursor = await self.db_pool.execute("""
+            SELECT soul, genesis, attributes FROM beings 
+            WHERE soul != ?
+        """, (str(self.soul),))
+        
+        rows = await cursor.fetchall()
+        discoveries = []
+        
+        for row in rows:
+            other_soul = row[0]
+            genesis = json.loads(row[1]) if row[1] else {}
+            attributes = json.loads(row[2]) if row[2] else {}
+            
+            # Analizuj kod genetyczny
+            analysis = await self._analyze_genetic_code(other_soul, genesis, attributes)
+            
+            discoveries.append({
+                'soul': other_soul,
+                'genesis': genesis,
+                'attributes': attributes,
+                'analysis': analysis
+            })
+            
+            # Zapisz odkrycie
+            await self._record_discovery(other_soul, 'database_scan', analysis)
+        
+        return discoveries
+
+    async def _analyze_genetic_code(self, soul: str, genesis: Dict[str, Any], attributes: Dict[str, Any]) -> Dict[str, Any]:
+        """Analizuje kod genetyczny innego bytu"""
+        analysis = {
+            'compatibility_score': 0.0,
+            'potential_relationships': [],
+            'gene_suggestions': [],
+            'risk_assessment': 'low'
+        }
+        
+        # Analiza typu bytu
+        being_type = genesis.get('type', 'unknown')
+        being_name = genesis.get('name', 'unnamed')
+        
+        analysis['being_type'] = being_type
+        analysis['being_name'] = being_name
+        
+        # Sprawdź czy ma kod źródłowy
+        if 'source' in genesis:
+            source_code = genesis['source']
+            
+            # Prosta analiza kodu
+            if 'import' in source_code:
+                analysis['has_imports'] = True
+                analysis['gene_suggestions'].append('communication')
+            
+            if 'class' in source_code:
+                analysis['has_classes'] = True
+                analysis['potential_relationships'].append('inheritance')
+            
+            if 'def' in source_code:
+                analysis['has_functions'] = True
+                analysis['potential_relationships'].append('collaboration')
+            
+            # Ocena kompatybilności
+            my_type = self.genesis.get('type', 'unknown')
+            if being_type == my_type:
+                analysis['compatibility_score'] = 0.8
+            elif being_type in ['function', 'class'] and my_type in ['function', 'class']:
+                analysis['compatibility_score'] = 0.6
+            else:
+                analysis['compatibility_score'] = 0.3
+        
+        return analysis
+
+    async def _record_discovery(self, discovered_soul: str, method: str, analysis: Dict[str, Any]):
+        """Zapisuje odkrycie w bazie"""
+        await self.db_pool.execute("""
+            INSERT INTO soul_discoveries 
+            (discoverer_soul, discovered_soul, discovery_method, analysis_result)
+            VALUES (?, ?, ?, ?)
+        """, (
+            str(self.soul),
+            discovered_soul,
+            method,
+            json.dumps(analysis, cls=DateTimeEncoder)
+        ))
+        await self.db_pool.commit()
+
+    async def create_relationship(self, target_soul: str, rel_type: str, 
+                                genesis: Dict[str, Any], is_forced: bool = False, 
+                                is_permanent: bool = False) -> str:
+        """Tworzy nową relację"""
+        rel_id = str(uuid.uuid4())
+        
+        await self.db_pool.execute("""
+            INSERT INTO relationships 
+            (id, source_soul, target_soul, relationship_type, genesis, is_forced, is_permanent)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            rel_id,
+            str(self.soul),
+            target_soul,
+            rel_type,
+            json.dumps(genesis, cls=DateTimeEncoder),
+            is_forced,
+            is_permanent
+        ))
+        await self.db_pool.commit()
+        
+        # Dodaj do lokalnego cache
+        self.relationships[rel_id] = {
+            'source_soul': str(self.soul),
+            'target_soul': target_soul,
+            'type': rel_type,
+            'genesis': genesis,
+            'is_forced': is_forced,
+            'is_permanent': is_permanent
+        }
+        
+        await self.add_memory({
+            'type': 'relationship_created',
+            'relationship_id': rel_id,
+            'target_soul': target_soul,
+            'relationship_type': rel_type,
+            'is_forced': is_forced
+        })
+        
+        return rel_id
+
+    async def learn_and_evolve(self):
+        """Główna funkcja uczenia się i ewolucji"""
+        print(f"[{self.soul}] Rozpoczynam proces uczenia się...")
+        
+        # Odkryj inne souls
+        discoveries = await self.discover_other_souls()
+        
+        # Analizuj odkrycia i twórz relacje
+        for discovery in discoveries:
+            analysis = discovery['analysis']
+            other_soul = discovery['soul']
+            
+            # Jeśli compatibility score > 0.5, rozważ relację
+            if analysis.get('compatibility_score', 0) > 0.5:
+                relationship_genesis = {
+                    'created_by_learning': True,
+                    'compatibility_score': analysis['compatibility_score'],
+                    'reason': f"High compatibility with {analysis.get('being_name', 'unknown')}"
+                }
+                
+                rel_id = await self.create_relationship(
+                    other_soul, 
+                    'collaboration', 
+                    relationship_genesis
+                )
+                
+                print(f"[{self.soul}] Utworzono relację współpracy {rel_id} z {other_soul}")
+            
+            # Sugeruj geny na podstawie analizy
+            for gene_suggestion in analysis.get('gene_suggestions', []):
+                if gene_suggestion in self.available_genes and gene_suggestion not in self.active_genes:
+                    print(f"[{self.soul}] Sugeruję aktywację genu: {gene_suggestion}")
+        
+        # Aktualizuj samoświadomość
+        self.self_awareness['last_learning_session'] = datetime.now().isoformat()
+        self.self_awareness['discoveries_count'] = len(discoveries)
+        
+        await self.save()
 
 # Przykład użycia
 if __name__ == "__main__":
