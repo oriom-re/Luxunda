@@ -73,6 +73,7 @@
             margin-left: 280px;
             background: radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
             transition: all 0.3s ease;
+            position: relative;
         }
 
         .node {
@@ -359,6 +360,13 @@
                 document.getElementById('zoomOut').addEventListener('click', () => graphManager.zoomOut());
                 document.getElementById('zoomReset').addEventListener('click', () => graphManager.resetZoom());
                 document.getElementById('luxChat').addEventListener('click', () => luxChatComponent.toggle());
+                
+                // Obsługa zmiany rozmiaru okna
+                window.addEventListener('resize', () => {
+                    if (graphManager.resizeGraph) {
+                        graphManager.resizeGraph();
+                    }
+                });
                 
                 // Make sure input is visible
                 console.log('Intention input:', document.getElementById('intentionInput'));

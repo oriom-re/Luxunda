@@ -170,12 +170,21 @@ class FileExplorer {
 
             .file-explorer-container.collapsed {
                 width: 40px;
+                min-width: 40px;
             }
 
             .file-explorer-container.collapsed .explorer-title,
             .file-explorer-container.collapsed .explorer-toolbar,
             .file-explorer-container.collapsed .file-tree-container {
-                display: none;
+                display: none !important;
+            }
+            
+            .file-explorer-container.collapsed .toggle-explorer-btn {
+                writing-mode: vertical-lr;
+                text-orientation: mixed;
+                padding: 8px 4px;
+                margin: 10px auto;
+                display: block;
             }
         `;
         document.head.appendChild(toolbarStyle);
@@ -432,6 +441,11 @@ class FileExplorer {
                 graphElement.style.marginLeft = '40px';
                 graphElement.style.width = 'calc(100% - 40px)';
             }
+        }
+
+        // Powiadom graf o zmianie rozmiaru
+        if (window.luxOSUniverse && window.luxOSUniverse.resizeGraph) {
+            window.luxOSUniverse.resizeGraph();
         }
     }
 

@@ -43,12 +43,12 @@ class LuxOSUniverse {
             console.log('Połączono z wszechświatem');
             this.updateConnectionStatus(true);
             this.reconnectAttempts = 0; // Reset counter on successful connection
-            
+
             // Natychmiast poproś o dane po połączeniu
             setTimeout(() => {
                 this.socket.emit('get_graph_data');
             }, 100);
-            
+
             // Rozpocznij heartbeat monitoring
             this.startHeartbeat();
         });
@@ -56,7 +56,7 @@ class LuxOSUniverse {
         this.socket.on('disconnect', (reason) => {
             console.log('Rozłączono ze wszechświatem:', reason);
             this.updateConnectionStatus(false);
-            
+
             // Nie próbuj reconnect jeśli to było ręczne rozłączenie
             if (reason !== 'io client disconnect') {
                 this.attemptReconnect();
@@ -269,7 +269,7 @@ class LuxOSUniverse {
         // Bezpieczna deserializacja danych - usuń duplikaty po soul_uid
         const uniqueNodes = [];
         const seenSouls = new Set();
-        
+
         (data.nodes || []).forEach(node => {
             const soulId = node.soul_uid || node.soul;
             if (!seenSouls.has(soulId)) {
@@ -518,10 +518,10 @@ class LuxOSUniverse {
     drawMainIntentionOrbit() {
         // Usuń poprzednią orbitę
         this.orbitsGroup.selectAll(".main-intention-orbit").remove();
-        
+
         // Narysuj cienką, prawie przezroczystą orbitę dla głównej intencji
         const orbitRadius = 100; // Dopasuj do nowego promienia
-        
+
         this.orbitsGroup.append("circle")
             .attr("class", "main-intention-orbit")
             .attr("cx", 0)
@@ -538,13 +538,13 @@ class LuxOSUniverse {
     renderBeings() {
         // Limit do 50 bytów dla wydajności
         const visibleBeings = this.beings.slice(0, 50);
-        
+
         // Inicjalizuj symulację D3 force
         this.initForceSimulation(visibleBeings);
-        
+
         // Narysuj orbitę dla głównej intencji (cienka, prawie przezroczysta)
         this.drawMainIntentionOrbit();
-        
+
         this.beingSelection = this.beingsGroup
             .selectAll(".being")
             .data(visibleBeings, d => d.soul)
@@ -763,18 +763,17 @@ class LuxOSUniverse {
                 const maxDistance = 300;
                 let x = d.x || 0;
                 let y = d.y || 0;
-                
+
                 // Jeśli byt jest zbyt daleko od centrum, przyciągnij go
                 const distance = Math.sqrt(x * x + y * y);
                 if (distance > maxDistance && !this.isLuxAgent(d)) {
-                    const scale = maxDistance / distance;
-                    x = x * scale;
+                    const scale = maxDistance / distance;                    x = x * scale;
                     y = y * scale;
                     // Aktualizuj pozycję w danych
                     d.x = x;
                     d.y = y;
                 }
-                
+
                 return `translate(${x}, ${y})`;
             });
 
@@ -1169,7 +1168,7 @@ class LuxOSUniverse {
                 if (field.min !== undefined) input.min = field.min;
                 if (field.max !== undefined) input.max = field.max;
                 if (field.step !== undefined) input.step = field.step;
-                
+
                 if (field.key === 'tags' && Array.isArray(currentValue)) {
                     input.value = currentValue.join(', ');
                 } else {
@@ -1252,7 +1251,7 @@ class LuxOSUniverse {
     deleteBeing(being) {
         // Potwierdź usunięcie
         const confirmDelete = confirm(`Czy na pewno chcesz usunąć byt "${being.genesis?.name || being.soul?.slice(0, 8)}"?\n\nTa operacja jest nieodwracalna.`);
-        
+
         if (confirmDelete) {
             if (this.socket && this.socket.connected) {
                 this.socket.emit('delete_being', {
@@ -1290,17 +1289,17 @@ class LuxOSUniverse {
                 <span>📋 Szczegóły Bytu</span>
                 <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; color: #0088ff; font-size: 24px; cursor: pointer;">×</button>
             </div>
-            
+
             <div style="color: #ccc; line-height: 1.6;">
                 <h4 style="color: #00ff88; margin-bottom: 10px;">🧬 Genesis</h4>
                 <pre style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">${JSON.stringify(being.genesis, null, 2)}</pre>
-                
+
                 <h4 style="color: #00ff88; margin-bottom: 10px;">⚡ Atrybuty</h4>
                 <pre style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">${JSON.stringify(being.attributes, null, 2)}</pre>
-                
+
                 <h4 style="color: #00ff88; margin-bottom: 10px;">🧠 Samoświadomość</h4>
                 <pre style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; overflow-x: auto; margin-bottom: 15px;">${JSON.stringify(being.self_awareness, null, 2)}</pre>
-                
+
                 <h4 style="color: #00ff88; margin-bottom: 10px;">💭 Wspomnienia (${(being.memories || []).length})</h4>
                 <pre style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; overflow-x: auto;">${JSON.stringify(being.memories || [], null, 2)}</pre>
             </div>
@@ -1528,15 +1527,15 @@ class LuxOSUniverse {
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 5000);
-            
+
             console.log(`Próba reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} za ${delay}ms`);
-            
+
             // Aktualizuj status podczas próby reconnect
             const status = document.getElementById('connectionStatus');
             if (status) {
                 status.textContent = `Łączenie... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`;
             }
-            
+
             setTimeout(() => {
                 if (!this.socket.connected) {
                     try {
@@ -1550,7 +1549,7 @@ class LuxOSUniverse {
         } else {
             console.log('Maksymalna liczba prób reconnect osiągnięta - resetuję licznik');
             this.showErrorMessage('Problemy z połączeniem - spróbuję ponownie...');
-            
+
             // Reset licznika po 30 sekundach i spróbuj ponownie
             setTimeout(() => {
                 this.reconnectAttempts = 0;
@@ -1565,6 +1564,7 @@ class LuxOSUniverse {
             return; // Skip update if too frequent
         }
         this.lastUpdateTime = now;
+```python
         this.updateUniverse(data);
     }
 
@@ -1680,6 +1680,59 @@ class LuxOSUniverse {
         // Rozpocznij animację
         animate(0);
     }
+
+    // Metoda do zmiany rozmiaru grafu
+    resizeGraph() {
+        if (this.svg && this.container) {
+            const containerRect = this.container.getBoundingClientRect();
+            this.width = containerRect.width;
+            this.height = containerRect.height;
+
+            this.svg
+                .attr("width", this.width)
+                .attr("height", this.height);
+
+            if (this.simulation) {
+                this.simulation
+                    .force("center", d3.forceCenter(this.width / 2, this.height / 2))
+                    .alpha(0.3)
+                    .restart();
+            }
+        }
+    }
+
+    // Metody pomocnicze
+    getNodeColor(genesis) {
+        if (typeof genesis === 'string') {
+            try {
+                genesis = JSON.parse(genesis);
+            } catch (e) {
+                return '#666';
+            }
+        }
+
+        const type = genesis?.type || 'unknown';
+
+        const colors = {
+            'agent': '#ff6b6b',
+            'function': '#4CAF50',
+            'class': '#2196F3',
+            'data': '#FF9800',
+            'task': '#9C27B0',
+            'component': '#FF5722',
+            'message': '#607D8B',
+            'scenario': '#795548',
+            'unknown': '#666666'
+        };
+        return colors[type] || colors.unknown;
+    }
+
+    // Obsługa tick simulation
+    this.simulation.on("tick", () => {
+        if (this.updateNodePositions) this.updateNodePositions();
+        if (this.updateRelationshipPositions) this.updateRelationshipPositions();
+        if (this.updateRelationshipLabelPositions) this.updateRelationshipLabelPositions();
+    });
 }
 
 // Zastąp LuxOSGraph nowym systemem wszechświata
