@@ -689,21 +689,14 @@ async def delete_being(sid, data):
         db_pool = await get_db_pool()
         
         if hasattr(db_pool, 'acquire'):
-            # PostgreSQL
+            # PostgreSQL - usuń tylko byt, zostaw relacje jako historię
             async with db_pool.acquire() as conn:
-                # Najpierw usuń powiązane relacje
-                result_rel = await conn.execute("""
-                    DELETE FROM relationships 
-                    WHERE source_soul = $1 OR target_soul = $1
-                """, soul)
-                print(f"🔗 Usunięto relacje: {result_rel}")
-
-                # Następnie usuń byt
-                result = await conn.execute("""
-                    DELETE FROM base_beings WHERE soul = $1
+                # Sprawdź czy byt istnieje
+                check_result = await conn.fetchrow("""
+                    SELECT soul FROM base_beings WHERE soul = $1
                 """, soul)
                 
-                if result == 'DELETE 0':
+                if not check_result:
                     response = {
                         'success': False,
                         'error': 'Byt nie znaleziony w bazie danych',
@@ -711,22 +704,21 @@ async def delete_being(sid, data):
                     }
                     await sio.emit('task_response', response, room=sid)
                     return
-                    
+
+                # Usuń tylko byt - relacje zostają jako historia
+                result = await conn.execute("""
+                    DELETE FROM base_beings WHERE soul = $1
+                """, soul)
+                
                 print(f"✅ Usunięto byt z bazy: {result}")
+                print(f"📚 Relacje zostały zachowane jako historia")
         else:
-            # SQLite fallback
-            # Usuń relacje
-            await db_pool.execute("""
-                DELETE FROM relationships 
-                WHERE source_soul = ? OR target_soul = ?
-            """, (soul, soul))
-            
-            # Usuń byt
+            # SQLite fallback - usuń tylko byt, zostaw relacje
             cursor = await db_pool.execute("""
-                DELETE FROM base_beings WHERE soul = ?
+                SELECT soul FROM base_beings WHERE soul = ?
             """, (soul,))
             
-            if cursor.rowcount == 0:
+            if not await cursor.fetchone():
                 response = {
                     'success': False,
                     'error': 'Byt nie znaleziony w bazie danych',
@@ -734,9 +726,15 @@ async def delete_being(sid, data):
                 }
                 await sio.emit('task_response', response, room=sid)
                 return
-                
+            
+            # Usuń tylko byt - relacje zostają jako historia
+            cursor = await db_pool.execute("""
+                DELETE FROM base_beings WHERE soul = ?
+            """, (soul,))
+            
             await db_pool.commit()
             print(f"✅ Usunięto byt z SQLite")
+            print(f"📚 Relacje zostały zachowane jako historia")
 
         # Usuń z systemu genetycznego jeśli istnieje
         if hasattr(genetic_system, 'beings') and soul in genetic_system.beings:
@@ -752,9 +750,16 @@ async def delete_being(sid, data):
         }
         await sio.emit('task_response', response, room=sid)
 
-        # Wyślij aktualizację do wszystkich klientów
-        await broadcast_graph_update()
-        print(f"📡 Wysłano aktualizację grafu po usunięciu: {soul}")
+        # Wyślij natychmiastową aktualizację do wszystkich klientów
+        try:
+            await broadcast_graph_update()
+            print(f"📡 Wysłano aktualizację grafu po usunięciu: {soul}")
+            
+            # Dodatkowe wysłanie do konkretnego klienta dla pewności
+            await send_graph_data(sid)
+            print(f"📡 Dodatkowe wysłanie danych do klienta {sid}")
+        except Exception as e:
+            print(f"❌ Błąd wysyłania aktualizacji grafu: {e}")
 
     except Exception as e:
         print(f"❌ Błąd podczas usuwania bytu {soul}: {e}")

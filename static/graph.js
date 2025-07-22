@@ -1248,25 +1248,23 @@ class LuxOSUniverse {
                         
                         this.beings = this.beings.filter(b => {
                             const bSoul = b.soul || b.soul_uid;
-                            return bSoul !== targetSoul;
+                            const matches = bSoul === targetSoul;
+                            if (matches) {
+                                console.log(`🗑️ Usuwam z lokalnej listy: ${bSoul}`);
+                            }
+                            return !matches;
                         });
                         
                         const afterCount = this.beings.length;
-                        console.log(`🔄 Usunięto ${beforeCount - afterCount} bytów z lokalnej listy`);
+                        console.log(`🔄 Usunięto ${beforeCount - afterCount} bytów z lokalnej listy (${beforeCount} → ${afterCount})`);
 
-                        // Usuń relacje związane z tym bytem
-                        if (this.relationships) {
-                            const beforeRelCount = this.relationships.length;
-                            this.relationships = this.relationships.filter(rel => 
-                                rel.source_soul !== targetSoul && rel.target_soul !== targetSoul
-                            );
-                            const afterRelCount = this.relationships.length;
-                            console.log(`🔗 Usunięto ${beforeRelCount - afterRelCount} relacji z lokalnej listy`);
-                        }
+                        // NIE usuwamy relacji - to historia! Zostawiamy je
+                        console.log(`📚 Relacje zostają jako historia - nie usuwam relacji z bytem ${targetSoul}`);
 
                         // Zatrzymaj symulację przed re-renderowaniem
                         if (this.simulation) {
                             this.simulation.stop();
+                            this.simulation = null;
                         }
 
                         // Wyczyść graf przed ponownym renderowaniem
@@ -1277,11 +1275,15 @@ class LuxOSUniverse {
                             this.linksGroup.selectAll(".relationship").remove();
                         }
 
-                        // Przerenderuj graf z nową listą bytów
-                        this.renderUniverse();
+                        // Wymuś natychmiastowe re-renderowanie
+                        setTimeout(() => {
+                            this.renderUniverse();
+                            this.updateStats();
+                            console.log(`📊 Graf zaktualizowany - pozostało ${this.beings.length} bytów`);
+                        }, 100);
+
+                        // Natychmiastowa aktualizacja statystyk
                         this.updateStats();
-                        
-                        console.log(`📊 Graf zaktualizowany - pozostało ${this.beings.length} bytów`);
                     } else {
                         console.error('❌ Błąd usuwania bytu:', response);
                         this.showErrorMessage(`Błąd usuwania: ${response.error || 'Nieznany błąd'}`);
