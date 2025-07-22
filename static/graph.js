@@ -139,6 +139,16 @@ class LuxOSUniverse {
             console.error('Nieobsłużony błąd Promise:', event.reason);
             // Nie zapobiegamy domyślnemu logowaniu - pozwól na debugging
         });
+
+        // Usuń agresywne odświeżanie z broadcast - tylko delikatne aktualizacje
+        this.socket.on('graph_updated', (data) => {
+            console.log('📈 Otrzymano delikatną aktualizację grafu:', data.nodes?.length || 0, 'bytów');
+
+            // Zamiast pełnego update, tylko zsynchronizuj dane
+            if (data.nodes && data.relationships) {
+                this.gentleUpdateGraphData(data);
+            }
+        });
     }
 
     initUniverse() {
@@ -758,6 +768,7 @@ class LuxOSUniverse {
     }
 
     // Obsługa przeciągania
+    ```python
     dragstarted(event, d) {
         if (!event.active) this.simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
@@ -1241,32 +1252,12 @@ class LuxOSUniverse {
                     if (response.success) {
                         console.log(`✅ Byt "${beingName}" został usunięty z backendu`);
 
-                        // NATYCHMIASTOWE usunięcie z lokalnej listy
-                        const targetSoul = being.soul || being.soul_uid;
-                        const beforeCount = this.beings.length;
-
-                        // Usuń ze wszystkich struktur danych
-                        this.beings = this.beings.filter(b => {
-                            const bSoul = b.soul || b.soul_uid;
-                            const shouldKeep = bSoul !== targetSoul;
-                            if (!shouldKeep) {
-                                console.log(`🗑️ Usuwam lokalnie: ${bSoul}`);
-                            }
-                            return shouldKeep;
-                        });
-
-                        // Wymuś kompletną regenerację grafu
-                        this.forceCompleteRerender();
-
-                        // Pokaż sukces
                         this.showSuccessMessage(`Byt "${beingName}" został usunięty`);
 
-                        console.log(`📊 Lokalnie usunięto ${beforeCount - this.beings.length} bytów (${beforeCount} → ${this.beings.length})`);
+                        // PŁYNNE usunięcie z animacją
+                        this.smoothRemoveBeing(being);
 
-                        // Dodatkowe żądanie odświeżenia danych z serwera
-                        setTimeout(() => {
-                            this.socket.emit('get_graph_data');
-                        }, 500);
+                        console.log(`✨ Płynnie usunięto byt: ${being.soul || being.soul_uid}`);
                     } else {
                         console.error('❌ Błąd usuwania bytu:', response);
                         this.showErrorMessage(`Błąd usuwania: ${response.error || 'Nieznany błąd'}`);
@@ -1789,6 +1780,68 @@ class LuxOSUniverse {
         if (this.updateRelationshipPositions) this.updateRelationshipPositions();
         if (this.updateRelationshipLabelPositions) this.updateRelationshipLabelPositions();
     });
+
+    // Delikatna aktualizacja danych grafu
+    gentleUpdateGraphData(data) {
+        if (!data.nodes || !data.relationships) {
+            console.warn('Delikatna aktualizacja - brak danych!');
+            return;
+        }
+
+        // Aktualizacja bytów
+        data.nodes.forEach(newNode => {
+            const existingBeingIndex = this.beings.findIndex(b => b.soul === newNode.soul_uid || b.soul === newNode.soul);
+            if (existingBeingIndex !== -1) {
+                // Aktualizuj istniejący byt
+                const existingBeing = this.beings[existingBeingIndex];
+                existingBeing.genesis = newNode._soul?.genesis || newNode.genesis || existingBeing.genesis;
+                existingBeing.attributes = newNode._soul?.attributes || newNode.attributes || existingBeing.attributes;
+                existingBeing.self_awareness = newNode._soul?.self_awareness || newNode.self_awareness || existingBeing.self_awareness;
+                existingBeing.memories = newNode._soul?.memories || newNode.memories || existingBeing.memories;
+                console.log(`✨ Zaktualizowano byt: ${existingBeing.soul}`);
+            } else {
+                // Dodaj nowy byt
+                this.addBeing(newNode);
+                console.log(`➕ Dodano nowy byt: ${newNode.soul}`);
+            }
+        });
+
+        // Aktualizacja relacji
+        this.relationships = data.relationships;
+
+        // Przerenderuj
+        this.renderRelationships();
+        this.updateStats();
+    }
+
+    // Płynne usuwanie bytu z animacją
+    smoothRemoveBeing(being) {
+        const targetSoul = being.soul || being.soul_uid;
+
+        // Znajdź element SVG bytu
+        const beingElement = this.beingSelection.filter(d => d.soul === targetSoul).node();
+
+        if (beingElement) {
+            // Animacja zanikania
+            d3.select(beingElement)
+                .transition()
+                .duration(500)
+                .style("opacity", 0)
+                .remove()
+                .on("end", () => {
+                    // Usuń byt z danych po animacji
+                    this.beings = this.beings.filter(b => (b.soul || b.soul_uid) !== targetSoul);
+                    this.renderRelationships(); // Zaktualizuj relacje
+                    this.updateStats(); // Zaktualizuj statystyki
+                });
+        } else {
+            console.warn(`❌ Nie znaleziono bytu do usunięcia: ${targetSoul}`);
+            // Usuń byt z danych
+            this.beings = this.beings.filter(b => (b.soul || b.soul_uid) !== targetSoul);
+            this.renderRelationships(); // Zaktualizuj relacje
+            this.updateStats(); // Zaktualizuj statystyki
+        }
+    }
 }
 
 // Zastąp LuxOSGraph nowym systemem wszechświata
