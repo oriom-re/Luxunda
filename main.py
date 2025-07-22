@@ -830,7 +830,6 @@ async def analyze_intention(intention: str, context: dict) -> dict:
 
         elif 'komponent' in intention or 'd3' in intention:
             words = intention.split()
-```tool_code
             name = "Nowy_Komponent"
             for i, word in enumerate(words):
                 if word in ['komponent', 'komponentu', 'd3'] and i < len(words) - 1:
