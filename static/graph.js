@@ -272,7 +272,7 @@ class LuxOSUniverse {
     }
 
     updateUniverse(data) {
-        console.log('Aktualizacja wszechświata:', data);
+        console.log('🔄 Aktualizacja wszechświata:', data);
 
         // Bezpieczna deserializacja danych - usuń duplikaty po soul_uid
         const uniqueNodes = [];
@@ -286,9 +286,11 @@ class LuxOSUniverse {
             }
         });
 
+        console.log(`📊 Filtracja: ${(data.nodes || []).length} → ${uniqueNodes.length} unikalnych bytów`);
+
         // Pobierz relacje między bytami
         this.relationships = data.relationships || [];
-        console.log('Otrzymano relacje:', this.relationships.length);
+        console.log('🔗 Otrzymano relacje:', this.relationships.length);
 
         this.beings = uniqueNodes.map(node => {
             try {
@@ -399,6 +401,8 @@ class LuxOSUniverse {
     }
 
     renderUniverse() {
+        console.log(`🌌 Renderuję wszechświat z ${this.beings.length} bytami`);
+        
         // Renderuj orbity
         this.renderOrbits();
 
@@ -1239,23 +1243,45 @@ class LuxOSUniverse {
                         this.showSuccessMessage(`Byt "${beingName}" został usunięty`);
 
                         // Usuń byt z lokalnej listy - sprawdź wszystkie możliwe identyfikatory
+                        const targetSoul = being.soul || being.soul_uid;
+                        const beforeCount = this.beings.length;
+                        
                         this.beings = this.beings.filter(b => {
                             const bSoul = b.soul || b.soul_uid;
-                            const targetSoul = being.soul || being.soul_uid;
                             return bSoul !== targetSoul;
                         });
+                        
+                        const afterCount = this.beings.length;
+                        console.log(`🔄 Usunięto ${beforeCount - afterCount} bytów z lokalnej listy`);
 
                         // Usuń relacje związane z tym bytem
                         if (this.relationships) {
-                            const targetSoul = being.soul || being.soul_uid;
+                            const beforeRelCount = this.relationships.length;
                             this.relationships = this.relationships.filter(rel => 
                                 rel.source_soul !== targetSoul && rel.target_soul !== targetSoul
                             );
+                            const afterRelCount = this.relationships.length;
+                            console.log(`🔗 Usunięto ${beforeRelCount - afterRelCount} relacji z lokalnej listy`);
                         }
 
-                        // Przerenderuj graf
+                        // Zatrzymaj symulację przed re-renderowaniem
+                        if (this.simulation) {
+                            this.simulation.stop();
+                        }
+
+                        // Wyczyść graf przed ponownym renderowaniem
+                        if (this.beingsGroup) {
+                            this.beingsGroup.selectAll(".being").remove();
+                        }
+                        if (this.linksGroup) {
+                            this.linksGroup.selectAll(".relationship").remove();
+                        }
+
+                        // Przerenderuj graf z nową listą bytów
                         this.renderUniverse();
                         this.updateStats();
+                        
+                        console.log(`📊 Graf zaktualizowany - pozostało ${this.beings.length} bytów`);
                     } else {
                         console.error('❌ Błąd usuwania bytu:', response);
                         this.showErrorMessage(`Błąd usuwania: ${response.error || 'Nieznany błąd'}`);
