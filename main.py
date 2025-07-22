@@ -1395,6 +1395,41 @@ async def genetic_evolution(sid, data):
         await sio.emit('error', {'message': str(e)}, room=sid)
 
 @sio.event
+async def load_gene_from_file(sid, data):
+    """Endpoint do ładowania/aktualizacji genu z pliku"""
+    try:
+        file_path = data.get('file_path')
+        
+        if not file_path:
+            await sio.emit('error', {
+                'message': 'Brak wymaganego parametru: file_path'
+            }, room=sid)
+            return
+
+        # Załaduj gen z pliku
+        gene_being = await genetic_system.load_gene_from_file_path(file_path)
+        
+        if gene_being:
+            await sio.emit('gene_loaded', {
+                'file_path': file_path,
+                'gene_soul': gene_being.soul,
+                'gene_hash': gene_being.attributes.get('gene_hash'),
+                'success': True,
+                'evolution_detected': any(m.get('type') == 'code_evolution' 
+                                        for m in gene_being.memories[-3:])  # Sprawdź ostatnie 3 wpisy
+            }, room=sid)
+        else:
+            await sio.emit('error', {
+                'message': f'Nie udało się załadować genu z {file_path}'
+            }, room=sid)
+
+        await broadcast_graph_update()
+
+    except Exception as e:
+        print(f"Błąd ładowania genu: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
+
+@sio.event
 async def create_genetic_thought(sid, data):
     """Endpoint do tworzenia myśli/relacji subiektywnych"""
     try:

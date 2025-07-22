@@ -492,7 +492,7 @@ class GeneticSystem:
         }
 
     async def load_genes_from_directory(self, directory_path: str = "app/genetics/genes"):
-        """Ładuje geny z katalogu .gen z zapobieganiem duplikatom"""
+        """Ładuje geny z katalogu używając ścieżki jako ID i hash do wykrywania zmian"""
         import os
         import hashlib
         from pathlib import Path
@@ -502,41 +502,69 @@ class GeneticSystem:
             print(f"⚠️ Katalog genów nie istnieje: {directory_path}")
             return
 
-        # Pobierz wszystkie istniejące geny z bazy
+        # Pobierz wszystkie istniejące geny z bazy (indexed by file path)
         existing_beings = await BaseBeing.get_all(limit=1000)
-        existing_gene_hashes = {}
+        existing_genes_by_path = {}
 
         for being in existing_beings:
-            if (being.genesis.get('type') == 'gene' and 
-                'gene_hash' in being.attributes):
-                gene_hash = being.attributes.get('gene_hash')
-                if gene_hash:
-                    existing_gene_hashes[gene_hash] = being
-                    self.genes[being.soul] = being
+            if being.genesis.get('type') == 'gene':
+                file_path = being.attributes.get('file_path')
+                if file_path:
+                    existing_genes_by_path[file_path] = being
+                    # Użyj ścieżki pliku jako soul ID
+                    self.genes[file_path] = being
 
-        print(f"🧬 Znaleziono {len(existing_gene_hashes)} istniejących genów w bazie")
+        print(f"🧬 Znaleziono {len(existing_genes_by_path)} istniejących genów w bazie")
 
         for gene_file in genes_dir.glob("*.py"):
             try:
+                file_path = str(gene_file)
+                
                 # Wczytaj kod genu
                 with open(gene_file, 'r', encoding='utf-8') as f:
                     gene_code = f.read()
 
-                # Generuj hash kodu
-                gene_hash = hashlib.sha256(gene_code.encode('utf-8')).hexdigest()
+                # Generuj hash kodu dla wykrywania zmian
+                current_hash = hashlib.sha256(gene_code.encode('utf-8')).hexdigest()
 
-                # Sprawdź czy gen o takim hash-u już istnieje
-                if gene_hash in existing_gene_hashes:
-                    existing_gene = existing_gene_hashes[gene_hash]
-                    print(f"🧬 Gen już istnieje: {gene_file.stem} (Hash: {gene_hash[:8]}...)")
-                    continue
+                # Sprawdź czy gen już istnieje
+                if file_path in existing_genes_by_path:
+                    existing_gene = existing_genes_by_path[file_path]
+                    existing_hash = existing_gene.attributes.get('gene_hash')
 
-                # Generuj deterministic UUID na podstawie hash-a
-                gene_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"gene_{gene_hash}"))
+                    if existing_hash == current_hash:
+                        print(f"🧬 Gen bez zmian: {gene_file.stem} (Hash: {current_hash[:8]}...)")
+                        continue
+                    else:
+                        # EWOLUCJA WYKRYTA! Kod się zmienił
+                        print(f"🔄 EWOLUCJA KODU: {gene_file.stem}")
+                        print(f"   Stary hash: {existing_hash[:8]}...")
+                        print(f"   Nowy hash: {current_hash[:8]}...")
+                        
+                        # Przenieś stary gen do historii
+                        await self.archive_gene_to_history(existing_gene, existing_hash)
+                        
+                        # Aktualizuj gen z nowym kodem i hash-em
+                        existing_gene.genesis['source'] = gene_code
+                        existing_gene.attributes['gene_hash'] = current_hash
+                        existing_gene.attributes['updated_at'] = datetime.now().isoformat()
+                        
+                        # Dodaj pamięć ewolucji
+                        evolution_memory = {
+                            'type': 'code_evolution',
+                            'old_hash': existing_hash,
+                            'new_hash': current_hash,
+                            'timestamp': datetime.now().isoformat(),
+                            'change_type': 'automatic_detection'
+                        }
+                        existing_gene.memories.append(evolution_memory)
+                        
+                        await existing_gene.save()
+                        print(f"✅ Gen zaktualizowany: {gene_file.stem}")
+                        continue
 
-                # Utwórz nowy gen
+                # Nowy gen - użyj ścieżki pliku jako soul ID
                 gene_being = await BaseBeing.create(
-                    being_type='data',
                     genesis={
                         'name': f'gen_{gene_file.stem}',
                         'type': 'gene',
@@ -546,8 +574,8 @@ class GeneticSystem:
                         'origin': 'filesystem'
                     },
                     attributes={
-                        'gene_hash': gene_hash,
-                        'file_path': str(gene_file),
+                        'gene_hash': current_hash,
+                        'file_path': file_path,
                         'loaded_at': datetime.now().isoformat()
                     },
                     memories=[{
@@ -559,18 +587,46 @@ class GeneticSystem:
                     energy_level=100
                 )
 
-                # Ustaw UUID na podstawie hash-a
-                gene_being.soul = gene_uuid
+                # KLUCZOWE: Ustaw soul na ścieżkę pliku
+                gene_being.soul = file_path
                 await gene_being.save()
 
-                self.genes[gene_uuid] = gene_being
-                existing_gene_hashes[gene_hash] = gene_being
-                print(f"🧬 Załadowano nowy gen: {gene_file.stem} (Hash: {gene_hash[:8]}...)")
+                self.genes[file_path] = gene_being
+                existing_genes_by_path[file_path] = gene_being
+                print(f"🧬 Załadowano nowy gen: {gene_file.stem} (ID: {file_path})")
 
             except Exception as e:
                 print(f"❌ Błąd ładowania genu {gene_file}: {e}")
 
         print(f"🧬 Załadowano łącznie {len(self.genes)} genów")
+
+    async def archive_gene_to_history(self, gene_being, old_hash: str):
+        """Archiwizuje starą wersję genu do tabeli historii"""
+        try:
+            db_pool = await get_db_pool()
+            
+            # Utwórz zapis w historii (można dodać osobną tabelę gene_history)
+            history_record = {
+                'gene_path': gene_being.attributes.get('file_path'),
+                'old_hash': old_hash,
+                'old_source': gene_being.genesis.get('source'),
+                'archived_at': datetime.now().isoformat(),
+                'version': len([m for m in gene_being.memories if m.get('type') == 'code_evolution']) + 1
+            }
+            
+            # Dodaj do pamięci genu
+            archive_memory = {
+                'type': 'archived_version',
+                'hash': old_hash,
+                'timestamp': datetime.now().isoformat(),
+                'reason': 'code_evolution_detected'
+            }
+            gene_being.memories.append(archive_memory)
+            
+            print(f"📚 Zarchiwizowano starą wersję genu (Hash: {old_hash[:8]}...)")
+            
+        except Exception as e:
+            print(f"❌ Błąd archiwizacji genu: {e}")
 
     async def clean_duplicate_genes(self):
         """Czyści duplikaty genów na podstawie hash-a kodu"""
@@ -620,6 +676,94 @@ class GeneticSystem:
 
         print(f"🧹 Usunięto {removed_count} duplikatów genów")
         return removed_count
+
+    async def load_gene_from_file_path(self, file_path: str):
+        """Ładuje lub aktualizuje pojedynczy gen z pliku"""
+        import hashlib
+        from pathlib import Path
+        
+        gene_file = Path(file_path)
+        if not gene_file.exists():
+            print(f"⚠️ Plik genu nie istnieje: {file_path}")
+            return None
+
+        try:
+            # Wczytaj kod genu
+            with open(gene_file, 'r', encoding='utf-8') as f:
+                gene_code = f.read()
+
+            # Generuj hash kodu
+            current_hash = hashlib.sha256(gene_code.encode('utf-8')).hexdigest()
+
+            # Sprawdź czy gen już istnieje w bazie
+            try:
+                existing_gene = await BaseBeing.load(file_path)
+            except:
+                existing_gene = None
+
+            if existing_gene:
+                existing_hash = existing_gene.attributes.get('gene_hash')
+                
+                if existing_hash == current_hash:
+                    print(f"🧬 Gen bez zmian: {gene_file.stem}")
+                    return existing_gene
+                else:
+                    # EWOLUCJA!
+                    print(f"🔄 EWOLUCJA WYKRYTA: {gene_file.stem}")
+                    await self.archive_gene_to_history(existing_gene, existing_hash)
+                    
+                    # Aktualizuj
+                    existing_gene.genesis['source'] = gene_code
+                    existing_gene.attributes['gene_hash'] = current_hash
+                    existing_gene.attributes['updated_at'] = datetime.now().isoformat()
+                    
+                    evolution_memory = {
+                        'type': 'code_evolution',
+                        'old_hash': existing_hash,
+                        'new_hash': current_hash,
+                        'timestamp': datetime.now().isoformat(),
+                        'trigger': 'manual_load'
+                    }
+                    existing_gene.memories.append(evolution_memory)
+                    
+                    await existing_gene.save()
+                    self.genes[file_path] = existing_gene
+                    return existing_gene
+            else:
+                # Nowy gen
+                gene_being = await BaseBeing.create(
+                    genesis={
+                        'name': f'gen_{gene_file.stem}',
+                        'type': 'gene',
+                        'source': gene_code,
+                        'created_by': 'genetic_system',
+                        'origin': 'filesystem'
+                    },
+                    attributes={
+                        'gene_hash': current_hash,
+                        'file_path': file_path,
+                        'loaded_at': datetime.now().isoformat()
+                    },
+                    memories=[{
+                        'type': 'genesis',
+                        'data': f'Gene loaded from {file_path}',
+                        'timestamp': datetime.now().isoformat()
+                    }],
+                    tags=['gene', 'genetic_system', gene_file.stem],
+                    energy_level=100
+                )
+
+                # Ustaw soul na ścieżkę pliku
+                gene_being.soul = file_path
+                await gene_being.save()
+                
+                self.genes[file_path] = gene_being
+                print(f"🧬 Nowy gen załadowany: {gene_file.stem} (ID: {file_path})")
+                return gene_being
+
+        except Exception as e:
+            print(f"❌ Błąd ładowania genu {file_path}: {e}")
+            return None
 
     async def get_universe_status(self) -> Dict[str, Any]:
         """Zwraca status całego wszechświata genetycznego"""
