@@ -1212,6 +1212,38 @@ async def get_beings(sid):
         print(f"Błąd pobierania bytów: {e}")
         await sio.emit('error', {'message': str(e)}, room=sid)
 
+@sio.event
+async def get_lux_status(sid):
+    """Pobierz status agenta Lux"""
+    try:
+        lux_status = await genetic_system.get_lux_status()
+        await sio.emit('lux_status', lux_status, room=sid)
+        
+        if lux_status.get('exists'):
+            print(f"✨ Agent Lux aktywny: {lux_status}")
+        else:
+            print("❌ Agent Lux nie został znaleziony")
+            
+    except Exception as e:
+        print(f"Błąd pobierania statusu Lux: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
+
+@sio.event
+async def initialize_lux_agent(sid):
+    """Wymusza inicjalizację agenta Lux"""
+    try:
+        await genetic_system.create_initial_beings()
+        lux_status = await genetic_system.get_lux_status()
+        
+        await sio.emit('lux_initialized', lux_status, room=sid)
+        await broadcast_graph_update()
+        
+        print(f"🧬 Agent Lux zainicjalizowany: {lux_status}")
+        
+    except Exception as e:
+        print(f"Błąd inicjalizacji Lux: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
+
 @sio.event 
 async def genetic_evolution(sid, data):
     """Endpoint do ewolucji bytów"""

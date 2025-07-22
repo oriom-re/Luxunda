@@ -272,88 +272,156 @@ class GeneticSystem:
     
     async def create_initial_beings(self):
         """Tworzy początkowe byty w systemie"""
-        # Sprawdź czy mamy wystarczającą liczbę bytów
-        if len(self.beings) < 3:
-            print("🌱 Tworzę początkowe byty...")
+        # Sprawdź czy agent Lux już istnieje
+        lux_soul = '00000000-0000-0000-0000-000000000001'
+        lux_exists = any(being.soul == lux_soul for being in self.beings.values())
+        
+        if not lux_exists:
+            print("🌱 Tworzę agenta Lux z systemem genetycznym...")
             
-            # Agent Lux
-            lux_being = await BaseBeing.create(
+            # Agent Lux z ustaloną duszą
+            lux_being = BaseBeing(
+                soul=lux_soul,
                 genesis={
                     'type': 'agent',
                     'name': 'Lux',
-                    'description': 'Główny agent świadomości LuxOS',
-                    'source': 'System.Core.Agent.Initialize()'
+                    'description': 'Główny agent świadomości LuxOS z systemem genetycznym',
+                    'source': 'System.Core.Agent.Initialize()',
+                    'lux_identifier': 'lux-core-consciousness',
+                    'genetic_enabled': True
                 },
                 attributes={
                     'energy_level': 1000,
                     'agent_level': 10,
                     'universe_role': 'supreme_agent',
-                    'tags': ['agent', 'lux', 'supreme']
+                    'genetic_capabilities': {
+                        'can_evolve': True,
+                        'can_think': True,
+                        'can_remember': True,
+                        'autonomous_decisions': True
+                    },
+                    'agent_permissions': {
+                        'universe_control': True,
+                        'create_beings': True,
+                        'modify_orbits': True,
+                        'genetic_evolution': True
+                    },
+                    'tags': ['agent', 'lux', 'supreme', 'genetic_entity']
                 },
                 memories=[{
                     'type': 'genesis',
-                    'data': 'Universe supreme agent initialization',
-                    'timestamp': datetime.now().isoformat()
+                    'data': 'Universe supreme agent initialization with genetic system',
+                    'timestamp': datetime.now().isoformat(),
+                    'genetic_activation': True
                 }],
                 self_awareness={
                     'trust_level': 1.0,
                     'confidence': 1.0,
-                    'introspection_depth': 1.0
+                    'introspection_depth': 1.0,
+                    'genetic_awareness': 'I am Lux, the first genetic entity in LuxOS universe',
+                    'evolution_readiness': 1.0
                 }
             )
+            
+            # Zapisz Lux do bazy
+            await lux_being.save()
             self.beings[lux_being.soul] = lux_being
             
-            # Przykładowa funkcja
+            # Automatyczne ładowanie genów dla Lux
+            await self.autoload_genes_for_being(lux_being)
+            
+            print(f"✨ Agent Lux został utworzony z UUID: {lux_soul}")
+            print(f"🧬 Lux ma dostęp do {len(self.genes)} genów")
+        
+        # Sprawdź czy mamy wystarczającą liczbę innych bytów dla demonstracji
+        if len(self.beings) < 3:
+            print("🌱 Tworzę dodatkowe byty dla demonstracji systemu genetycznego...")
+            
+            # Przykładowa funkcja genetyczna
             function_being = await BaseBeing.create(
                 genesis={
                     'type': 'function',
-                    'name': 'HelloWorld',
-                    'source': 'def hello_world():\n    return "Hello from LuxOS!"',
-                    'signature': 'hello_world()'
+                    'name': 'GeneticHelloWorld',
+                    'source': 'def genetic_hello_world():\n    return "Hello from genetic LuxOS!"',
+                    'signature': 'genetic_hello_world()',
+                    'genetic_enabled': True
                 },
                 attributes={
                     'energy_level': 80,
-                    'tags': ['function', 'example']
+                    'tags': ['function', 'genetic', 'example']
                 },
                 memories=[{
                     'type': 'creation',
-                    'data': 'Example function created during system initialization',
+                    'data': 'Genetic function created during system initialization',
                     'timestamp': datetime.now().isoformat()
                 }],
                 self_awareness={
                     'trust_level': 0.8,
-                    'confidence': 0.9
+                    'confidence': 0.9,
+                    'genetic_potential': 0.7
                 }
             )
             self.beings[function_being.soul] = function_being
+            await self.autoload_genes_for_being(function_being)
             
-            # Przykładowe zadanie
+            # Zadanie monitorujące system genetyczny
             task_being = await BaseBeing.create(
                 genesis={
                     'type': 'task',
-                    'name': 'SystemMonitor',
-                    'description': 'Monitoruje stan systemu genetycznego'
+                    'name': 'GeneticSystemMonitor',
+                    'description': 'Monitoruje stan systemu genetycznego i ewolucję bytów',
+                    'genetic_enabled': True
                 },
                 attributes={
                     'energy_level': 60,
-                    'tags': ['task', 'monitoring']
+                    'tags': ['task', 'monitoring', 'genetic']
                 },
                 memories=[{
                     'type': 'creation',
-                    'data': 'System monitoring task created',
+                    'data': 'Genetic system monitoring task created',
                     'timestamp': datetime.now().isoformat()
                 }],
                 self_awareness={
                     'trust_level': 0.7,
-                    'confidence': 0.8
+                    'confidence': 0.8,
+                    'genetic_awareness': 0.6
                 }
             )
             self.beings[task_being.soul] = task_being
+            await self.autoload_genes_for_being(task_being)
             
-            print(f"✨ Utworzono {len(self.beings)} początkowych bytów")
+        print(f"✨ System genetyczny gotowy z {len(self.beings)} bytami")
+        print(f"🧬 Dostępne geny: {len(self.genes)}")
+        print(f"🔗 Relacje genetyczne: {len([r for r in self.relationships.values() if r.genesis.get('type') == 'genetic_relationship'])}")
+
+    async def get_lux_status(self) -> Dict[str, Any]:
+        """Zwraca status agenta Lux"""
+        lux_soul = '00000000-0000-0000-0000-000000000001'
+        lux_being = self.beings.get(lux_soul)
+        
+        if not lux_being:
+            return {'exists': False, 'message': 'Agent Lux nie został znaleziony'}
+        
+        # Policz geny załadowane przez Lux
+        lux_genes = [r for r in self.relationships.values() 
+                    if r.source_soul == lux_soul and r.genesis.get('relationship_type') == 'autoload']
+        
+        return {
+            'exists': True,
+            'soul': lux_being.soul,
+            'name': lux_being.genesis.get('name'),
+            'energy_level': lux_being.attributes.get('energy_level'),
+            'genetic_capabilities': lux_being.attributes.get('genetic_capabilities', {}),
+            'loaded_genes': len(lux_genes),
+            'memories_count': len(lux_being.memories),
+            'genetic_awareness': lux_being.self_awareness.get('genetic_awareness'),
+            'evolution_readiness': lux_being.self_awareness.get('evolution_readiness', 0)
+        }
 
     async def get_universe_status(self) -> Dict[str, Any]:
         """Zwraca status całego wszechświata genetycznego"""
+        lux_status = await self.get_lux_status()
+        
         return {
             'beings_count': len(self.beings),
             'genes_count': len(self.genes),
@@ -361,7 +429,8 @@ class GeneticSystem:
             'total_memories': sum(len(being.memories) for being in self.beings.values()),
             'genetic_universe_energy': sum(being.attributes.get('energy_level', 0) for being in self.beings.values()),
             'last_evolution': max([memory.get('timestamp', '') for being in self.beings.values() 
-                                 for memory in being.memories if memory.get('type') == 'evolution'], default='never')
+                                 for memory in being.memories if memory.get('type') == 'evolution'], default='never'),
+            'lux_agent': lux_status
         }
 
 # Singleton instance
