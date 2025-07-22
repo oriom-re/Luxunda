@@ -67,10 +67,21 @@ async def create_being(sid, data):
     """Tworzy nowy byt"""
     try:
         being_type = data.get('being_type', 'base')
+        
+        # BLOKUJ tworzenie Lux przez frontend
+        genesis = data.get('genesis', {})
+        if (genesis.get('name') == 'Lux' or 
+            genesis.get('type') == 'agent' and 'lux' in genesis.get('name', '').lower()):
+            await sio.emit('error', {
+                'message': 'BŁĄD: Nie można tworzyć agenta Lux przez frontend. Lux jest zarządzana przez system genetyczny.'
+            }, room=sid)
+            return
+        
         being = await BeingFactory.create_being(
             being_type=being_type,
-            genesis=data.get('genesis', {}),
-            tags=data.get('tags', []),            energy_level=data.get('energy_level', 0),
+            genesis=genesis,
+            tags=data.get('tags', []),            
+            energy_level=data.get('energy_level', 0),
             attributes=data.get('attributes', {}),
             memories=data.get('memories', []),
             self_awareness=data.get('self_awareness', {})

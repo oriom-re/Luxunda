@@ -333,15 +333,10 @@ class LuxOSUniverse {
     }
 
     ensureLuxAgent() {
-        // Backend zarządza jedyną instancją Lux - nie twórz duplikatów
-        console.log('Backend zarządza jedyną instancją agenta Lux');ntend
-        console.log('Backend zarządza jedyną instancją Lux - nie tworzę duplikatów');
+        // KOMPLETNIE USUNIĘTE - backend w pełni zarządza Lux
+        console.log('🚫 Frontend NIE tworzy agenta Lux - backend zarządza wszystkim');
+        // NIE RÓB NICZEGO - backend ma pełną kontrolę
     }
-
-    // Funkcja usunięta - backend zarządza jedyną instancją Luxtance: 1.0
-            }],
-            x: 0,
-            y: 0,
             fx: 0,
             fy: 0
         };
