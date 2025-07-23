@@ -40,12 +40,13 @@ class LuxOSUniverse {
 
     setupSocketListeners() {
         this.socket.on('connect', () => {
-            console.log('Połączono z wszechświatem');
+            console.log('✅ Połączono z wszechświatem LuxOS');
             this.updateConnectionStatus(true);
             this.reconnectAttempts = 0; // Reset counter on successful connection
 
             // Natychmiast poproś o dane po połączeniu
             setTimeout(() => {
+                console.log('📡 Żądanie danych grafu...');
                 this.socket.emit('get_graph_data');
             }, 100);
 
@@ -70,8 +71,16 @@ class LuxOSUniverse {
 
         // Obsługa otrzymanych danych grafu z throttling
         this.socket.on('graph_data', (data) => {
-            console.log('Aktualizacja wszechświata:', data);
-            this.throttledUpdate(data);
+            console.log('📊 Otrzymano dane wszechświata:', {
+                nodes: data.nodes?.length || 0,
+                relationships: data.relationships?.length || 0
+            });
+            
+            if (data.nodes && Array.isArray(data.nodes)) {
+                this.throttledUpdate(data);
+            } else {
+                console.warn('⚠️ Nieprawidłowe dane grafu:', data);
+            }
         });
 
         // Obsługa kontekstu głównej intencji LuxOS
@@ -580,21 +589,6 @@ class LuxOSUniverse {
         // KOMPLETNIE USUNIĘTE - backend w pełni zarządza Lux
         console.log('🚫 Frontend NIE tworzy agenta Lux - backend zarządza wszystkim');
         // NIE RÓB NICZEGO - backend ma pełną kontrolę
-    }
-            fx: 0,
-            fy: 0
-        };
-
-        this.beings.unshift(luxAgent);
-        this.socket.emit('create_being', {
-            being_type: 'agent',
-            genesis: luxAgent.genesis,
-            attributes: luxAgent.attributes,
-            memories: luxAgent.memories,
-            self_awareness: luxAgent.self_awareness
-        });
-
-        console.log('Utworzono Lux jako głównego agenta:', luxAgent);
     }
 
     createMainIntention() {
@@ -2001,12 +1995,7 @@ class LuxOSUniverse {
         return colors[type] || colors.unknown;
     }
 
-    // Obsługa tick simulation
-    this.simulation.on("tick", () => {
-        if (this.updateNodePositions) this.updateNodePositions();
-        if (this.updateRelationshipPositions) this.updateRelationshipPositions();
-        if (this.updateRelationshipLabelPositions) this.updateRelationshipLabelPositions();
-    });
+    
 
     // Delikatna aktualizacja danych grafu
     gentleUpdateGraphData(data) {
