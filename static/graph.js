@@ -150,20 +150,19 @@ class LuxOSUniverse {
             }
         });
 
-        // Obsłuż płynne usuwanie bytów
-        this.socket.on('being_removed_smoothly', (data) => {
-            console.log('🎯 Otrzymano powiadomienie o płynnym usunięciu:', data.soul);
+        // Obsłuż usuwanie bytów
+        this.socket.on('being_removed', (data) => {
+            console.log('🗑️ Otrzymano powiadomienie o usunięciu:', data.soul);
             
-            // Znajdź byt w lokalnych danych
-            const beingToRemove = this.beings.find(b => 
-                (b.soul || b.soul_uid) === data.soul
-            );
+            // Usuń byt z lokalnych danych
+            const beforeCount = this.beings.length;
+            this.beings = this.beings.filter(b => (b.soul || b.soul_uid) !== data.soul);
+            const afterCount = this.beings.length;
             
-            if (beingToRemove) {
-                // Użyj płynnego usuwania
-                this.smoothRemoveBeing(beingToRemove);
-            } else {
-                console.warn(`⚠️ Byt ${data.soul} nie znaleziony w lokalnych danych`);
+            if (beforeCount > afterCount) {
+                console.log(`✅ Usunięto byt z frontendu: ${beforeCount} → ${afterCount} bytów`);
+                this.updateStats();
+                this.renderUniverse();
             }
         });
     }
@@ -1831,65 +1830,7 @@ class LuxOSUniverse {
         this.updateStats();
     }
 
-    // Płynne usuwanie bytu z animacją BEZ pełnego odświeżania
-    smoothRemoveBeing(being) {
-        const targetSoul = being.soul || being.soul_uid;
-        console.log(`🎯 Płynne usuwanie bytu: ${targetSoul}`);
-
-        // Znajdź element SVG bytu w aktualnej selekcji
-        const beingElement = this.beingSelection ? 
-            this.beingSelection.filter(d => (d.soul || d.soul_uid) === targetSoul).node() : null;
-
-        if (beingElement) {
-            console.log(`✨ Znaleziono element SVG - rozpoczynam animację zanikania`);
-            
-            // Animacja zanikania z płynnym przejściem
-            d3.select(beingElement)
-                .transition()
-                .duration(800)
-                .style("opacity", 0)
-                .style("transform", "scale(0.1)")
-                .on("end", () => {
-                    // Usuń element z DOM
-                    d3.select(beingElement).remove();
-                    console.log(`🗑️ Element SVG usunięty z DOM`);
-                    
-                    // Usuń byt z lokalnej listy
-                    const beforeCount = this.beings.length;
-                    this.beings = this.beings.filter(b => (b.soul || b.soul_uid) !== targetSoul);
-                    const afterCount = this.beings.length;
-                    console.log(`📊 Usunięto z lokalnej listy: ${beforeCount} → ${afterCount} bytów`);
-                    
-                    // TYLKO aktualizuj statystyki - NIE renderuj całości
-                    this.updateStats();
-                    
-                    // Zaktualizuj symulację bez pełnego re-render
-                    if (this.simulation) {
-                        this.simulation.nodes(this.beings);
-                        this.simulation.alpha(0.1).restart();
-                    }
-                    
-                    console.log(`✅ Płynne usuwanie zakończone`);
-                });
-        } else {
-            console.warn(`⚠️ Nie znaleziono elementu SVG dla bytu: ${targetSoul}`);
-            
-            // Fallback - usuń z danych bez animacji
-            const beforeCount = this.beings.length;
-            this.beings = this.beings.filter(b => (b.soul || b.soul_uid) !== targetSoul);
-            const afterCount = this.beings.length;
-            console.log(`📊 Fallback usunięcie: ${beforeCount} → ${afterCount} bytów`);
-            
-            // TYLKO aktualizuj statystyki
-            this.updateStats();
-            
-            // Zaktualizuj symulację
-            if (this.simulation) {
-                this.simulation.nodes(this.beings);
-                this.simulation.alpha(0.1).restart();
-            }
-        }
-    }
+    
 }
 
 // Zastąp LuxOSGraph nowym systemem wszechświata

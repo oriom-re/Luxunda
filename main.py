@@ -751,14 +751,13 @@ async def delete_being(sid, data):
         }
         await sio.emit('task_response', response, room=sid)
 
-        # Wyślij delikatne powiadomienie o usunięciu - NIE pełne odświeżanie
+        # Wyślij powiadomienie o usunięciu
         try:
-            # Wyślij TYLKO informację o usuniętym bycie
-            await sio.emit('being_removed_smoothly', {
+            await sio.emit('being_removed', {
                 'soul': soul,
-                'message': f'Byt {soul} został usunięty płynnie'
+                'message': f'Byt {soul} został usunięty'
             })
-            print(f"🎯 Wysłano delikatne powiadomienie o usunięciu: {soul}")
+            print(f"✅ Wysłano powiadomienie o usunięciu: {soul}")
             
         except Exception as e:
             print(f"❌ Błąd wysyłania powiadomienia o usunięciu: {e}")
