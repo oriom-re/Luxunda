@@ -945,8 +945,8 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                         'name': name,
                         'type': 'task',
                         'description': f'Zadanie utworzone przez intencję: {intention}',
-                        'created_by': 'intention'
-                    },
+                        'created_by': 'intention',
+                    }}})
 
 
 async def make_delegation_decision(message: str, task_analysis: dict, context: dict) -> dict:
