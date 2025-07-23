@@ -21,6 +21,11 @@ class GeneticSystem:
     async def initialize(self):
         """Inicjalizuje system genetyczny"""
         print("🧬 Inicjalizacja systemu genetycznego LuxOS...")
+        
+        # Załaduj geny automatyczne
+        print("🧬 Ładowanie genów automatycznych...")
+        import app.genetics.auto_genes  # To automatycznie zarejestruje geny
+        
         await self.load_existing_beings()
         await self.load_existing_relationships()
         await self.load_genes_from_manifest()
