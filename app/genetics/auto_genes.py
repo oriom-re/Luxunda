@@ -1,6 +1,7 @@
 
 from app.genetics.gene_registry import gene
 import asyncio
+from typing import Any
 from datetime import datetime
 import json
 import logging
