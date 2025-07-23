@@ -21,6 +21,7 @@ async def connect(sid, environ):
 async def disconnect(sid):
     print(f"❌ [SocketIO] Rozłączono: {sid}")
 
+
 @sio.on("*")  # przechwytuje wszystkie eventy
 async def handle_any_event(sid, data):
     event_name = data.get("event")
