@@ -150,19 +150,17 @@ class LuxOSUniverse {
             }
         });
 
-        // Obsłuż usuwanie bytów
-        this.socket.on('being_removed', (data) => {
-            console.log('🗑️ Otrzymano powiadomienie o usunięciu:', data.soul);
-            
-            // Usuń byt z lokalnych danych
-            const beforeCount = this.beings.length;
-            this.beings = this.beings.filter(b => (b.soul || b.soul_uid) !== data.soul);
-            const afterCount = this.beings.length;
-            
-            if (beforeCount > afterCount) {
-                console.log(`✅ Usunięto byt z frontendu: ${beforeCount} → ${afterCount} bytów`);
-                this.updateStats();
-                this.renderUniverse();
+        // Obsłuż usuwanie bytów - backend potwierdza usunięcie
+        this.socket.on('being_deleted', (data) => {
+            console.log('Backend potwierdza usunięcie:', data);
+            if (data.soul) {
+                // Sprawdź czy byt jest już usunięty z UI
+                const stillExists = this.beingsGroup.select(`[data-soul="${data.soul}"]`);
+                if (!stillExists.empty()) {
+                    // Usuń jeśli jeszcze istnieje w UI
+                    this.removeBeingDynamically(data.soul);
+                }
+                this.showSuccess(`✅ Usunięto byt: ${data.soul.substring(0, 8)}`);
             }
         });
     }
@@ -359,6 +357,216 @@ class LuxOSUniverse {
         this.ensureLuxAgent();
         this.updateStats();
         this.renderUniverse();
+    }
+
+    updateGraph(data) {
+        console.log('Aktualizacja wszechświata:', data);
+
+        // Zaktualizuj dane dynamicznie
+        if (data.nodes) {
+            this.updateBeingsDynamically(data.nodes);
+        }
+
+        if (data.relationships) {
+            this.updateRelationshipsDynamically(data.relationships);
+        }
+
+        this.updateStats();
+    }
+
+    updateBeingsDynamically(newNodes) {
+        const processedNodes = newNodes.map(node => ({
+            ...node,
+            genesis: typeof node.genesis === 'string' ? JSON.parse(node.genesis) : node.genesis,
+            attributes: typeof node.attributes === 'string' ? JSON.parse(node.attributes) : node.attributes,
+            memories: typeof node.memories === 'string' ? JSON.parse(node.memories) : node.memories,
+            self_awareness: typeof node.self_awareness === 'string' ? JSON.parse(node.self_awareness) : node.self_awareness
+        }));
+
+        // Sprawdź które byty są nowe, zaktualizowane lub usunięte
+        const currentSouls = new Set(this.beings.map(b => b.soul));
+        const newSouls = new Set(processedNodes.map(n => n.soul));
+
+        // Dodaj nowe byty
+        processedNodes.forEach(newNode => {
+            if (!currentSouls.has(newNode.soul)) {
+                this.addBeingDynamically(newNode);
+                console.log(`➕ Dynamicznie dodano: ${newNode.soul}`);
+            } else {
+                // Zaktualizuj istniejący byt
+                this.updateExistingBeing(newNode);
+            }
+        });
+
+        // Usuń byty które zniknęły z backendu
+        this.beings.forEach(being => {
+            if (!newSouls.has(being.soul)) {
+                this.removeBeingDynamically(being.soul);
+                console.log(`➖ Dynamicznie usunięto: ${being.soul}`);
+            }
+        });
+
+        // Zaktualizuj listę bytów
+        this.beings = processedNodes;
+    }
+
+    addBeingDynamically(being) {
+        // Dodaj byt do symulacji
+        if (this.simulation) {
+            this.simulation.nodes().push(being);
+            this.simulation.alpha(0.3).restart();
+        }
+
+        // Renderuj nowy byt natychmiast
+        this.renderSingleBeing(being);
+    }
+
+    updateExistingBeing(updatedBeing) {
+        // Znajdź istniejący element SVG
+        const beingElement = this.beingsGroup.select(`[data-soul="${updatedBeing.soul}"]`);
+
+        if (!beingElement.empty()) {
+            // Zaktualizuj atrybuty wizualne bez usuwania elementu
+            this.updateBeingVisuals(beingElement, updatedBeing);
+        }
+    }
+
+    removeBeingDynamically(soulToRemove) {
+        // Usuń z symulacji
+        if (this.simulation) {
+            const nodes = this.simulation.nodes();
+            const filteredNodes = nodes.filter(n => n.soul !== soulToRemove);
+            this.simulation.nodes(filteredNodes);
+            this.simulation.alpha(0.3).restart();
+        }
+
+        // Usuń element SVG z animacją
+        const beingElement = this.beingsGroup.select(`[data-soul="${soulToRemove}"]`);
+        if (!beingElement.empty()) {
+            beingElement
+                .transition()
+                .duration(300)
+                .style("opacity", 0)
+                .attr("transform", "scale(0)")
+                .remove();
+        }
+
+        // Usuń z zaznaczonych węzłów
+        this.selectedNodes = this.selectedNodes.filter(soul => soul !== soulToRemove);
+    }
+
+    renderSingleBeing(being) {
+        const beingGroup = this.beingsGroup
+            .append("g")
+            .datum(being)
+            .attr("class", "being")
+            .attr("data-soul", being.soul)
+            .style("cursor", "pointer")
+            .style("opacity", 0); // Zacznij z opacity 0
+
+        // Renderuj wizualne elementy bytu
+        this.setupBeingVisuals(beingGroup, being);
+
+        // Animacja pojawienia się
+        beingGroup
+            .transition()
+            .duration(500)
+            .style("opacity", 1)
+            .attr("transform", "scale(1)");
+
+        // Dodaj event listenery
+        this.setupBeingEvents(beingGroup);
+    }
+
+    updateRelationshipsDynamically(newRelationships) {
+        console.log(`🔗 Aktualizuję relacje: ${newRelationships.length}`);
+
+        // Usuń stare relacje
+        this.linksGroup.selectAll(".relationship").remove();
+
+        // Dodaj nowe relacje
+        this.relationships = newRelationships;
+        this.renderRelationships();
+    }
+
+    setupBeingVisuals(beingGroup, being) {
+        if (this.isLuxAgent(being)) {
+            // Renderuj Lux jako specjalną gwiazdę
+            beingGroup.append("circle")
+                .attr("r", 40)
+                .attr("fill", "url(#luxStar)")
+                .style("filter", "url(#glow)");
+
+            beingGroup.append("text")
+                .attr("class", "lux-label")
+                .attr("dy", 55)
+                .style("text-anchor", "middle")
+                .style("fill", "#ffff00")
+                .style("font-size", "12px")
+                .style("font-weight", "bold")
+                .style("pointer-events", "none")
+                .text("LUX");
+
+        } else if (being.genesis?.type === 'message') {
+            // Renderuj wiadomości jako małe punkty
+            beingGroup.append("circle")
+                .attr("r", 3)
+                .attr("fill", "#607D8B")
+                .style("opacity", 0.6);
+
+        } else {
+            // Renderuj zwykłe byty
+            const energySize = Math.max(5, Math.min(25, (being.attributes?.energy_level || 50) / 4));
+
+            beingGroup.append("circle")
+                .attr("r", energySize)
+                .attr("fill", this.getBeingColor(being.genesis?.type || 'unknown'))
+                .style("stroke", "#00ff88")
+                .style("stroke-width", "2px");
+
+            // Dodaj etykietę
+            const label = being.genesis?.name || being.soul?.substring(0, 8) || 'Unknown';
+            beingGroup.append("text")
+                .attr("class", "being-label")
+                .attr("dy", energySize + 15)
+                .style("text-anchor", "middle")
+                .style("fill", "white")
+                .style("font-size", "10px")
+                .style("pointer-events", "none")
+                .text(label);
+        }
+    }
+
+    updateBeingVisuals(beingElement, updatedBeing) {
+        // Zaktualizuj rozmiar na podstawie energii
+        const energySize = Math.max(5, Math.min(25, (updatedBeing.attributes?.energy_level || 50) / 4));
+
+        beingElement.select("circle")
+            .transition()
+            .duration(300)
+            .attr("r", energySize)
+            .attr("fill", this.getBeingColor(updatedBeing.genesis?.type || 'unknown'));
+
+        // Zaktualizuj etykietę
+        const label = updatedBeing.genesis?.name || updatedBeing.soul?.substring(0, 8) || 'Unknown';
+        beingElement.select(".being-label")
+            .transition()
+            .duration(300)
+            .text(label);
+    }
+
+    setupBeingEvents(beingGroup) {
+        beingGroup
+            .on("click", (event, d) => {
+                event.stopPropagation();
+                this.handleBeingClick(d);
+            })
+            .on("mouseover", (event, d) => {
+                this.showBeingTooltip(event, d);
+            })
+            .on("mouseout", () => {
+                this.hideBeingTooltip();
+            });
     }
 
     updateUniversePositions(data) {
@@ -766,7 +974,7 @@ class LuxOSUniverse {
                 // Jeśli byt jest zbyt daleko od centrum, przyciągnij go
                 const distance = Math.sqrt(x * x + y * y);
                 if (distance > maxDistance && !this.isLuxAgent(d)) {
-                    const scale = maxDistance / distance;```python
+                    const scale = maxDistance / distance;
                     x = x * scale;
                     y = y * scale;
                     // Aktualizuj pozycję w danych
@@ -784,7 +992,6 @@ class LuxOSUniverse {
     }
 
     // Obsługa przeciągania
-    ```python
     dragstarted(event, d) {
         if (!event.active) this.simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
@@ -1407,6 +1614,41 @@ class LuxOSUniverse {
         setTimeout(() => document.addEventListener('click', removeMenu), 100);
     }
 
+    // Obsługa usuwania bytów - natychmiastowe usunięcie z UI, potem synchronizacja
+    async handleDeleteBeing(being) {
+        if (!this.socket) {
+            console.error('Brak połączenia socket');
+            return;
+        }
+
+        try {
+            console.log(`🗑️ Usuwam byt z UI: ${being.soul}`);
+
+            // Natychmiast usuń z UI dla lepszego UX
+            this.removeBeingDynamically(being.soul);
+
+            // Wyślij żądanie do backendu
+            this.socket.emit('delete_being', { 
+                soul: being.soul 
+            }, (response) => {
+                console.log('Odpowiedź backendu na usunięcie:', response);
+
+                if (response && response.success) {
+                    console.log(`✅ Byt ${being.soul} potwierdzony jako usunięty`);
+                } else {
+                    console.error('Backend odrzucił usunięcie, przywracam byt');
+                    // Jeśli backend odrzucił, przeładuj dane
+                    this.socket.emit('get_graph_data');
+                }
+            });
+
+        } catch (error) {
+            console.error('Błąd podczas usuwania bytu:', error);
+            // Przywróć byt w przypadku błędu
+            this.socket.emit('get_graph_data');
+        }
+    }
+
     // Metody kompatybilności z IntentionComponent
     processIntention(intention) {
         console.log('Universe processing intention:', intention);
@@ -1759,37 +2001,6 @@ class LuxOSUniverse {
         return colors[type] || colors.unknown;
     }
 
-    // Wymusza kompletny rerender grafu
-    forceCompleteRerender() {
-        console.warn('🔄 Wymuszam kompletną regenerację grafu');
-
-        // Zatrzymaj symulację
-        if (this.simulation) {
-            this.simulation.stop();
-            this.simulation = null;
-        }
-
-        // Wyczyść grupy SVG
-        if (this.beingsGroup) {
-            this.beingsGroup.selectAll(".being").remove();
-        }
-        if (this.linksGroup) {
-            this.linksGroup.selectAll(".relationship").remove();
-        }
-        if (this.orbitsGroup) {
-            this.orbitsGroup.selectAll(".main-intention-orbit").remove();
-        }
-
-        // Zresetuj zaznaczone węzły
-        this.selectedNodes = [];
-
-        // Przerenderuj wszystko od nowa
-        this.renderUniverse();
-        this.updateStats();
-
-        console.warn(`📊 Graf zregenerowany - pozostało ${this.beings.length} bytów`);
-    }
-
     // Obsługa tick simulation
     this.simulation.on("tick", () => {
         if (this.updateNodePositions) this.updateNodePositions();
@@ -1829,8 +2040,6 @@ class LuxOSUniverse {
         this.renderRelationships();
         this.updateStats();
     }
-
-    
 }
 
 // Zastąp LuxOSGraph nowym systemem wszechświata
