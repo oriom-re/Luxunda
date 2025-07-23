@@ -28,6 +28,39 @@ async def debug_gene(message: str, level: str = "INFO", **context):
     
     return debug_info
 
+@gene(name="log", description="Loguje wiadomość", energy_cost=1)
+async def log_gene(message: str, level: str = "INFO"):
+    """Gen logowania"""
+    logger.log(getattr(logging, level.upper(), logging.INFO), message)
+    return {
+        'logged': True,
+        'message': message,
+        'level': level,
+        'timestamp': datetime.now().isoformat()
+    }
+
+@gene(name="timer", description="Zarządza timerem", energy_cost=2)
+async def timer_gene(action: str, timer_id: str = "default"):
+    """Gen timera"""
+    if not hasattr(timer_gene, 'timers'):
+        timer_gene.timers = {}
+    
+    if action == "start":
+        timer_gene.timers[timer_id] = datetime.now()
+        return {'started': True, 'timer_id': timer_id}
+    elif action == "stop":
+        if timer_id in timer_gene.timers:
+            start_time = timer_gene.timers[timer_id]
+            duration = (datetime.now() - start_time).total_seconds()
+            del timer_gene.timers[timer_id]
+            return {'stopped': True, 'timer_id': timer_id, 'duration': duration}
+        else:
+            return {'error': f'Timer {timer_id} nie został uruchomiony'}
+    else:
+        return {'error': f'Nieznana akcja: {action}'}
+
+print("🧬 Auto-geny załadowane pomyślnie!")g_info
+
 @gene(name="log", description="Zapisuje log do systemu", energy_cost=2)
 async def log_gene(message: str, level: str = "INFO", save_to_file: bool = False):
     """Gen logowania - zapisuje logi"""

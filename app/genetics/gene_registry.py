@@ -109,6 +109,35 @@ class GeneContext:
         """Zwraca dostępne geny"""
         return gene_registry.get_available_genes()
 
+# Funkcja pomocnicza do bezpiecznego wywoływania genów
+async def safe_gene_call(gene_name: str, *args, **kwargs):
+    """Bezpieczne wywołanie genu bez kontekstu"""
+    if gene_name not in gene_registry._genes:
+        return {
+            'error': f'Gen "{gene_name}" nie został zainicjowany',
+            'available_genes': gene_registry.get_available_genes()
+        }
+    
+    try:
+        gene_info = gene_registry._genes[gene_name]
+        gene_info['call_count'] += 1
+        
+        if gene_info['is_async']:
+            result = await gene_info['function'](*args, **kwargs)
+        else:
+            result = gene_info['function'](*args, **kwargs)
+        
+        return {
+            'success': True,
+            'result': result,
+            'gene': gene_name,
+            'call_count': gene_info['call_count']
+        }
+    except Exception as e:
+        return {
+            'error': f'Błąd wywołania genu "{gene_name}": {str(e)}'
+        }
+
 # Funkcja pomocnicza do tworzenia kontekstu
 def create_gene_context(being_soul: str) -> GeneContext:
     """Tworzy kontekst genowy dla bytu"""

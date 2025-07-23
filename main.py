@@ -17,6 +17,7 @@ from app.beings.function_router import FunctionRouter
 from app.beings import DateTimeEncoder
 from app.ai.function_calling import OpenAIFunctionCaller
 from app.genetics.genetic_system import genetic_system
+import app.genetics.auto_genes  # Załaduj auto-geny
 
 
 

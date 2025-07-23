@@ -4,6 +4,7 @@ import uuid
 import json
 from datetime import datetime
 from app.database import get_db_pool
+from app.genetics.gene_registry import gene_registry, create_gene_context
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -41,6 +42,15 @@ class BaseBeing:
     def energy_level(self, value: int):
         """Ustawia poziom energii w atrybutach"""
         self.attributes['energy_level'] = value
+
+    async def genes(self, gene_name: str, *args, **kwargs):
+        """Wywołuje gen w kontekście tego bytu"""
+        with create_gene_context(self.soul) as context:
+            return await context(gene_name, *args, **kwargs)
+    
+    def available_genes(self) -> List[str]:
+        """Zwraca listę dostępnych genów"""
+        return gene_registry.get_available_genes()
 
     @classmethod
     async def create(cls, genesis: Dict[str, Any], **kwargs):
