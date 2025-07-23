@@ -1,4 +1,3 @@
-
 class IntentionComponent {
     constructor(graphManager) {
         this.graphManager = graphManager;
@@ -40,7 +39,7 @@ class IntentionComponent {
                 e.preventDefault();
                 this.sendIntention();
             }
-            
+
             // Ctrl+Enter również wysyła intencję
             if (e.ctrlKey && e.key === 'Enter') {
                 e.preventDefault();
@@ -72,9 +71,9 @@ class IntentionComponent {
     updateCharacterCounter() {
         const length = this.intentionInput.value.length;
         const maxLength = 500;
-        
+
         this.charCounter.textContent = length;
-        
+
         // Zmień kolor licznika gdy zbliżamy się do limitu
         if (length > maxLength * 0.9) {
             this.charCounter.style.color = '#ff6b6b';
@@ -91,12 +90,12 @@ class IntentionComponent {
     autoResizeTextarea() {
         // Reset wysokości żeby zmierzyć scrollHeight
         this.intentionInput.style.height = 'auto';
-        
+
         // Ustaw nową wysokość na podstawie contentu
         const scrollHeight = this.intentionInput.scrollHeight;
         const minHeight = 40;
         const maxHeight = 200;
-        
+
         const newHeight = Math.max(minHeight, Math.min(maxHeight, scrollHeight));
         this.intentionInput.style.height = newHeight + 'px';
     }
@@ -128,9 +127,9 @@ class IntentionComponent {
         }
     }
 
-    sendIntention() {
+    async sendIntention() {
         const message = this.intentionInput.value.trim();
-        
+
         if (!message) {
             this.showError('Wprowadź myśl przed wysłaniem');
             return;
@@ -143,10 +142,10 @@ class IntentionComponent {
 
         try {
             console.log('Sending thought to Lux:', message);
-            
+
             // Pokaż feedback
             this.showFeedback('Lux analizuje twoją myśl...', 'info');
-            
+
             // Zablokuj przycisk na czas przetwarzania
             this.sendButton.disabled = true;
             this.sendButton.textContent = '🧠 Lux analizuje...';
@@ -155,9 +154,13 @@ class IntentionComponent {
             if (this.graphManager && this.graphManager.socket) {
                 this.graphManager.socket.emit('lux_communication', {
                     message: message,
+                    task_analysis: this.analyzeTaskComplexity(message),
                     context: {
                         selected_nodes: this.graphManager.selectedNodes || [],
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        user_agent: navigator.userAgent,
+                        session_id: this.graphManager.socket.id,
+                        frontend_capabilities: this.getFrontendCapabilities()
                     }
                 });
             } else {
@@ -171,6 +174,57 @@ class IntentionComponent {
         }
     }
 
+    analyzeTaskComplexity(intention) {
+        const heavyTaskKeywords = [
+            'analizuj', 'przetwórz', 'oblicz', 'generuj', 'zapisz', 'czytaj plik',
+            'uruchom test', 'wykonaj kod', 'kompiluj', 'deploy', 'baza danych',
+            'długoterminowy', 'cykliczny', 'harmonogram', 'monitor'
+        ];
+
+        const frontendTaskKeywords = [
+            'pokaż', 'wyświetl', 'ukryj', 'animuj', 'zoom', 'przewiń',
+            'filtruj', 'sortuj', 'kolor', 'wizualizuj', 'interfejs'
+        ];
+
+        const complexity = {
+            is_heavy_task: heavyTaskKeywords.some(keyword =>
+                intention.toLowerCase().includes(keyword)
+            ),
+            is_frontend_task: frontendTaskKeywords.some(keyword =>
+                intention.toLowerCase().includes(keyword)
+            ),
+            requires_file_operations: intention.includes('plik') || intention.includes('kod'),
+            requires_database: intention.includes('baza') || intention.includes('zapisz'),
+            is_long_term: intention.includes('długo') || intention.includes('cykl') ||
+                intention.includes('monitor'),
+            delegation_recommendation: 'auto' // auto, frontend, backend
+        };
+
+        // Recommend delegation strategy
+        if (complexity.is_heavy_task || complexity.requires_file_operations ||
+            complexity.requires_database || complexity.is_long_term) {
+            complexity.delegation_recommendation = 'backend';
+        } else if (complexity.is_frontend_task) {
+            complexity.delegation_recommendation = 'frontend';
+        }
+
+        return complexity;
+    }
+
+    getFrontendCapabilities() {
+        return {
+            d3_visualization: true,
+            real_time_animation: true,
+            user_interaction: true,
+            local_storage: true,
+            client_side_filtering: true,
+            webgl_rendering: !!window.WebGLRenderingContext,
+            available_memory: navigator.deviceMemory || 'unknown',
+            cpu_cores: navigator.hardwareConcurrency || 'unknown'
+        };
+    }
+
+
     handleIntentionResponse(response) {
         console.log('Intention response received:', response);
 
@@ -179,6 +233,16 @@ class IntentionComponent {
 
         if (response.message) {
             this.showFeedback(response.message, 'success');
+        }
+
+        // Handle delegation information
+        if (response.delegation_info) {
+            this.handleDelegationInstructions(response.delegation_info, response);
+        }
+
+        // Handle frontend instructions from hybrid tasks
+        if (response.frontend_instructions && response.frontend_instructions.length > 0) {
+            this.executeFrontendInstructions(response.frontend_instructions);
         }
 
         // Wykonaj akcje jeśli są
@@ -192,6 +256,98 @@ class IntentionComponent {
         if (response.actions && response.actions.length > 0) {
             this.clearInput();
         }
+    }
+
+    handleDelegationInstructions(delegationInfo, response) {
+        console.log('🔄 Delegation info:', delegationInfo);
+
+        // Show delegation status
+        const delegationStatus = document.createElement('div');
+        delegationStatus.className = 'delegation-status';
+        delegationStatus.style.cssText = `
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 12px;
+            color: #00ff88;
+        `;
+
+        let statusText = '';
+        switch(delegationInfo.execute_on) {
+            case 'backend':
+                statusText = `🖥️ Zadanie wykonywane na backendzie: ${delegationInfo.reason}`;
+                break;
+            case 'frontend':
+                statusText = `💻 Zadanie przekazane do frontendu: ${delegationInfo.reason}`;
+                break;
+            case 'hybrid':
+                statusText = `🔄 Zadanie hybrydowe: ${delegationInfo.reason}`;
+                break;
+        }
+
+        delegationStatus.textContent = statusText;
+        // Assuming you have a container element with id 'responseDiv' in your HTML
+        if (document.getElementById('responseDiv')) {
+            document.getElementById('responseDiv').appendChild(delegationStatus);
+        } else {
+            console.warn('Element with id "responseDiv" not found, cannot display delegation status.');
+            document.body.appendChild(delegationStatus); //Fallback append to body if responseDiv not found
+        }
+
+    }
+
+
+    executeFrontendInstructions(instructions) {
+        console.log('🎨 Executing frontend instructions:', instructions);
+
+        instructions.forEach(instruction => {
+            switch(instruction.action) {
+                case 'update_visualization':
+                    this.updateVisualization(instruction.data);
+                    break;
+                case 'create_visualization':
+                    this.createVisualization(instruction);
+                    break;
+                case 'animate_elements':
+                    this.animateElements(instruction);
+                    break;
+                default:
+                    console.warn('Unknown frontend instruction:', instruction.action);
+            }
+        });
+    }
+
+    updateVisualization(data) {
+        if (this.graphManager && data) {
+            console.log('📊 Updating visualization with backend data');
+            // Delegate to graph manager for visualization updates
+            if (data.beings_summary) {
+                this.graphManager.highlightBeings(data.beings_summary);
+            }
+        }
+    }
+
+    createVisualization(instruction) {
+        if (this.graphManager) {
+            console.log('🎨 Creating visualization:', instruction.type);
+
+            if (instruction.type === 'graph_update' && instruction.animate) {
+                // Trigger smooth graph animation
+                this.graphManager.svg.transition()
+                    .duration(1000)
+                    .style('filter', 'brightness(1.2)')
+                    .transition()
+                    .duration(1000)
+                    .style('filter', 'brightness(1)');
+            }
+        }
+    }
+
+    animateElements(instruction) {
+        console.log('✨ Animating elements:', instruction);
+        // Add custom animations based on instruction parameters
     }
 
     executeAction(action) {

@@ -329,15 +329,17 @@ async def lux_use_tool(sid, data):
 
 @sio.event
 async def lux_communication(sid, data):
-    """Obsługuje komunikację z Lux - zastępuje process_intention"""
+    """Obsługuje komunikację z Lux z inteligentną delegacją zadań"""
     global db_pool
     try:
         message = data.get('message', '').lower()
         context = data.get('context', {})
+        task_analysis = data.get('task_analysis', {})
 
         print(f"Lux otrzymuje komunikat od {sid}: {message}")
+        print(f"Analiza zadania: {task_analysis}")
 
-        # Utwórz byt wiadomości
+        # Utwórz byt wiadomości z informacjami o delegacji
         message_being = await BeingFactory.create_being(
             being_type='message',
             genesis={
@@ -352,30 +354,40 @@ async def lux_communication(sid, data):
                     'length': len(message),
                     'timestamp': datetime.now().isoformat()
                 },
+                'task_delegation': task_analysis,
                 'metadata': {
                     'sender': sid,
                     'context': context,
-                    'message_type': 'lux_communication'
+                    'message_type': 'lux_communication',
+                    'frontend_capabilities': context.get('frontend_capabilities', {})
                 }
             },
             memories=[{
                 'type': 'creation',
-                'data': f'Lux communication from user {sid}',
+                'data': f'Lux communication from user {sid} with delegation analysis',
                 'timestamp': datetime.now().isoformat()
             }],
-            tags=['message', 'lux_communication', 'user_input'],
+            tags=['message', 'lux_communication', 'user_input', 'delegated_task'],
             energy_level=80
         )
 
-        # Analiza wiadomości i określenie czy Lux powinna użyć narzędzi
-        response = await analyze_lux_communication(message, context)
+        # Podejmij decyzję o delegacji zadania
+        delegation_decision = await make_delegation_decision(message, task_analysis, context)
+        
+        # Wykonaj zadanie zgodnie z decyzją o delegacji
+        if delegation_decision['execute_on'] == 'backend':
+            response = await execute_backend_task(message, context, delegation_decision)
+        elif delegation_decision['execute_on'] == 'hybrid':
+            response = await execute_hybrid_task(message, context, delegation_decision)
+        else:
+            # Standardowa analiza dla zadań frontendowych
+            response = await analyze_lux_communication(message, context)
+
         response['message_being_soul'] = message_being.soul
+        response['delegation_info'] = delegation_decision
 
         print(f"Odpowiedź Lux: {response}")
-        print(f"Wysyłam odpowiedź do klienta {sid}")
-
         await sio.emit('lux_communication_response', response, room=sid)
-        print(f"Odpowiedź wysłana pomyślnie")
 
         await broadcast_graph_update()
 
@@ -935,6 +947,172 @@ async def analyze_intention(intention: str, context: dict) -> dict:
                         'description': f'Zadanie utworzone przez intencję: {intention}',
                         'created_by': 'intention'
                     },
+
+
+async def make_delegation_decision(message: str, task_analysis: dict, context: dict) -> dict:
+    """Podejmuje decyzję o delegacji zadania między frontend a backend"""
+    
+    decision = {
+        'execute_on': 'backend',  # backend, frontend, hybrid
+        'reason': '',
+        'frontend_actions': [],
+        'backend_actions': [],
+        'requires_long_term_execution': False
+    }
+    
+    # Analiza złożoności zadania
+    if task_analysis.get('is_heavy_task') or task_analysis.get('requires_file_operations'):
+        decision['execute_on'] = 'backend'
+        decision['reason'] = 'Zadanie wymaga ciężkich operacji lub dostępu do plików'
+        decision['backend_actions'] = ['file_operations', 'heavy_computation']
+        
+    elif task_analysis.get('requires_database'):
+        decision['execute_on'] = 'backend'
+        decision['reason'] = 'Zadanie wymaga operacji na bazie danych'
+        decision['backend_actions'] = ['database_operations']
+        
+    elif task_analysis.get('is_long_term'):
+        decision['execute_on'] = 'backend'
+        decision['reason'] = 'Zadanie długoterminowe - backend zarządza trwałością'
+        decision['backend_actions'] = ['long_term_scheduling', 'persistent_execution']
+        decision['requires_long_term_execution'] = True
+        
+    elif task_analysis.get('is_frontend_task'):
+        decision['execute_on'] = 'hybrid'
+        decision['reason'] = 'Zadanie wizualne - frontend z wsparciem backendu'
+        decision['frontend_actions'] = ['ui_updates', 'visualization']
+        decision['backend_actions'] = ['data_preparation']
+        
+    # Sprawdź możliwości frontendu
+    frontend_caps = context.get('frontend_capabilities', {})
+    if not frontend_caps.get('webgl_rendering') and 'wizualizuj' in message:
+        decision['execute_on'] = 'backend'
+        decision['reason'] = 'Frontend nie obsługuje WebGL - backend przygotuje dane'
+        
+    return decision
+
+async def execute_backend_task(message: str, context: dict, delegation: dict) -> dict:
+    """Wykonuje zadanie na backendzie z wykorzystaniem wszystkich możliwości Lux"""
+    
+    response = {
+        'message': 'Lux wykonuje zadanie na backendzie...',
+        'task_status': 'backend_processing',
+        'actions': [],
+        'results': {},
+        'delegation_info': delegation
+    }
+    
+    try:
+        # Użyj OpenAI Function Calling jeśli dostępne
+        if openai_function_caller and openai_function_caller.get_available_functions():
+            ai_result = await openai_function_caller.call_with_functions(message, context)
+            response['ai_analysis'] = ai_result
+            response['message'] = ai_result.get('final_response', 'Analiza AI zakończona.')
+            
+            if ai_result.get('tool_calls'):
+                response['actions'].extend(ai_result['tool_calls'])
+                
+        # Operacje na plikach
+        if 'file_operations' in delegation['backend_actions']:
+            response['message'] += '\n📁 Analizuję pliki...'
+            
+        # Operacje na bazie danych
+        if 'database_operations' in delegation['backend_actions']:
+            response['message'] += '\n💾 Przetwarzam dane z bazy...'
+            # Dodaj statystyki bazy
+            response['results']['database_stats'] = {
+                'beings_count': len(await BaseBeing.get_all()),
+                'relationships_count': len(await Relationship.get_all())
+            }
+            
+        # Zadania długoterminowe
+        if delegation['requires_long_term_execution']:
+            response['message'] += '\n⏰ Konfiguruję zadanie długoterminowe...'
+            await schedule_long_term_task(message, context)
+            response['results']['scheduled_task'] = True
+            
+        # Użyj LuxTools dla operacji systemowych
+        if any(keyword in message for keyword in ['plik', 'kod', 'test', 'analiz']):
+            response['message'] += '\n🛠️ Używam narzędzi systemowych...'
+            
+    except Exception as e:
+        response['message'] = f'Błąd wykonania zadania na backendzie: {str(e)}'
+        response['task_status'] = 'backend_error'
+        
+    return response
+
+async def execute_hybrid_task(message: str, context: dict, delegation: dict) -> dict:
+    """Wykonuje zadanie hybrydowe - koordynacja między frontend a backend"""
+    
+    response = {
+        'message': 'Lux koordynuje zadanie między frontendem a backendem...',
+        'task_status': 'hybrid_processing',
+        'frontend_instructions': [],
+        'backend_results': {},
+        'delegation_info': delegation
+    }
+    
+    # Przygotuj dane na backendzie
+    if 'data_preparation' in delegation['backend_actions']:
+        beings = await BaseBeing.get_all(limit=50)  # Ograniczenie dla frontendu
+        response['backend_results']['prepared_data'] = {
+            'beings_summary': [{'soul': b.soul, 'type': b.genesis.get('type')} for b in beings[:10]]
+        }
+        
+    # Instrukcje dla frontendu
+    if 'ui_updates' in delegation['frontend_actions']:
+        response['frontend_instructions'].append({
+            'action': 'update_visualization',
+            'data': response['backend_results']['prepared_data']
+        })
+        
+    if 'visualization' in delegation['frontend_actions']:
+        response['frontend_instructions'].append({
+            'action': 'create_visualization',
+            'type': 'graph_update',
+            'animate': True
+        })
+        
+    response['message'] = 'Dane przygotowane. Frontend może przejąć wizualizację.'
+    
+    return response
+
+async def schedule_long_term_task(message: str, context: dict):
+    """Harmonogramuje zadanie długoterminowe w systemie genetycznym"""
+    
+    # Utwórz byt zadania długoterminowego
+    long_term_task = await BeingFactory.create_being(
+        being_type='task',
+        genesis={
+            'type': 'task',
+            'name': f'LongTerm_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
+            'description': f'Zadanie długoterminowe: {message}',
+            'created_by': 'lux_delegation_system'
+        },
+        attributes={
+            'task_type': 'long_term',
+            'original_message': message,
+            'execution_context': context,
+            'schedule': {
+                'created_at': datetime.now().isoformat(),
+                'next_execution': datetime.now().isoformat(),
+                'interval': 'on_demand',
+                'max_executions': 1
+            }
+        },
+        memories=[{
+            'type': 'scheduling',
+            'data': f'Scheduled by Lux delegation system',
+            'timestamp': datetime.now().isoformat()
+        }],
+        tags=['task', 'long_term', 'scheduled', 'lux_managed'],
+        energy_level=100
+    )
+    
+    print(f"📅 Zaplanowano zadanie długoterminowe: {long_term_task.soul}")
+    return long_term_task
+
+
                     'tags': ['task', 'intention', 'async'],
                     'energy_level': 60,
                     'attributes': {'created_via': 'intention', 'intention_text': intention},
