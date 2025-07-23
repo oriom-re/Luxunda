@@ -66,10 +66,10 @@ async def get_graph_data(sid, data=None):
 async def create_being(sid, data):
     """Tworzy nowy byt"""
     task_id = data.get('taskId')
-    
+
     try:
         being_type = data.get('being_type', 'base')
-        
+
         # BLOKUJ tworzenie Lux przez frontend
         genesis = data.get('genesis', {})
         if (genesis.get('name') == 'Lux' or 
@@ -81,7 +81,7 @@ async def create_being(sid, data):
             }
             await sio.emit('task_response', response, room=sid)
             return
-        
+
         being = await BeingFactory.create_being(
             being_type=being_type,
             genesis=genesis,
@@ -91,10 +91,10 @@ async def create_being(sid, data):
             memories=data.get('memories', []),
             self_awareness=data.get('self_awareness', {})
         )
-        
+
         # Konwertuj do JSON-safe format
         being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
-        
+
         # Wyślij potwierdzenie sukcesu
         if task_id:
             response = {
@@ -104,11 +104,11 @@ async def create_being(sid, data):
                 'taskId': task_id
             }
             await sio.emit('task_response', response, room=sid)
-        
+
         # Wyślij do wszystkich klientów
         await sio.emit('being_created', being_dict)
         await sio.emit('node_added', being_dict)
-        
+
     except Exception as e:
         response = {
             'success': False,
@@ -373,7 +373,7 @@ async def lux_communication(sid, data):
 
         # Podejmij decyzję o delegacji zadania
         delegation_decision = await make_delegation_decision(message, task_analysis, context)
-        
+
         # Wykonaj zadanie zgodnie z decyzją o delegacji
         if delegation_decision['execute_on'] == 'backend':
             response = await execute_backend_task(message, context, delegation_decision)
@@ -674,7 +674,7 @@ async def delete_being(sid, data):
     """Usuwa byt z systemu"""
     soul = data.get('soul')
     task_id = data.get('taskId')
-    
+
     if not soul:
         response = {
             'success': False,
@@ -686,7 +686,7 @@ async def delete_being(sid, data):
 
     try:
         print(f"🗑️ Usuwam byt: {soul} (Task ID: {task_id})")
-        
+
         # BLOKUJ usywanie agenta Lux
         lux_soul = '00000000-0000-0000-0000-000000000001'
         if soul == lux_soul:
@@ -699,7 +699,7 @@ async def delete_being(sid, data):
             return
 
         db_pool = await get_db_pool()
-        
+
         if hasattr(db_pool, 'acquire'):
             # PostgreSQL - usuń tylko byt, zostaw relacje jako historię
             async with db_pool.acquire() as conn:
@@ -707,7 +707,7 @@ async def delete_being(sid, data):
                 check_result = await conn.fetchrow("""
                     SELECT soul FROM base_beings WHERE soul = $1
                 """, soul)
-                
+
                 if not check_result:
                     response = {
                         'success': False,
@@ -721,7 +721,7 @@ async def delete_being(sid, data):
                 result = await conn.execute("""
                     DELETE FROM base_beings WHERE soul = $1
                 """, soul)
-                
+
                 print(f"✅ Usunięto byt z bazy: {result}")
                 print(f"📚 Relacje zostały zachowane jako historia")
         else:
@@ -729,7 +729,7 @@ async def delete_being(sid, data):
             cursor = await db_pool.execute("""
                 SELECT soul FROM base_beings WHERE soul = ?
             """, (soul,))
-            
+
             if not await cursor.fetchone():
                 response = {
                     'success': False,
@@ -738,12 +738,12 @@ async def delete_being(sid, data):
                 }
                 await sio.emit('task_response', response, room=sid)
                 return
-            
+
             # Usuń tylko byt - relacje zostają jako historia
             cursor = await db_pool.execute("""
                 DELETE FROM base_beings WHERE soul = ?
             """, (soul,))
-            
+
             await db_pool.commit()
             print(f"✅ Usunięto byt z SQLite")
             print(f"📚 Relacje zostały zachowane jako historia")
@@ -770,7 +770,7 @@ async def delete_being(sid, data):
                 'message': f'Byt {soul} został usunięty'
             })
             print(f"✅ Wysłano powiadomienie o usunięciu: {soul}")
-            
+
         except Exception as e:
             print(f"❌ Błąd wysyłania powiadomienia o usunięciu: {e}")
 
@@ -778,7 +778,7 @@ async def delete_being(sid, data):
         print(f"❌ Błąd podczas usuwania bytu {soul}: {e}")
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
-        
+
         response = {
             'success': False,
             'error': f'Błąd usuwania: {str(e)}',
@@ -951,7 +951,7 @@ async def analyze_intention(intention: str, context: dict) -> dict:
 
 async def make_delegation_decision(message: str, task_analysis: dict, context: dict) -> dict:
     """Podejmuje decyzję o delegacji zadania między frontend a backend"""
-    
+
     decision = {
         'execute_on': 'backend',  # backend, frontend, hybrid
         'reason': '',
@@ -959,41 +959,41 @@ async def make_delegation_decision(message: str, task_analysis: dict, context: d
         'backend_actions': [],
         'requires_long_term_execution': False
     }
-    
+
     # Analiza złożoności zadania
     if task_analysis.get('is_heavy_task') or task_analysis.get('requires_file_operations'):
         decision['execute_on'] = 'backend'
         decision['reason'] = 'Zadanie wymaga ciężkich operacji lub dostępu do plików'
         decision['backend_actions'] = ['file_operations', 'heavy_computation']
-        
+
     elif task_analysis.get('requires_database'):
         decision['execute_on'] = 'backend'
         decision['reason'] = 'Zadanie wymaga operacji na bazie danych'
         decision['backend_actions'] = ['database_operations']
-        
+
     elif task_analysis.get('is_long_term'):
         decision['execute_on'] = 'backend'
         decision['reason'] = 'Zadanie długoterminowe - backend zarządza trwałością'
         decision['backend_actions'] = ['long_term_scheduling', 'persistent_execution']
         decision['requires_long_term_execution'] = True
-        
+
     elif task_analysis.get('is_frontend_task'):
         decision['execute_on'] = 'hybrid'
         decision['reason'] = 'Zadanie wizualne - frontend z wsparciem backendu'
         decision['frontend_actions'] = ['ui_updates', 'visualization']
         decision['backend_actions'] = ['data_preparation']
-        
+
     # Sprawdź możliwości frontendu
     frontend_caps = context.get('frontend_capabilities', {})
     if not frontend_caps.get('webgl_rendering') and 'wizualizuj' in message:
         decision['execute_on'] = 'backend'
         decision['reason'] = 'Frontend nie obsługuje WebGL - backend przygotuje dane'
-        
+
     return decision
 
 async def execute_backend_task(message: str, context: dict, delegation: dict) -> dict:
     """Wykonuje zadanie na backendzie z wykorzystaniem wszystkich możliwości Lux"""
-    
+
     response = {
         'message': 'Lux wykonuje zadanie na backendzie...',
         'task_status': 'backend_processing',
@@ -1001,21 +1001,21 @@ async def execute_backend_task(message: str, context: dict, delegation: dict) ->
         'results': {},
         'delegation_info': delegation
     }
-    
+
     try:
         # Użyj OpenAI Function Calling jeśli dostępne
         if openai_function_caller and openai_function_caller.get_available_functions():
             ai_result = await openai_function_caller.call_with_functions(message, context)
             response['ai_analysis'] = ai_result
             response['message'] = ai_result.get('final_response', 'Analiza AI zakończona.')
-            
+
             if ai_result.get('tool_calls'):
                 response['actions'].extend(ai_result['tool_calls'])
-                
+
         # Operacje na plikach
         if 'file_operations' in delegation['backend_actions']:
             response['message'] += '\n📁 Analizuję pliki...'
-            
+
         # Operacje na bazie danych
         if 'database_operations' in delegation['backend_actions']:
             response['message'] += '\n💾 Przetwarzam dane z bazy...'
@@ -1024,26 +1024,26 @@ async def execute_backend_task(message: str, context: dict, delegation: dict) ->
                 'beings_count': len(await BaseBeing.get_all()),
                 'relationships_count': len(await Relationship.get_all())
             }
-            
+
         # Zadania długoterminowe
         if delegation['requires_long_term_execution']:
             response['message'] += '\n⏰ Konfiguruję zadanie długoterminowe...'
             await schedule_long_term_task(message, context)
             response['results']['scheduled_task'] = True
-            
+
         # Użyj LuxTools dla operacji systemowych
         if any(keyword in message for keyword in ['plik', 'kod', 'test', 'analiz']):
             response['message'] += '\n🛠️ Używam narzędzi systemowych...'
-            
+
     except Exception as e:
         response['message'] = f'Błąd wykonania zadania na backendzie: {str(e)}'
         response['task_status'] = 'backend_error'
-        
+
     return response
 
 async def execute_hybrid_task(message: str, context: dict, delegation: dict) -> dict:
     """Wykonuje zadanie hybrydowe - koordynacja między frontend a backend"""
-    
+
     response = {
         'message': 'Lux koordynuje zadanie między frontendem a backendem...',
         'task_status': 'hybrid_processing',
@@ -1051,35 +1051,35 @@ async def execute_hybrid_task(message: str, context: dict, delegation: dict) -> 
         'backend_results': {},
         'delegation_info': delegation
     }
-    
+
     # Przygotuj dane na backendzie
     if 'data_preparation' in delegation['backend_actions']:
         beings = await BaseBeing.get_all(limit=50)  # Ograniczenie dla frontendu
         response['backend_results']['prepared_data'] = {
             'beings_summary': [{'soul': b.soul, 'type': b.genesis.get('type')} for b in beings[:10]]
         }
-        
+
     # Instrukcje dla frontendu
     if 'ui_updates' in delegation['frontend_actions']:
         response['frontend_instructions'].append({
             'action': 'update_visualization',
             'data': response['backend_results']['prepared_data']
         })
-        
+
     if 'visualization' in delegation['frontend_actions']:
         response['frontend_instructions'].append({
             'action': 'create_visualization',
             'type': 'graph_update',
             'animate': True
         })
-        
+
     response['message'] = 'Dane przygotowane. Frontend może przejąć wizualizację.'
-    
+
     return response
 
 async def schedule_long_term_task(message: str, context: dict):
     """Harmonogramuje zadanie długoterminowe w systemie genetycznym"""
-    
+
     # Utwórz byt zadania długoterminowego
     long_term_task = await BeingFactory.create_being(
         being_type='task',
@@ -1108,7 +1108,7 @@ async def schedule_long_term_task(message: str, context: dict):
         tags=['task', 'long_term', 'scheduled', 'lux_managed'],
         energy_level=100
     )
-    
+
     print(f"📅 Zaplanowano zadanie długoterminowe: {long_term_task.soul}")
     return long_term_task
 
@@ -1636,7 +1636,7 @@ async def load_gene_from_file(sid, data):
     """Endpoint do ładowania/aktualizacji genu z pliku"""
     try:
         file_path = data.get('file_path')
-        
+
         if not file_path:
             await sio.emit('error', {
                 'message': 'Brak wymaganego parametru: file_path'
@@ -1645,7 +1645,7 @@ async def load_gene_from_file(sid, data):
 
         # Załaduj gen z pliku
         gene_being = await genetic_system.load_gene_from_file_path(file_path)
-        
+
         if gene_being:
             await sio.emit('gene_loaded', {
                 'file_path': file_path,
@@ -1700,7 +1700,7 @@ async def clean_duplicate_genes(sid, data):
     """Endpoint do czyszczenia duplikatów genów"""
     try:
         removed_count = await genetic_system.clean_duplicate_genes()
-        
+
         await sio.emit('duplicate_genes_cleaned', {
             'removed_count': removed_count,
             'message': f'Usunięto {removed_count} duplikatów genów'
