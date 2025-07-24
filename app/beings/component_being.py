@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 
 @dataclass
-class ComponentBeing(BaseBeing):
+class ComponentBeing(Being):
     """Byt komponentu D3.js"""
     
     def __post_init__(self):

@@ -2,7 +2,7 @@
 import json
 import uuid
 from datetime import datetime
-from app.beings.base import BaseBeing, Relationship
+from app.beings.base import Being, Relationship
 from app.beings.being_factory import BeingFactory
 from app.beings.function_router import FunctionRouter
 from app.beings.function_being import FunctionBeing
@@ -25,7 +25,7 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
     
 __all__ = [
-    'BaseBeing',
+    'Being',
     'BeingFactory',
     'Relationship',
     'DateTimeEncoder',

@@ -2,10 +2,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 
 @dataclass
-class ClassBeing(BaseBeing):
+class ClassBeing(Being):
     """Byt klasy z możliwością instancjacji"""
     
     def __post_init__(self):
@@ -19,7 +19,7 @@ class ClassBeing(BaseBeing):
         instance_soul = str(uuid.uuid4())
         
         # Utwórz byt instancji
-        instance = await BaseBeing.create(
+        instance = await Being.create(
             genesis={
                 'type': 'instance',
                 'class_soul': self.soul,

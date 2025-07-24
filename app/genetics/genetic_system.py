@@ -3,7 +3,7 @@ import json
 import uuid
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-from app.beings.base import BaseBeing, Relationship
+from app.beings.base import Being, Relationship
 from app.database import get_db_pool
 
 class GeneticSystem:
@@ -13,7 +13,7 @@ class GeneticSystem:
     """
 
     def __init__(self):
-        self.beings: Dict[str, BaseBeing] = {}
+        self.beings: Dict[str, Being] = {}
         self.genes: Dict[str, Dict[str, Any]] = {}
         self.relationships: Dict[str, Relationship] = {}
         self.memory_bank: List[Dict[str, Any]] = []
@@ -73,7 +73,7 @@ class GeneticSystem:
                     gene_soul = str(uuid.uuid4())
 
                     # Zapisz gen jako byt w bazie danych
-                    gene_being = await BaseBeing.create(
+                    gene_being = await Being.create(
                         genesis={
                             'type': 'gene',
                             'name': attr.__gene_metadata__.get('name', 'UnknownGene'),
@@ -118,10 +118,10 @@ class GeneticSystem:
         except Exception as e:
             print(f"❌ Błąd ładowania genu {gene_path}: {e}")
 
-    async def create_being_with_genes(self, genesis: Dict[str, Any], **kwargs) -> BaseBeing:
+    async def create_being_with_genes(self, genesis: Dict[str, Any], **kwargs) -> Being:
         """Tworzy nowy byt z automatycznym ładowaniem genów"""
         # Utwórz byt
-        being = await BaseBeing.create(genesis, **kwargs)
+        being = await Being.create(genesis, **kwargs)
         self.beings[being.soul] = being
 
         # Autoload - znajdź geny które powinien załadować ten byt
@@ -129,7 +129,7 @@ class GeneticSystem:
 
         return being
 
-    async def autoload_genes_for_being(self, being: BaseBeing):
+    async def autoload_genes_for_being(self, being: Being):
         """Automatycznie ładuje odpowiednie geny dla bytu"""
         being_type = being.genesis.get('type', 'unknown')
         being_tags = being.attributes.get('tags', [])
@@ -296,7 +296,7 @@ class GeneticSystem:
 
     async def load_existing_beings(self):
         """Ładuje istniejące byty z bazy"""
-        beings = await BaseBeing.get_all()
+        beings = await Being.get_all()
         for being in beings:
             self.beings[being.soul] = being
         print(f"📚 Załadowano {len(beings)} bytów")
@@ -314,7 +314,7 @@ class GeneticSystem:
 
         # NAJPIERW sprawdź w bazie danych - to jest źródło prawdy
         try:
-            lux_being_from_db = await BaseBeing.load(lux_soul)
+            lux_being_from_db = await Being.load(lux_soul)
         except Exception as e:
             print(f"⚠️ Błąd sprawdzania bazy danych: {e}")
             lux_being_from_db = None
@@ -336,7 +336,7 @@ class GeneticSystem:
             print("🌱 Tworzę pierwszego i JEDYNEGO agenta Lux z systemem genetycznym...")
 
             # Agent Lux z ustaloną duszą
-            lux_being = BaseBeing(
+            lux_being = Being(
                 soul=lux_soul,
                 genesis={
                     'type': 'agent',
@@ -401,7 +401,7 @@ class GeneticSystem:
             print("🌱 Tworzę dodatkowe byty dla demonstracji systemu genetycznego...")
 
             # Przykładowa funkcja genetyczna
-            function_being = await BaseBeing.create(
+            function_being = await Being.create(
                 genesis={
                     'type': 'function',
                     'name': 'GeneticHelloWorld',
@@ -428,7 +428,7 @@ class GeneticSystem:
             await self.autoload_genes_for_being(function_being)
 
             # Zadanie monitorujące system genetyczny
-            task_being = await BaseBeing.create(
+            task_being = await Being.create(
                 genesis={
                     'type': 'task',
                     'name': 'GeneticSystemMonitor',
@@ -508,7 +508,7 @@ class GeneticSystem:
             return
 
         # Pobierz wszystkie istniejące geny z bazy (indexed by file path)
-        existing_beings = await BaseBeing.get_all(limit=1000)
+        existing_beings = await Being.get_all(limit=1000)
         existing_genes_by_path = {}
 
         for being in existing_beings:
@@ -569,7 +569,7 @@ class GeneticSystem:
                         continue
 
                 # Nowy gen - użyj ścieżki pliku jako soul ID
-                gene_being = await BaseBeing.create(
+                gene_being = await Being.create(
                     genesis={
                         'name': f'gen_{gene_file.stem}',
                         'type': 'gene',
@@ -635,7 +635,7 @@ class GeneticSystem:
 
     async def clean_duplicate_genes(self):
         """Czyści duplikaty genów na podstawie hash-a kodu"""
-        all_beings = await BaseBeing.get_all(limit=1000)
+        all_beings = await Being.get_all(limit=1000)
         gene_beings = [b for b in all_beings if b.genesis.get('type') == 'gene']
 
         hash_to_beings = {}
@@ -702,7 +702,7 @@ class GeneticSystem:
 
             # Sprawdź czy gen już istnieje w bazie
             try:
-                existing_gene = await BaseBeing.load(file_path)
+                existing_gene = await Being.load(file_path)
             except:
                 existing_gene = None
 
@@ -736,7 +736,7 @@ class GeneticSystem:
                     return existing_gene
             else:
                 # Nowy gen
-                gene_being = await BaseBeing.create(
+                gene_being = await Being.create(
                     genesis={
                         'name': f'gen_{gene_file.stem}',
                         'type': 'gene',

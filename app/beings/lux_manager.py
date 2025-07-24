@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, List
 from app.beings.living_being import LivingBeing
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 
 class LuxManager:
     """

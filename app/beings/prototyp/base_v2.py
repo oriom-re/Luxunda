@@ -48,25 +48,7 @@ class Soul:
         
 
 class Being(Soul):
-    def __init__(self, *args, db_path: str = "luxos.db", **kwargs):
-        super().__init__(*args, **kwargs)
-        self.db_path = db_path
-        self.task_queue = asyncio.Queue()
-        self.executor = ProcessPoolExecutor()
-
-    async def start(self):
-        """Startuje byt: init bazy, pętla, itp."""
-        print(f"[{self.soul}] Inicjalizacja...")
-        self.db_pool = await aiosqlite.connect(self.db_path)
-        await self.setup_sqlite_tables()
-        asyncio.create_task(self._main_loop())
-    z
-    async def _main_loop(self):
-        """Główna pętla event loopa"""
-        print(f"[{self.soul}] Pętla uruchomiona.")
-        while True:
-            task = await self.task_queue.get()
-            await self._dispatch_task(task)
+    """Reprezentacja bytu w systemie."""
 
     async def _dispatch_task(self, task):
         try:
@@ -259,7 +241,7 @@ class Relationship:
         self.attributes['energy_level'] = value
 
     @classmethod
-    async def create(cls, db_pool, source_soul: str, target_soul: str, genesis: Dict[str, Any], **kwargs):
+    async def create(cls, source_soul: str, target_soul: str, genesis: Dict[str, Any], **kwargs):
         """Tworzy nową relację"""
         rel_id = str(uuid.uuid4())
 

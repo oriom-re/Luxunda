@@ -1,6 +1,6 @@
 
 import asyncio
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 from app.genetics.genetic_system import genetic_system
 from app.genetics.gene_registry import gene
 
@@ -12,7 +12,7 @@ async def demo_gene_system():
     await genetic_system.initialize()
     
     # Stwórz byt
-    test_being = await BaseBeing.create(
+    test_being = await Being.create(
         genesis={
             'type': 'test',
             'name': 'TestBeing',

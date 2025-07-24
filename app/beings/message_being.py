@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from datetime import datetime
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 
 @dataclass
-class MessageBeing(BaseBeing):
+class MessageBeing(Being):
     """Byt wiadomości z metadanymi i embedingami"""
     
     def __post_init__(self):

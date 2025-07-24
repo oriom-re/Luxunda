@@ -4,11 +4,11 @@ import uuid
 import json
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 from app.database import get_db_pool
 import random
 
-class LivingBeing(BaseBeing):
+class LivingBeing(Being):
     """
     Żywy byt z wewnętrzną pętlą życia
     Nie tylko wykonuje zadania - po prostu ŻYJE

@@ -14,22 +14,10 @@ class SafeCodeExecutor:
         'sorted', 'str', 'sum', 'tuple', 'zip', 'print', '__import__'
     }
 
-    # Bezpieczne moduły/pakiety do importu
-    SAFE_IMPORTS = {
-        'math', 'random', 'datetime', 'json', 'uuid', 'hashlib',
-        'base64', 'urllib.parse', 'collections', 'itertools',
-        'functools', 'operator', 'string', 'textwrap',
-        're', 'decimal', 'fractions', 'statistics'
-    }
-
-    # Bezpieczne imports z modułów
-    SAFE_FROM_IMPORTS = {
-        'datetime': {'datetime', 'date', 'time', 'timedelta'},
-        'collections': {'namedtuple', 'defaultdict', 'Counter', 'deque'},
-        'typing': {'List', 'Dict', 'Set', 'Tuple', 'Optional', 'Union', 'Any'},
-        'math': {'pi', 'e', 'sin', 'cos', 'tan', 'sqrt', 'log', 'exp'},
-        'json': {'loads', 'dumps'},
-        'random': {'randint', 'random', 'choice', 'shuffle'}
+    # Zabronione importy
+    FORBIDDEN_IMPORTS = {
+        'os', 'sys', 'subprocess', 'socket', 'threading', 'multiprocessing',
+        'pickle', 'marshal', 'eval', 'exec', '__import__'
     }
 
     # Zabronione wyrażenia AST
@@ -57,22 +45,9 @@ class SafeCodeExecutor:
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     module_name = alias.name
-                    if module_name not in cls.SAFE_IMPORTS:
+                    if module_name in cls.FORBIDDEN_IMPORTS:
                         print(f"❌ Zabroniony import modułu: {module_name}")
                         return False, f"Zabroniony import modułu: {module_name}"
-
-            if isinstance(node, ast.ImportFrom):
-                module_name = node.module
-                if module_name not in cls.SAFE_FROM_IMPORTS:
-                    print(f"❌ Zabroniony import z modułu: {module_name}")
-                    return False, f"Zabroniony import z modułu: {module_name}"
-                
-                # Sprawdź czy importowane elementy są bezpieczne
-                allowed_names = cls.SAFE_FROM_IMPORTS[module_name]
-                for alias in node.names:
-                    if alias.name not in allowed_names and alias.name != '*':
-                        print(f"❌ Zabroniony import {alias.name} z modułu {module_name}")
-                        return False, f"Zabroniony import {alias.name} z modułu {module_name}"
 
             # Sprawdź dostęp do atrybutów
             if isinstance(node, ast.Attribute):

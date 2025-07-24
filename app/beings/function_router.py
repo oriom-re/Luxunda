@@ -2,7 +2,7 @@ from datetime import datetime
 import uuid
 import json
 from typing import Optional
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 from app.safety.executor import SafeCodeExecutor
 
 class FunctionRouter:
@@ -13,7 +13,7 @@ class FunctionRouter:
 
     async def register_function_from_being(self, soul: str) -> dict:
         """Rejestruje funkcję z bytu"""
-        being = await BaseBeing.load(soul)
+        being = await Being.load(soul)
         if not being:
             return {'success': False, 'error': 'Byt nie znaleziony'}
 

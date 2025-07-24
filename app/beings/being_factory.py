@@ -6,7 +6,7 @@ import json
 # Import db_pool from database module
 from app.database import get_db_pool
 from app.beings.function_being import FunctionBeing
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 from app.beings.class_being import ClassBeing
 from app.beings.data_being import DataBeing
 from app.beings.scenario_being import ScenarioBeing
@@ -26,13 +26,13 @@ class BeingFactory:
         'task': TaskBeing,
         'component': ComponentBeing,
         'message': MessageBeing,
-        'base': BaseBeing
+        'base': Being
     }
     
     @classmethod
-    async def create_being(cls, being_type: str, genesis: Dict[str, Any], **kwargs) -> BaseBeing:
+    async def create_being(cls, being_type: str, genesis: Dict[str, Any], **kwargs) -> Being:
         """Tworzy byt odpowiedniego typu"""
-        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
+        BeingClass = cls.BEING_TYPES.get(being_type, Being)
         
         # Upewnij się, że typ jest ustawiony w genesis
         genesis['type'] = being_type
@@ -60,7 +60,7 @@ class BeingFactory:
         return being
     
     @classmethod
-    async def load_being(cls, soul: str) -> Optional[BaseBeing]:
+    async def load_being(cls, soul: str) -> Optional[Being]:
         """Ładuje byt odpowiedniego typu z bazy danych"""
         db_pool = await get_db_pool()
         
@@ -85,7 +85,7 @@ class BeingFactory:
             being_type = genesis.get('type', 'base')
         
         # Wybierz odpowiednią klasę
-        BeingClass = cls.BEING_TYPES.get(being_type, BaseBeing)
+        BeingClass = cls.BEING_TYPES.get(being_type, Being)
         
         # Utwórz instancję
         if hasattr(db_pool, 'acquire'):

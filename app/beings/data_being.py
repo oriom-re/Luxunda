@@ -3,10 +3,10 @@ import aiosqlite
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 
 @dataclass
-class DataBeing(BaseBeing):
+class DataBeing(Being):
     """Byt danych z operacjami CRUD"""
     
     def __post_init__(self):

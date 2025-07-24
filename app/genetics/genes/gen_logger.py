@@ -10,8 +10,6 @@ class GenLogger:
         'name': 'gen_logger',
         'description': 'Prosty logger asynchroniczny',
         'version': '1.0.0',
-        'compatible_types': ['agent', 'function', 'data', 'task'],
-        'tags': ['logging', 'debugging', 'monitoring'],
         'energy_cost': 2,
         'dependencies': []
     }

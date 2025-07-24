@@ -3,7 +3,7 @@ import json
 import openai
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 from app.beings.function_being import FunctionBeing
 from app.beings.being_factory import BeingFactory
 from app.safety.executor import SafeCodeExecutor
@@ -233,7 +233,7 @@ class OpenAIFunctionCaller:
         
         try:
             # Pobierz wszystkie byty
-            all_beings = await BaseBeing.get_all()
+            all_beings = await Being.get_all()
             
             for being in all_beings:
                 if being.genesis.get('type') == 'function':

@@ -2,10 +2,10 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 
 @dataclass
-class ScenarioBeing(BaseBeing):
+class ScenarioBeing(Being):
     """Byt scenariusza z sekwencją kroków"""
     
     def __post_init__(self):

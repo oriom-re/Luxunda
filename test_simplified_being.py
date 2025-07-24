@@ -1,7 +1,7 @@
 
 import asyncio
 import os
-from app.beings.base_v2 import Being, PostgreSQLGene
+from app.beings.prototyp.base_v2 import Being, PostgreSQLGene
 
 async def test_simplified_being():
     """Test uproszczonego systemu Being"""

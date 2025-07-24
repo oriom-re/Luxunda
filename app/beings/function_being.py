@@ -3,11 +3,12 @@ import aiosqlite
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 from app.safety.executor import SafeCodeExecutor
+import json
 
 @dataclass
-class FunctionBeing(BaseBeing):
+class FunctionBeing(Being):
     """Byt funkcyjny z możliwością wykonania"""
     
     def __post_init__(self):
@@ -37,10 +38,25 @@ class FunctionBeing(BaseBeing):
         await self.save()
         
         return result
+
+    async def create(cls, source: str, name: str, **kwargs) -> 'FunctionBeing':
+        """Tworzy nowy byt funkcyjny"""
+        soul = str(uuid.uuid4())
+        genesis = {
+            'source': source,
+            'name': name,
+            'type': 'function'
+        }
+        
+        attributes = kwargs.get('attributes', {})
+        if 'energy_level' not in attributes:
+            attributes['energy_level'] = 100
     
-    def get_function_signature(self) -> str:
-        """Zwraca sygnaturę funkcji"""
-        return self.genesis.get('signature', f"{self.genesis.get('name', 'unknown')}()")
-
-
-
+    async def save(self):
+        """Zapisuje byt do bazy danych"""
+        async with aiosqlite.connect('beings.db') as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO beings (soul, genesis, memories)
+                VALUES (?, ?, ?)
+            """, (self.soul, json.dumps(self.genesis), json.dumps(self.memories)))
+            await db.commit()

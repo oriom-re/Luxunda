@@ -3,10 +3,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 
 @dataclass
-class TaskBeing(BaseBeing):
+class TaskBeing(Being):
     """Byt zadania z asynchronicznym wykonywaniem"""
     
     def __post_init__(self):

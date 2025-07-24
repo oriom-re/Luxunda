@@ -59,7 +59,7 @@ async def timer_gene(action: str, timer_id: str = "default"):
     else:
         return {'error': f'Nieznana akcja: {action}'}
 
-print("🧬 Auto-geny załadowane pomyślnie!")g_info
+print("🧬 Auto-geny załadowane pomyślnie!")
 
 @gene(name="log", description="Zapisuje log do systemu", energy_cost=2)
 async def log_gene(message: str, level: str = "INFO", save_to_file: bool = False):

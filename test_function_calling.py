@@ -5,7 +5,7 @@ import os
 from unittest.mock import Mock, patch, AsyncMock
 from app.ai.function_calling import OpenAIFunctionCaller
 from app.beings.function_being import FunctionBeing
-from app.beings.base import BaseBeing
+from app.beings.base import Being
 from app.database import set_db_pool
 import aiosqlite
 from datetime import datetime
@@ -186,7 +186,7 @@ class TestOpenAIFunctionCalling:
             assert result['function_name'] == 'test_function'
             
             # Sprawdź czy pamięć została zapisana
-            updated_being = await BaseBeing.load(sample_function_being.soul)
+            updated_being = await Being.load(sample_function_being.soul)
             assert len(updated_being.memories) == 1
             assert updated_being.memories[0]['type'] == 'openai_execution'
             assert updated_being.memories[0]['success'] is True
@@ -223,7 +223,7 @@ class TestOpenAIFunctionCalling:
             function_beings.append(being)
         
         # Utwórz też byt nie-funkcyjny
-        non_function_being = BaseBeing(
+        non_function_being = Being(
             soul=str(uuid.uuid4()),
             genesis={'name': 'not_function', 'type': 'class'},
             attributes={},
