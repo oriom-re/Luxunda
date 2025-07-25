@@ -66,10 +66,10 @@ async def get_graph_data(sid, data=None):
 async def create_being(sid, data):
     """Tworzy nowy byt"""
     task_id = data.get('taskId')
-    
+
     try:
         being_type = data.get('being_type', 'base')
-        
+
         # BLOKUJ tworzenie Lux przez frontend
         genesis = data.get('genesis', {})
         if (genesis.get('name') == 'Lux' or 
@@ -81,7 +81,7 @@ async def create_being(sid, data):
             }
             await sio.emit('task_response', response, room=sid)
             return
-        
+
         being = await BeingFactory.create_being(
             being_type=being_type,
             genesis=genesis,
@@ -91,10 +91,10 @@ async def create_being(sid, data):
             memories=data.get('memories', []),
             self_awareness=data.get('self_awareness', {})
         )
-        
+
         # Konwertuj do JSON-safe format
         being_dict = json.loads(json.dumps(asdict(being), cls=DateTimeEncoder))
-        
+
         # Wyślij potwierdzenie sukcesu
         if task_id:
             response = {
@@ -104,11 +104,11 @@ async def create_being(sid, data):
                 'taskId': task_id
             }
             await sio.emit('task_response', response, room=sid)
-        
+
         # Wyślij do wszystkich klientów
         await sio.emit('being_created', being_dict)
         await sio.emit('node_added', being_dict)
-        
+
     except Exception as e:
         response = {
             'success': False,
@@ -662,7 +662,7 @@ async def delete_being(sid, data):
     """Usuwa byt z systemu"""
     soul = data.get('soul')
     task_id = data.get('taskId')
-    
+
     if not soul:
         response = {
             'success': False,
@@ -674,7 +674,7 @@ async def delete_being(sid, data):
 
     try:
         print(f"🗑️ Usuwam byt: {soul} (Task ID: {task_id})")
-        
+
         # BLOKUJ usywanie agenta Lux
         lux_soul = '00000000-0000-0000-0000-000000000001'
         if soul == lux_soul:
@@ -687,7 +687,7 @@ async def delete_being(sid, data):
             return
 
         db_pool = await get_db_pool()
-        
+
         if hasattr(db_pool, 'acquire'):
             # PostgreSQL - usuń tylko byt, zostaw relacje jako historię
             async with db_pool.acquire() as conn:
@@ -695,7 +695,7 @@ async def delete_being(sid, data):
                 check_result = await conn.fetchrow("""
                     SELECT soul FROM base_beings WHERE soul = $1
                 """, soul)
-                
+
                 if not check_result:
                     response = {
                         'success': False,
@@ -709,7 +709,7 @@ async def delete_being(sid, data):
                 result = await conn.execute("""
                     DELETE FROM base_beings WHERE soul = $1
                 """, soul)
-                
+
                 print(f"✅ Usunięto byt z bazy: {result}")
                 print(f"📚 Relacje zostały zachowane jako historia")
         else:
@@ -717,7 +717,7 @@ async def delete_being(sid, data):
             cursor = await db_pool.execute("""
                 SELECT soul FROM base_beings WHERE soul = ?
             """, (soul,))
-            
+
             if not await cursor.fetchone():
                 response = {
                     'success': False,
@@ -726,12 +726,12 @@ async def delete_being(sid, data):
                 }
                 await sio.emit('task_response', response, room=sid)
                 return
-            
+
             # Usuń tylko byt - relacje zostają jako historia
             cursor = await db_pool.execute("""
                 DELETE FROM base_beings WHERE soul = ?
             """, (soul,))
-            
+
             await db_pool.commit()
             print(f"✅ Usunięto byt z SQLite")
             print(f"📚 Relacje zostały zachowane jako historia")
@@ -758,7 +758,7 @@ async def delete_being(sid, data):
                 'message': f'Byt {soul} został usunięty'
             })
             print(f"✅ Wysłano powiadomienie o usunięciu: {soul}")
-            
+
         except Exception as e:
             print(f"❌ Błąd wysyłania powiadomienia o usunięciu: {e}")
 
@@ -766,7 +766,7 @@ async def delete_being(sid, data):
         print(f"❌ Błąd podczas usuwania bytu {soul}: {e}")
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
-        
+
         response = {
             'success': False,
             'error': f'Błąd usuwania: {str(e)}',
@@ -1428,7 +1428,7 @@ async def load_gene_from_file(sid, data):
     """Endpoint do ładowania/aktualizacji genu z pliku"""
     try:
         file_path = data.get('file_path')
-        
+
         if not file_path:
             await sio.emit('error', {
                 'message': 'Brak wymaganego parametru: file_path'
@@ -1437,7 +1437,7 @@ async def load_gene_from_file(sid, data):
 
         # Załaduj gen z pliku
         gene_being = await genetic_system.load_gene_from_file_path(file_path)
-        
+
         if gene_being:
             await sio.emit('gene_loaded', {
                 'file_path': file_path,
@@ -1492,7 +1492,7 @@ async def clean_duplicate_genes(sid, data):
     """Endpoint do czyszczenia duplikatów genów"""
     try:
         removed_count = await genetic_system.clean_duplicate_genes()
-        
+
         await sio.emit('duplicate_genes_cleaned', {
             'removed_count': removed_count,
             'message': f'Usunięto {removed_count} duplikatów genów'
@@ -1506,3 +1506,122 @@ async def clean_duplicate_genes(sid, data):
 
 if __name__ == '__main__':
     asyncio.run(main())
+
+from aiohttp import web, JsonifyMixin
+from aiohttp.web import json_response
+
+class JsonResponse(web.Response, JsonifyMixin):
+    def __init__(self, *args, **kw):
+        super().__init__(*args, content_type='application/json', **kw)
+
+@web.middleware
+async def json_middleware(request, handler):
+    """Middleware, który automatycznie konwertuje odpowiedź na JSON"""
+    response = await handler(request)
+    if isinstance(response, dict):
+        return json_response(response)
+    return response
+
+app.middlewares.append(json_middleware)
+
+@app.route('/api/genes', methods=['GET'])
+async def get_genes():
+    """Endpoint do pobierania listy genów"""
+    try:
+        genes_info = {}
+        from app.genetics.gene_registry import gene_registry
+        from app.genetics.genetic_system import genetic_system
+
+        # Geny z rejestru
+        for gene_name in gene_registry.get_available_genes():
+            info = gene_registry.get_gene_info(gene_name)
+            if info:
+                genes_info[gene_name] = {
+                    'call_count': info['call_count'],
+                    'is_async': info['is_async'],
+                    'registered_at': info['registered_at'],
+                    'metadata': info.get('metadata', {}),
+                    'source': 'gene_registry'
+                }
+
+        # Geny z systemu genetycznego
+        for gene_soul, gene_data in genetic_system.genes.items():
+            gene_name = gene_data.get('metadata', {}).get('name', 'unknown')
+            genes_info[f"genetic_{gene_name}"] = {
+                'soul': gene_soul,
+                'loaded_at': gene_data.get('loaded_at', '').isoformat() if hasattr(gene_data.get('loaded_at', ''), 'isoformat') else str(gene_data.get('loaded_at', '')),
+                'path': gene_data.get('path', ''),
+                'metadata': gene_data.get('metadata', {}),
+                'source': 'genetic_system',
+                'extraction_type': gene_data.get('extraction_type', 'unknown')
+            }
+
+        return json_response({
+            'success': True,
+            'genes': genes_info,
+            'total_count': len(genes_info),
+            'genetic_system_genes': len(genetic_system.genes),
+            'registry_genes': len(gene_registry.get_available_genes())
+        })
+    except Exception as e:
+        return json_response({'success': False, 'error': str(e)})
+
+@app.route('/api/genotypes', methods=['GET'])
+async def get_genotypes():
+    """Endpoint do pobierania listy genotypów"""
+    try:
+        from app.genetics.genetic_system import genetic_system
+
+        genotypes = []
+        for being_soul, being in genetic_system.beings.items():
+            if being.genesis.get('type') == 'genotype':
+                # Znajdź geny należące do tego genotypu
+                genotype_genes = []
+                for relationship in genetic_system.relationships.values():
+                    if (relationship.source_soul == being_soul and 
+                        relationship.genesis.get('relationship_type') == 'contains_gene'):
+                        gene_soul = relationship.target_soul
+                        if gene_soul in genetic_system.genes:
+                            gene_data = genetic_system.genes[gene_soul]
+                            genotype_genes.append({
+                                'soul': gene_soul,
+                                'name': gene_data.get('metadata', {}).get('name', 'unknown'),
+                                'function_name': relationship.genesis.get('function_name', 'unknown')
+                            })
+
+                genotypes.append({
+                    'soul': being_soul,
+                    'name': being.genesis.get('name', 'unknown'),
+                    'file_name': being.genesis.get('file_name', 'unknown'),
+                    'created_at': being.created_at.isoformat() if hasattr(being.created_at, 'isoformat') else str(being.created_at),
+                    'genes_count': len(genotype_genes),
+                    'genes': genotype_genes,
+                    'energy_level': being.attributes.get('energy_level', 0),
+                    'hash': being.attributes.get('genotype_hash', 'unknown')[:8] + '...'
+                })
+
+        return json_response({
+            'success': True,
+            'genotypes': genotypes,
+            'total_count': len(genotypes)
+        })
+    except Exception as e:
+        return json_response({'success': False, 'error': str(e)})
+
+@app.route('/api/genotypes/reload', methods=['POST'])
+async def reload_genotypes():
+    """Endpoint do przeładowania genotypów z katalogu"""
+    try:
+        from app.genetics.genetic_system import genetic_system
+
+        # Przeładuj genotypy
+        await genetic_system.load_genotypes_from_directory("app/gen_files")
+
+        return json_response({
+            'success': True,
+            'message': 'Genotypy zostały przeładowane',
+            'total_beings': len(genetic_system.beings),
+            'total_genes': len(genetic_system.genes)
+        })
+    except Exception as e:
+        return json_response({'success': False, 'error': str(e)})

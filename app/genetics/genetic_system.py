@@ -29,6 +29,15 @@ class GeneticSystem:
         await self.load_existing_beings()
         await self.load_existing_relationships()
         await self.load_genes_from_manifest()
+        
+        # Załaduj genotypy z katalogu i automatycznie wyciągnij z nich geny
+        print("🧬 Ładowanie genotypów z automatyczną ekstrakcją genów...")
+        await self.load_genotypes_from_directory("app/gen_files")
+        
+        # Załaduj geny z katalogu (tradycyjne geny)
+        print("🧬 Ładowanie tradycyjnych genów z katalogu...")
+        await self.load_genes_from_directory("app/genetics/genes")
+        
         await self.create_initial_beings()
         print("✅ System genetyczny zainicjalizowany")
 
@@ -118,11 +127,150 @@ class GeneticSystem:
         except Exception as e:
             print(f"❌ Błąd ładowania genu {gene_path}: {e}")
 
+    async def extract_and_register_genes_from_genotype(self, genotype_being: Being, source_code: str):
+        """Wyciąga geny oznaczone dekoratorami z kodu genotypu i rejestruje je"""
+        import re
+        import ast
+        
+        try:
+            # Parsuj kod źródłowy
+            tree = ast.parse(source_code)
+            detected_genes = []
+            
+            # Szukaj funkcji z dekoratorem @gene
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    # Sprawdź czy funkcja ma dekorator @gene
+                    for decorator in node.decorator_list:
+                        if isinstance(decorator, ast.Name) and decorator.id == 'gene':
+                            # Prosta forma: @gene
+                            gene_info = {
+                                'function_name': node.name,
+                                'name': node.name,
+                                'description': f'Gene function from genotype {genotype_being.genesis.get("name", "unknown")}',
+                                'source_line': node.lineno,
+                                'decorator_type': 'simple'
+                            }
+                            detected_genes.append(gene_info)
+                            
+                        elif isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name) and decorator.func.id == 'gene':
+                            # Forma z argumentami: @gene(name="...", ...)
+                            gene_info = {
+                                'function_name': node.name,
+                                'name': node.name,  # domyślnie nazwa funkcji
+                                'description': f'Gene function from genotype {genotype_being.genesis.get("name", "unknown")}',
+                                'source_line': node.lineno,
+                                'decorator_type': 'with_args'
+                            }
+                            
+                            # Wyciągnij argumenty dekoratora
+                            for keyword in decorator.keywords:
+                                if keyword.arg == 'name' and isinstance(keyword.value, ast.Str):
+                                    gene_info['name'] = keyword.value.s
+                                elif keyword.arg == 'description' and isinstance(keyword.value, ast.Str):
+                                    gene_info['description'] = keyword.value.s
+                            
+                            detected_genes.append(gene_info)
+            
+            print(f"🧬 Wykryto {len(detected_genes)} genów w genotypie {genotype_being.genesis.get('name')}")
+            
+            # Rejestruj każdy wykryty gen jako osobny byt
+            registered_genes = []
+            for gene_info in detected_genes:
+                gene_being = await Being.create(
+                    genesis={
+                        'type': 'gene',
+                        'name': gene_info['name'],
+                        'description': gene_info['description'],
+                        'source_genotype': genotype_being.soul,
+                        'function_name': gene_info['function_name'],
+                        'created_by': 'genetic_system_extractor',
+                        'extraction_method': 'decorator_detection'
+                    },
+                    attributes={
+                        'energy_level': 80,
+                        'source_line': gene_info['source_line'],
+                        'decorator_type': gene_info['decorator_type'],
+                        'parent_genotype': genotype_being.soul,
+                        'tags': ['gene', 'extracted', 'decorator_based', 'genetic']
+                    },
+                    memories=[{
+                        'type': 'gene_extraction',
+                        'data': f'Gene extracted from genotype {genotype_being.genesis.get("name")} at line {gene_info["source_line"]}',
+                        'timestamp': datetime.now().isoformat(),
+                        'extraction_method': 'AST_parsing'
+                    }],
+                    self_awareness={
+                        'trust_level': 0.8,
+                        'confidence': 0.7,
+                        'genetic_component': True,
+                        'extracted_from_genotype': True
+                    }
+                )
+                
+                # Utwórz relację między genotypem a genem
+                gene_relationship = await Relationship.create(
+                    genotype_being.soul,
+                    gene_being.soul,
+                    {
+                        'type': 'genetic_relationship',
+                        'relationship_type': 'contains_gene',
+                        'gene_name': gene_info['name'],
+                        'function_name': gene_info['function_name'],
+                        'extraction_timestamp': datetime.now().isoformat()
+                    },
+                    attributes={
+                        'purpose': 'genetic_composition',
+                        'energy_level': 70,
+                        'tags': ['contains', 'genetic', 'extracted']
+                    }
+                )
+                
+                # Zapisz w systemie genetycznym
+                self.genes[gene_being.soul] = {
+                    'soul': gene_being.soul,
+                    'being': gene_being,
+                    'metadata': {
+                        'name': gene_info['name'],
+                        'function_name': gene_info['function_name'],
+                        'source_genotype': genotype_being.soul
+                    },
+                    'path': f"extracted_from_{genotype_being.soul}",
+                    'loaded_at': datetime.now(),
+                    'extraction_type': 'decorator_based'
+                }
+                
+                self.relationships[gene_relationship.id] = gene_relationship
+                registered_genes.append(gene_being)
+                
+                print(f"🧬 Zarejestrowano gen: {gene_info['name']} (funkcja: {gene_info['function_name']}) z genotypu")
+            
+            return registered_genes
+            
+        except Exception as e:
+            print(f"❌ Błąd podczas wyciągania genów z genotypu {genotype_being.soul}: {e}")
+            return []
+
     async def create_being_with_genes(self, genesis: Dict[str, Any], **kwargs) -> Being:
         """Tworzy nowy byt z automatycznym ładowaniem genów"""
         # Utwórz byt
         being = await Being.create(genesis, **kwargs)
         self.beings[being.soul] = being
+
+        # Jeśli to genotyp, wyciągnij z niego geny
+        if genesis.get('type') == 'genotype' and 'code' in genesis:
+            print(f"🧬 Wyciąganie genów z genotypu: {genesis.get('name', 'unknown')}")
+            extracted_genes = await self.extract_and_register_genes_from_genotype(being, genesis['code'])
+            
+            # Dodaj informację o wyciągniętych genach do pamięci genotypu
+            genotype_memory = {
+                'type': 'gene_extraction_complete',
+                'extracted_genes_count': len(extracted_genes),
+                'extracted_genes': [gene.soul for gene in extracted_genes],
+                'timestamp': datetime.now().isoformat()
+            }
+            being.memories.append(genotype_memory)
+            await being.save()
 
         # Autoload - znajdź geny które powinien załadować ten byt
         await self.autoload_genes_for_being(being)
@@ -471,6 +619,162 @@ class GeneticSystem:
                 continue
 
         print(f"🔗 Relacje genetyczne: {len(genetic_relationships)}")
+
+    async def load_genotypes_from_directory(self, directory_path: str = "app/gen_files"):
+        """Ładuje genotypy z katalogu i automatycznie wyciąga z nich geny"""
+        import os
+        import hashlib
+        from pathlib import Path
+
+        genotypes_dir = Path(directory_path)
+        if not genotypes_dir.exists():
+            print(f"⚠️ Katalog genotypów nie istnieje: {directory_path}")
+            return
+
+        print(f"🧬 Ładowanie genotypów z katalogu: {directory_path}")
+
+        for genotype_file in genotypes_dir.glob("*.py"):
+            try:
+                file_path = str(genotype_file)
+                
+                # Wczytaj kod genotypu
+                with open(genotype_file, 'r', encoding='utf-8') as f:
+                    genotype_code = f.read()
+
+                # Generuj hash kodu
+                current_hash = hashlib.sha256(genotype_code.encode('utf-8')).hexdigest()
+
+                # Sprawdź czy genotyp już istnieje
+                existing_genotypes = await Being.get_all(limit=1000)
+                existing_genotype = None
+                
+                for being in existing_genotypes:
+                    if (being.genesis.get('type') == 'genotype' and 
+                        being.attributes.get('file_path') == file_path):
+                        existing_genotype = being
+                        break
+
+                if existing_genotype:
+                    existing_hash = existing_genotype.attributes.get('genotype_hash')
+                    
+                    if existing_hash == current_hash:
+                        print(f"🧬 Genotyp bez zmian: {genotype_file.stem}")
+                        # Dodaj do pamięci systemu jeśli nie ma
+                        if existing_genotype.soul not in self.beings:
+                            self.beings[existing_genotype.soul] = existing_genotype
+                        continue
+                    else:
+                        print(f"🔄 EWOLUCJA GENOTYPU: {genotype_file.stem}")
+                        # Aktualizuj istniejący genotyp
+                        existing_genotype.genesis['code'] = genotype_code
+                        existing_genotype.attributes['genotype_hash'] = current_hash
+                        existing_genotype.attributes['updated_at'] = datetime.now().isoformat()
+                        
+                        # Wyciągnij nowe geny
+                        extracted_genes = await self.extract_and_register_genes_from_genotype(
+                            existing_genotype, genotype_code
+                        )
+                        
+                        evolution_memory = {
+                            'type': 'genotype_evolution',
+                            'old_hash': existing_hash,
+                            'new_hash': current_hash,
+                            'extracted_genes_count': len(extracted_genes),
+                            'timestamp': datetime.now().isoformat()
+                        }
+                        existing_genotype.memories.append(evolution_memory)
+                        
+                        await existing_genotype.save()
+                        self.beings[existing_genotype.soul] = existing_genotype
+                        print(f"✅ Genotyp zaktualizowany z {len(extracted_genes)} genami")
+                        continue
+
+                # Nowy genotyp
+                genotype_being = await self.create_being_with_genes(
+                    genesis={
+                        'name': f'genotype_{genotype_file.stem}',
+                        'type': 'genotype',
+                        'code': genotype_code,
+                        'created_by': 'genetic_system',
+                        'origin': 'filesystem',
+                        'file_name': genotype_file.name
+                    },
+                    attributes={
+                        'genotype_hash': current_hash,
+                        'file_path': file_path,
+                        'loaded_at': datetime.now().isoformat(),
+                        'energy_level': 100
+                    },
+                    memories=[{
+                        'type': 'genotype_load',
+                        'data': f'Genotype loaded from {genotype_file}',
+                        'timestamp': datetime.now().isoformat()
+                    }],
+                    tags=['genotype', 'genetic_system', genotype_file.stem],
+                    self_awareness={
+                        'trust_level': 0.9,
+                        'confidence': 0.8,
+                        'genetic_container': True
+                    }
+                )
+
+                print(f"🧬 Załadowano nowy genotyp: {genotype_file.stem} (ID: {genotype_being.soul})")
+
+            except Exception as e:
+                print(f"❌ Błąd ładowania genotypu {genotype_file}: {e}")
+
+        print(f"🧬 Załadowano genotypy. Łącznie bytów: {len(self.beings)}, genów: {len(self.genes)}")
+
+    async def register_genotype_with_genes(self, genotype_path: str):
+        """Rejestruje pojedynczy genotyp i automatycznie wyciąga z niego geny"""
+        import hashlib
+        from pathlib import Path
+        
+        genotype_file = Path(genotype_path)
+        if not genotype_file.exists():
+            print(f"⚠️ Plik genotypu nie istnieje: {genotype_path}")
+            return None
+
+        try:
+            # Wczytaj kod genotypu
+            with open(genotype_file, 'r', encoding='utf-8') as f:
+                genotype_code = f.read()
+
+            # Utwórz genotyp używając create_being_with_genes (automatycznie wyciągnie geny)
+            genotype_being = await self.create_being_with_genes(
+                genesis={
+                    'name': f'genotype_{genotype_file.stem}',
+                    'type': 'genotype',
+                    'code': genotype_code,
+                    'created_by': 'manual_registration',
+                    'origin': 'filesystem',
+                    'file_name': genotype_file.name
+                },
+                attributes={
+                    'genotype_hash': hashlib.sha256(genotype_code.encode('utf-8')).hexdigest(),
+                    'file_path': str(genotype_file),
+                    'registered_at': datetime.now().isoformat(),
+                    'energy_level': 100
+                },
+                memories=[{
+                    'type': 'manual_registration',
+                    'data': f'Genotype manually registered from {genotype_path}',
+                    'timestamp': datetime.now().isoformat()
+                }],
+                tags=['genotype', 'manual', genotype_file.stem],
+                self_awareness={
+                    'trust_level': 0.9,
+                    'confidence': 0.8,
+                    'genetic_container': True
+                }
+            )
+
+            print(f"✅ Genotyp {genotype_file.stem} zarejestrowany z automatyczną ekstrakcją genów")
+            return genotype_being
+
+        except Exception as e:
+            print(f"❌ Błąd rejestracji genotypu {genotype_path}: {e}")
+            return None
 
     async def get_lux_status(self) -> Dict[str, Any]:
         """Zwraca status agenta Lux"""
