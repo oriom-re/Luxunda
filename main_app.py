@@ -1,8 +1,9 @@
-from app.beings.prototyp.base_v2 import Being
+import uuid
+from app.beings.genotype import Genotype
 import asyncpg
 import aiosqlite
 from app.database import get_db_pool, set_db_pool
-from app.core.gen_loader_from_file import load_all_gen_files_as_souls
+from app.core.gen_loader_from_file import register_all_genotypes
 
 async def setup_postgresql_tables():
     """Tworzy tabele w PostgreSQL"""
@@ -84,18 +85,42 @@ if __name__ == "__main__":
         print("Baza danych zainicjalizowana.")
 
         print("Ładowanie plików gen jako souls...")
-        await load_all_gen_files_as_souls("app/gen_files")
+        await register_all_genotypes("app/gen_files")
         print("Pliki gen załadowane.")
 
-        db_pool = await get_db_pool()
-        print("Uruchamianie gen_logger...")
-        modul = await load_and_run_gen("gen_logger", db_pool)
+        print("🧪 Testowanie gen_logger jako demon genotypu...")
+        
+        # Test 1: Przez obiekt Genotype (główny test)
+        genesis = {"name": "Lux"}
+        attributes = {}
+        memories = []
+        self_awareness = {}
+        uid = str(uuid.uuid4())
+        
+        lux = Genotype(uid=uid, genesis=genesis, attributes=attributes, 
+                       memories=memories, self_awareness=self_awareness)
+        lux.cxt = globals()  # Dostęp do globalnego kontekstu
+        
+        print("🚀 Uruchamianie genotypu jako demon...")
+        await lux.load_and_run_genotype("gen_logger", call_init=True)
+        
+        if lux:
+            print("✅ Demon genotypu uruchomiony!")
+            print(f"🔍 Kontekst Lux zawiera: {len(lux.cxt)} elementów")
+        
+        # Test 2: Alternatywne uruchomienie (opcjonalne)
+        print("🔄 Test alternatywnego uruchomienia...")
+        modul = await load_and_run_gen("gen_logger")
         if modul:
-            print("Uruchomiono gen_logger.")
+            print("✅ Moduł gen_logger załadowany.")
         else:
-            print("Nie udało się uruchomić gen_logger.")
-        # podtrzymanie działania loggera
-        while True:
-            await asyncio.sleep(1)
+            print("❌ Nie udało się załadować modułu gen_logger.")
+        
+        print("🔄 Demon działa w tle... (Ctrl+C aby zatrzymać)")
+        try:
+            while True:
+                await asyncio.sleep(10)  # Zwiększony interwał dla czytelności logów
+        except KeyboardInterrupt:
+            print("\n🛑 Zatrzymywanie demona...")
 
     asyncio.run(main())

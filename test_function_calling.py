@@ -294,7 +294,7 @@ async def run_practical_test():
     
     # Utwórz byt funkcyjny
     math_function = FunctionBeing(
-        soul=str(uuid.uuid4()),
+        uid=str(uuid.uuid4()),
         genesis={
             'name': 'multiply',
             'type': 'function',

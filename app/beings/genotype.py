@@ -16,24 +16,23 @@ class Genotype(Being):
     Genotype class that extends the Being class.
     This class is used to represent a genotype in the system.
     """
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.loaded_genotypes: Optional[Dict[str, Any]] = {}
-        self.loaded_genes: Optional[List[str]] = []
+    loaded_genes: Optional[List[str]] = []
+    cxt: Dict[str, Any] = {}
+    local_cxt: Dict[str, Any] = {}
 
-    @classmethod
-    async def load_and_run_genotype(cls, genotype_name, db_pool, call_init: bool = True):
-        soul = await cls.get_soul_by_name(genotype_name)
+    
+    async def load_and_run_genotype(self, genotype_name, call_init: bool = True):
+        db_pool = await get_db_pool()
+        soul = await self.get_soul_by_name(genotype_name)
         if not soul:
             print(f"❌ Nie znaleziono duszy dla nazwy: {genotype_name}")
             return None
         print(f"🔍 Ładowanie modułu {genotype_name} {soul['genesis'].get('name')}")
-        if genotype_name in cls.loaded_genotypes:
-            return cls.loaded_genotypes[genotype_name]
+        if genotype_name in self.cxt:
+            return self.cxt[genotype_name]
 
         # 1. 🔌 Wczytaj zależności
-        # await load_dependencies(soul, db_pool)
+        await self.load_dependencies(soul)
 
         # 2. 📦 Załaduj jako moduł dynamicznie z kodu
         try:
@@ -63,22 +62,21 @@ class Genotype(Being):
                 del sys.modules[genotype_name]
             return None
 
-        cls.loaded_genotypes[genotype_name] = genotype
+        self.cxt[genotype_name] = genotype
 
         # 3. ⚙️ Inicjalizacja, jeśli funkcja lub klasa dostępna
         if call_init:
             if hasattr(genotype, "init"):
-                await cls.maybe_async(genotype.init)
+                await self.maybe_async(genotype.init)
                 print(f"✅ Inicjalizacja modułu {genotype_name} zakończona.")
             elif hasattr(genotype, "__call__"):
-                await cls.maybe_async(genotype())
+                await self.maybe_async(genotype())
                 print(f"✅ Wywołanie modułu {genotype_name} zakończone.")
         
         return genotype
 
-    @classmethod
-    # get soul by genesis.path
-    async def get_soul_by_name(name: str):
+    @staticmethod
+    async def get_soul_by_name(name: str) -> Optional[Dict[str, Any]]:
         pool = await get_db_pool()
         # get all tables
         if not pool:
@@ -136,28 +134,41 @@ class Genotype(Being):
         else:
             func()
 
-    async def load_dependencies(self, soul: Dict[str, Any], db_pool):
+    async def load_dependencies(self, soul: Dict[str, Any]):
         """Wczytuje zależności z bazy i ładuje je rekurencyjnie."""
-        if not soul.get("genesis", {}).get("dependencies"):
+        db_pool = await get_db_pool()
+        dependencies = soul.get("genesis", {}).get("dependencies", [])
+        if not dependencies:
             print(f"🔍 Brak zależności dla {soul['genesis'].get('name')}")
             return
-        query = """
-        SELECT target_uid, genesis FROM relationships
-        JOIN souls ON relationships.target_uid = souls.uid
-        WHERE source_uid = ? AND relationships.attributes LIKE '%depends_on%'
-        """
-        print(f"🔍 Wczytywanie zależności dla {soul['genesis'].get('name')}")
-        async with db_pool.execute(query, (soul.get("uid"),)) as cursor:
-            async for row in cursor:
-                target_uid, target_genesis = row
-                target_uid_dict = {
-                    "soul": target_uid,
-                    "genesis": json.loads(target_genesis),
-                    "attributes": {},
-                    "memories": [],
-                    "self_awareness": {}
-                }
-                await self.load_and_run_genotype(target_uid_dict, db_pool, call_init=True)
+        print(f"context: {self.cxt}")
+        for depend in dependencies:
+            if depend in self.cxt:
+                print("🔍 Zależność już załadowana:", depend)
+            else:
+                print(f"🔍 Wczytywanie zależności dla: {depend}")
+        return 
+        if hasattr(db_pool, 'acquire'):  # PostgreSQL (np. asyncpg)
+            async with db_pool.acquire() as conn:
+                query = """
+                SELECT target_uid, genesis FROM relationships
+                JOIN souls ON relationships.target_uid = souls.uid
+                WHERE source_uid = ? AND relationships.attributes LIKE '%depends_on%'
+                """
+                print(f"🔍 Wczytywanie zależności dla {soul['genesis'].get('name')}")
+                
+                async with conn.execute(query, (soul.get("uid"),)) as cursor:
+                    async for row in cursor:
+                        target_uid, target_genesis = row
+                        target_uid_dict = {
+                            "soul": target_uid,
+                            "genesis": json.loads(target_genesis),
+                            "attributes": {},
+                            "memories": [],
+                            "self_awareness": {}
+                        }
+                        await self.load_and_run_genotype(target_uid_dict, call_init=True)
+        
 
     @classmethod
     async def send_genotype_to_db(cls, soul: Dict):

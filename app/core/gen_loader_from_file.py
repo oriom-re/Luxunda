@@ -11,7 +11,8 @@ import json
 from typing import List
 import uuid
 import aiosqlite
-from app.beings.base import Being, Relationship
+from app.beings.base import Being
+from app.beings.genotype import Genotype
 from app.database import get_db_pool
 import hashlib
 import os
@@ -242,7 +243,7 @@ def load_module_from_file(path: str):
     }
     return soul
 
-async def load_all_gen_files_as_souls(directory: str) -> List[Dict]:
+async def register_all_genotypes(directory: str) -> List[Dict]:
     souls = []
     directory = os.path.abspath(directory)  # Użycie ścieżki absolutnej dla katalogu
     print(f"Processing directory: {directory}")
@@ -256,7 +257,7 @@ async def load_all_gen_files_as_souls(directory: str) -> List[Dict]:
                 continue
             soul = load_module_from_file(file_path)
             if soul:
-                await Being.send_genotype_to_db(soul)
+                await Genotype.send_genotype_to_db(soul)
                 souls.append(soul)
             else:
                 print(f"Failed to create soul for file: {file_path}")

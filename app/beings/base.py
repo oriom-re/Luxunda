@@ -8,7 +8,6 @@ import json
 from datetime import datetime
 from app.database import get_db_pool
 from app.genetics.gene_registry import gene_registry, create_gene_context
-from app.core.gen_loader_from_file import get_soul_by_name
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -263,7 +262,7 @@ class Relationship:
                 (uid, source_uid, target_uid, attributes)
                 VALUES (?, ?, ?, ?)
             """, (str(self.uid), str(self.source_uid), str(self.target_uid),
-                  json.dumps(self.attributes, cls=DateTimeEncoder)))
+                json.dumps(self.attributes, cls=DateTimeEncoder)))
             await db_pool.commit()
         print(f"🗄️ Zapisano relację {self.uid} do bazy danych.")
     

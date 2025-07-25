@@ -9,7 +9,7 @@ from app.core.gen_loader_from_file import get_soul_by_name
 
 _loaded_modules = {}
 
-async def load_and_run_gen(module_name, db_pool, call_init: bool = True):
+async def load_and_run_gen(module_name, call_init: bool = True):
     soul = await get_soul_by_name(module_name)
     if not soul:
         print(f"❌ Nie znaleziono duszy dla nazwy: {module_name}")

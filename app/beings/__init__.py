@@ -2,7 +2,7 @@
 import json
 import uuid
 from datetime import datetime
-from app.beings.base import Being, Relationship
+from app.beings.base import Being
 from app.beings.being_factory import BeingFactory
 from app.beings.function_router import FunctionRouter
 from app.beings.function_being import FunctionBeing
