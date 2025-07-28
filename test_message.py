@@ -37,7 +37,7 @@ genotype_message = {
       "py_type": "str"
     },
     "message": {
-      "table_name": "_json",
+      "table_name": "_jsonb",
       "py_type": "dict"
     }
   }
@@ -87,8 +87,7 @@ if __name__ == "__main__":
                 thread_uid=thread_id,
                 message={"content": "Hello, world!", "role": "user"}
             )
-            print(message.to_dict())
-            print(f" Created being with soul hash: {message_soul.soul_hash}")
+            print(f" Created being with soul hash: {message.soul_hash}")
         # print(f"Attributes: {attributes}")
 
         return

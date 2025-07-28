@@ -590,7 +590,7 @@ class DynamicRepository:
     """Repository dla dynamicznych pól w souls"""
 
     @staticmethod
-    async def save(ulid: str, table_name:str, value: Any) -> bool:
+    async def save(ulid: str, table_name:str, key: str, value: Any) -> bool:
         """Zapisuje dynamiczne pola dla danego soul"""
         try:
             pool = await Postgre_db.get_db_pool()
@@ -599,17 +599,48 @@ class DynamicRepository:
 
             async with pool.acquire() as conn:
                 await conn.execute(f"""
-                        INSERT INTO {table_name} (ulid, value)
-                        VALUES ($1, $2)
+                        INSERT INTO {table_name} (ulid, value, key)
+                        VALUES ($1, $2, $3)
                     """, 
-                        ulid, value
+                        ulid, value if table_name != "_jsonb" else json.dumps(value), key
                     )
             print(f"✅ Dynamiczna tabela {table_name} zapisana dla ulid {ulid}")
             return True
         except Exception as e:
             print(f"❌ Błąd podczas zapisywania dynamicznej tabeli {table_name}: {e}")
             return False
-    
+        
+    @staticmethod
+    async def save_transaction(ulid: str, soul_hash: str, attributes: Dict[str, Any]) -> bool:
+        """Zapisuje dynamiczne pola w transakcji"""
+        pool = await Postgre_db.get_db_pool()
+        if not pool:
+            return False
+
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                # Wstawianie do tabeli beings
+                await conn.execute(
+                    "INSERT INTO beings (ulid, soul_hash, ) VALUES ($1, $2) "
+                    "ON CONFLICT (ulid, soul_hash) DO UPDATE SET value = EXCLUDED.value",
+                    ulid, soul_hash
+                )
+                # Wstawianie do dynamicznej tabeli
+                for attr_name, value in attributes.items():
+                    being_ulid = ulid
+                    if isinstance(value, str):
+                        await conn.execute(
+                            "INSERT INTO _text (being_ulid, attribute_name, value) VALUES ($1, $2, $3) "
+                            "ON CONFLICT (being_ulid, attribute_name) DO UPDATE SET value = EXCLUDED.value",
+                            ulid, attr_name, value
+                        )
+                    await conn.execute(
+                        "INSERT INTO _text (being_ulid, attribute_name, value) VALUES ($1, $2, $3) "
+                        "ON CONFLICT (being_ulid, attribute_name) DO UPDATE SET value = EXCLUDED.value",
+                        ulid, attr_name, value
+                    )
+                
+
     @staticmethod
     async def load(ulid: str, table_name: str) -> Optional[Dict[str, Any]]:
         """Ładuje dynamiczne pola dla danego soul"""

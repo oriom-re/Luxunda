@@ -30,8 +30,6 @@ class Soul:
             return cls.parser(metadata)
         else:
             raise Exception("Failed to create soul")
-
-        return self
     
     @classmethod
     async def load(cls, soul_hash: str) -> 'Soul':
@@ -99,28 +97,29 @@ class Being:
             }
 
         """
-        # przygotowanie tabeli z genotypu
         
         data_to_save = {}
-        print(self)
-        print(soul.genotype)
-
         if not soul.genotype or not soul.genotype.get("attributes"):
             raise ValueError("Soul genotype must have attributes defined")
-        print(f"===================== genotype: {soul.genotype}")
         for key, metadata in soul.genotype.get("attributes", {}).items():
             if not hasattr(self, key):
                 raise ValueError(f"Being instance does not have attribute {key}")
-            print(f"Saving attribute {key} with value {getattr(self, key)}")
             data_to_save[metadata.get('table_name')] = getattr(self, key)
 
         if data:
             for key, value in data.items():
                 setattr(self, key, value)
 
-        print(f"Saving soul with hash: {soul.soul_hash} and data: {data_to_save}")
+        print(f"Saving soul with hash: {soul.soul_hash}")
+        await BeingRepository.save(self.ulid, self.soul_hash)
+        for key, metadata in soul.genotype.get("attributes", {}).items():
+            if not hasattr(self, key):
+                raise ValueError(f"Being instance does not have attribute {key}")
+            print(f"Saving ulid {self.ulid} to table {metadata.get('table_name')} data: {getattr(self, key)}")
+            await DynamicRepository.save(self.ulid, metadata.get('table_name'), key, getattr(self, key))
+     
         return self
-        # return await DynamicRepository.save(soul.soul_hash, soul.genotype, data_to_save)
+        
 
     def get_attributes(self) -> Dict[str, Any]:
         return asdict(self)
@@ -158,16 +157,15 @@ class Being:
             typ_name = meta.get("py_type", "str")
             typ = type_map.get(typ_name, str)
             fields.append((name, typ, field(default=typ())))
-        print(f"Creating dynamic class with fields: {fields}")
+
         DynamicBeing = make_dataclass(
             cls_name="DynamicBeing",
             fields=fields,
             bases=(self.__class__,),
             frozen=False
         )
-        print(DynamicBeing)
+
         self.__class__ = DynamicBeing
-        print(self.get_attributes())
 
     @classmethod
     def parse(cls, data: Dict[str, Any]) -> 'Being':

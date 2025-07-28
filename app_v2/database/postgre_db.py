@@ -79,58 +79,79 @@ class Postgre_db:
 
                 await conn.execute("""
                         CREATE TABLE IF NOT EXISTS _varchar_255_not_null (
-                            ulid CHAR(26) PRIMARY KEY,
+                            being_ulid CHAR(26) NOT NULL,
+                            key TEXT NOT NULL,
                             value VARCHAR(255) NOT NULL,
-                            FOREIGN KEY (ulid) REFERENCES beings(ulid)
+                            PRIMARY KEY (being_ulid, key),
+                            FOREIGN KEY (being_ulid) REFERENCES beings(ulid)
                         );
                 """)
                 await conn.execute("""
                         CREATE TABLE IF NOT EXISTS _varchar_255 (
-                            ulid CHAR(26) PRIMARY KEY,
+                            being_ulid CHAR(26) NOT NULL,
+                            key TEXT NOT NULL,
                             value VARCHAR(255) NOT NULL,
-                            FOREIGN KEY (ulid) REFERENCES beings(ulid)
+                            PRIMARY KEY (being_ulid, key),
+                            FOREIGN KEY (being_ulid) REFERENCES beings(ulid)
                         );
                 """)
                 await conn.execute("""
                         CREATE TABLE IF NOT EXISTS _ulid (
-                            ulid CHAR(26) PRIMARY KEY,
+                            being_ulid CHAR(26) NOT NULL,
+                            key TEXT NOT NULL,
+                            key VARCHAR(255) NOT NULL,
                             value UUID NOT NULL,
-                            FOREIGN KEY (ulid) REFERENCES beings(ulid)
+                            PRIMARY KEY (being_ulid, key),
+                            FOREIGN KEY (being_ulid) REFERENCES beings(ulid)
                         );
                 """)
                 await conn.execute("""
-                        CREATE TABLE IF NOT EXISTS _jsonb_not_null (
-                            ulid CHAR(26) PRIMARY KEY,
-                            value JSONB NOT NULL,
-                            FOREIGN KEY (ulid) REFERENCES beings(ulid)
+                        CREATE TABLE IF NOT EXISTS _jsonb (
+                            being_ulid CHAR(26) NOT NULL,
+                            key TEXT NOT NULL,
+                            key VARCHAR(255) NOT NULL,
+                            value JSONB,
+                            PRIMARY KEY (being_ulid, key),
+                            FOREIGN KEY (being_ulid) REFERENCES beings(ulid)
                         );
                 """)
                 await conn.execute("""
                         CREATE TABLE IF NOT EXISTS _vector_1536 (
-                            ulid CHAR(26) PRIMARY KEY,
-                            value VECTOR(1536),
-                            FOREIGN KEY (ulid) REFERENCES beings(ulid)
+                            being_ulid CHAR(26) NOT NULL,
+                            key TEXT NOT NULL,
+                            key VARCHAR(255) NOT NULL,
+                            PRIMARY KEY (being_ulid, key),
+                            FOREIGN KEY (being_ulid) REFERENCES beings(ulid)
                         );
                 """)
                 await conn.execute("""
                         CREATE TABLE IF NOT EXISTS _boolean (
-                            ulid CHAR(26) PRIMARY KEY,
+                            being_ulid CHAR(26) NOT NULL,
+                            key TEXT NOT NULL,
+                            key VARCHAR(255) NOT NULL,
                             value BOOLEAN DEFAULT TRUE,
-                            FOREIGN KEY (ulid) REFERENCES beings(ulid)
+                            PRIMARY KEY (being_ulid, key),
+                            FOREIGN KEY (being_ulid) REFERENCES beings(ulid)
                         );
                 """)
                 await conn.execute("""
                         CREATE TABLE IF NOT EXISTS _text (
-                            ulid CHAR(26) PRIMARY KEY,
+                            being_ulid CHAR(26) NOT NULL,
+                            key TEXT NOT NULL,
                             value TEXT,
-                            FOREIGN KEY (ulid) REFERENCES beings(ulid)
+                            PRIMARY KEY (being_ulid, key),
+                            FOREIGN KEY (being_ulid) REFERENCES beings(ulid)
                         );
+
                 """)
                 await conn.execute("""
                         CREATE TABLE IF NOT EXISTS _text_not_null (
-                            ulid CHAR(26) PRIMARY KEY,
+                            being_ulid CHAR(26) NOT NULL,
+                            key TEXT NOT NULL,
+                            key VARCHAR(255) NOT NULL,
                             value TEXT NOT NULL,
-                            FOREIGN KEY (ulid) REFERENCES beings(ulid)
+                            PRIMARY KEY (being_ulid, key),
+                            FOREIGN KEY (being_ulid) REFERENCES beings(ulid)
                         );
 
                     """)
