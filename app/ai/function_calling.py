@@ -7,6 +7,7 @@ from app.beings.base import Being
 from app.beings.function_being import FunctionBeing
 from app.beings.being_factory import BeingFactory
 from app.safety.executor import SafeCodeExecutor
+from app_v2.beings.thread import Thread
 import ast
 
 class OpenAIFunctionCaller:
@@ -108,15 +109,20 @@ class OpenAIFunctionCaller:
                 tools.append(func_info["schema"])
                 print(f"Zarejestrowano funkcję: {func_info['schema']}")
 
-            messages = [
-                {
+            message_system = {
                     "role": "system", 
                     "content": """Jesteś Lux - inteligentny agent w systemie LuxOS. 
                     Masz dostęp do funkcji z bytów astralnych. Używaj ich mądrze.
                     Odpowiadaj po polsku."""
-                },
+                }
+            messages_user = [
+                
                 {"role": "user", "content": prompt}
             ]
+            thread = Thread.get_current_thread(id)
+            thread.add_message(message_system)
+            thread.add_messages(messages_user)
+            messages = [message_system] + messages_user
             
             if context:
                 messages.insert(1, {
@@ -165,6 +171,11 @@ class OpenAIFunctionCaller:
                         "tool_call_id": tool_call.id,
                         "content": json.dumps(func_result, ensure_ascii=False)
                     })
+                    thread.add_message({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(func_result, ensure_ascii=False)
+                    })
                 
                 # Otrzymaj finalną odpowiedź
                 final_response = self.client.chat.completions.create(
@@ -174,7 +185,10 @@ class OpenAIFunctionCaller:
                 )
                 
                 result["final_response"] = final_response.choices[0].message.content
-            
+                thread.add_message({
+                    "role": "assistant",
+                    "content": final_response.choices[0].message.content
+                })
             return result
             
         except Exception as e:

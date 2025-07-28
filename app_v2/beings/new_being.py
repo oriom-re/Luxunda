@@ -10,19 +10,12 @@ from typing import Dict, Any, Optional, List
 import json
 
 @dataclass
-class Being:
+class Soul:
     """Podstawowa klasa dla wszystkich bytów w systemie"""
-
-    uid: str = field(default_factory=lambda: str(uuid.uuid4())) # Unikalny identyfikator bytu
     alias: str = None # Alias dla bytu
     genotype_hex: str = None # unikalna reprezentacja genotypu bytu
     genotype: Dict[str, Any] = field(default_factory=dict) # Genotyp bytu
-    attributes: Dict[str, Any] = field(default_factory=dict) # Atrybuty bytu
     created_at: Optional[datetime] = None # Data zapisu bytu w bazie danych
-
-    def __post_init__(self):
-        if "created_at" not in self.genotype:
-            self.genotype["created_at"] = datetime.utcnow().isoformat()
 
     def _apply_genotype(self, genotype: dict, values: dict):
         attributes = genotype.get("attributes", {})

@@ -19,7 +19,8 @@ def store_in_memory(key, value):
     store_in_memory._storage[key] = value
     return {"stored": True, "key": key}
 
-@gene(name="memory_retrieve", description="Odczytywanie danych z pamięci", requires=["memory"])
+@gene(name="memory_retrieve", description="Odczytywanie danych z pamięci")
+@requires("memory")
 def get_from_memory(key):
     """Odczytuje dane z pamięci"""
     if hasattr(store_in_memory, '_storage'):

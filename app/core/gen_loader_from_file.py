@@ -48,7 +48,6 @@ def get_info_from_file(file_path: str):
                         name = name[:-2] if name.endswith("__") else name
                         if name not in metadata:  # unikaj nadpisywania
                             metadata[name] = node.value.s
-        metadata["file_path_rel"] = os.path.relpath(file_path)
         metadata["file_path"] = os.path.abspath(file_path)
         metadata["file_name"] = os.path.basename(file_path)
         metadata["type"] = "genotype"  # Dodajemy typ genotypu
@@ -239,7 +238,6 @@ def load_module_from_file(path: str):
         "attributes": {},
         "memories": [],
         "self_awareness": {},
-        "created_at": datetime.now(),
     }
     return soul
 

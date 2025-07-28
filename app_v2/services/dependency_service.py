@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 import importlib
 import subprocess
 import sys
+from app_v2.database.soul_repository import SoulRepository
 
 class DependencyService:
     """Serwis do zarządzania zależnościami"""
@@ -20,7 +21,6 @@ class DependencyService:
         for dep in dependencies:
             try:
                 # 1. Sprawdź czy to moduł systemu Lux (w bazie)
-                from app_v2.database.soul_repository import SoulRepository
                 soul = await SoulRepository.get_by_name(dep)
                 if soul:
                     print(f"🔍 Znaleziono moduł Lux: {dep}")
@@ -36,15 +36,22 @@ class DependencyService:
                 except ImportError:
                     pass
                 
-                # 3. Spróbuj zainstalować przez pip (w produkcji wyłączone)
-                print(f"📦 Moduł {dep} nie znaleziony (pip install wyłączony w testach)")
-                failed.append(dep)
+                # 3. Spróbuj zainstalować przez pip
+                print(f"📦 Instalowanie {dep} przez pip...")
+                result = subprocess.run([
+                    sys.executable, "-m", "pip", "install", dep
+                ], capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    module = importlib.import_module(dep)
+                    resolved[dep] = {"type": "installed", "module": module}
+                    print(f"✅ Zainstalowano i załadowano: {dep}")
+                else:
+                    print(f"❌ Nie udało się zainstalować {dep}: {result.stderr}")
+                    failed.append(dep)
                     
             except Exception as e:
                 print(f"❌ Błąd podczas rozwiązywania {dep}: {e}")
                 failed.append(dep)
-        
-        if failed:
-            print(f"⚠️ Nie udało się rozwiązać zależności: {failed}")
         
         return resolved

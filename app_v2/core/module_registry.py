@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 from typing import Dict, List, Any
 
+from app_v2.genetics import GeneRegistry
+
 class ModuleRegistry:
     """Rejestr modułów - odpowiada za rejestrację i wersjonowanie"""
     
@@ -30,7 +32,7 @@ class ModuleRegistry:
         return {
             "uid": f"mock_uid_{os.path.basename(file_path)}",
             "genesis": {
-                "name": os.path.basename(file_path).replace('.module', ''),
+                "name": f"genom_{os.path.basename(file_path).replace('.module', '')}",
                 "path": file_path,
                 "type": "module",
                 "language": "python",

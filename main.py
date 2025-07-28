@@ -1297,30 +1297,7 @@ async def init_app():
 
 
 
-async def main():
-    print("🚀 Uruchamianie serwera LuxOS...")
 
-    # Najpierw inicjalizuj bazę danych
-    await init_database()
-
-    # Potem inicjalizuj system genetyczny
-    await genetic_system.initialize()
-
-    # Uruchom serwer
-    await init_app()
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 5000)
-    await site.start()
-    print("Serwer uruchomiony na http://0.0.0.0:5000")
-
-    # Trzymaj serwer żywy
-    try:
-        await asyncio.Event().wait()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await runner.cleanup()
 
 @sio.event
 async def get_beings(sid):
@@ -1504,8 +1481,7 @@ async def clean_duplicate_genes(sid, data):
         print(f"Błąd czyszczenia duplikatów genów: {e}")
         await sio.emit('error', {'message': str(e)}, room=sid)
 
-if __name__ == '__main__':
-    asyncio.run(main())
+
 
 from aiohttp import web, JsonifyMixin
 from aiohttp.web import json_response
@@ -1625,3 +1601,32 @@ async def reload_genotypes():
         })
     except Exception as e:
         return json_response({'success': False, 'error': str(e)})
+
+async def main():
+    print("🚀 Uruchamianie serwera LuxOS...")
+
+    # Najpierw inicjalizuj bazę danych
+    await init_database()
+
+    # Potem inicjalizuj system genetyczny
+    await genetic_system.initialize()
+
+    # Uruchom serwer
+    await init_app()
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 5000)
+    await site.start()
+    print("Serwer uruchomiony na http://0.0.0.0:5000")
+
+    # Trzymaj serwer żywy
+    try:
+        await asyncio.Event().wait()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        await runner.cleanup()
+
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())

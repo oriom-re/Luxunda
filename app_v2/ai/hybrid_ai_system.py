@@ -282,7 +282,7 @@ class HybridAISystem:
 # Test function
 async def test_hybrid_system():
     """Test hybrydowego systemu"""
-    from app_v2.database.db_manager import init_database
+    from app_v2.database.not_in_use.sqlite_db import init_database
     from app_v2.core.module_registry import ModuleRegistry
     
     # Initialize

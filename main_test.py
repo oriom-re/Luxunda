@@ -10,16 +10,11 @@ from datetime import datetime
 from app_v2.beings.genotype import Genotype
 from app_v2.core.module_registry import ModuleRegistry
 from app_v2.services.entity_manager import EntityManager
-from app_v2.database.db_manager import init_database
 from app_v2.database.soul_repository import SoulRepository
 
 async def main():
     """Główna funkcja testowa"""
     print("🚀 Uruchamianie testów app_v2...")
-    
-    # 0. Inicjalizacja bazy danych
-    print("\n🔄 Inicjalizacja bazy danych...")
-    await init_database()
 
     # 1. Test rejestracji modułów
     print("\n📝 Test 1: Rejestracja modułów z plików")

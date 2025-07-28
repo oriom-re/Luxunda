@@ -24,6 +24,7 @@ async def main():
     print("\n🧬 Test 1b: Sprawdzenie rejestru genów")
     from app_v2.genetics import GeneRegistry
     all_genes = GeneRegistry.get_all_genes()
+
     print(f"Zarejestrowane geny: {list(all_genes.keys())}")
     
     # Sprawdź zależności
