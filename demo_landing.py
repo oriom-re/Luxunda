@@ -5,18 +5,28 @@ from datetime import datetime
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from database.postgre_db import Postgre_db
 
 # FastAPI app
 app = FastAPI(title="LuxDB MVP", version="2.0.0")
 
-# Socket.IO server z poprawną konfiguracją
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Socket.IO server z poprawną konfiguracją CORS
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins=["*"],
-    logger=True,
-    engineio_logger=True,
+    cors_allowed_origins="*",
+    logger=False,
+    engineio_logger=False,
     transports=['websocket', 'polling']
 )
 
