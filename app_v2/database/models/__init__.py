@@ -4,6 +4,6 @@ Beings module - zawiera klasy reprezentujące byty w systemie
 """
 
 from .base import Being
-from .genotype import Genotype
+from .beings.genotype import Genotype
 
 __all__ = ['Being', 'Genotype']

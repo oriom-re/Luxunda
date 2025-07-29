@@ -101,7 +101,7 @@ class Being:
     genotype: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    async def create(cls, soul: 'Soul', data: Dict[str, Any]) -> 'Being':
+    async def create(cls, soul: 'Soul', data: Dict[str, Any], limit: int) -> 'Being':
         """Tworzy nowy byt na podstawie genotypu i wartości"""
 
         being = cls(
@@ -114,7 +114,9 @@ class Being:
 
         for key, value in data.items():
             setattr(being, key, value)
-
+        beings = await BeingRepository.load_all_by_soul_hash(soul.soul_hash)
+        if limit and len(beings) >= limit:
+            raise ValueError(f"Limit of {limit} beings reached for soul {soul.soul_hash}")
         await being.save(soul, data)
         return being
 
@@ -138,28 +140,6 @@ class Being:
             )
 
             self.__class__ = DynamicBeing
-
-    @classmethod
-    async def from_row(cls, row: Dict[str, Any], genotype: Dict[str, Any]) -> 'Being':
-        from app_v2.core.parser_table import parse_py_type
-        """Tworzy instancję Being z danych wiersza"""
-        being = cls()
-
-        if genotype:
-            being._apply_genotype(genotype)
-
-        # Przypisz wszystkie dodatkowe pola dynamicznie
-        attributes = genotype.get("attributes", {})
-        for key, value in row.items():
-            parsed = parse_py_type(key, attributes.get(key, {}))
-            _value = parsed["decoder"](value)
-            if hasattr(being, key):  # jeśli już istnieje (np. ulid)
-                continue
-            setattr(being, key, _value)
-
-        return being
-
-
 
     async def save(self, soul: Soul, data: Dict[str, Any]=None) -> 'Being':
         """Zapisuje byt do bazy danych
@@ -199,25 +179,32 @@ class Being:
     async def load_by_ulid(cls, ulid: str) -> 'Being':
         """Ładuje byt z bazy danych na podstawie jego unikalnego ulid"""
         result = await BeingRepository.load_by_ulid(ulid)
-        return result.get('being', None)
+        if result:
+            return result.get('beings', [])
+        return []
 
     @classmethod
     async def load_all_by_soul_hash(cls, soul_hash: str) -> list['Being']:
         """Ładuje byt z bazy danych na podstawie jego unikalnego hasha"""
         result = await BeingRepository.load_all_by_soul_hash(soul_hash)
-        return [cls.parse(being_data) for being_data in result.get('rows', [])]
+        if result:
+            return result.get('beings', [])
 
     @classmethod
     async def load_all(cls) -> list['Being']:
         """Ładuje wszystkie byty z bazy danych"""
         result = await BeingRepository.load_all()
-        return [cls.parse(being_data) for being_data in result.get('rows', [])]
+        if result:
+            return result.get('beings', [])
+        return []
 
     @classmethod
     async def load_last_by_soul_hash(cls, soul_hash: str) -> 'Being':
         """Ładuje ostatni byt z bazy danych na podstawie jego unikalnego hasha"""
-        being_data = await BeingRepository.load_last_by_soul_hash(soul_hash)
-        return cls.parse(being_data)
+        result = await BeingRepository.load_last_by_soul_hash(soul_hash)
+        if result:
+            return result.get('beings', [])
+        return []
 
     
     

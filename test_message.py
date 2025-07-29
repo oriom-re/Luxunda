@@ -5,9 +5,9 @@ import json
 import uuid
 import time
 
-from app_v2.beings.being import Being, Soul
+from app_v2.beings.base import Being, Soul
 from app_v2.database.soul_repository import SoulRepository
-from app_v2.beings.being import Message
+from app_v2.beings.base import Message
 
 genotype_example = {
   "attributes": {

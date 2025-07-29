@@ -9,20 +9,20 @@ from typing import Dict, Any, Optional, List
 import json
 from app_v2.database.postgre_db import Postgre_db
 from app_v2.core.globals import Globals
-from app_v2.core.parser_table import parse_py_type, build_table_name
+from app_v2.database.parser_table import parse_py_type, build_table_name
 # pobiera typy
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from app_v2.beings.being import Being
-    from app_v2.beings.being import Soul
+    from app_v2.database.models.base import Being
+    from app_v2.database.models.base import Soul
 
 # Import dla runtime
 def get_soul_class():
-    from app_v2.beings.being import Soul
+    from app_v2.database.models.base import Soul
     return Soul
 
 def get_being_class():
-    from app_v2.beings.being import Being
+    from app_v2.database.models.base import Being
     return Being
 
 

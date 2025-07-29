@@ -4,6 +4,6 @@ Core module - podstawowe funkcjonalności systemu
 """
 
 from .communication import Communication, IntentRecognizer
-from .module_registry import ModuleRegistry
 
-__all__ = ['Communication', 'IntentRecognizer', 'ModuleRegistry']
+
+__all__ = ['Communication', 'IntentRecognizer']

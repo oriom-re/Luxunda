@@ -8,7 +8,7 @@ import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from app_v2.beings.base import Being
+from app_v2.database.models.base import Being
 from app_v2.core.communication import Communication, IntentRecognizer
 from app_v2.services.entity_manager import EntityManager
 from app_v2.database.soul_repository import SoulRepository

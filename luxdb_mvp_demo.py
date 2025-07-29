@@ -15,8 +15,8 @@ Pokazuje:
 import asyncio
 import json
 from typing import Dict, Any
-from app_v2.core.parser_table import validate_genotype, process_genotype_for_tables
-from app_v2.beings.being import Soul, Being
+from app_v2.database.parser_table import validate_genotype, process_genotype_for_tables
+from app_v2.database.models.base import Soul, Being
 from app_v2.database.postgre_db import Postgre_db
 
 # Przykładowe genotypy dla demo
@@ -168,7 +168,7 @@ async def demo_create_beings(souls: Dict[str, Soul]):
         }
         
         try:
-            user_being = await Being.create(souls["user_profile"], user_data)
+            user_being = await Being.create(souls["user_profile"], user_data, limit=1)
             beings.append(user_being)
             print(f"   ✅ User being created: {user_being.ulid}")
             print(f"   📧 Email: {user_being.email}")
@@ -189,7 +189,7 @@ async def demo_create_beings(souls: Dict[str, Soul]):
         }
         
         try:
-            agent_being = await Being.create(souls["ai_agent"], agent_data)
+            agent_being = await Being.create(souls["ai_agent"], agent_data, limit=1)
             beings.append(agent_being)
             print(f"   ✅ Agent being created: {agent_being.ulid}")
             print(f"   🤖 Name: {agent_being.name}")
