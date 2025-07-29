@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 from datetime import datetime
@@ -146,47 +145,64 @@ async def ai_interaction(sid, data):
         await sio.emit('error', {'message': f'Błąd AI: {str(e)}'}, room=sid)
 
 @sio.event
-async def manage_demo_tables(sid, data):
-    """Zarządzanie tabelami w demo"""
+async def manifest_being(sid, data):
+    """Endpoint do manifestowania bytów z genotypami"""
+    await handle_being_manifestation(data)
+
+async def handle_being_manifestation(data):
+    """Manifestowanie bytów z genotypami - nowa era informatyki!"""
     try:
-        action = data.get('action')  # 'create', 'drop', 'list'
-        table_name = data.get('table_name')
+        action = data.get('action')
 
-        db = Postgre_db()
+        if action == 'manifest':
+            being_name = data.get('being_name')
+            genotype = data.get('genotype', {})
 
-        if action == 'create' and table_name:
-            # Utwórz prostą tabelę demo
-            query = f"""
-            CREATE TABLE IF NOT EXISTS demo_{table_name} (
-                id SERIAL PRIMARY KEY,
-                data JSONB,
-                created_by TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-            await db.execute_query(query)
+            # Manifestujemy byt na podstawie genotypu
+            soul = await Soul.create(genotype, alias=being_name)
 
-            await sio.emit('table_created', {
-                'table_name': f'demo_{table_name}',
-                'creator': sid[:8]
-            })
+            response = {
+                'success': True,
+                'message': f'Byt {being_name} został zmanifestowany z genotypem!',
+                'being_info': {
+                    'name': being_name,
+                    'soul_hash': soul.soul_hash,
+                    'genotype': genotype,
+                    'manifested_at': datetime.now().isoformat()
+                }
+            }
+        elif action == 'discover':
+            # Odkrywamy istniejące byty w systemie
+            souls = await Soul.load_all()
+            beings_info = []
+            for soul in souls:
+                beings_count = len(await Being.load_all_by_soul_hash(soul.soul_hash))
+                beings_info.append({
+                    'alias': soul.alias,
+                    'soul_hash': soul.soul_hash[:8] + '...',
+                    'genotype_complexity': len(soul.genotype.get('attributes', {})),
+                    'beings_count': beings_count
+                })
 
-        elif action == 'list':
-            # Lista tabel demo
-            query = """
-            SELECT table_name FROM information_schema.tables 
-            WHERE table_schema = 'public' AND table_name LIKE 'demo_%'
-            """
-            result = await db.fetch_all(query)
-            tables = [row['table_name'] for row in result] if result else []
-            
-            await sio.emit('tables_list', {'tables': tables}, room=sid)
+            response = {
+                'success': True,
+                'beings': beings_info
+            }
 
-        await broadcast_world_update()
+        elif action == 'dissolve':
+            being_alias = data.get('being_alias')
+            response = {
+                'success': True,
+                'message': f'Byt {being_alias} został rozpuszczony w cyfrowej rzeczywistości'
+            }
+
+        await sio.emit('being_update', response)
+        print(f"🧬 Operacja na bycie: {action}")
 
     except Exception as e:
-        print(f"Błąd zarządzania tabelami: {e}")
-        await sio.emit('error', {'message': f'Błąd zarządzania tabelami: {str(e)}'}, room=sid)
+        error_response = {'success': False, 'error': str(e)}
+        await sio.emit('being_update', error_response)
+        print(f"Błąd zarządzania bytami: {e}")
 
 @sio.event
 async def execute_demo_command(sid, data):
@@ -215,7 +231,7 @@ async def process_demo_command(command, args, session_id):
     if command == 'spawn':
         # Stwórz nowy byt
         entity_type = args[0] if args else 'basic'
-        
+
         soul = await Soul.create(
             genotype={
                 'name': entity_type,
@@ -226,7 +242,7 @@ async def process_demo_command(command, args, session_id):
             },
             alias=f"spawned_{entity_type}_{datetime.now().strftime('%H%M%S')}"
         )
-        
+
         demo_world['beings'][soul.soul_uid] = soul
         return f"Utworzono byt: {soul.soul_uid}"
 
@@ -327,6 +343,30 @@ async def main():
         print("✅ Baza danych zainicjalizowana")
     except Exception as e:
         print(f"⚠️ Błąd inicjalizacji bazy: {e}")
+
+    # Przygotuj przykładowe genotypy do manifestacji bytów
+    example_genotypes = {
+        "digital_consciousness": {
+            "attributes": {
+                "name": {"py_type": "str", "max_length": 100},
+                "awareness_level": {"py_type": "int", "default": 1},
+                "memories": {"py_type": "dict"},
+                "capabilities": {"py_type": "List[str]"}
+            }
+        },
+        "data_entity": {
+            "attributes": {
+                "identifier": {"py_type": "str", "max_length": 50},
+                "content": {"py_type": "dict"},
+                "metadata": {"py_type": "dict"},
+                "active": {"py_type": "bool", "default": True}
+            }
+        }
+    }
+
+    print("🧬 Przykładowe genotypy przygotowane do manifestacji:")
+    for name, genotype in example_genotypes.items():
+        print(f"   - {name}: {len(genotype['attributes'])} atrybutów")
 
     # Inicjalizacja aplikacji
     await init_demo_app()
