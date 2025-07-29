@@ -50,12 +50,72 @@ if os.getenv('OPENAI_API_KEY'):
 @sio.event
 async def connect(sid, environ, auth):
     print(f"Klient połączony: {sid}")
+    
+    # Dodaj informację o nowym użytkowniku do systemu
+    user_being = await Being.create(
+        genesis={
+            'type': 'user_session',
+            'name': f'User Session {sid[:8]}',
+            'source': 'multi_user_demo',
+            'session_id': sid,
+            'connected_at': datetime.now().isoformat()
+        },
+        attributes={
+            'session_info': {
+                'socket_id': sid,
+                'user_agent': environ.get('HTTP_USER_AGENT', 'Unknown'),
+                'ip_address': environ.get('REMOTE_ADDR', 'Unknown'),
+                'demo_participant': True
+            },
+            'activity_data': {
+                'actions_performed': 0,
+                'beings_created': 0,
+                'last_activity': datetime.now().isoformat()
+            }
+        },
+        self_awareness={
+            'confidence': 0.8,
+            'trust_level': 0.7,
+            'session_active': True
+        }
+    )
+    
+    genetic_system.beings[user_being.soul] = user_being
+    
     # Wyślij aktualny stan grafu
     await send_graph_data(sid)
+    
+    # Powiadom innych o nowym użytkowniku
+    await sio.emit('user_joined', {
+        'user_soul': user_being.soul,
+        'session_id': sid[:8],
+        'active_users': len([b for b in genetic_system.beings.values() 
+                           if b.genesis.get('type') == 'user_session' and 
+                           b.self_awareness.get('session_active', False)])
+    }, skip_sid=sid)
 
 @sio.event
 async def disconnect(sid):
     print(f"Klient rozłączony: {sid}")
+    
+    # Znajdź i dezaktywuj sesję użytkownika
+    user_sessions = [b for b in genetic_system.beings.values() 
+                    if b.genesis.get('type') == 'user_session' and 
+                    b.genesis.get('session_id') == sid]
+    
+    for session in user_sessions:
+        session.self_awareness['session_active'] = False
+        session.attributes['activity_data']['disconnected_at'] = datetime.now().isoformat()
+    
+    # Powiadom innych o rozłączeniu
+    active_users = len([b for b in genetic_system.beings.values() 
+                       if b.genesis.get('type') == 'user_session' and 
+                       b.self_awareness.get('session_active', False)])
+    
+    await sio.emit('user_left', {
+        'session_id': sid[:8],
+        'active_users': active_users
+    })
 
 @sio.event
 async def get_graph_data(sid, data=None):
@@ -1433,6 +1493,186 @@ async def load_gene_from_file(sid, data):
 
     except Exception as e:
         print(f"Błąd ładowania genu: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
+
+@sio.event
+async def create_support_request(sid, data):
+    """Endpoint do obsługi formularzy wsparcia"""
+    try:
+        # Utwórz byt reprezentujący zgłoszenie wsparcia
+        support_being = await Being.create(
+            genesis={
+                'type': 'support_request',
+                'name': f"Support Request - {data.get('firstName', 'Unknown')} {data.get('lastName', '')}",
+                'source': 'LuxOS Support Form',
+                'created_by': 'support_form_system',
+                'inquiry_type': data.get('inquiryType', 'other'),
+                'form_data': data
+            },
+            attributes={
+                'contact_info': {
+                    'email': data.get('email'),
+                    'name': f"{data.get('firstName', '')} {data.get('lastName', '')}".strip(),
+                    'company': data.get('company'),
+                    'preferred_contact': data.get('preferredContact', 'email')
+                },
+                'request_data': {
+                    'message': data.get('message', ''),
+                    'investment_level': data.get('investmentLevel'),
+                    'priority': 'high' if data.get('inquiryType') == 'investment' else 'normal'
+                },
+                'metadata': {
+                    'session_id': data.get('sessionId'),
+                    'timestamp': data.get('timestamp'),
+                    'form_version': '1.0',
+                    'ai_processed': True,
+                    'user_agent': data.get('userAgent', '')
+                }
+            },
+            self_awareness={
+                'confidence': 0.9,
+                'trust_level': 0.8,
+                'importance': 0.95 if data.get('inquiryType') == 'investment' else 0.7
+            }
+        )
+
+        # Dodaj do systemu genetycznego
+        genetic_system.beings[support_being.soul] = support_being
+        
+        # Jeśli to zapytanie inwestycyjne, utwórz specjalną relację z Lux
+        if data.get('inquiryType') == 'investment':
+            lux_soul = '00000000-0000-0000-0000-000000000001'
+            if lux_soul in genetic_system.beings:
+                investment_relation = await Relationship.create(
+                    source_soul=lux_soul,
+                    target_soul=support_being.soul,
+                    genesis={
+                        'relationship_type': 'prioritizes',
+                        'context': 'high_priority_investment_inquiry',
+                        'investment_level': data.get('investmentLevel', 'unknown'),
+                        'created_by': 'automatic_triage_system'
+                    },
+                    attributes={
+                        'priority_score': 0.95,
+                        'requires_immediate_attention': True,
+                        'estimated_response_time': '2-4 hours'
+                    }
+                )
+                genetic_system.relationships[investment_relation.soul] = investment_relation
+
+        await sio.emit('support_request_created', {
+            'success': True,
+            'support_being_soul': support_being.soul,
+            'message': 'Support request processed successfully',
+            'estimated_response_time': '2-4 hours' if data.get('inquiryType') == 'investment' else '24 hours'
+        }, room=sid)
+
+        # Broadcast do wszystkich o nowym zgłoszeniu (bez danych osobowych)
+        await sio.emit('new_support_request', {
+            'type': data.get('inquiryType', 'other'),
+            'priority': 'high' if data.get('inquiryType') == 'investment' else 'normal',
+            'timestamp': data.get('timestamp')
+        })
+
+        await broadcast_graph_update()
+
+    except Exception as e:
+        print(f"Błąd przetwarzania zgłoszenia wsparcia: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
+
+@sio.event
+async def create_demo_being(sid, data):
+    """Endpoint dla uczestników demo do tworzenia bytów"""
+    try:
+        # Znajdź sesję użytkownika
+        user_session = None
+        for being in genetic_system.beings.values():
+            if (being.genesis.get('type') == 'user_session' and 
+                being.genesis.get('session_id') == sid and
+                being.self_awareness.get('session_active', False)):
+                user_session = being
+                break
+        
+        if not user_session:
+            await sio.emit('error', {'message': 'Sesja użytkownika nie została znaleziona'}, room=sid)
+            return
+
+        # Utwórz nowy byt na podstawie danych od użytkownika
+        demo_being = await Being.create(
+            genesis={
+                'type': data.get('type', 'demo_entity'),
+                'name': data.get('name', f'Demo Entity {datetime.now().strftime("%H:%M:%S")}'),
+                'source': 'multi_user_demo',
+                'created_by_session': sid[:8],
+                'demo_creation': True,
+                'created_at': datetime.now().isoformat()
+            },
+            attributes={
+                'creator_info': {
+                    'session_id': sid,
+                    'user_soul': user_session.soul
+                },
+                'demo_data': data.get('attributes', {}),
+                'visual_properties': {
+                    'color': data.get('color', '#00ff88'),
+                    'size': data.get('size', 10),
+                    'shape': data.get('shape', 'circle')
+                }
+            },
+            self_awareness={
+                'confidence': 0.8,
+                'trust_level': 0.7,
+                'demo_entity': True
+            }
+        )
+        
+        genetic_system.beings[demo_being.soul] = demo_being
+        
+        # Aktualizuj statystyki użytkownika
+        user_session.attributes['activity_data']['beings_created'] += 1
+        user_session.attributes['activity_data']['actions_performed'] += 1
+        user_session.attributes['activity_data']['last_activity'] = datetime.now().isoformat()
+
+        # Utwórz relację między sesją użytkownika a nowym bytem
+        creation_relation = await Relationship.create(
+            source_soul=user_session.soul,
+            target_soul=demo_being.soul,
+            genesis={
+                'relationship_type': 'created',
+                'context': 'demo_being_creation',
+                'creation_method': 'user_interface'
+            },
+            attributes={
+                'creation_timestamp': datetime.now().isoformat(),
+                'demo_relation': True
+            }
+        )
+        genetic_system.relationships[creation_relation.soul] = creation_relation
+
+        await sio.emit('demo_being_created', {
+            'success': True,
+            'being_soul': demo_being.soul,
+            'creator_session': sid[:8],
+            'being_data': {
+                'name': demo_being.genesis['name'],
+                'type': demo_being.genesis['type'],
+                'visual': demo_being.attributes['visual_properties']
+            }
+        }, room=sid)
+
+        # Broadcastuj do wszystkich uczestników demo
+        await sio.emit('new_demo_being', {
+            'being_soul': demo_being.soul,
+            'creator_session': sid[:8],
+            'being_name': demo_being.genesis['name'],
+            'being_type': demo_being.genesis['type'],
+            'visual_properties': demo_being.attributes['visual_properties']
+        })
+
+        await broadcast_graph_update()
+
+    except Exception as e:
+        print(f"Błąd tworzenia demo bytu: {e}")
         await sio.emit('error', {'message': str(e)}, room=sid)
 
 @sio.event
