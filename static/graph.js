@@ -668,6 +668,10 @@ class LuxOSUniverse {
     }
 }
 
-// Udostępnij globalnie
-window.LuxOSGraph = LuxOSUniverse;
-console.log('LuxOSGraph class defined and available globally');
+// Ensure single global declaration
+if (typeof window.LuxOSGraph === 'undefined') {
+    window.LuxOSGraph = LuxOSUniverse;
+    console.log('✅ LuxOSGraph class defined and available globally');
+} else {
+    console.log('⚠️ LuxOSGraph already defined, skipping redefinition');
+}

@@ -124,5 +124,7 @@ class IntentionComponent {
     }
 }
 
-// Udostępnij globalnie
+// Make IntentionComponent available globally
 window.IntentionComponent = IntentionComponent;
+
+} // End of conditional block

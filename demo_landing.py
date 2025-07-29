@@ -565,5 +565,26 @@ async def process_intention(sid, data):
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Uruchamianie serwera LuxDB MVP (FastAPI + Socket.IO) na porcie 3000...")
-    uvicorn.run(socket_app, host="0.0.0.0", port=3000, reload=False)
+    import socket
+    
+    # Find available port
+    def find_free_port(start_port=3000):
+        for port in range(start_port, start_port + 10):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(('0.0.0.0', port))
+                    return port
+            except OSError:
+                continue
+        return 5000  # fallback to default Replit port
+    
+    port = find_free_port(3000)
+    print(f"🚀 Uruchamianie serwera LuxDB MVP (FastAPI + Socket.IO) na porcie {port}...")
+    print(f"🌐 URL: http://0.0.0.0:{port}")
+    
+    try:
+        uvicorn.run(socket_app, host="0.0.0.0", port=port, reload=False)
+    except Exception as e:
+        print(f"❌ Błąd uruchomienia serwera: {e}")
+        print(f"🔄 Próba uruchomienia na porcie 5000...")
+        uvicorn.run(socket_app, host="0.0.0.0", port=5000, reload=False)

@@ -330,7 +330,7 @@ class LuxChatComponent {
 
     handleLuxCommunicationResponse(data) {
         console.log('Przetwarzanie odpowiedzi Lux:', data);
-        
+
         // Usuń wiadomość "Analizuję..." jeśli istnieje
         const messages = this.messagesArea.querySelectorAll('.chat-message.lux-message');
         const lastMessage = messages[messages.length - 1];
@@ -594,5 +594,7 @@ Jak mogę Ci dzisiaj pomóc?`;
     }
 }
 
-// Udostępnij globalnie
+// Make LuxChatComponent available globally
 window.LuxChatComponent = LuxChatComponent;
+
+} // End of conditional block
