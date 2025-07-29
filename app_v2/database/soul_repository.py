@@ -1,617 +1,421 @@
 # app_v2/database/soul_repository.py
 __name__ = 'soul_repository'
 __doc__ = 'Repository pattern dla operacji na souls w bazie danych'
-__version__ = '1.0.0'
-__static__ = ['get_db_pool', 'set_db_pool', 'get_by_name', 'get_by_field', 'save', 'get_dependencies']
+__version__ = '2.0.0'
 
 
-import asyncio
+
 from typing import Dict, Any, Optional, List
 import json
-import uuid
-import aiosqlite
 from app_v2.database.postgre_db import Postgre_db
 from app_v2.core.globals import Globals
+from app_v2.core.parser_table import parse_py_type, build_table_name
+# pobiera typy
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app_v2.beings.being import Being
+    from app_v2.beings.being import Soul
+
+# Import dla runtime
+def get_soul_class():
+    from app_v2.beings.being import Soul
+    return Soul
+
+def get_being_class():
+    from app_v2.beings.being import Being
+    return Being
 
 
 """Repository pattern dla operacji na souls w bazie danych"""
 
-
-class SoulRepository:
-    """Repository dla operacji na souls w bazie danych"""
-    
-    @staticmethod
-    async def get_by_name(name: str) -> Optional[Dict[str, Any]]:
-        """Pobiera soul po nazwie"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            print("Database pool is not initialized.")
-            return None
-
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM souls
-                WHERE genesis->>'name' = $1
-                ORDER BY created_at DESC
-                LIMIT 1
-            """
-            row = await conn.fetchrow(query, name)
-            if row:
-                return SoulRepository._row_to_dict(row, 'postgres')
-        return None
-
-    @staticmethod
-    async def get_by_field(field: str, value: Any, column: str = "genesis", limit: int = 1) -> Optional[Dict[str, Any]]:
-        """Pobiera soul po dowolnym polu w genesis"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return None
-
-        async with pool.acquire() as conn:
-            query = f"""
-                SELECT * FROM souls
-                WHERE {column}->>'{field}' = $1
-                ORDER BY created_at DESC
-            """
-            if limit is not None:
-                query += f" LIMIT {limit}"
-            row = await conn.fetchrow(query, value)
-            if row:
-                return SoulRepository._row_to_dict(row, 'postgres')
-        return None
-
-    @staticmethod
-    async def get_by_attributes(attributes: Dict[str, Any], limit: int = 1) -> Optional[Dict[str, Any]]:
-        """Pobiera soul po atrybutach"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return None
-
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM souls
-                WHERE attributes @> $1
-                ORDER BY created_at DESC
-            """
-            if limit is not None:
-                query += f" LIMIT {limit}"
-            row = await conn.fetchrow(query, json.dumps(attributes))
-            if row:
-                return SoulRepository._row_to_dict(row, 'postgres')
-        return None
-    
-    @staticmethod
-    async def load(uid: str) -> Optional[Dict[str, Any]]:
-        """Ładuje soul z bazy danych na podstawie UID"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return None
-
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM souls
-                WHERE uid = $1
-            """
-            row = await conn.fetchrow(query, uid)
-            if row:
-                return SoulRepository._row_to_dict(row, 'postgres')
-        return None
-    
-    @staticmethod
-    async def save(soul: Dict[str, Any]) -> bool:
-        """Zapisuje soul do bazy danych"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return False
-        async with pool.acquire() as conn:
-            query = """
-                INSERT INTO souls (uid, genesis, attributes, memories, self_awareness)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (uid) DO UPDATE SET
-                    genesis = EXCLUDED.genesis,
-                    attributes = EXCLUDED.attributes,
-                    memories = EXCLUDED.memories,
-                    self_awareness = EXCLUDED.self_awareness,
-                    created_at = NOW()
-            """
-            await conn.execute(query,
-                soul["uid"],
-                json.dumps(soul["genesis"]),
-                json.dumps(soul["attributes"]),
-                json.dumps(soul["memories"]),
-                json.dumps(soul["self_awareness"])
-            )
-
-    @staticmethod
-    async def get_dependencies(soul_uid: str) -> List[Dict[str, Any]]:
-        """Pobiera zależności dla danego soul"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
-
-        dependencies = []
-        if hasattr(pool, 'acquire'):  # PostgreSQL
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT s.* FROM relationships r
-                    JOIN souls s ON r.target_uid = s.uid
-                    WHERE r.source_uid = $1 AND r.attributes->>'type' = 'dependency'
-                """
-                rows = await conn.fetch(query, soul_uid)
-                for row in rows:
-                    dependencies.append(SoulRepository._row_to_dict(row, 'postgres'))
-        else:  # SQLite
-            pool.row_factory = aiosqlite.Row
-            query = """
-                SELECT s.* FROM relationships r
-                JOIN souls s ON r.target_uid = s.uid
-                WHERE r.source_uid = ? AND json_extract(r.attributes, '$.type') = 'dependency'
-            """
-            async with pool.execute(query, (soul_uid,)) as cursor:
-                async for row in cursor:
-                    dependencies.append(SoulRepository._row_to_dict(row, 'sqlite'))
-        
-        return dependencies
-
-    @staticmethod
-    def _row_to_dict(row, db_type: str) -> Dict[str, Any]:
-        """Konwertuje wiersz z bazy danych na słownik"""
-        if db_type == 'postgres':
-            return {
-                "uid": str(row['uid']),
-                "genesis": json.loads(row['genesis']),
-                "attributes": json.loads(row['attributes']),
-                "memories": json.loads(row['memories']),
-                "self_awareness": json.loads(row['self_awareness']),
-                "created_at": row['created_at']
-            }
-        else:  # sqlite
-            return {
-                "uid": row["uid"],
-                "genesis": json.loads(row["genesis"]) if row["genesis"] else {},
-                "attributes": json.loads(row["attributes"]) if row["attributes"] else {},
-                "memories": json.loads(row["memories"]) if row["memories"] else [],
-                "self_awareness": json.loads(row["self_awareness"]) if row["self_awareness"] else [],
-                "created_at": row["created_at"]
-            }
-        
-class RelationshipRepository:
-    """Repository dla operacji na relacjach między souls"""
-
-    @staticmethod
-    async def load_by_source(source_uid: str, attributes: Dict[str, Any]=None) -> List[Dict[str, Any]]:
-        """Pobiera relacje dla danego źródłowego UID"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
-
-        relationships = []
-        async with pool.acquire() as conn:
-            if attributes:
-                query = """
-                    SELECT * FROM relationships
-                    WHERE source_uid = $1 AND attributes @> $2
-                """
-                rows = await conn.fetch(query, source_uid, json.dumps(attributes))
-            else:
-                query = """
-                    SELECT * FROM relationships
-                    WHERE source_uid = $1
-                """
-            rows = await conn.fetch(query, source_uid)
-            for row in rows:
-                relationships.append({
-                    "uid": str(row['uid']),
-                    "source_uid": str(row['source_uid']),
-                    "target_uid": str(row['target_uid']),
-                    "attributes": json.loads(row['attributes']),
-                    "created_at": row['created_at']
-                })
-        return relationships
-    
-    @staticmethod
-    async def load_by_target(target_uid: str, attributes: Dict[str, Any]=None) -> List[Dict[str, Any]]:
-        """Pobiera relacje dla danego docelowego UID"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
-        relationships = []
-        async with pool.acquire() as conn:
-            if attributes:
-                query = """
-                    SELECT * FROM relationships
-                    WHERE target_uid = $1 AND attributes @> $2
-                """
-                rows = await conn.fetch(query, target_uid, json.dumps(attributes))
-            else:
-                query = """
-                    SELECT * FROM relationships
-                    WHERE target_uid = $1
-                """
-            rows = await conn.fetch(query, target_uid)
-            for row in rows:
-                relationships.append({
-                    "uid": str(row['uid']),
-                    "source_uid": str(row['source_uid']),
-                    "target_uid": str(row['target_uid']),
-                    "attributes": json.loads(row['attributes']),
-                    "created_at": row['created_at']
-                })
-        return relationships
-    
-    @staticmethod
-    async def load_by_attributes(attributes: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Pobiera relacje na podstawie atrybutów"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
-        
-        relationships = []
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM relationships
-                WHERE attributes @> $1
-            """
-            rows = await conn.fetch(query, json.dumps(attributes))
-            for row in rows:
-                relationships.append({
-                    "uid": str(row['uid']),
-                    "source_uid": str(row['source_uid']),
-                    "target_uid": str(row['target_uid']),
-                    "attributes": json.loads(row['attributes']),
-                    "created_at": row['created_at']
-                })
-        return relationships
-    
-    @staticmethod
-    async def save(relationship: Dict[str, Any]) -> bool:
-        """Zapisuje relację do bazy danych"""
-        try:
-            print(f"🔗 Zapisywanie relacji: {relationship.get('source_uid')} -> {relationship.get('target_uid')}")
-            db_pool = await Postgre_db.get_db_pool()
-            if not db_pool:
-                return False
-
-            # Sprawdź, czy uid jest ustawione, jeśli nie, wygeneruj nowe
-            relationship_uid = relationship.get('uid', str(uuid.uuid4()))
-
-            async with db_pool.acquire() as conn:
-                # PostgreSQL implementation
-                await conn.execute("""
-                    INSERT INTO relationships (uid, source_uid, target_uid, attributes)
-                    VALUES ($1, $2, $3, $4)
-                """, 
-                    relationship_uid,
-                    relationship.get('source_uid'),
-                    relationship.get('target_uid'),
-                    json.dumps(relationship.get('attributes', {}))
-                )
-                print("✅ Relacja zapisana")
-                return True
-        except Exception as e:
-            print(f"❌ Błąd podczas zapisywania relacji: {e}")
-            return False
-
-    @staticmethod
-    async def get_thread_view(thread_id: str, limit: int = None) -> List[Dict[str, Any]]:
-        """Pobiera widok wątku"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
-
-        async with pool.acquire() as conn:
-            query = "SELECT * FROM thread_view WHERE thread_id = $1"
-            if limit is not None:
-                query += " LIMIT $2"
-                rows = await conn.fetch(query, thread_id, limit)
-            else:
-                rows = await conn.fetch(query, thread_id)
-            relationships = []
-            if not rows:
-                return []
-            for row in rows:
-                print(f"🔗 Pobieranie relacji: {row}")
-                relationships.append({
-                    "uid": str(row['uid']),
-                    "genesis": json.loads(row['genesis']),
-                    "attributes": json.loads(row['attributes']),
-                    "memories": json.loads(row['memories']),
-                    "self_awareness": json.loads(row['self_awareness']),
-                    "created_at": row['created_at']
-                })
-
-
-            return [dict(row) for row in rows]
-
-    @staticmethod
-    async def get_thread_context(thread_id: str, limit: int = None) -> List[Dict[str, Any]]:
-        """Zwraca kontekst wątku"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
-        async with pool.acquire() as conn:
-            query = """
-                SELECT m.*, r.attributes->>'type' AS type, r.source_uid AS thread_id
-                FROM souls m
-                JOIN relationships r ON m.uid = r.target_uid
-                WHERE r.source_uid = $1
-            """
-            if limit is not None:
-                query += " LIMIT $2"
-                rows = await conn.fetch(query, thread_id, limit)
-            else:
-                rows = await conn.fetch(query, thread_id)
-
-            relationships = []
-            for row in rows:
-                relationships.append(row)
-            return relationships
-
 class SoulRepository:
     """Repository dla operacji na souls w bazie danych"""
 
     @staticmethod
-    async def save(alias: str, genotype: Dict[str, Any], soul_hash: str) -> dict:
+    async def save(soul: 'Soul') -> dict:
         """Zapisuje soul do bazy danych"""
         pool = await Postgre_db.get_db_pool()
         if not pool:
             return {"success": False}
-        global_ulid = Globals.GLOBAL_ULID
+        
 
         async with pool.acquire() as conn:
   
             query = """
-                INSERT INTO souls (global_ulid, alias, genotype, soul_hash)
+                INSERT INTO souls (soul_hash, global_ulid, alias, genotype)
                 VALUES ($1, $2, $3, $4)
                 ON CONFLICT (soul_hash) DO NOTHING
             """
 
-            await conn.execute(query,
-                global_ulid,
-                alias,
-                json.dumps(genotype),
-                soul_hash
+            result = await conn.execute(query,
+                soul.soul_hash,
+                soul.global_ulid,
+                soul.alias,
+                json.dumps(soul.genotype)
             )
-            row = await conn.fetchrow("SELECT * FROM souls WHERE soul_hash = $1", soul_hash)
-            if not row:
-                print("❌ Failed to save soul, no row returned.")
-                return {"success": False}
-            print(f"✅ Soul saved with hash: {soul_hash}")
-            dict = {
-                "soul_hash": row['soul_hash'],
-                "alias": row['alias'],
-                "genotype": json.loads(row['genotype']),
-                "created_at": row['created_at'],
-                "global_ulid": row['global_ulid']
-            }
-            return {"success": True, "soul_dict": dict}
+            if result.endswith("1"):
+                row = await conn.fetchrow("SELECT * FROM souls WHERE soul_hash = $1", soul.soul_hash)
+                if not row:
+                    print("❌ Failed to save soul, no row returned.")
+                    return {"success": False}
+                print(f"✅ Soul saved with hash: {soul.soul_hash[:8]}... and alias: {soul.alias}")
+                soul.created_at = row['created_at']
+            return {"success": True}
 
     @staticmethod
-    async def load(soul_hash: str) -> Optional[Dict[str, Any]]:
+    async def load(soul: 'Soul') -> dict:
         """Ładuje soul z bazy danych na podstawie jego unikalnego hasha"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return None
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
 
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM souls
-                WHERE soul_hash = $1
-            """
-            row = await conn.fetchrow(query, soul_hash)
-            if row:
-                return {
-                    "soul_hash": row['soul_hash'],
-                    "alias": row['alias'],
-                    "genotype": json.loads(row['genotype']),
-                    "created_at": row['created_at']
-                }
-        return None
-    
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM souls
+                    WHERE soul_hash = $1
+                """
+                row = await conn.fetchrow(query, soul.soul_hash)
+                if row:
+                    soul.alias = row['alias']
+                    soul.soul_hash = row['soul_hash']
+                    soul.genotype = json.loads(row['genotype']) 
+                    soul.created_at = row['created_at']
+                    soul.global_ulid = row['global_ulid']
+            return {"success": True}
+        except Exception as e:
+            print(f"❌ Error loading soul: {e}")
+            return {"success": False, "error": str(e)}
+
     @staticmethod
-    async def load_by_alias(alias: str) -> Optional[Dict[str, Any]]:
+    async def load_by_hash(hash: str) -> dict:
+        """Ładuje soul z bazy danych na podstawie jego unikalnego global_ulid"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM souls
+                    WHERE global_ulid = $1
+                """
+                row = await conn.fetchrow(query, hash)
+                if row:
+                    Soul = get_soul_class()
+                    soul = Soul()
+                    soul.alias = row['alias']
+                    soul.soul_hash = row['soul_hash']
+                    soul.genotype = json.loads(row['genotype'])
+                    soul.created_at = row['created_at']
+                    soul.global_ulid = row['global_ulid']
+            return {"success": True, "soul": soul}
+        except Exception as e:
+            print(f"❌ Error loading soul by ulid: {e}")
+            return {"success": False, "error": str(e)}
+        
+    @staticmethod
+    async def load_by_alias(alias: str) -> dict:
         """Ładuje soul z bazy danych na podstawie jego aliasu"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return None
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
 
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM souls
-                WHERE alias = $1
-                ORDER BY created_at DESC
-                LIMIT 1
-            """
-            row = await conn.fetchrow(query, alias)
-            if row:
-                return {
-                    "soul_hash": row['soul_hash'],
-                    "alias": row['alias'],
-                    "genotype": json.loads(row['genotype']),
-                    "created_at": row['created_at']
-                }
-        return None
-    
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM souls
+                    WHERE alias = $1
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """
+                row = await conn.fetchrow(query, alias)
+                if row:
+                    Soul = get_soul_class()
+                    soul: 'Soul' = Soul()
+                    soul.alias = row['alias']
+                    soul.soul_hash = row['soul_hash']
+                    soul.genotype = json.loads(row['genotype'])
+                    soul.created_at = row['created_at']
+                    soul.global_ulid = row['global_ulid']
+            return {"success": True, "soul": soul}
+        except Exception as e:
+            print(f"❌ Error loading soul by alias: {e}")
+            return {"success": False, "error": str(e)}
+
     @staticmethod
-    async def load_all() -> List[Dict[str, Any]]:
+    async def load_all() -> dict:
         """Ładuje wszystkie souls z bazy danych"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False, "error": "No database connection"}
 
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM souls
-                ORDER BY created_at DESC
-            """
-            rows = await conn.fetch(query)
-            return [
-                {
-                    "soul_hash": row['soul_hash'],
-                    "alias": row['alias'],
-                    "genotype": json.loads(row['genotype']),
-                    "created_at": row['created_at']
-                } for row in rows
-            ] if rows else []
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM souls
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query)
+                Soul = get_soul_class()
+                souls: List['Soul'] = []
+                for row in rows:
+                    soul = Soul()
+                    soul.soul_hash = row['soul_hash']
+                    soul.alias = row['alias'] 
+                    soul.genotype = json.loads(row['genotype'])
+                    soul.created_at = row['created_at']
+                    soul.global_ulid = row['global_ulid']
+                    souls.append(soul)
+                if not souls:
+                    souls = [None]
+            return {"success": True, "souls": souls}
+        except Exception as e:
+            print(f"❌ Error loading all souls: {e}")
+            return {"success": False, "error": str(e)}
     
     @staticmethod
-    async def load_all_by_alias(alias: str) -> List[Dict[str, Any]]:
+    async def load_all_by_alias(alias: str) -> dict:
         """Ładuje wszystkie souls z bazy danych na podstawie aliasu"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
 
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM souls
-                WHERE alias = $1
-                ORDER BY created_at DESC
-            """
-            rows = await conn.fetch(query, alias)
-            return [
-                {
-                    "soul_hash": row['soul_hash'],
-                    "alias": row['alias'],
-                    "genotype": json.loads(row['genotype']),
-                    "created_at": row['created_at']
-                } for row in rows
-            ] if rows else []
-        
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM souls
+                    WHERE alias = $1
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query, alias)
+                Soul = get_soul_class()
+                souls: List['Soul'] = []
+                for row in rows:
+                    soul = Soul()
+                    soul.soul_hash = row['soul_hash']
+                    soul.alias = row['alias']
+                    soul.genotype = json.loads(row['genotype'])
+                    soul.created_at = row['created_at']
+                    soul.global_ulid = row['global_ulid']
+                    souls.append(soul)
+                if not souls:
+                    souls = [None]
+            return {"success": True, "souls": souls}
+        except Exception as e:
+            print(f"❌ Error loading souls by alias: {e}")
+            return {"success": False, "error": str(e)}
+
 class BeingRepository:
-    """Repository dla operacji na bytach w bazie danych"""
+    """Repository dla operacji na beings w bazie danych"""
 
     @staticmethod
-    async def save(ulid: str, soul_hash: str) -> bool:
-        """Zapisuje byt do bazy danych"""
+    async def save(being: 'Being') -> dict:
+        """Zapisuje being do bazy danych"""
         pool = await Postgre_db.get_db_pool()
         if not pool:
-            return False
-        
+            return {"success": False}
+
         async with pool.acquire() as conn:
             query = """
-                INSERT INTO beings (ulid, soul_hash)
-                VALUES ($1, $2)
+                INSERT INTO beings (ulid, soul_hash, alias)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (ulid) DO UPDATE SET
+                    updated_at = CURRENT_TIMESTAMP
             """
-            await conn.execute(query,
-                ulid,
-                soul_hash,
+            result = await conn.execute(query,
+                being.ulid,
+                being.soul_hash,
+                being.alias
             )
-            return True
-
-    @staticmethod
-    async def load(ulid: str) -> Optional[Dict[str, Any]]:
-        """Ładuje byt z bazy danych na podstawie UID"""
-
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return None
-
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM beings
-                WHERE ulid = $1
-            """
-            row = await conn.fetchrow(query, ulid)
-            if row:
-                return {
-                    "ulid": str(row['ulid']),
-                    "soul_ulid": str(row['soul_ulid']),
-                    "created_at": row['created_at']
-                }
-        return None
+            if result.endswith("1"):
+                if not being.created_at:
+                    await BeingRepository.load(being)
+                print(f"✅ Being saved with ulid: {being.ulid[:8]}... and soul hash: {being.soul_hash[:8]}...")
+            return {"success": True}
     
     @staticmethod
-    async def load_all_by_hash(soul_hash: str) -> List[Dict[str, Any]]:
-        """Ładuje wszystkie byty z bazy danych na podstawie unikalnego hasha duszy"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
+    async def load_by_ulid(ulid: str) -> dict:
+        """Ładuje being z bazy danych na podstawie jego unikalnego ulid"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
 
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM beings
-                WHERE soul_hash = $1
-                ORDER BY created_at DESC
-            """
-            rows = await conn.fetch(query, soul_hash)
-            return [
-                {
-                    "ulid": str(row['ulid']),
-                    "soul_hash": str(row['soul_hash']),
-                    "created_at": row['created_at']
-                } for row in rows
-            ] if rows else []   
-
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM beings
+                    WHERE ulid = $1
+                """
+                row = await conn.fetchrow(query, ulid)
+                if row:
+                    Being = get_being_class()
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.created_at = row['created_at']
+                    if 'updated_at' in row:
+                        being.updated_at = row['updated_at']
+            return {"success": True, "being": being}
+        except Exception as e:
+            print(f"❌ Error loading being by ulid: {e}")
+            return {"success": False, "error": str(e)}
+        
     @staticmethod
-    async def load_all() -> List[Dict[str, Any]]:
-        """Ładuje wszystkie byty z bazy danych"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return []
+    async def load(being: 'Being') -> dict:
+        """Ładuje being z bazy danych na podstawie jego unikalnego ulid"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
 
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM beings
-                ORDER BY created_at DESC
-            """
-            rows = await conn.fetch(query)
-            return [
-                {
-                    "ulid": str(row['ulid']),
-                    "soul_hash": str(row['soul_hash']),
-                    "created_at": row['created_at']
-                } for row in rows
-            ] if rows else []
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM beings
+                    WHERE ulid = $1
+                """
+                row = await conn.fetchrow(query, being.ulid)
+                if row:
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.created_at = row['created_at']
+            return {"success": True}
+        except Exception as e:
+            print(f"❌ Error loading being: {e}")
+            return {"success": False, "error": str(e)}
     
     @staticmethod
-    async def load_last_by_soul_hash(soul_hash: str) -> Optional[Dict[str, Any]]:
-        """Ładuje ostatni byt z bazy danych na podstawie unikalnego hasha duszy"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return None
+    async def load_all_by_soul_hash(soul_hash: str) -> dict:
+        """Ładuje beings z bazy danych na podstawie unikalnego soul_hash"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
 
-        async with pool.acquire() as conn:
-            query = """
-                SELECT * FROM beings
-                WHERE soul_hash = $1
-                ORDER BY created_at DESC
-                LIMIT 1
-            """
-            row = await conn.fetchrow(query, soul_hash)
-            if row:
-                return {
-                    "ulid": str(row['ulid']),
-                    "soul_hash": str(row['soul_hash']),
-                    "created_at": row['created_at']
-                }
-        return None
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM beings
+                    WHERE soul_hash = $1
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query, soul_hash)
+                Being = get_being_class()
+                beings: List['Being'] = []
+                for row in rows:
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.created_at = row['created_at']
+                    if 'updated_at' in row:
+                        being.updated_at = row['updated_at']
+                    beings.append(being)
+                if not beings:
+                    beings = [None]
+            return {"success": True, "beings": beings}
+        except Exception as e:
+            print(f"❌ Error loading beings by soul hash: {e}")
+            return {"success": False, "error": str(e)}
+        
+    @staticmethod
+    async def load_last_by_soul_hash(soul_hash: str) -> dict:
+        """Ładuje beings z bazy danych na podstawie unikalnego soul_hash"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM beings
+                    WHERE soul_hash = $1
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query, soul_hash)
+                Being = get_being_class()
+                beings: List['Being'] = []
+                for row in rows:
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.created_at = row['created_at']
+                    beings.append(being)
+                if not beings:
+                    beings = [None]
+            return {"success": True, "beings": beings}
+        except Exception as e:
+            print(f"❌ Error loading beings by soul hash: {e}")
+            return {"success": False, "error": str(e)}
     
+    @staticmethod
+    async def load_all() -> dict:
+        """Ładuje wszystkie beings z bazy danych"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM beings
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query)
+                Being = get_being_class()
+                beings: List['Being'] = []
+                for row in rows:
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.created_at = row['created_at']
+                    beings.append(being)
+                if not beings:
+                    beings = [None]
+            return {"success": True, "beings": beings}
+        except Exception as e:
+            print(f"❌ Error loading all beings: {e}")
+            return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    async def load_all_by_alias(alias: str) -> dict:
+        """Ładuje beings z bazy danych na podstawie aliasu"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM beings
+                    WHERE alias = $1
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query, alias)
+                Being = get_being_class()
+                beings: List['Being'] = []
+                for row in rows:
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.created_at = row['created_at']
+                    beings.append(being)
+                if not beings:
+                    beings = [None]
+            return {"success": True, "beings": beings}
+        except Exception as e:
+            print(f"❌ Error loading beings by alias: {e}")
+            return {"success": False, "error": str(e)}
+        
 class DynamicRepository:
     """Repository dla dynamicznych pól w souls"""
 
     @staticmethod
-    async def save(ulid: str, table_name:str, key: str, value: Any) -> bool:
-        """Zapisuje dynamiczne pola dla danego soul"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return False
-
-            async with pool.acquire() as conn:
-                await conn.execute(f"""
-                        INSERT INTO {table_name} (ulid, value, key)
-                        VALUES ($1, $2, $3)
-                    """, 
-                        ulid, value if table_name != "_jsonb" else json.dumps(value), key
-                    )
-            print(f"✅ Dynamiczna tabela {table_name} zapisana dla ulid {ulid}")
-            return True
-        except Exception as e:
-            print(f"❌ Błąd podczas zapisywania dynamicznej tabeli {table_name}: {e}")
-            return False
-        
-    @staticmethod
-    async def save_transaction(ulid: str, soul_hash: str, attributes: Dict[str, Any]) -> bool:
+    async def insert_data_transaction(being, genotype: Dict[str, Any]) -> bool:
         """Zapisuje dynamiczne pola w transakcji"""
         pool = await Postgre_db.get_db_pool()
         if not pool:
@@ -619,115 +423,98 @@ class DynamicRepository:
 
         async with pool.acquire() as conn:
             async with conn.transaction():
-                # Wstawianie do tabeli beings
-                await conn.execute(
-                    "INSERT INTO beings (ulid, soul_hash, ) VALUES ($1, $2) "
-                    "ON CONFLICT (ulid, soul_hash) DO UPDATE SET value = EXCLUDED.value",
-                    ulid, soul_hash
-                )
-                # Wstawianie do dynamicznej tabeli
-                for attr_name, value in attributes.items():
-                    being_ulid = ulid
-                    if isinstance(value, str):
-                        await conn.execute(
-                            "INSERT INTO _text (being_ulid, attribute_name, value) VALUES ($1, $2, $3) "
-                            "ON CONFLICT (being_ulid, attribute_name) DO UPDATE SET value = EXCLUDED.value",
-                            ulid, attr_name, value
-                        )
-                    await conn.execute(
-                        "INSERT INTO _text (being_ulid, attribute_name, value) VALUES ($1, $2, $3) "
-                        "ON CONFLICT (being_ulid, attribute_name) DO UPDATE SET value = EXCLUDED.value",
-                        ulid, attr_name, value
-                    )
+                # wpisuje being
+                await BeingRepository.save(being)
                 
+                attributes = genotype.get("attributes", {})
+
+                # iteruje po atrybutach i zapisuje je w odpowiednich tabelach
+                for attr_name, attr_meta in attributes.items():
+
+                    # parsuje typ atrybutu
+                    parsed = parse_py_type(attr_name, attr_meta)
+                    table_name, column_def, index, foreign_key = build_table_name(parsed)
+
+                    # Sprawdź, czy tabela istnieje i zbuduj ją, jeśli nie
+                    result = await Postgre_db.ensure_table(
+                        conn, table_name, column_def, index, foreign_key=foreign_key
+                    )
+
+                    import ulid
+                    _ulid = ulid.ulid()
+
+                    if result.get("status") != "error":
+                        query = f"""
+                            INSERT INTO {table_name} (ulid, being_ulid, soul_hash, key, value)
+                            VALUES ($1, $2, $3, $4, $5)
+                            ON CONFLICT (being_ulid, key) DO UPDATE SET
+                                value = EXCLUDED.value,
+                                modified_at = CURRENT_TIMESTAMP
+                        """
+                        # pobiera atrybut z being
+                        being_data = getattr(being, attr_name, None)
+                        value = json.dumps(being_data) if parsed["requires_serialization"] else being_data
+                        
+                        # wstawia dane do tabeli
+                        if value is None:
+                            print(f"🔍 No value for attribute {attr_name} in being data.")
+                            continue
+                        await conn.execute(query, _ulid, being.ulid, being.soul_hash, attr_name, value)
+                
+                return True
 
     @staticmethod
-    async def load(ulid: str, table_name: str) -> Optional[Dict[str, Any]]:
-        """Ładuje dynamiczne pola dla danego soul"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return None
-
-            async with pool.acquire() as conn:
-                query = f"""
-                    SELECT * FROM {table_name}
-                    WHERE ulid = $1
-                """
-                row = await conn.fetchrow(query, ulid)
-                if row:
-                    print(f"✅ Dynamiczna tabela {table_name} załadowana dla ulid {ulid}")
-                    return {"value": row['value'], "data_type": row['data_type']}
-                print(f"🔍 Brak danych w dynamicznej tabeli {table_name} dla ulid {ulid}")
-            return None
-        except Exception as e:
-            print(f"❌ Błąd podczas ładowania dynamicznej tabeli {table_name}: {e}")
-            return None
-    
-    @staticmethod
-    def generate_dynamic_query(row: dict) -> str:
-        """Tworzy dynamiczne SQL na podstawie genotypu i ULID bytu."""
-        genotype_config = json.loads(row["genotype"])
-        attributes = genotype_config['attributes']
-        select_columns = []
-        join_clauses = []
-
-        for attr_name, attr_data in attributes.items():
-            table = attr_data['type']
-            alias = f"{table}_{attr_name}"  # Dodajemy nazwę atrybutu do aliasu
-            select_columns.append(f"{alias}.value AS {attr_name}")
-            # jako że każdy atrybut jest w osobnej tabeli, tworzymy JOIN
-            join_clause = f"LEFT JOIN {table} {alias} ON {alias}.ulid = b.ulid"
-            join_clauses.append(join_clause)
-
-        select_stmt = ", ".join(select_columns)
-        join_stmt = "\n".join(join_clauses)
-
-        query = f"""
-        SELECT {select_stmt}
-        FROM beings b
-        {join_stmt}
-        WHERE b.ulid = $1;
-        """
-        # print(f"🔍 Generowanie dynamicznego zapytania: {query}")
-        return query.strip()
-
-    async def load_dynamic_data(ulid: str) -> Optional[dict]:
+    async def load_values(being, key_list: List[str], genotype: dict) -> Optional[Dict[str, Any]]:
+        """Ładuje dynamiczne pola dla danego being"""
         pool = await Postgre_db.get_db_pool()
         if not pool:
             return None
 
         async with pool.acquire() as conn:
-            query = """
-                SELECT s.*, b.ulid AS being_ulid 
-                FROM souls s
-                JOIN beings b ON s.soul_hash = b.soul_hash
-                WHERE b.ulid = $1
-            """
-            row = await conn.fetchrow(query, ulid)
-            if not row:
-                return None
+            result = {}
+            attributes = genotype.get("attributes", {})
+            async with conn.transaction():
+                for key in key_list:
+                    #odszukaj nazwę tabeli na podstawie genotype attributes
+                    parsed = parse_py_type(key, attributes.get(key, {}))
+                    table_name, column_def, index, foreign_key = build_table_name(parsed)
+                    # Pobiera dane z dynamicznej tabeli
+                    query = f"""
+                        SELECT value FROM {table_name}
+                        WHERE being_ulid = $1 AND key = $2
+                    """
+                    row = await conn.fetchrow(query, being.ulid, key)
 
 
-            query = DynamicRepository.generate_dynamic_query(row)
-            data_row = await conn.fetchrow(query, ulid)
-            # print(f"🔍 Pobieranie danych dynamicznych dla bytu {ulid}: {data_row}")
-            return dict(data_row) if data_row else None
+                    result[key] = json.loads(row['value']) if parsed["requires_serialization"] else (row['value'] if row else None)
+            if result:
+                for key, value in result.items():
+                    if value is not None:
+                        setattr(being, key, value)
 
     @staticmethod
-    async def save_dynamic_data(ulid: str, data: Dict[str, Any]) -> bool:
-        """Zapisuje dynamiczne dane dla bytu na podstawie genotypu"""
+    async def load_full_table(being, key_list: List[str], genotype: dict) -> Optional[Dict[str, Any]]:
+        """Wczytuje całą tabelę dynamicznych pól dla danego being"""
         pool = await Postgre_db.get_db_pool()
         if not pool:
-            return False
+            return None
 
         async with pool.acquire() as conn:
-            for key, value in data.items():
-                table_name = key
-                try:
-                    await DynamicRepository.save(ulid, table_name, value)
-                except Exception as e:
-                    print(f"❌ Błąd podczas zapisywania dynamicznej tabeli {table_name} dla ulid {ulid}: {e}")
-                    return False
-        print(f"✅ Dynamiczne dane zapisane dla bytu {ulid}")
-        return True
+            result = {}
+            attributes = genotype.get("attributes", {})
+            async with conn.transaction():
+                for key in key_list:
+                    #odszukaj nazwę tabeli na podstawie genotype attributes
+                    parsed = parse_py_type(key, attributes.get(key, {}))
+                    table_name, column_def, index, foreign_key = build_table_name(parsed)
+                    # Pobiera dane z dynamicznej tabeli
+                    query = f"""
+                        SELECT * FROM {table_name}
+                        WHERE being_ulid = $1 AND key = $2
+                    """
+                    rows = await conn.fetch(query, being.ulid, key)
+
+                    for row in rows:
+                        value = json.loads(row['value']) if parsed["requires_serialization"] else row['value']
+                        result[row['key']] = value
+            return result if result else None
