@@ -1,5 +1,5 @@
 # from app_v2.beings.new_being import Soul
-from dataclasses import dataclass, field, make_dataclass, asdict
+from dataclasses import dataclass, field, asdict
 import json
 from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
@@ -126,58 +126,13 @@ class Being:
 
     def _apply_genotype(self, genotype: dict):
         """Tworzy dynamiczną wersję bytu z polami z genotypu"""
-        fields = []
-        type_map = {"str": str, "int": int, "bool": bool, "float": float, "dict": dict, "List[str]": list, "List[float]": list}
-
-        attributes = genotype.get("attributes", {})
-        for name, meta in attributes.items():
-            typ_name = meta.get("py_type", "str")
-            typ = type_map.get(typ_name, str)
-            fields.append((name, typ, field(default=None)))
-
-        if fields:  # tylko jeśli są jakieś pola do dodania
-            DynamicBeing = make_dataclass(
-                cls_name="DynamicBeing",
-                fields=fields,
-                bases=(self.__class__,),
-                frozen=False
-            )
-
-            self.__class__ = DynamicBeing
+        from core.parser_table import apply_genotype_to_being
+        apply_genotype_to_being(self, genotype)
 
     async def save(self, soul: Soul, data: Dict[str, Any]=None) -> 'Being':
-        """Zapisuje byt do bazy danych
-
-            przykład genotypu:
-            {
-                "attributes": {
-                    "attribute_name": {
-                        "table_name": "_text",
-                        "py_type": "str"
-                    }
-                }
-                "genes": {
-                    "gene_name": "path.to.gene_function"
-                }
-            }
-
-        """
-
-        data_to_save = {}
-        if not soul.genotype or not soul.genotype.get("attributes"):
-            raise ValueError("Soul genotype must have attributes defined")
-        for key, metadata in soul.genotype.get("attributes", {}).items():
-            if not hasattr(self, key):
-                raise ValueError(f"Being instance does not have attribute {key}")
-            data_to_save[metadata.get('table_name')] = getattr(self, key)
-
-        if data:
-            for key, value in data.items():
-                setattr(self, key, value)
-
-        print(f"Saving soul with hash: {soul.soul_hash}")
-        await DynamicRepository.insert_data_transaction(self, soul.genotype)
-        return self
+        """Zapisuje byt do bazy danych"""
+        from core.parser_table import save_being_data
+        return await save_being_data(self, soul, data)
 
     def get_attributes(self) -> Dict[str, Any]:
         return asdict(self)
