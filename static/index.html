@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LuxDB MVP - System Relacyjno-Genetyczny</title>
+    <title>LuxDB MVP - Gaming Interface</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
@@ -15,31 +15,37 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
             color: #ffffff;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        .header {
-            background: rgba(0, 0, 0, 0.8);
-            padding: 20px 0;
-            backdrop-filter: blur(10px);
-            border-bottom: 2px solid #00ff88;
-        }
-
-        .header-content {
-            max-width: 1200px;
-            margin: 0 auto;
+            height: 100vh;
+            overflow: hidden;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px;
+            flex-direction: column;
         }
 
-        .logo {
-            font-size: 2rem;
+        /* Top HUD Bar - Gaming Style */
+        .hud-bar {
+            height: 50px;
+            background: linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(20,20,30,0.9) 100%);
+            backdrop-filter: blur(15px);
+            border-bottom: 2px solid #00ff88;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            z-index: 1000;
+            box-shadow: 0 2px 20px rgba(0,255,136,0.3);
+        }
+
+        .hud-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo-hud {
+            font-size: 1.2rem;
             font-weight: bold;
             background: linear-gradient(45deg, #00ff88, #0088ff);
             -webkit-background-clip: text;
@@ -47,15 +53,64 @@
             background-clip: text;
         }
 
-        .status-indicator {
+        .stats-hud {
+            display: flex;
+            gap: 15px;
+            font-size: 0.85rem;
+        }
+
+        .stat-item-hud {
+            background: rgba(0,255,136,0.1);
+            border: 1px solid rgba(0,255,136,0.3);
+            border-radius: 4px;
+            padding: 4px 8px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 5px;
+        }
+
+        .hud-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .hud-button {
+            width: 35px;
+            height: 35px;
+            background: rgba(0,136,255,0.15);
+            border: 1px solid #0088ff;
+            border-radius: 6px;
+            color: #0088ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1.2rem;
+        }
+
+        .hud-button:hover {
+            background: rgba(0,136,255,0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0,136,255,0.4);
+        }
+
+        .hud-button.active {
+            background: #0088ff;
+            color: #000;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
         }
 
         .status-dot {
-            width: 12px;
-            height: 12px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background: #ff4444;
             animation: pulse 2s infinite;
@@ -71,99 +126,188 @@
             100% { opacity: 1; }
         }
 
-        .main-container {
-            display: grid;
-            grid-template-columns: 300px 1fr 300px;
-            gap: 20px;
-            max-width: 1400px;
-            margin: 20px auto;
-            padding: 0 20px;
-            height: calc(100vh - 120px);
-        }
-
-        .sidebar {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 15px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(0, 255, 136, 0.2);
-            overflow-y: auto;
-        }
-
-        .sidebar h3 {
-            color: #00ff88;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
-        }
-
-        .graph-container {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 15px;
-            border: 2px solid #00ff88;
+        /* Main Game Area */
+        .game-area {
+            flex: 1;
+            display: flex;
             position: relative;
             overflow: hidden;
         }
 
+        /* Side Panels */
+        .side-panel {
+            width: 280px;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0,255,136,0.2);
+            transition: transform 0.3s ease;
+            z-index: 100;
+            overflow-y: auto;
+        }
+
+        .side-panel.left {
+            border-right: 2px solid #00ff88;
+            transform: translateX(-100%);
+        }
+
+        .side-panel.right {
+            border-left: 2px solid #0088ff;
+            transform: translateX(100%);
+        }
+
+        .side-panel.visible {
+            transform: translateX(0);
+        }
+
+        .panel-header {
+            padding: 15px;
+            background: rgba(0,255,136,0.1);
+            border-bottom: 1px solid rgba(0,255,136,0.3);
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .panel-content {
+            padding: 15px;
+        }
+
+        /* Central Graph Area */
+        .graph-container {
+            flex: 1;
+            background: radial-gradient(circle at center, rgba(0,255,136,0.05) 0%, transparent 70%);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
         .graph-controls {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 10;
+            top: 15px;
+            right: 15px;
             display: flex;
-            gap: 10px;
+            gap: 8px;
+            z-index: 50;
         }
 
         .control-btn {
-            background: rgba(0, 255, 136, 0.2);
+            width: 35px;
+            height: 35px;
+            background: rgba(0,0,0,0.7);
             border: 1px solid #00ff88;
             color: #00ff88;
-            padding: 8px 12px;
-            border-radius: 8px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
             transition: all 0.3s;
+            font-size: 1rem;
         }
 
         .control-btn:hover {
-            background: rgba(0, 255, 136, 0.4);
-            transform: translateY(-2px);
+            background: rgba(0,255,136,0.2);
+            transform: scale(1.1);
         }
 
         #graph {
+            flex: 1;
             width: 100%;
-            height: 100%;
         }
 
-        .intention-panel {
+        /* Bottom Chat Panel */
+        .chat-panel {
+            height: 200px;
+            background: rgba(0,0,0,0.9);
+            border-top: 2px solid #00ff88;
+            backdrop-filter: blur(15px);
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            transition: height 0.3s ease;
+        }
+
+        .chat-panel.collapsed {
+            height: 40px;
+        }
+
+        .chat-header {
+            height: 40px;
+            background: rgba(0,255,136,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(0,255,136,0.3);
+        }
+
+        .chat-title {
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .chat-toggle {
+            font-size: 1.2rem;
+            transition: transform 0.3s;
+        }
+
+        .chat-panel.collapsed .chat-toggle {
+            transform: rotate(180deg);
+        }
+
+        .chat-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        .chat-input-area {
+            width: 300px;
+            border-left: 1px solid rgba(0,255,136,0.3);
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
         }
 
         .intention-input {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(0, 255, 136, 0.3);
-            border-radius: 10px;
-            padding: 15px;
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(0,255,136,0.3);
+            border-radius: 6px;
             color: #ffffff;
-            resize: vertical;
-            min-height: 100px;
+            padding: 10px;
+            resize: none;
             font-family: inherit;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
         }
 
         .intention-input:focus {
             outline: none;
             border-color: #00ff88;
-            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+            box-shadow: 0 0 10px rgba(0,255,136,0.3);
         }
 
         .send-btn {
+            height: 35px;
             background: linear-gradient(45deg, #00ff88, #0088ff);
             border: none;
             color: #000;
-            padding: 12px 20px;
-            border-radius: 10px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 0.85rem;
             transition: transform 0.3s;
         }
 
@@ -171,42 +315,72 @@
             transform: translateY(-2px);
         }
 
-        .chat-area {
-            max-height: 300px;
-            overflow-y: auto;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 10px;
-            padding: 15px;
+        /* Panel Toggle Buttons */
+        .panel-toggle {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 60px;
+            background: rgba(0,0,0,0.8);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 150;
+            transition: all 0.3s;
+            font-size: 1.2rem;
         }
 
-        .message {
-            margin-bottom: 10px;
-            padding: 10px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.05);
+        .panel-toggle.left {
+            left: 0;
+            border-left: none;
+            border-radius: 0 8px 8px 0;
         }
 
+        .panel-toggle.right {
+            right: 0;
+            border-right: none;
+            border-radius: 8px 0 0 8px;
+        }
+
+        .panel-toggle:hover {
+            background: rgba(0,255,136,0.2);
+            width: 35px;
+        }
+
+        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .stat-card {
-            background: rgba(0, 136, 255, 0.1);
+            background: rgba(0,136,255,0.1);
             border: 1px solid #0088ff;
-            border-radius: 8px;
-            padding: 15px;
+            border-radius: 6px;
+            padding: 12px;
             text-align: center;
         }
 
         .stat-number {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: bold;
             color: #0088ff;
         }
 
+        .stat-label {
+            font-size: 0.7rem;
+            color: #ccc;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Being List */
         .beings-list {
             display: flex;
             flex-direction: column;
@@ -214,90 +388,156 @@
         }
 
         .being-item {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            padding: 10px;
+            background: rgba(255,255,255,0.05);
             border-left: 3px solid #00ff88;
+            border-radius: 4px;
+            padding: 10px;
         }
 
         .being-name {
             font-weight: bold;
             color: #00ff88;
+            font-size: 0.85rem;
         }
 
         .being-type {
-            font-size: 0.8rem;
-            color: #cccccc;
+            font-size: 0.7rem;
+            color: #ccc;
+            text-transform: uppercase;
         }
 
-        /* Loading animation */
+        /* Messages */
+        .message {
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 4px;
+            border-left: 3px solid #00ff88;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            color: #888;
+        }
+
+        .message-sender {
+            font-weight: bold;
+            color: #00ff88;
+            margin-right: 8px;
+        }
+
+        /* Loading */
         .loading {
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 100%;
-            font-size: 1.2rem;
+            height: 100px;
+            font-size: 0.9rem;
             color: #00ff88;
         }
 
         .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(0, 255, 136, 0.1);
-            border-left: 4px solid #00ff88;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0,255,136,0.1);
+            border-left: 2px solid #00ff88;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin-right: 15px;
+            margin-right: 10px;
         }
 
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .side-panel {
+                width: 100%;
+                position: absolute;
+                height: 100%;
+            }
+            
+            .chat-input-area {
+                width: 200px;
+            }
+            
+            .stats-hud {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
-    <header class="header">
-        <div class="header-content">
-            <div class="logo">🌌 LuxDB MVP</div>
-            <div class="status-indicator">
+    <!-- Top HUD Bar -->
+    <div class="hud-bar">
+        <div class="hud-left">
+            <div class="logo-hud">🌌 LuxDB</div>
+            <div class="stats-hud">
+                <div class="stat-item-hud">
+                    <span>BYTÓW:</span>
+                    <span id="hudBeingsCount">0</span>
+                </div>
+                <div class="stat-item-hud">
+                    <span>CONN:</span>
+                    <span id="hudConnectionsCount">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="hud-right">
+            <div class="hud-button" id="notificationsBtn" title="Powiadomienia">
+                🔔
+            </div>
+            <div class="hud-button" id="messagesBtn" title="Wiadomości">
+                💬
+            </div>
+            <div class="connection-status">
                 <div class="status-dot" id="connectionStatus"></div>
                 <span id="connectionText">Łączenie...</span>
             </div>
         </div>
-    </header>
+    </div>
 
-    <div class="main-container">
-        <!-- Left Sidebar: Stats & Beings -->
-        <div class="sidebar">
-            <h3>📊 Statystyki Systemu</h3>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number" id="beingsCount">0</div>
-                    <div>Bytów</div>
+    <!-- Main Game Area -->
+    <div class="game-area">
+        <!-- Left Panel - Stats & Beings -->
+        <div class="side-panel left" id="leftPanel">
+            <div class="panel-header">📊 Statystyki Systemu</div>
+            <div class="panel-content">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="beingsCount">0</div>
+                        <div class="stat-label">Bytów</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="connectionsCount">0</div>
+                        <div class="stat-label">Połączeń</div>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="connectionsCount">0</div>
-                    <div>Połączeń</div>
-                </div>
-            </div>
 
-            <h3>🧬 Aktywne Byty</h3>
-            <div class="beings-list" id="beingsList">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    Ładowanie bytów...
+                <h3 style="color: #00ff88; margin-bottom: 10px; font-size: 0.9rem; text-transform: uppercase;">🧬 Aktywne Byty</h3>
+                <div class="beings-list" id="beingsList">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Ładowanie...
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Center: Graph Visualization -->
+        <!-- Panel Toggle Buttons -->
+        <div class="panel-toggle left" id="leftToggle">◀</div>
+        <div class="panel-toggle right" id="rightToggle">▶</div>
+
+        <!-- Central Graph -->
         <div class="graph-container">
             <div class="graph-controls">
-                <button class="control-btn" onclick="luxGraph.zoomIn()">🔍+</button>
-                <button class="control-btn" onclick="luxGraph.zoomOut()">🔍-</button>
-                <button class="control-btn" onclick="luxGraph.resetZoom()">⟲</button>
-                <button class="control-btn" onclick="luxGraph.requestGraphData()">🔄</button>
+                <button class="control-btn" onclick="luxGraph.zoomIn()" title="Powiększ">🔍+</button>
+                <button class="control-btn" onclick="luxGraph.zoomOut()" title="Pomniejsz">🔍-</button>
+                <button class="control-btn" onclick="luxGraph.resetZoom()" title="Reset">⟲</button>
+                <button class="control-btn" onclick="luxGraph.requestGraphData()" title="Odśwież">🔄</button>
             </div>
             <div id="graph">
                 <div class="loading">
@@ -307,58 +547,84 @@
             </div>
         </div>
 
-        <!-- Right Sidebar: Intentions & Chat -->
-        <div class="sidebar">
-            <h3>💭 Panel Intencji</h3>
-            <div class="intention-panel">
-                <textarea 
-                    class="intention-input" 
-                    id="intentionInput" 
-                    placeholder="Opisz swoją intencję dla systemu LuxDB...
-Przykłady:
-- Stwórz nowy byt typu 'user'
-- Pokaż relacje między bytami
-- Wykonaj zapytanie semantyczne"
-                ></textarea>
-                <button class="send-btn" onclick="sendIntention()">🚀 Wyślij Intencję</button>
-            </div>
+        <!-- Right Panel - Advanced Tools -->
+        <div class="side-panel right" id="rightPanel">
+            <div class="panel-header">⚡ Narzędzia Zaawansowane</div>
+            <div class="panel-content">
+                <h3 style="color: #0088ff; margin-bottom: 10px; font-size: 0.9rem; text-transform: uppercase;">🔧 Akcje Systemu</h3>
+                
+                <button class="control-btn" style="width: 100%; height: 35px; margin-bottom: 10px;" onclick="executeSystemCommand('analyze')">
+                    🔍 Analizuj Graf
+                </button>
+                
+                <button class="control-btn" style="width: 100%; height: 35px; margin-bottom: 10px;" onclick="executeSystemCommand('optimize')">
+                    ⚡ Optymalizuj
+                </button>
+                
+                <button class="control-btn" style="width: 100%; height: 35px; margin-bottom: 10px;" onclick="executeSystemCommand('backup')">
+                    💾 Backup
+                </button>
 
-            <h3>💬 Komunikacja Systemu</h3>
-            <div class="chat-area" id="chatArea">
-                <div class="message">
-                    <strong>System:</strong> Inicjalizacja LuxDB MVP...
+                <h3 style="color: #0088ff; margin: 20px 0 10px 0; font-size: 0.9rem; text-transform: uppercase;">📡 Monitoring</h3>
+                
+                <div style="background: rgba(0,136,255,0.1); border: 1px solid #0088ff; border-radius: 6px; padding: 10px; font-size: 0.8rem;">
+                    <div>CPU: <span style="color: #0088ff;">23%</span></div>
+                    <div>RAM: <span style="color: #0088ff;">156MB</span></div>
+                    <div>Uptime: <span style="color: #0088ff;">2h 15m</span></div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Bottom Chat Panel -->
+    <div class="chat-panel" id="chatPanel">
+        <div class="chat-header" onclick="toggleChatPanel()">
+            <div class="chat-title">💬 Komunikacja Systemu</div>
+            <div class="chat-toggle">▲</div>
+        </div>
+        <div class="chat-content">
+            <div class="chat-messages" id="chatArea">
+                <div class="message">
+                    <span class="message-time">[00:00]</span>
+                    <span class="message-sender">System:</span>
+                    Inicjalizacja LuxDB MVP...
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <textarea 
+                    class="intention-input" 
+                    id="intentionInput" 
+                    placeholder="Twoja intencja dla systemu LuxDB..."
+                ></textarea>
+                <button class="send-btn" onclick="sendIntention()">🚀 WYŚLIJ</button>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript -->
-    <script src="/static/graph.js?v=5.0"></script>
-    <script src="/static/intention-component.js?v=5.0"></script>
-    <script src="/static/chat-component.js?v=5.0"></script>
+    <script src="/static/graph.js?v=6.0"></script>
+    <script src="/static/intention-component.js?v=6.0"></script>
+    <script src="/static/chat-component.js?v=6.0"></script>
     
     <script>
         // Global variables
         let socket = null;
         let luxGraph = null;
-        let connectionStatus = document.getElementById('connectionStatus');
-        let connectionText = document.getElementById('connectionText');
+        let leftPanelVisible = false;
+        let rightPanelVisible = false;
+        let chatPanelCollapsed = false;
 
         // Initialize application
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Inicjalizacja LuxDB MVP...');
+            console.log('🚀 Inicjalizacja Gaming Interface...');
             
-            // Initialize Socket.IO connection
             initializeSocket();
-            
-            // Initialize Graph
             luxGraph = new LuxOSGraph();
-            
-            // Initialize components
             initializeIntentionComponent();
             initializeChatComponent();
+            initializePanels();
             
-            console.log('✅ LuxDB MVP zainicjalizowany pomyślnie');
+            console.log('✅ Gaming Interface zainicjalizowany');
         });
 
         function initializeSocket() {
@@ -369,9 +635,9 @@ Przykłady:
             });
 
             socket.on('connect', () => {
-                console.log('✅ Połączono z LuxDB MVP Server');
+                console.log('✅ Połączono z LuxDB Gaming Server');
                 updateConnectionStatus(true);
-                addChatMessage('System', 'Połączono z serwerem LuxDB MVP', 'success');
+                addChatMessage('System', 'Połączono z serwerem Gaming Interface', 'success');
             });
 
             socket.on('disconnect', (reason) => {
@@ -396,22 +662,69 @@ Przykłady:
             });
         }
 
-        function updateConnectionStatus(connected) {
-            if (connected) {
-                connectionStatus.classList.add('connected');
-                connectionText.textContent = 'Połączono';
+        function initializePanels() {
+            // Left panel toggle
+            document.getElementById('leftToggle').addEventListener('click', () => {
+                togglePanel('left');
+            });
+
+            // Right panel toggle
+            document.getElementById('rightToggle').addEventListener('click', () => {
+                togglePanel('right');
+            });
+
+            // HUD buttons
+            document.getElementById('notificationsBtn').addEventListener('click', () => {
+                togglePanel('right');
+            });
+
+            document.getElementById('messagesBtn').addEventListener('click', () => {
+                togglePanel('left');
+            });
+        }
+
+        function togglePanel(side) {
+            const panel = document.getElementById(side + 'Panel');
+            const toggle = document.getElementById(side + 'Toggle');
+            
+            if (side === 'left') {
+                leftPanelVisible = !leftPanelVisible;
+                panel.classList.toggle('visible', leftPanelVisible);
+                toggle.textContent = leftPanelVisible ? '◀' : '▶';
             } else {
-                connectionStatus.classList.remove('connected');
-                connectionText.textContent = 'Rozłączono';
+                rightPanelVisible = !rightPanelVisible;
+                panel.classList.toggle('visible', rightPanelVisible);
+                toggle.textContent = rightPanelVisible ? '▶' : '◀';
+            }
+        }
+
+        function toggleChatPanel() {
+            const chatPanel = document.getElementById('chatPanel');
+            chatPanelCollapsed = !chatPanelCollapsed;
+            chatPanel.classList.toggle('collapsed', chatPanelCollapsed);
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusDot = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('connectionText');
+            
+            if (connected) {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'ONLINE';
+            } else {
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'OFFLINE';
             }
         }
 
         function updateStats(data = {}) {
             const beingsCount = data.beings ? data.beings.length : 0;
             document.getElementById('beingsCount').textContent = beingsCount;
+            document.getElementById('hudBeingsCount').textContent = beingsCount;
             
-            // Simulate connections count
-            document.getElementById('connectionsCount').textContent = socket && socket.connected ? 1 : 0;
+            const connectionsCount = socket && socket.connected ? 1 : 0;
+            document.getElementById('connectionsCount').textContent = connectionsCount;
+            document.getElementById('hudConnectionsCount').textContent = connectionsCount;
         }
 
         function updateBeingsList(beings) {
@@ -454,9 +767,8 @@ Przykłady:
             console.log('💭 Wysyłanie intencji:', intention);
             addChatMessage('Użytkownik', intention, 'user');
             
-            // Simulate AI response
             setTimeout(() => {
-                addChatMessage('AI System', 'Analizuję Twoją intencję i przygotowuję odpowiedź...', 'ai');
+                addChatMessage('AI System', 'Analizuję Twoją intencję...', 'ai');
             }, 500);
             
             intentionInput.value = '';
@@ -469,11 +781,21 @@ Przykłady:
             
             const timestamp = new Date().toLocaleTimeString();
             messageElement.innerHTML = `
-                <strong>[${timestamp}] ${sender}:</strong> ${message}
+                <span class="message-time">[${timestamp}]</span>
+                <span class="message-sender">${sender}:</span>
+                ${message}
             `;
             
             chatArea.appendChild(messageElement);
             chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function executeSystemCommand(command) {
+            addChatMessage('System', `Wykonywanie komendy: ${command}`, 'system');
+            
+            setTimeout(() => {
+                addChatMessage('System', `Komenda ${command} wykonana pomyślnie`, 'success');
+            }, 1000);
         }
 
         // Window resize handler
