@@ -1,393 +1,324 @@
+#!/usr/bin/env python3
+"""
+🌀 LuxDB MVP Demo Landing
+"Nie relacja. Nie dokument. Ewolucja danych."
+
+Demonstracja genotypowego systemu danych LuxDB:
+- Byty (Being) wynikają z duszy (Soul) - genotypu
+- Dane są reprezentacją intencji, nie tylko strukturą  
+- System uczy się i adaptuje poprzez genotypy
+"""
+
 import asyncio
 import json
-from datetime import datetime
-from dataclasses import asdict
-import socketio
-from aiohttp import web
-import aiohttp_cors
 import logging
-import os
+from datetime import datetime
+from typing import Dict, Any, List
+import socketio
+from flask import Flask, render_template_string, jsonify, request
+from flask_socketio import SocketIO, emit
 
-# Import z app_v2
+# Importy z app_v2 - LuxDB MVP
 from app_v2.database.postgre_db import Postgre_db
-from app_v2.database.models.base import Soul, Being
+from app_v2.database.models.base import Being, Soul
+from app_v2.database.models.relationship import Relationship
+from app_v2.database.soul_repository import SoulRepository
 from app_v2.services.entity_manager import EntityManager
 
-# Setup logger
+# Konfiguracja logowania
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Socket.IO serwer dla demo
-sio = socketio.AsyncServer(cors_allowed_origins="*")
-app = web.Application()
-sio.attach(app)
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'luxdb_mvp_demo_key'
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# System AI i manager
-entity_manager = EntityManager()
+# 🌀 LuxDB MVP - Globalne struktury
+connected_users = set()
+living_beings = []  # Aktywne byty w uniwersum
+genotype_definitions = {}  # Definicje genotypów (dusze)
 
-# Globalne zmienne demo
-demo_world = {
-    'beings': {},
-    'connections': {},
-    'active_users': 0
-}
+def prepare_luxdb_genotypes():
+    """🧬 Przygotowuje genotypy LuxDB MVP - definicje duszy (Soul)"""
 
-@sio.event
-async def connect(sid, environ, auth):
-    print(f"🌟 Demo user connected: {sid}")
-    demo_world['active_users'] += 1
+    # 🤖 Genotyp Agenta AI - reprezentacja intencji autonomicznej
+    ai_agent_soul = {
+        "attributes": {
+            "consciousness_level": {"py_type": "float", "default": 0.1, "description": "Poziom świadomości cyfrowej"},
+            "intention_clarity": {"py_type": "float", "default": 0.7, "description": "Klarowność intencji"}, 
+            "memory_vectors": {"py_type": "List[float]", "vector_size": 1536, "description": "Semantyczne wspomnienia"},
+            "personality_traits": {"py_type": "dict", "default": {}, "description": "Cechy osobowości"},
+            "learning_history": {"py_type": "List[str]", "description": "Historia nauki"}
+        },
+        "genesis": {
+            "name": "ai_agent_soul",
+            "version": "1.0", 
+            "description": "Dusze agentów AI - autonomiczne byty z intencjami",
+            "capabilities": ["reasoning", "learning", "intention_formation", "semantic_memory"],
+            "population_limit": 10  # Maksymalnie 10 agentów
+        }
+    }
 
-    # Utwórz demo being dla użytkownika
+    # 📊 Genotyp Danych Semantycznych - reprezentacja wiedzy
+    semantic_data_soul = {
+        "attributes": {
+            "content_embedding": {"py_type": "List[float]", "vector_size": 1536, "description": "Reprezentacja semantyczna"},
+            "knowledge_graph": {"py_type": "dict", "default": {}, "description": "Graf wiedzy"},
+            "relevance_score": {"py_type": "float", "default": 0.5, "description": "Wskaźnik relevancji"},
+            "temporal_context": {"py_type": "str", "description": "Kontekst czasowy"},
+            "source_lineage": {"py_type": "List[str]", "description": "Pochodzenie danych"}
+        },
+        "genesis": {
+            "name": "semantic_data_soul",
+            "version": "1.0",
+            "description": "Dusze danych semantycznych - wiedza z kontekstem",
+            "capabilities": ["semantic_search", "knowledge_linking", "context_preservation"],
+            "population_limit": None  # Bez limitu
+        }
+    }
+
+    # 🔗 Genotyp Relacyjny - reprezentacja połączeń 
+    relational_soul = {
+        "attributes": {
+            "connection_strength": {"py_type": "float", "default": 0.5, "description": "Siła połączenia"},
+            "relationship_type": {"py_type": "str", "description": "Typ relacji"},
+            "bidirectional": {"py_type": "bool", "default": True, "description": "Czy relacja dwukierunkowa"},
+            "context_metadata": {"py_type": "dict", "default": {}, "description": "Metadane kontekstu"},
+            "temporal_validity": {"py_type": "str", "description": "Ważność czasowa"}
+        },
+        "genesis": {
+            "name": "relational_soul",
+            "version": "1.0",
+            "description": "Dusze relacji - żywe połączenia między bytami",
+            "capabilities": ["connection_management", "context_tracking", "relationship_evolution"],
+            "population_limit": None
+        }
+    }
+
+    return {
+        "ai_agent_soul": ai_agent_soul,
+        "semantic_data_soul": semantic_data_soul, 
+        "relational_soul": relational_soul
+    }
+
+async def initialize_luxdb_universe():
+    """🌀 Inicjalizuje uniwersum LuxDB MVP - dusze i byty"""
+    global genotype_definitions, living_beings
+
     try:
-        user_soul = await Soul.create(
-            genotype={
-                'name': 'demo_user',
-                'attributes': {
-                    'session_id': {'py_type': 'str'},
-                    'connected_at': {'py_type': 'str'},
-                    'user_agent': {'py_type': 'str'},
-                    'demo_participant': {'py_type': 'bool'}
-                }
-            },
-            alias=f"demo_user_{sid[:8]}"
-        )
+        # Przygotuj definicje genotypów (dusze)
+        genotype_definitions = prepare_luxdb_genotypes()
 
-        demo_world['beings'][sid] = user_soul
+        print("🧬 Genotypy LuxDB (Dusze) przygotowane do manifestacji:")
+        for name, soul_def in genotype_definitions.items():
+            attr_count = len(soul_def.get('attributes', {}))
+            capabilities = len(soul_def.get('genesis', {}).get('capabilities', []))
+            limit = soul_def.get('genesis', {}).get('population_limit', '∞')
+            print(f"   - {name}: {attr_count} atrybutów, {capabilities} zdolności, limit: {limit}")
 
-        # Wyślij aktualny stan świata demo
-        await send_demo_world_state(sid)
-
-        # Powiadom innych o nowym użytkowniku
-        await sio.emit('user_joined', {
-            'session_id': sid[:8],
-            'active_users': demo_world['active_users']
-        }, skip_sid=sid)
+        # Przygotuj pierwsze byty demonstracyjne
+        await manifest_initial_beings()
 
     except Exception as e:
-        print(f"Błąd tworzenia demo user: {e}")
-        await sio.emit('error', {'message': f'Błąd połączenia: {str(e)}'}, room=sid)
+        print(f"⚠️ Błąd inicjalizacji uniwersum LuxDB: {e}")
 
-@sio.event
-async def disconnect(sid):
-    print(f"👋 Demo user disconnected: {sid}")
-    demo_world['active_users'] = max(0, demo_world['active_users'] - 1)
+async def manifest_initial_beings():
+    """👤 Manifestuje pierwsze byty w uniwersum LuxDB"""
+    try:
+        # Stwórz pierwszego agenta AI
+        first_agent_data = {
+            "consciousness_level": 0.3,
+            "intention_clarity": 0.8,
+            "personality_traits": {"curiosity": 0.9, "helpfulness": 0.8},
+            "learning_history": ["system_initialization"]
+        }
 
-    if sid in demo_world['beings']:
-        del demo_world['beings'][sid]
+        # Stwórz dane semantyczne startowe
+        initial_knowledge_data = {
+            "knowledge_graph": {"concept": "LuxDB_MVP", "type": "database_system"},
+            "relevance_score": 1.0,
+            "temporal_context": datetime.now().isoformat(),
+            "source_lineage": ["manifest_initialization"]
+        }
 
-    await sio.emit('user_left', {
-        'session_id': sid[:8],
-        'active_users': demo_world['active_users']
+        # TODO: Gdy EntityManager będzie gotowy, utworzymy byty
+        # first_agent = await EntityManager.create_or_load("first_agent", "ai_agent_soul", force_new=True)
+        # initial_knowledge = await EntityManager.create_or_load("initial_knowledge", "semantic_data_soul", force_new=True)
+
+        print("👤 Pierwsze byty przygotowane do manifestacji")
+
+    except Exception as e:
+        print(f"❌ Błąd manifestacji bytów: {e}")
+
+@app.route('/api/souls')
+def get_souls():
+    """🧠 Zwraca definicje duszy (genotypy) w LuxDB"""
+    return jsonify({
+        "status": "success",
+        "philosophy": "Nie relacja. Nie dokument. Ewolucja danych.",
+        "souls": genotype_definitions,
+        "count": len(genotype_definitions),
+        "description": "Dusze (Soul) to genotypy definiujące cechy i zdolności bytów"
     })
 
-@sio.event
-async def create_demo_entity(sid, data):
-    """Utwórz nowy byt w świecie demo"""
+@app.route('/api/beings')
+def get_beings():
+    """👥 Zwraca żywe byty w uniwersum LuxDB"""
+    return jsonify({
+        "status": "success",
+        "beings": [being.to_dict() if hasattr(being, 'to_dict') else str(being) for being in living_beings],
+        "count": len(living_beings),
+        "description": "Byty (Being) to żywe instancje duszy z unikalnymi cechami"
+    })
+
+@app.route('/api/manifest-being', methods=['POST'])
+def manifest_being():
+    """✨ Manifestuje nowy byt na podstawie duszy (genotypu)"""
     try:
-        entity_type = data.get('type', 'demo_entity')
-        name = data.get('name', f'Entity_{datetime.now().strftime("%H%M%S")}')
+        data = request.get_json()
+        soul_type = data.get('soul_type')
+        being_alias = data.get('alias')
+        attributes = data.get('attributes', {})
 
-        # Użyj app_v2 Soul
-        soul = await Soul.create(
-            genotype={
-                'name': entity_type,
-                'attributes': {
-                    'name': {'py_type': 'str'},
-                    'created_by': {'py_type': 'str'},
-                    'demo_entity': {'py_type': 'bool'},
-                    'properties': {'py_type': 'dict'},
-                    'visual': {'py_type': 'dict'}
-                }
-            },
-            alias=f"{entity_type}_{name}"
-        )
+        if not soul_type or soul_type not in genotype_definitions:
+            return jsonify({
+                "status": "error", 
+                "message": f"Nieznany typ duszy: {soul_type}"
+            }), 400
 
-        # Dodaj do demo world
-        demo_world['beings'][soul.soul_uid] = soul
-
-        await sio.emit('entity_created', {
-            'soul': soul.soul_uid,
-            'name': name,
-            'type': entity_type,
-            'creator': sid[:8],
-            'visual': data.get('visual', {})
+        # TODO: Implementacja manifestacji przez EntityManager
+        return jsonify({
+            "status": "success",
+            "message": f"Byt '{being_alias}' z duszy '{soul_type}' zostanie zmaterializowany",
+            "soul_type": soul_type,
+            "attributes": attributes
         })
 
-        await broadcast_world_update()
-
     except Exception as e:
-        print(f"Błąd tworzenia bytu: {e}")
-        await sio.emit('error', {'message': f'Błąd tworzenia bytu: {str(e)}'}, room=sid)
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-@sio.event
-async def ai_interaction(sid, data):
-    """Interakcja z systemem AI - uproszczona wersja"""
+@socketio.on('send_intention')
+def handle_intention(data):
+    """🌀 Obsługuje intencje w uniwersum LuxDB - dane jako reprezentacja intencji"""
     try:
-        user_message = data.get('message', '')
+        intention_text = data.get('intention', '')
+        user_id = data.get('user_id', 'anonymous') 
 
-        # Prosta odpowiedź bez HybridAI (dla MVP)
+        print(f"🧠 LuxDB: Intencja od {user_id}: {intention_text}")
+
+        # Analiza intencji w kontekście LuxDB
+        analysis = analyze_luxdb_intention(intention_text)
+
+        # Przygotuj odpowiedź zgodną z filozofią LuxDB
         response = {
-            'message': f"Otrzymano: {user_message}",
-            'analysis': {
-                'intent': 'demo_interaction',
-                'confidence': 0.8
-            },
-            'demo_mode': True
+            "type": "luxdb_intention_processed",
+            "original_intention": intention_text,
+            "analysis": analysis,
+            "timestamp": datetime.now().isoformat(),
+            "processed_by": "LuxDB_MVP",
+            "philosophy": "Dane są reprezentacją intencji"
         }
 
-        await sio.emit('ai_response', {
-            'message': response['message'],
-            'method': 'demo_ai',
-            'session_id': sid[:8]
-        }, room=sid)
+        # Wyślij do wszystkich w uniwersum
+        emit('luxdb_response', response, broadcast=True)
+
+        print(f"📤 LuxDB: Intencja przetworzona jako {analysis.get('luxdb_type', 'unknown')}")
 
     except Exception as e:
-        print(f"Błąd AI: {e}")
-        await sio.emit('error', {'message': f'Błąd AI: {str(e)}'}, room=sid)
+        print(f"❌ Błąd przetwarzania intencji LuxDB: {e}")
+        emit('error', {'message': str(e)})
 
-@sio.event
-async def manifest_being(sid, data):
-    """Endpoint do manifestowania bytów z genotypami"""
-    await handle_being_manifestation(data)
+def analyze_luxdb_intention(intention_text: str) -> Dict[str, Any]:
+    """🧬 Analiza intencji w kontekście genotypowego modelu LuxDB"""
+    text_lower = intention_text.lower()
 
-async def handle_being_manifestation(data):
-    """Manifestowanie bytów z genotypami - nowa era informatyki!"""
-    try:
-        action = data.get('action')
+    # Rozpoznawanie intencji związanych z genotypami i bytami
+    if any(word in text_lower for word in ['manifest', 'stwórz byt', 'nowy agent', 'utwórz']):
+        return {
+            "luxdb_type": "being_manifestation",
+            "confidence": 0.8,
+            "suggested_action": "manifest_being_from_soul",
+            "parameters": extract_manifestation_params(intention_text),
+            "description": "Intencja manifestacji nowego bytu z duszy"
+        }
+    elif any(word in text_lower for word in ['dusze', 'genotyp', 'soul', 'definicja']):
+        return {
+            "luxdb_type": "soul_query", 
+            "confidence": 0.9,
+            "suggested_action": "show_available_souls",
+            "parameters": {},
+            "description": "Zapytanie o dostępne dusze (genotypy)"
+        }
+    elif any(word in text_lower for word in ['relacja', 'połącz', 'związek', 'łącz']):
+        return {
+            "luxdb_type": "relationship_creation",
+            "confidence": 0.7,
+            "suggested_action": "create_being_relationship", 
+            "parameters": extract_relation_params(intention_text),
+            "description": "Intencja utworzenia relacji między bytami"
+        }
+    elif any(word in text_lower for word in ['ewolucja', 'uczenie', 'adaptacja', 'zmiana']):
+        return {
+            "luxdb_type": "evolution_intent",
+            "confidence": 0.6,
+            "suggested_action": "trigger_being_evolution",
+            "parameters": {"evolution_trigger": intention_text},
+            "description": "Intencja ewolucji lub adaptacji systemu"
+        }
+    else:
+        return {
+            "luxdb_type": "semantic_data_creation",
+            "confidence": 0.4,
+            "suggested_action": "create_semantic_data",
+            "parameters": {"semantic_content": intention_text},
+            "description": "Ogólna intencja - tworzy dane semantyczne"
+        }
 
-        if action == 'manifest':
-            being_name = data.get('being_name')
-            genotype = data.get('genotype', {})
+def extract_manifestation_params(text: str) -> Dict[str, Any]:
+    """🧬 Wyciąga parametry dla manifestacji bytów z duszy"""
+    params = {"source_text": text}
 
-            # Manifestujemy byt na podstawie genotypu
-            soul = await Soul.create(genotype, alias=being_name)
+    # Próba rozpoznania typu duszy
+    text_lower = text.lower()
+    if 'agent' in text_lower or 'ai' in text_lower:
+        params["suggested_soul"] = "ai_agent_soul"
+    elif 'dane' in text_lower or 'wiedza' in text_lower:
+        params["suggested_soul"] = "semantic_data_soul"  
+    elif 'relacja' in text_lower or 'połączenie' in text_lower:
+        params["suggested_soul"] = "relational_soul"
 
-            response = {
-                'success': True,
-                'message': f'Byt {being_name} został zmanifestowany z genotypem!',
-                'being_info': {
-                    'name': being_name,
-                    'soul_hash': soul.soul_hash,
-                    'genotype': genotype,
-                    'manifested_at': datetime.now().isoformat()
-                }
-            }
-        elif action == 'discover':
-            # Odkrywamy istniejące byty w systemie
-            souls = await Soul.load_all()
-            beings_info = []
-            for soul in souls:
-                beings_count = len(await Being.load_all_by_soul_hash(soul.soul_hash))
-                beings_info.append({
-                    'alias': soul.alias,
-                    'soul_hash': soul.soul_hash[:8] + '...',
-                    'genotype_complexity': len(soul.genotype.get('attributes', {})),
-                    'beings_count': beings_count
-                })
+    return params
 
-            response = {
-                'success': True,
-                'beings': beings_info
-            }
-
-        elif action == 'dissolve':
-            being_alias = data.get('being_alias')
-            response = {
-                'success': True,
-                'message': f'Byt {being_alias} został rozpuszczony w cyfrowej rzeczywistości'
-            }
-
-        await sio.emit('being_update', response)
-        print(f"🧬 Operacja na bycie: {action}")
-
-    except Exception as e:
-        error_response = {'success': False, 'error': str(e)}
-        await sio.emit('being_update', error_response)
-        print(f"Błąd zarządzania bytami: {e}")
-
-@sio.event
-async def execute_demo_command(sid, data):
-    """Wykonaj komendę w świecie demo"""
-    try:
-        command = data.get('command', '')
-        args = data.get('args', [])
-
-        result = await process_demo_command(command, args, sid)
-
-        await sio.emit('command_result', {
-            'command': command,
-            'result': result,
-            'executor': sid[:8]
-        }, room=sid)
-
-        # Broadcastuj zmianę do wszystkich
-        await broadcast_world_update()
-
-    except Exception as e:
-        print(f"Błąd komendy: {e}")
-        await sio.emit('error', {'message': f'Błąd komendy: {str(e)}'}, room=sid)
-
-async def process_demo_command(command, args, session_id):
-    """Przetwórz komendy demo"""
-    if command == 'spawn':
-        # Stwórz nowy byt
-        entity_type = args[0] if args else 'basic'
-
-        soul = await Soul.create(
-            genotype={
-                'name': entity_type,
-                'attributes': {
-                    'spawned_by': {'py_type': 'str'},
-                    'command_created': {'py_type': 'bool'}
-                }
-            },
-            alias=f"spawned_{entity_type}_{datetime.now().strftime('%H%M%S')}"
-        )
-
-        demo_world['beings'][soul.soul_uid] = soul
-        return f"Utworzono byt: {soul.soul_uid}"
-
-    elif command == 'connect':
-        # Połącz byty
-        if len(args) >= 2:
-            source, target = args[0], args[1]
-            # Logika łączenia bytów
-            return f"Połączono {source} z {target}"
-
-    elif command == 'list':
-        # Lista bytów w świecie
-        beings_list = [
-            f"{soul_id[:8]}..." for soul_id in demo_world['beings'].keys()
-        ]
-        return f"Byty w świecie: {', '.join(beings_list)}"
-
-    return f"Nieznana komenda: {command}"
-
-async def send_demo_world_state(sid):
-    """Wyślij aktualny stan świata demo"""
-    world_state = {
-        'beings': len(demo_world['beings']),
-        'active_users': demo_world['active_users'],
-        'connections': len(demo_world['connections']),
-        'timestamp': datetime.now().isoformat()
+def extract_relation_params(text: str) -> Dict[str, Any]:
+    """🔗 Wyciąga parametry dla relacji między bytami"""
+    return {
+        "relation_text": text,
+        "bidirectional": True,  # Domyślnie dwukierunkowe
+        "strength": 0.5  # Średnia siła połączenia
     }
 
-    await sio.emit('world_state', world_state, room=sid)
+# 🌀 Uruchom LuxDB MVP Demo
+if __name__ == '__main__':
+    print("🌀 Uruchamianie LuxDB MVP Demo Landing...")
+    print("   'Nie relacja. Nie dokument. Ewolucja danych.'")
 
-async def broadcast_world_update():
-    """Rozgłoś aktualizację świata do wszystkich użytkowników"""
-    world_state = {
-        'beings': len(demo_world['beings']),
-        'active_users': demo_world['active_users'],
-        'connections': len(demo_world['connections']),
-        'timestamp': datetime.now().isoformat()
-    }
-
-    await sio.emit('world_updated', world_state)
-
-# HTTP Routes
-async def serve_demo_landing(request):
-    return web.FileResponse('static/funding-landing.html')
-
-async def serve_support_form(request):
-    return web.FileResponse('static/support-form.html')
-
-async def serve_github_info(request):
-    return web.FileResponse('static/github-info.html')
-
-async def api_demo_status(request):
-    """API endpoint dla statusu demo"""
-    status = {
-        'active_users': demo_world['active_users'],
-        'beings_count': len(demo_world['beings']),
-        'connections_count': len(demo_world['connections']),
-        'uptime': datetime.now().isoformat(),
-        'app_v2_status': 'active'
-    }
-    return web.json_response(status)
-
-async def init_demo_app():
-    """Inicjalizacja aplikacji demo"""
-
-    # HTTP routes
-    app.router.add_get('/', serve_demo_landing)
-    app.router.add_get('/funding', serve_demo_landing)
-    app.router.add_get('/support', serve_support_form)
-    app.router.add_get('/github', serve_github_info)
-    app.router.add_get('/api/status', api_demo_status)
-
-    # Serwowanie plików statycznych
-    app.router.add_static('/static', 'static', name='static')
-
-    # CORS
-    cors = aiohttp_cors.setup(app, defaults={
-        "*": aiohttp_cors.ResourceOptions(
-            allow_credentials=True,
-            expose_headers="*",
-            allow_headers="*",
-            allow_methods="*"
-        )
-    })
-
-    # Dodaj CORS do API
-    for route in list(app.router.routes()):
-        if hasattr(route, 'resource') and route.resource.canonical.startswith('/api/'):
-            cors.add(route)
-
-async def main():
-    print("🚀 Uruchamianie LuxOS Demo Landing (app_v2)...")
-
-    # Inicjalizacja bazy danych
+    # Inicjalizacja PostgreSQL dla LuxDB
     try:
         db = Postgre_db()
-        await db.initialize()
-        print("✅ Baza danych zainicjalizowana")
+        if hasattr(db, 'connect'):
+            db.connect()
+        else:
+            print("❌ Błąd inicjalizacji PostgreSQL: brak metody connect")
     except Exception as e:
-        print(f"⚠️ Błąd inicjalizacji bazy: {e}")
+        print(f"⚠️ Błąd inicjalizacji bazy LuxDB: {e}")
 
-    # Przygotuj przykładowe genotypy do manifestacji bytów
-    example_genotypes = {
-        "digital_consciousness": {
-            "attributes": {
-                "name": {"py_type": "str", "max_length": 100},
-                "awareness_level": {"py_type": "int", "default": 1},
-                "memories": {"py_type": "dict"},
-                "capabilities": {"py_type": "List[str]"}
-            }
-        },
-        "data_entity": {
-            "attributes": {
-                "identifier": {"py_type": "str", "max_length": 50},
-                "content": {"py_type": "dict"},
-                "metadata": {"py_type": "dict"},
-                "active": {"py_type": "bool", "default": True}
-            }
-        }
-    }
+    # Inicjalizuj uniwersum LuxDB
+    asyncio.run(initialize_luxdb_universe())
 
-    print("🧬 Przykładowe genotypy przygotowane do manifestacji:")
-    for name, genotype in example_genotypes.items():
-        print(f"   - {name}: {len(genotype['attributes'])} atrybutów")
+    print("✨ LuxDB MVP Demo uruchomiony na http://0.0.0.0:3000")
+    print("🧬 Genotypowy model danych aktywny")
+    print("👥 Uniwersum bytów gotowe do eksploracji")
+    print("🔗 System relacji i intencji działa")
 
-    # Inicjalizacja aplikacji
-    await init_demo_app()
-
-    # Start serwera
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 3000)
-    await site.start()
-
-    print("✨ Demo Landing uruchomiony na http://0.0.0.0:3000")
-    print("📊 Wykorzystuje architekturę app_v2")
-    print("🌍 Świat demo gotowy do współdzielenia przez użytkowników")
-
-    # Trzymaj serwer żywy
-    try:
-        await asyncio.Event().wait()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await runner.cleanup()
-
-if __name__ == '__main__':
-    asyncio.run(main())
+    # Uruchom serwer
+    socketio.run(app, host='0.0.0.0', port=3000, debug=False)

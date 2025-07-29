@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LuxOS - System Zarządzania Bytami</title>
+    <title>LuxDB MVP - Genotypowy System Danych</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <style>
@@ -293,7 +293,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">LuxOS - Eksperymentator Intencji</div>
+            <div class="logo">LuxDB MVP - "Nie relacja. Nie dokument. Ewolucja danych."</div>
             <div class="connection-status">
                 <div class="status-dot" id="connectionDot"></div>
                 <span id="connectionStatus">Łączenie...</span>
@@ -324,14 +324,14 @@
             <textarea 
                 class="intention-input" 
                 id="intentionInput" 
-                placeholder="💭 Podziel się swoją myślą z Lux... (Lux zdecyduje czy to intencja, pytanie czy coś innego)"
+                placeholder="🌀 Wyraź swoją intencję w uniwersum LuxDB... (Dane są reprezentacją intencji)"
                 maxlength="500"
             ></textarea>
             <div class="intention-controls">
                 <div class="intention-counter">
                     <span id="charCounter">0</span>/500
                 </div>
-                <button class="btn" id="sendIntention">🧠 Wyślij do Lux</button>
+                <button class="btn" id="sendIntention">🌀 Manifestuj w LuxDB</button>
             </div>
         </div>
     </div>
