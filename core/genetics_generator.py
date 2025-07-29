@@ -5,7 +5,7 @@ Generator genetyki dla automatycznego tworzenia genotypów na podstawie pól Bei
 
 import inspect
 import json
-from typing import Dict, Any, List, Optional, get_type_hints, get_origin, get_args
+from typing import Dict, Any, List, Optional, Union, get_type_hints, get_origin, get_args
 from dataclasses import fields, is_dataclass
 from datetime import datetime
 import hashlib
