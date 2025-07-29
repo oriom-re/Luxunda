@@ -19,4 +19,8 @@ dependencies = [
     "socketio>=0.2.1",
     "flask>=3.1.1",
     "flask-socketio>=5.5.1",
+    "websockets>=15.0.1",
+    "pydantic>=2.11.7",
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0",
 ]

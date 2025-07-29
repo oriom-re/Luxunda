@@ -1,12 +1,14 @@
+
 #!/usr/bin/env python3
 """
-🌀 LuxDB MVP Demo Landing
+🌀 LuxDB MVP Demo Landing - FastAPI Edition
 "Nie relacja. Nie dokument. Ewolucja danych."
 
-Demonstracja genotypowego systemu danych LuxDB:
+Demonstracja genotypowego systemu danych LuxDB z FastAPI:
 - Byty (Being) wynikają z duszy (Soul) - genotypu
 - Dane są reprezentacją intencji, nie tylko strukturą  
 - System uczy się i adaptuje poprzez genotypy
+- WebSocket komunikacja w czasie rzeczywistym
 """
 
 import asyncio
@@ -14,9 +16,10 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, Any, List
-import socketio
-from flask import Flask, render_template_string, jsonify, request
-from flask_socketio import SocketIO, emit
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 
 # Importy z app_v2 - LuxDB MVP
 from app_v2.database.postgre_db import Postgre_db
@@ -29,19 +32,36 @@ from app_v2.services.entity_manager import EntityManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'luxdb_mvp_demo_key'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+# FastAPI aplikacja
+app = FastAPI(
+    title="LuxDB MVP Demo",
+    description="Genotypowy system danych - Nie relacja. Nie dokument. Ewolucja danych.",
+    version="1.0.0"
+)
 
 # 🌀 LuxDB MVP - Globalne struktury
-connected_users = set()
+connected_users: Dict[str, WebSocket] = {}
 living_beings = []  # Aktywne byty w uniwersum
 genotype_definitions = {}  # Definicje genotypów (dusze)
 
-@app.route('/')
-def index():
+# Pydantic modele dla API
+class IntentionMessage(BaseModel):
+    intention: str
+    user_id: str = "anonymous"
+
+class BeingManifestationRequest(BaseModel):
+    soul_type: str
+    alias: str
+    attributes: Dict[str, Any] = {}
+
+# Serwowanie plików statycznych
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
     """🌀 Główna strona LuxDB MVP Demo"""
-    return app.send_static_file('index.html')
+    with open("static/index.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
 
 def prepare_luxdb_genotypes():
     """🧬 Przygotowuje genotypy LuxDB MVP - definicje duszy (Soul)"""
@@ -155,99 +175,176 @@ async def manifest_initial_beings():
     except Exception as e:
         print(f"❌ Błąd manifestacji bytów: {e}")
 
-@app.route('/api/souls')
-def get_souls():
+@app.get("/api/souls")
+async def get_souls():
     """🧠 Zwraca definicje duszy (genotypy) w LuxDB"""
-    return jsonify({
+    return {
         "status": "success",
         "philosophy": "Nie relacja. Nie dokument. Ewolucja danych.",
         "souls": genotype_definitions,
         "count": len(genotype_definitions),
         "description": "Dusze (Soul) to genotypy definiujące cechy i zdolności bytów"
-    })
+    }
 
-@app.route('/api/beings')
-def get_beings():
+@app.get("/api/beings")
+async def get_beings():
     """👥 Zwraca żywe byty w uniwersum LuxDB"""
-    return jsonify({
+    return {
         "status": "success",
         "beings": [being.to_dict() if hasattr(being, 'to_dict') else str(being) for being in living_beings],
         "count": len(living_beings),
         "description": "Byty (Being) to żywe instancje duszy z unikalnymi cechami"
-    })
+    }
 
-@app.route('/api/manifest-being', methods=['POST'])
-def manifest_being():
+@app.post("/api/manifest-being")
+async def manifest_being(request: BeingManifestationRequest):
     """✨ Manifestuje nowy byt na podstawie duszy (genotypu)"""
     try:
-        data = request.get_json()
-        soul_type = data.get('soul_type')
-        being_alias = data.get('alias')
-        attributes = data.get('attributes', {})
-
-        if not soul_type or soul_type not in genotype_definitions:
-            return jsonify({
-                "status": "error", 
-                "message": f"Nieznany typ duszy: {soul_type}"
-            }), 400
+        if request.soul_type not in genotype_definitions:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Nieznany typ duszy: {request.soul_type}"
+            )
 
         # TODO: Implementacja manifestacji przez EntityManager
-        return jsonify({
+        return {
             "status": "success",
-            "message": f"Byt '{being_alias}' z duszy '{soul_type}' zostanie zmaterializowany",
-            "soul_type": soul_type,
-            "attributes": attributes
-        })
+            "message": f"Byt '{request.alias}' z duszy '{request.soul_type}' zostanie zmaterializowany",
+            "soul_type": request.soul_type,
+            "attributes": request.attributes
+        }
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@socketio.on('connect')
-def handle_connect():
-    """🔗 Obsługuje nowe połączenia WebSocket"""
-    connected_users.add(request.sid)
-    print(f"🔗 Nowe połączenie: {request.sid}")
-    emit('connection_established', {
-        'message': 'Połączono z uniwersum LuxDB',
-        'session_id': request.sid
-    })
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """🔗 WebSocket endpoint dla komunikacji w czasie rzeczywistym"""
+    await websocket.accept()
+    client_id = id(websocket)
+    connected_users[client_id] = websocket
+    
+    print(f"🔗 Nowe połączenie WebSocket: {client_id}")
+    
+    try:
+        await websocket.send_json({
+            "type": "connection_established",
+            "message": "Połączono z uniwersum LuxDB",
+            "session_id": str(client_id)
+        })
+        
+        while True:
+            data = await websocket.receive_json()
+            await handle_websocket_message(websocket, client_id, data)
+            
+    except WebSocketDisconnect:
+        print(f"🔌 Rozłączenie WebSocket: {client_id}")
+        connected_users.pop(client_id, None)
+    except Exception as e:
+        print(f"❌ Błąd WebSocket {client_id}: {e}")
+        connected_users.pop(client_id, None)
 
-@socketio.on('disconnect')
-def handle_disconnect():
-    """🔌 Obsługuje rozłączenia WebSocket"""
-    connected_users.discard(request.sid)
-    print(f"🔌 Rozłączenie: {request.sid}")
+async def handle_websocket_message(websocket: WebSocket, client_id: int, data: Dict[str, Any]):
+    """🌀 Obsługuje wiadomości WebSocket"""
+    try:
+        message_type = data.get('type', 'unknown')
+        
+        if message_type == 'send_intention':
+            await handle_intention_websocket(websocket, client_id, data)
+        elif message_type == 'manifest_being':
+            await handle_being_manifestation_websocket(websocket, client_id, data)
+        else:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Nieznany typ wiadomości: {message_type}"
+            })
+            
+    except Exception as e:
+        await websocket.send_json({
+            "type": "error", 
+            "message": f"Błąd przetwarzania wiadomości: {str(e)}"
+        })
 
-@socketio.on('send_intention')
-def handle_intention(data):
-    """🌀 Obsługuje intencje w uniwersum LuxDB - dane jako reprezentacja intencji"""
+async def handle_intention_websocket(websocket: WebSocket, client_id: int, data: Dict[str, Any]):
+    """🧠 Obsługuje intencje przez WebSocket"""
     try:
         intention_text = data.get('intention', '')
-        user_id = data.get('user_id', 'anonymous') 
-
-        print(f"🧠 LuxDB: Intencja od {user_id}: {intention_text}")
-
+        
+        print(f"🧠 LuxDB WebSocket: Intencja od {client_id}: {intention_text}")
+        
         # Analiza intencji w kontekście LuxDB
         analysis = analyze_luxdb_intention(intention_text)
-
+        
         # Przygotuj odpowiedź zgodną z filozofią LuxDB
         response = {
             "type": "luxdb_intention_processed",
             "original_intention": intention_text,
             "analysis": analysis,
             "timestamp": datetime.now().isoformat(),
-            "processed_by": "LuxDB_MVP",
+            "processed_by": "LuxDB_MVP_FastAPI",
             "philosophy": "Dane są reprezentacją intencji"
         }
-
-        # Wyślij do wszystkich w uniwersum
-        emit('luxdb_response', response, broadcast=True)
-
+        
+        # Wyślij do wszystkich połączonych klientów
+        await broadcast_to_all(response)
+        
         print(f"📤 LuxDB: Intencja przetworzona jako {analysis.get('luxdb_type', 'unknown')}")
-
+        
     except Exception as e:
-        print(f"❌ Błąd przetwarzania intencji LuxDB: {e}")
-        emit('error', {'message': str(e)})
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Błąd przetwarzania intencji: {str(e)}"
+        })
+
+async def handle_being_manifestation_websocket(websocket: WebSocket, client_id: int, data: Dict[str, Any]):
+    """✨ Obsługuje manifestację bytów przez WebSocket"""
+    try:
+        soul_type = data.get('soul_type')
+        alias = data.get('alias', f'being_{client_id}')
+        attributes = data.get('attributes', {})
+        
+        if soul_type not in genotype_definitions:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Nieznany typ duszy: {soul_type}"
+            })
+            return
+        
+        # TODO: Implementacja manifestacji
+        response = {
+            "type": "being_manifested",
+            "soul_type": soul_type,
+            "alias": alias,
+            "attributes": attributes,
+            "timestamp": datetime.now().isoformat(),
+            "manifested_by": str(client_id)
+        }
+        
+        await broadcast_to_all(response)
+        
+    except Exception as e:
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Błąd manifestacji bytu: {str(e)}"
+        })
+
+async def broadcast_to_all(message: Dict[str, Any]):
+    """📡 Rozgłasza wiadomość do wszystkich połączonych klientów"""
+    if not connected_users:
+        return
+        
+    disconnected_clients = []
+    
+    for client_id, websocket in connected_users.items():
+        try:
+            await websocket.send_json(message)
+        except Exception as e:
+            print(f"❌ Błąd wysyłania do {client_id}: {e}")
+            disconnected_clients.append(client_id)
+    
+    # Usuń rozłączonych klientów
+    for client_id in disconnected_clients:
+        connected_users.pop(client_id, None)
 
 def analyze_luxdb_intention(intention_text: str) -> Dict[str, Any]:
     """🧬 Analiza intencji w kontekście genotypowego modelu LuxDB"""
@@ -318,9 +415,10 @@ def extract_relation_params(text: str) -> Dict[str, Any]:
         "strength": 0.5  # Średnia siła połączenia
     }
 
-# 🌀 Uruchom LuxDB MVP Demo
-if __name__ == '__main__':
-    print("🌀 Uruchamianie LuxDB MVP Demo Landing...")
+@app.on_event("startup")
+async def startup_event():
+    """🚀 Inicjalizacja przy starcie aplikacji"""
+    print("🌀 Uruchamianie LuxDB MVP Demo (FastAPI)...")
     print("   'Nie relacja. Nie dokument. Ewolucja danych.'")
 
     # Inicjalizacja PostgreSQL dla LuxDB
@@ -334,12 +432,21 @@ if __name__ == '__main__':
         print(f"⚠️ Błąd inicjalizacji bazy LuxDB: {e}")
 
     # Inicjalizuj uniwersum LuxDB
-    asyncio.run(initialize_luxdb_universe())
+    await initialize_luxdb_universe()
 
-    print("✨ LuxDB MVP Demo uruchomiony na http://0.0.0.0:3000")
+    print("✨ LuxDB MVP Demo (FastAPI) gotowy!")
     print("🧬 Genotypowy model danych aktywny")
     print("👥 Uniwersum bytów gotowe do eksploracji")
     print("🔗 System relacji i intencji działa")
+    print("📡 WebSocket komunikacja dostępna na /ws")
 
-    # Uruchom serwer
-    socketio.run(app, host='0.0.0.0', port=3000, debug=False)
+if __name__ == "__main__":
+    import uvicorn
+    print("🚀 Uruchamianie serwera LuxDB MVP (FastAPI) na porcie 3000...")
+    uvicorn.run(
+        "demo_landing:app", 
+        host="0.0.0.0", 
+        port=3000, 
+        reload=True,
+        log_level="info"
+    )
