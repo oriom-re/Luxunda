@@ -143,14 +143,19 @@
             transition: transform 0.3s ease;
             z-index: 100;
             overflow-y: auto;
+            position: absolute;
+            top: 0;
+            bottom: 0;
         }
 
         .side-panel.left {
+            left: 0;
             border-right: 2px solid #00ff88;
             transform: translateX(-100%);
         }
 
         .side-panel.right {
+            right: 0;
             border-left: 2px solid #0088ff;
             transform: translateX(100%);
         }
@@ -711,10 +716,12 @@
                 leftPanelVisible = !leftPanelVisible;
                 panel.classList.toggle('visible', leftPanelVisible);
                 toggle.textContent = leftPanelVisible ? '◀' : '▶';
+                console.log('🔄 Lewy panel:', leftPanelVisible ? 'OTWARTY' : 'ZAMKNIĘTY');
             } else {
                 rightPanelVisible = !rightPanelVisible;
                 panel.classList.toggle('visible', rightPanelVisible);
                 toggle.textContent = rightPanelVisible ? '▶' : '◀';
+                console.log('🔄 Prawy panel:', rightPanelVisible ? 'OTWARTY' : 'ZAMKNIĘTY');
             }
         }
 
@@ -849,6 +856,10 @@
             } else {
                 charCounter.style.color = 'rgba(255,255,255,0.6)';
             }
+        }
+
+        function addChatMessage(sender, message, type = 'info') {
+            addTerminalMessage(sender, message, type);
         }
 
         function executeSystemCommand(command) {
