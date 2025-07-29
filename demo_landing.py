@@ -38,6 +38,11 @@ connected_users = set()
 living_beings = []  # Aktywne byty w uniwersum
 genotype_definitions = {}  # Definicje genotypów (dusze)
 
+@app.route('/')
+def index():
+    """🌀 Główna strona LuxDB MVP Demo"""
+    return app.send_static_file('index.html')
+
 def prepare_luxdb_genotypes():
     """🧬 Przygotowuje genotypy LuxDB MVP - definicje duszy (Soul)"""
 
@@ -196,6 +201,22 @@ def manifest_being():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@socketio.on('connect')
+def handle_connect():
+    """🔗 Obsługuje nowe połączenia WebSocket"""
+    connected_users.add(request.sid)
+    print(f"🔗 Nowe połączenie: {request.sid}")
+    emit('connection_established', {
+        'message': 'Połączono z uniwersum LuxDB',
+        'session_id': request.sid
+    })
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """🔌 Obsługuje rozłączenia WebSocket"""
+    connected_users.discard(request.sid)
+    print(f"🔌 Rozłączenie: {request.sid}")
 
 @socketio.on('send_intention')
 def handle_intention(data):
