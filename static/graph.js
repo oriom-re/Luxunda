@@ -2080,3 +2080,304 @@ universeStyle.innerHTML = `
         }
 `;
 document.head.appendChild(universeStyle);
+class LuxOSGraph {
+    constructor() {
+        this.width = window.innerWidth - 320;
+        this.height = window.innerHeight - 200;
+        this.nodes = [];
+        this.links = [];
+        this.socket = null;
+        this.selectedNodes = new Set();
+        
+        this.initializeD3();
+        this.initializeWebSocket();
+        this.setupEventListeners();
+        
+        console.log('🌀 LuxDB Graph initialized');
+    }
+
+    initializeD3() {
+        // Setup SVG
+        this.svg = d3.select('#graph')
+            .attr('width', this.width)
+            .attr('height', this.height);
+
+        // Add arrow markers for links
+        this.svg.append('defs').append('marker')
+            .attr('id', 'arrowhead')
+            .attr('viewBox', '-0 -5 10 10')
+            .attr('refX', 25)
+            .attr('refY', 0)
+            .attr('orient', 'auto')
+            .attr('markerWidth', 5)
+            .attr('markerHeight', 5)
+            .append('path')
+            .attr('d', 'M 0,-5 L 10 ,0 L 0,5')
+            .attr('fill', '#00ff88');
+
+        // Setup force simulation
+        this.simulation = d3.forceSimulation()
+            .force('link', d3.forceLink().id(d => d.id).distance(100))
+            .force('charge', d3.forceManyBody().strength(-300))
+            .force('center', d3.forceCenter(this.width / 2, this.height / 2))
+            .force('collision', d3.forceCollide().radius(30));
+
+        // Create groups for links and nodes
+        this.linkGroup = this.svg.append('g').attr('class', 'links');
+        this.nodeGroup = this.svg.append('g').attr('class', 'nodes');
+
+        // Add zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => {
+                this.nodeGroup.attr('transform', event.transform);
+                this.linkGroup.attr('transform', event.transform);
+            });
+
+        this.svg.call(zoom);
+        
+        // Add sample LuxDB nodes
+        this.addSampleNodes();
+    }
+
+    addSampleNodes() {
+        const sampleNodes = [
+            { id: 'luxdb_core', type: 'soul', name: 'LuxDB Core', description: 'Genotypowy rdzeń systemu' },
+            { id: 'ai_agent_1', type: 'being', name: 'AI Agent Alpha', description: 'Pierwszy agent AI' },
+            { id: 'semantic_data_1', type: 'being', name: 'Knowledge Base', description: 'Baza wiedzy semantycznej' },
+            { id: 'relation_manager', type: 'being', name: 'Relation Manager', description: 'Zarządca relacji' }
+        ];
+
+        const sampleLinks = [
+            { source: 'luxdb_core', target: 'ai_agent_1', type: 'manifestation' },
+            { source: 'luxdb_core', target: 'semantic_data_1', type: 'manifestation' },
+            { source: 'ai_agent_1', target: 'semantic_data_1', type: 'query' },
+            { source: 'relation_manager', target: 'ai_agent_1', type: 'connection' }
+        ];
+
+        this.updateGraph(sampleNodes, sampleLinks);
+    }
+
+    initializeWebSocket() {
+        this.socket = io();
+        
+        this.socket.on('connect', () => {
+            console.log('🌟 Połączono z demo server (app_v2)');
+            document.getElementById('connectionStatus').textContent = 'Połączony z LuxDB';
+            document.getElementById('connectionDot').classList.add('connected');
+        });
+
+        this.socket.on('disconnect', () => {
+            console.log('🔌 Rozłączono z serverem');
+            document.getElementById('connectionStatus').textContent = 'Rozłączony';
+            document.getElementById('connectionDot').classList.remove('connected');
+        });
+
+        this.socket.on('luxdb_intention_processed', (data) => {
+            console.log('🧠 Otrzymano odpowiedź na intencję:', data);
+            this.handleIntentionResponse(data);
+        });
+
+        this.socket.on('being_manifested', (data) => {
+            console.log('✨ Nowy byt zmaterializowany:', data);
+            this.addBeing(data);
+        });
+    }
+
+    updateGraph(nodes, links) {
+        this.nodes = nodes;
+        this.links = links;
+
+        // Update links
+        const link = this.linkGroup.selectAll('.link')
+            .data(this.links, d => `${d.source.id || d.source}-${d.target.id || d.target}`);
+
+        link.exit().remove();
+
+        const linkEnter = link.enter().append('line')
+            .attr('class', 'link')
+            .attr('stroke', '#555')
+            .attr('stroke-width', 2)
+            .attr('marker-end', 'url(#arrowhead)');
+
+        // Update nodes
+        const node = this.nodeGroup.selectAll('.node-group')
+            .data(this.nodes, d => d.id);
+
+        node.exit().remove();
+
+        const nodeEnter = node.enter().append('g')
+            .attr('class', 'node-group')
+            .call(d3.drag()
+                .on('start', this.dragStarted.bind(this))
+                .on('drag', this.dragged.bind(this))
+                .on('end', this.dragEnded.bind(this)));
+
+        // Add circles for nodes
+        nodeEnter.append('circle')
+            .attr('class', 'node')
+            .attr('r', 20)
+            .attr('fill', d => this.getNodeColor(d.type))
+            .on('click', this.nodeClicked.bind(this))
+            .on('mouseover', this.nodeMouseOver.bind(this))
+            .on('mouseout', this.nodeMouseOut.bind(this));
+
+        // Add labels
+        nodeEnter.append('text')
+            .attr('class', 'node-label')
+            .attr('dy', 35)
+            .text(d => d.name);
+
+        // Update simulation
+        this.simulation.nodes(this.nodes);
+        this.simulation.force('link').links(this.links);
+        this.simulation.alpha(1).restart();
+
+        // Update positions on tick
+        this.simulation.on('tick', () => {
+            this.linkGroup.selectAll('.link')
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+
+            this.nodeGroup.selectAll('.node-group')
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+
+        this.updateStats();
+    }
+
+    getNodeColor(type) {
+        switch(type) {
+            case 'soul': return '#ffaa00';
+            case 'being': return '#00ff88';
+            case 'relation': return '#88aaff';
+            default: return '#ffffff';
+        }
+    }
+
+    nodeClicked(event, d) {
+        event.stopPropagation();
+        
+        if (this.selectedNodes.has(d.id)) {
+            this.selectedNodes.delete(d.id);
+            d3.select(event.target).classed('selected', false);
+        } else {
+            this.selectedNodes.add(d.id);
+            d3.select(event.target).classed('selected', true);
+        }
+        
+        console.log('🎯 Wybrane węzły:', Array.from(this.selectedNodes));
+    }
+
+    nodeMouseOver(event, d) {
+        // Show tooltip or highlight connections
+        this.highlightConnections(d.id, true);
+    }
+
+    nodeMouseOut(event, d) {
+        this.highlightConnections(d.id, false);
+    }
+
+    highlightConnections(nodeId, highlight) {
+        this.linkGroup.selectAll('.link')
+            .classed('highlighted', highlight && 
+                (d => d.source.id === nodeId || d.target.id === nodeId));
+    }
+
+    addBeing(beingData) {
+        const newNode = {
+            id: beingData.alias || `being_${Date.now()}`,
+            type: 'being',
+            name: beingData.alias,
+            description: `Byt typu: ${beingData.soul_type}`
+        };
+
+        this.nodes.push(newNode);
+        
+        // Add connection to parent soul if exists
+        const parentSoul = this.nodes.find(n => n.type === 'soul');
+        if (parentSoul) {
+            this.links.push({
+                source: parentSoul.id,
+                target: newNode.id,
+                type: 'manifestation'
+            });
+        }
+
+        this.updateGraph(this.nodes, this.links);
+    }
+
+    handleIntentionResponse(data) {
+        // Process intention and possibly add new nodes/links
+        if (data.analysis && data.analysis.luxdb_type === 'being_manifestation') {
+            console.log('🌟 Intencja manifestacji bytu rozpoznana');
+        }
+    }
+
+    updateStats() {
+        document.getElementById('nodesCount').textContent = this.nodes.length;
+        document.getElementById('linksCount').textContent = this.links.length;
+    }
+
+    setupEventListeners() {
+        window.addEventListener('resize', () => this.resizeGraph());
+    }
+
+    resizeGraph() {
+        this.width = window.innerWidth - 320;
+        this.height = window.innerHeight - 200;
+        
+        this.svg
+            .attr('width', this.width)
+            .attr('height', this.height);
+            
+        this.simulation
+            .force('center', d3.forceCenter(this.width / 2, this.height / 2))
+            .alpha(0.3)
+            .restart();
+    }
+
+    zoomIn() {
+        this.svg.transition().call(
+            d3.zoom().transform,
+            d3.zoomTransform(this.svg.node()).scale(1.5)
+        );
+    }
+
+    zoomOut() {
+        this.svg.transition().call(
+            d3.zoom().transform,
+            d3.zoomTransform(this.svg.node()).scale(0.75)
+        );
+    }
+
+    resetZoom() {
+        this.svg.transition().call(
+            d3.zoom().transform,
+            d3.zoomIdentity
+        );
+    }
+
+    // Drag handlers
+    dragStarted(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    dragEnded(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+}
+
+// Make available globally
+window.LuxOSGraph = LuxOSGraph;

@@ -524,3 +524,202 @@ function escapeRegExp(string) {
 
 // Udostępnij globalnie
 window.IntentionComponent = IntentionComponent;
+class IntentionComponent {
+    constructor(graphManager) {
+        this.graphManager = graphManager;
+        this.initializeComponent();
+        console.log('🧠 Intention Component initialized');
+    }
+
+    initializeComponent() {
+        this.input = document.getElementById('intentionInput');
+        this.button = document.getElementById('sendIntention');
+        this.counter = document.getElementById('charCounter');
+
+        this.setupEventListeners();
+        this.updateCounter();
+    }
+
+    setupEventListeners() {
+        // Character counter
+        this.input.addEventListener('input', () => {
+            this.updateCounter();
+        });
+
+        // Send on button click
+        this.button.addEventListener('click', () => {
+            this.sendIntention();
+        });
+
+        // Send on Ctrl+Enter
+        this.input.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                this.sendIntention();
+            }
+        });
+
+        // Auto-resize textarea
+        this.input.addEventListener('input', () => {
+            this.autoResize();
+        });
+    }
+
+    updateCounter() {
+        const length = this.input.value.length;
+        this.counter.textContent = length;
+        
+        if (length > 450) {
+            this.counter.style.color = '#ff4444';
+        } else if (length > 350) {
+            this.counter.style.color = '#ffaa00';
+        } else {
+            this.counter.style.color = '#888';
+        }
+    }
+
+    autoResize() {
+        this.input.style.height = 'auto';
+        this.input.style.height = Math.min(this.input.scrollHeight, 200) + 'px';
+    }
+
+    sendIntention() {
+        const intention = this.input.value.trim();
+        
+        if (!intention) {
+            this.showFeedback('Wprowadź swoją intencję', 'error');
+            return;
+        }
+
+        if (intention.length > 500) {
+            this.showFeedback('Intencja zbyt długa (max 500 znaków)', 'error');
+            return;
+        }
+
+        // Disable button during processing
+        this.button.disabled = true;
+        this.button.textContent = '🌀 Przetwarzanie...';
+
+        // Send to backend via WebSocket
+        const intentionData = {
+            type: 'send_intention',
+            intention: intention,
+            timestamp: new Date().toISOString(),
+            selected_nodes: Array.from(this.graphManager.selectedNodes || [])
+        };
+
+        console.log('🧠 Wysyłanie intencji:', intentionData);
+        
+        if (this.graphManager.socket && this.graphManager.socket.connected) {
+            this.graphManager.socket.emit('send_intention', intentionData);
+            this.showFeedback('Intencja wysłana do LuxDB', 'success');
+            
+            // Clear input after successful send
+            setTimeout(() => {
+                this.input.value = '';
+                this.updateCounter();
+                this.autoResize();
+            }, 500);
+        } else {
+            this.showFeedback('Brak połączenia z serwerem', 'error');
+        }
+
+        // Re-enable button
+        setTimeout(() => {
+            this.button.disabled = false;
+            this.button.textContent = '🌀 Manifestuj w LuxDB';
+        }, 1000);
+    }
+
+    showFeedback(message, type = 'info') {
+        // Create or get feedback element
+        let feedback = document.querySelector('.feedback-message');
+        if (!feedback) {
+            feedback = document.createElement('div');
+            feedback.className = 'feedback-message';
+            document.body.appendChild(feedback);
+        }
+
+        feedback.textContent = message;
+        feedback.className = `feedback-message ${type}`;
+        feedback.classList.add('show');
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            feedback.classList.remove('show');
+        }, 3000);
+    }
+
+    // Method to handle responses from the graph manager
+    handleIntentionResponse(response) {
+        console.log('🎯 Odpowiedź na intencję:', response);
+        
+        if (response.analysis) {
+            const analysis = response.analysis;
+            let message = `Rozpoznano: ${analysis.luxdb_type}`;
+            
+            if (analysis.suggested_action) {
+                message += ` → ${analysis.suggested_action}`;
+            }
+            
+            this.showFeedback(message, 'success');
+            
+            // Handle specific intention types
+            switch (analysis.luxdb_type) {
+                case 'being_manifestation':
+                    this.handleBeingManifestation(analysis);
+                    break;
+                case 'soul_query':
+                    this.handleSoulQuery(analysis);
+                    break;
+                case 'relationship_creation':
+                    this.handleRelationshipCreation(analysis);
+                    break;
+            }
+        }
+    }
+
+    handleBeingManifestation(analysis) {
+        if (analysis.parameters && analysis.parameters.suggested_soul) {
+            const manifestData = {
+                type: 'manifest_being',
+                soul_type: analysis.parameters.suggested_soul,
+                alias: `being_${Date.now()}`,
+                attributes: {}
+            };
+            
+            console.log('✨ Manifestuję byt:', manifestData);
+            this.graphManager.socket.emit('manifest_being', manifestData);
+        }
+    }
+
+    handleSoulQuery(analysis) {
+        console.log('🧬 Zapytanie o dusze - wyświetlam dostępne genotypy');
+        // Could trigger display of available souls in UI
+    }
+
+    handleRelationshipCreation(analysis) {
+        const selectedNodes = Array.from(this.graphManager.selectedNodes || []);
+        if (selectedNodes.length >= 2) {
+            console.log('🔗 Tworzę relację między wybranymi węzłami:', selectedNodes);
+            // Logic to create relationships between selected nodes
+        } else {
+            this.showFeedback('Wybierz co najmniej 2 węzły aby utworzyć relację', 'error');
+        }
+    }
+
+    // Utility method to suggest intentions based on current graph state
+    suggestIntentions() {
+        const suggestions = [
+            "Stwórz nowy agent AI",
+            "Dodaj dane semantyczne o projekcie",
+            "Połącz wybrane byty relacją",
+            "Pokaż dostępne genotypy",
+            "Manifestuj byt z duszy semantic_data_soul"
+        ];
+        
+        return suggestions;
+    }
+}
+
+// Make available globally
+window.IntentionComponent = IntentionComponent;

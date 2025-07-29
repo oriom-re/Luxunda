@@ -580,3 +580,26 @@ class FileExplorer {
 
 // Export dla użycia w innych modulach
 window.FileExplorer = FileExplorer;
+class FileExplorer {
+    constructor(graphManager) {
+        this.graphManager = graphManager;
+        this.isVisible = false;
+        console.log('📁 File Explorer initialized (stub)');
+    }
+
+    toggle() {
+        // Placeholder for future file explorer functionality
+        console.log('📁 File Explorer toggle - funkcjonalność w rozwoju');
+    }
+
+    show() {
+        this.isVisible = true;
+    }
+
+    hide() {
+        this.isVisible = false;
+    }
+}
+
+// Make available globally
+window.FileExplorer = FileExplorer;
