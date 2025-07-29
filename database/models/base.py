@@ -197,6 +197,49 @@ class Being:
         if result:
             return result.get('beings', [])
 
+
+
+    # === RELATION METHODS ===
+    
+    async def add_tag(self, target_uid: str, tag_name: str, context: Dict[str, Any] = None):
+        """Dodaje relację tagową do innego bytu"""
+        from services.relation_manager import relation_manager
+        return await relation_manager.create_smart_tag(self.uid, target_uid, tag_name, context)
+    
+    async def create_relation(self, target_uid: str, relation_name: str, 
+                            perspective: str, bidirectional: bool = False,
+                            context: Dict[str, Any] = None):
+        """Tworzy relację kierunkową z innym bytem"""
+        from services.relation_manager import relation_manager
+        return await relation_manager.create_smart_directional(
+            self.uid, target_uid, relation_name, perspective, context, bidirectional
+        )
+    
+    async def get_relations(self, relation_type: str = None) -> List['Relationship']:
+        """Pobiera wszystkie relacje bytu"""
+        from database.models.relationship import Relationship
+        # TODO: Implementacja pobierania z bazy
+        return []
+    
+    async def learn_from_interaction(self, other_uid: str, interaction_type: str, 
+                                   success: bool, context: Dict[str, Any] = None):
+        """Uczy się z interakcji z innym bytem"""
+        from services.relation_manager import relation_manager
+        await relation_manager.learn_from_interaction(
+            self.uid, other_uid, interaction_type, success, context
+        )
+    
+    async def get_relation_suggestions(self, target_uid: str, 
+                                     context: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """Otrzymuje sugestie relacji z innym bytem"""
+        from services.relation_manager import relation_manager
+        return await relation_manager.suggest_relations(self.uid, target_uid, context)
+    
+    async def optimize_relations(self) -> Dict[str, Any]:
+        """Optymalizuje relacje bytu"""
+        from services.relation_manager import relation_manager
+        return await relation_manager.optimize_relations(self.uid)
+
     @classmethod
     async def load_all(cls) -> list['Being']:
         """Ładuje wszystkie byty z bazy danych"""
