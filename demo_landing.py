@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Dict, Any, List
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 # Importy z app_v2 - LuxDB MVP
@@ -61,6 +61,30 @@ async def landing():
     """🌟 Piękny landing page z grafowym tłem"""
     with open("static/landing.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
+
+@app.get("/graph.js")
+async def serve_graph_js():
+    """🎨 Serwuje plik graph.js"""
+    with open("static/graph.js", "r", encoding="utf-8") as f:
+        return Response(content=f.read(), media_type="application/javascript")
+
+@app.get("/intention-component.js") 
+async def serve_intention_js():
+    """🧠 Serwuje plik intention-component.js"""
+    with open("static/intention-component.js", "r", encoding="utf-8") as f:
+        return Response(content=f.read(), media_type="application/javascript")
+
+@app.get("/chat-component.js")
+async def serve_chat_js():
+    """💬 Serwuje plik chat-component.js"""
+    with open("static/chat-component.js", "r", encoding="utf-8") as f:
+        return Response(content=f.read(), media_type="application/javascript")
+
+@app.get("/file-explorer.js")
+async def serve_explorer_js():
+    """📁 Serwuje plik file-explorer.js"""
+    with open("static/file-explorer.js", "r", encoding="utf-8") as f:
+        return Response(content=f.read(), media_type="application/javascript")
 
 @app.get("/demo", response_class=HTMLResponse)
 @app.get("/graph", response_class=HTMLResponse)
