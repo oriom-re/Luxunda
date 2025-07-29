@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 🌀 LuxDB MVP Demo Landing - FastAPI Edition
@@ -58,8 +57,15 @@ class BeingManifestationRequest(BaseModel):
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
-async def index():
-    """🌀 Główna strona LuxDB MVP Demo"""
+async def landing():
+    """🌟 Piękny landing page z grafowym tłem"""
+    with open("static/landing.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
+
+@app.get("/demo", response_class=HTMLResponse)
+@app.get("/graph", response_class=HTMLResponse)
+async def graph_demo():
+    """🌀 Graf bytów LuxDB MVP Demo"""
     with open("static/index.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
@@ -223,20 +229,20 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     client_id = id(websocket)
     connected_users[client_id] = websocket
-    
+
     print(f"🔗 Nowe połączenie WebSocket: {client_id}")
-    
+
     try:
         await websocket.send_json({
             "type": "connection_established",
             "message": "Połączono z uniwersum LuxDB",
             "session_id": str(client_id)
         })
-        
+
         while True:
             data = await websocket.receive_json()
             await handle_websocket_message(websocket, client_id, data)
-            
+
     except WebSocketDisconnect:
         print(f"🔌 Rozłączenie WebSocket: {client_id}")
         connected_users.pop(client_id, None)
@@ -248,7 +254,7 @@ async def handle_websocket_message(websocket: WebSocket, client_id: int, data: D
     """🌀 Obsługuje wiadomości WebSocket"""
     try:
         message_type = data.get('type', 'unknown')
-        
+
         if message_type == 'send_intention':
             await handle_intention_websocket(websocket, client_id, data)
         elif message_type == 'manifest_being':
@@ -258,7 +264,7 @@ async def handle_websocket_message(websocket: WebSocket, client_id: int, data: D
                 "type": "error",
                 "message": f"Nieznany typ wiadomości: {message_type}"
             })
-            
+
     except Exception as e:
         await websocket.send_json({
             "type": "error", 
@@ -269,12 +275,12 @@ async def handle_intention_websocket(websocket: WebSocket, client_id: int, data:
     """🧠 Obsługuje intencje przez WebSocket"""
     try:
         intention_text = data.get('intention', '')
-        
+
         print(f"🧠 LuxDB WebSocket: Intencja od {client_id}: {intention_text}")
-        
+
         # Analiza intencji w kontekście LuxDB
         analysis = analyze_luxdb_intention(intention_text)
-        
+
         # Przygotuj odpowiedź zgodną z filozofią LuxDB
         response = {
             "type": "luxdb_intention_processed",
@@ -284,12 +290,12 @@ async def handle_intention_websocket(websocket: WebSocket, client_id: int, data:
             "processed_by": "LuxDB_MVP_FastAPI",
             "philosophy": "Dane są reprezentacją intencji"
         }
-        
+
         # Wyślij do wszystkich połączonych klientów
         await broadcast_to_all(response)
-        
+
         print(f"📤 LuxDB: Intencja przetworzona jako {analysis.get('luxdb_type', 'unknown')}")
-        
+
     except Exception as e:
         await websocket.send_json({
             "type": "error",
@@ -302,14 +308,14 @@ async def handle_being_manifestation_websocket(websocket: WebSocket, client_id: 
         soul_type = data.get('soul_type')
         alias = data.get('alias', f'being_{client_id}')
         attributes = data.get('attributes', {})
-        
+
         if soul_type not in genotype_definitions:
             await websocket.send_json({
                 "type": "error",
                 "message": f"Nieznany typ duszy: {soul_type}"
             })
             return
-        
+
         # TODO: Implementacja manifestacji
         response = {
             "type": "being_manifested",
@@ -319,9 +325,9 @@ async def handle_being_manifestation_websocket(websocket: WebSocket, client_id: 
             "timestamp": datetime.now().isoformat(),
             "manifested_by": str(client_id)
         }
-        
+
         await broadcast_to_all(response)
-        
+
     except Exception as e:
         await websocket.send_json({
             "type": "error",
@@ -332,16 +338,16 @@ async def broadcast_to_all(message: Dict[str, Any]):
     """📡 Rozgłasza wiadomość do wszystkich połączonych klientów"""
     if not connected_users:
         return
-        
+
     disconnected_clients = []
-    
+
     for client_id, websocket in connected_users.items():
         try:
             await websocket.send_json(message)
         except Exception as e:
             print(f"❌ Błąd wysyłania do {client_id}: {e}")
             disconnected_clients.append(client_id)
-    
+
     # Usuń rozłączonych klientów
     for client_id in disconnected_clients:
         connected_users.pop(client_id, None)
