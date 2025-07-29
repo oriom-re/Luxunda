@@ -1,3 +1,5 @@
+// Prevent redeclaration
+if (typeof window.IntentionComponent === 'undefined') {
 class IntentionComponent {
     constructor(graphManager) {
         this.graphManager = graphManager;
@@ -126,5 +128,8 @@ class IntentionComponent {
 
 // Make IntentionComponent available globally
 window.IntentionComponent = IntentionComponent;
+} else {
+    console.log('⚠️ IntentionComponent already defined, skipping redefinition');
+}
 
 } // End of conditional block

@@ -1,5 +1,16 @@
 
-// File Explorer - Minimal stub
-// Removed to prevent class declaration conflicts
+// File Explorer Component - Minimal implementation
+// Prevent class redeclaration
+if (typeof window.FileExplorer === 'undefined') {
+    class FileExplorer {
+        constructor() {
+            console.log('📁 FileExplorer stub initialized');
+        }
+    }
+    
+    window.FileExplorer = FileExplorer;
+} else {
+    console.log('⚠️ FileExplorer already defined, skipping redefinition');
+}
 
-console.log('📁 File Explorer stub loaded');
+console.log('📁 File Explorer loaded');

@@ -1,3 +1,5 @@
+// Prevent redeclaration
+if (typeof window.LuxChatComponent === 'undefined') {
 class LuxChatComponent {
     constructor(graphManager) {
         this.graphManager = graphManager;
@@ -596,5 +598,6 @@ Jak mogę Ci dzisiaj pomóc?`;
 
 // Make LuxChatComponent available globally
 window.LuxChatComponent = LuxChatComponent;
-
-} // End of conditional block
+} else {
+    console.log('⚠️ LuxChatComponent already defined, skipping redefinition');
+}

@@ -1,29 +1,12 @@
-<!-- Load scripts in proper order to avoid conflicts -->
-    <script src="graph.js" async></script>
-    <script src="intention-component.js" async></script>
-    <script src="chat-component.js" async></script>
+<!-- Load scripts synchronously in proper order -->
+    <script src="graph.js"></script>
+    <script src="intention-component.js"></script>
+    <script src="chat-component.js"></script>
 
     <script>
-        // Wait for all scripts to load before initializing
-        let scriptsLoaded = 0;
-        const totalScripts = 3;
-
-        function checkScriptsLoaded() {
-            scriptsLoaded++;
-            if (scriptsLoaded === totalScripts) {
-                initializeApp();
-            }
-        }
-
-        // Add load event listeners to scripts
+        // Initialize app immediately after all scripts are loaded
         document.addEventListener('DOMContentLoaded', function() {
-            const scripts = document.querySelectorAll('script[src]');
-            scripts.forEach(script => {
-                script.addEventListener('load', checkScriptsLoaded);
-                script.addEventListener('error', (e) => {
-                    console.error('Failed to load script:', e.target.src);
-                });
-            });
+            initializeApp();
         });
 
         function initializeApp() {
