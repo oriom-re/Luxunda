@@ -1,8 +1,7 @@
-
 # from app_v2.beings.new_being import Soul
 from dataclasses import dataclass, field, make_dataclass, asdict
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
 from app_v2.database.soul_repository import DynamicRepository, BeingRepository, SoulRepository
 import ulid as _ulid
@@ -31,7 +30,7 @@ class Soul:
             return soul
         else:
             raise Exception("Failed to create soul")
-    
+
     @classmethod
     async def load_by_hash(cls, hash: str) -> 'Soul':
         """Ładuje byt z bazy danych na podstawie jego unikalnego hasha"""
@@ -69,7 +68,7 @@ class Soul:
         result = await SoulRepository.load_all_by_alias(alias)
         if result:
             return result.get('souls', [])
-    
+
     @classmethod
     async def load_all(cls) -> list['Soul']:
         """Ładuje wszystkie dusze z bazy danych"""
@@ -99,6 +98,7 @@ class Being:
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     genotype: Dict[str, Any] = field(default_factory=dict)
+    genes: Dict[str, Callable] = field(default_factory=dict)
 
     @classmethod
     async def create(cls, soul: 'Soul', data: Dict[str, Any], limit: int) -> 'Being':
@@ -117,6 +117,10 @@ class Being:
         beings = await BeingRepository.load_all_by_soul_hash(soul.soul_hash)
         if limit and len(beings) >= limit:
             raise ValueError(f"Limit of {limit} beings reached for soul {soul.soul_hash}")
+
+        # Load genes from genotype
+        being.genes = soul.genotype.get("genes", {})
+
         await being.save(soul, data)
         return being
 
@@ -152,10 +156,13 @@ class Being:
                         "py_type": "str"
                     }
                 }
+                "genes": {
+                    "gene_name": "path.to.gene_function"
+                }
             }
 
         """
-        
+
         data_to_save = {}
         if not soul.genotype or not soul.genotype.get("attributes"):
             raise ValueError("Soul genotype must have attributes defined")
@@ -171,7 +178,7 @@ class Being:
         print(f"Saving soul with hash: {soul.soul_hash}")
         await DynamicRepository.insert_data_transaction(self, soul.genotype)
         return self
-        
+
     def get_attributes(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -206,8 +213,19 @@ class Being:
             return result.get('beings', [])
         return []
 
-    
-    
+    async def execute(self, gene_name: str, *args, **kwargs):
+        """Wykonuje gen na bycie"""
+        if gene_name not in self.genes:
+            raise ValueError(f"Gene {gene_name} not found in being")
+
+        gene_path = self.genes[gene_name]
+        try:
+            module_name, function_name = gene_path.rsplit(".", 1)
+            module = __import__(module_name, fromlist=[function_name])
+            gene_function = getattr(module, function_name)
+            return await gene_function(self, *args, **kwargs)
+        except Exception as e:
+            raise Exception(f"Failed to execute gene {gene_name}: {e}")
 
     @classmethod
     def parse(cls, data: Dict[str, Any]) -> 'Being':
@@ -218,10 +236,10 @@ class Being:
         for key, value in data.items():
             setattr(being, key, value)
         return being
-    
+
     def to_dict(self) -> Dict[str, Any] :
         return asdict(self)
-    
+
     def __repr__(self):
         return f"<Being {self.ulid} fields={self.to_dict()}>"
 
@@ -244,4 +262,3 @@ class Message(Being):
         instance.ulid = str(_ulid.ulid())
         await instance.save(soul)
         return instance
-    
