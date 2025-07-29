@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Optional
 from datetime import datetime
 import ulid as _ulid
-from app_v2.core.globals import Globals
+from core.globals import Globals
 
 @dataclass
 class Relationship:

@@ -8,8 +8,8 @@ import asyncio
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from app_v2.ai.ai_brain import AIBrain
-from app_v2.genetics.gene_registry import GeneRegistry
+from ai.ai_brain import AIBrain
+
 
 try:
     import openai

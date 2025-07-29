@@ -19,7 +19,7 @@ from database.postgre_db import Postgre_db
 from database.soul_repository import SoulRepository
 from database.models.relationship import Relationship
 from services.entity_manager import EntityManager
-from services.genotype_service import GenotypService
+# from services.genotype_service import GenotypService
 from ai.hybrid_ai_system import HybridAISystem
 
 # FastAPI app
@@ -43,7 +43,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 postgresql_manager: Optional[Postgre_db] = None
 soul_repository: Optional[SoulRepository] = None
 entity_manager: Optional[EntityManager] = None
-genotype_service: Optional[GenotypService] = None
+
 hybrid_ai: Optional[HybridAISystem] = None
 
 # Demo data - genotypy dusz

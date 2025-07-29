@@ -3,10 +3,10 @@ from dataclasses import dataclass, field, make_dataclass, asdict
 import json
 from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
-from app_v2.database.soul_repository import DynamicRepository, BeingRepository, SoulRepository
+from database.soul_repository import DynamicRepository, BeingRepository, SoulRepository
 import ulid as _ulid
 import hashlib
-from app_v2.core.globals import Globals
+from core.globals import Globals
 
 @dataclass
 class Soul:
