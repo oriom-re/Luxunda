@@ -42,7 +42,7 @@ class LuxOSGraph {
     requestGraphData() {
         if (this.socket && this.isConnected) {
             console.log('📡 Żądanie danych grafu...');
-            this.socket.emit('get_graph_data');
+            this.socket.emit('request_graph_data');
         }
     }
 

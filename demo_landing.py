@@ -29,15 +29,15 @@ app = FastAPI(title="LuxDB MVP", version="2.0.0")
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins=["*"],
-    logger=False,
-    engineio_logger=False
+    logger=True,
+    engineio_logger=True
 )
+
+# Statyczne pliki PRZED kombinowaniem z Socket.IO
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Kombinuj FastAPI z Socket.IO
 socket_app = socketio.ASGIApp(sio, app)
-
-# Statyczne pliki
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Główne komponenty systemu
 postgresql_manager: Optional[Postgre_db] = None

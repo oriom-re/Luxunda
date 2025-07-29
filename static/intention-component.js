@@ -48,7 +48,7 @@ class IntentionComponent {
         console.log('Wysyłanie intencji:', intention);
 
         if (this.graphManager && this.graphManager.socket) {
-            this.graphManager.socket.emit('process_intention', {
+            this.graphManager.socket.emit('send_intention', {
                 intention: intention,
                 timestamp: new Date().toISOString()
             });

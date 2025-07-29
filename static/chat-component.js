@@ -119,7 +119,7 @@ class LuxChatComponent {
         this.messageInput.value = '';
 
         if (this.graphManager && this.graphManager.socket) {
-            this.graphManager.socket.emit('lux_communication', {
+            this.graphManager.socket.emit('lux_chat', {
                 message: message,
                 timestamp: new Date().toISOString()
             });
