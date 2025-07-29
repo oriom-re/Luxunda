@@ -1,17 +1,17 @@
 
-db_pool = None
+
 
 class Postgre_db:
     """Klasa do zarządzania połączeniem z bazą danych PostgreSQL"""
+    db_pool = None
     
     @staticmethod
     async def get_db_pool():
         """Zwraca pulę połączeń do bazy danych PostgreSQL"""
-        global db_pool
-        if db_pool is None:
+        if Postgre_db.db_pool is None:
             print("🔄 Inicjalizacja puli połączeń do bazy PostgreSQL...")
             from asyncpg import create_pool
-            db_pool = await create_pool(
+            Postgre_db.db_pool = await create_pool(
                 host='ep-odd-tooth-a2zcp5by-pooler.eu-central-1.aws.neon.tech',
                 port=5432,
                 user='neondb_owner',
@@ -25,12 +25,12 @@ class Postgre_db:
             )
             await Postgre_db.setup_tables()  # Upewnij się, że tabele są utworzone
             print("✅ Pula połączeń do bazy PostgreSQL zainicjalizowana")
-        return db_pool
+        return Postgre_db.db_pool
     
     @staticmethod
     async def setup_tables():
         """Tworzy tabele w PostgreSQL"""
-        global db_pool
+        db_pool = Postgre_db.get_db_pool()
         if not db_pool:
             print("❌ Baza danych nie jest zainicjalizowana")
             return
