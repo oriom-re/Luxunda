@@ -9,7 +9,7 @@ class LuxChatComponent {
         this.setupEventListeners();
         this.loadChatHistory();
 
-        console.log('LuxChatComponent initialized');
+        console.log('💬 LuxChatComponent initialized');
     }
 
     createChatInterface() {
@@ -221,7 +221,6 @@ class LuxChatComponent {
             this.chatContainer.style.opacity = '1';
         }, 10);
 
-        // Pobierz najnowszą historię przy otwieraniu
         this.loadChatHistory();
     }
 
@@ -256,7 +255,7 @@ class LuxChatComponent {
         this.messageInput.value = '';
         this.autoResizeTextarea();
 
-        // Wyślij do Lux przez nowy kanał komunikacyjny
+        // Wyślij do Lux przez socket
         if (this.graphManager && this.graphManager.socket) {
             console.log('Socket dostępny, wysyłam do Lux...');
             this.graphManager.socket.emit('lux_communication', {
@@ -318,7 +317,6 @@ class LuxChatComponent {
     }
 
     formatMessageContent(content) {
-        // Formatuj tekst - dodaj podstawowe markdown
         return content
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -505,7 +503,6 @@ class LuxChatComponent {
     }
 
     loadChatHistory() {
-        // Pobierz historię z localStorage
         const saved = localStorage.getItem('luxos_chat_history');
         if (saved) {
             try {
@@ -517,7 +514,6 @@ class LuxChatComponent {
             }
         }
 
-        // Dodaj wiadomość powitalną jeśli historia jest pusta
         if (this.chatHistory.length === 0) {
             this.addWelcomeMessage();
         }
@@ -549,7 +545,6 @@ Jak mogę Ci dzisiaj pomóc?`;
     renderChatHistory() {
         this.messagesArea.innerHTML = '';
 
-        // Pokaż tylko ostatnie 20 wiadomości
         const recentHistory = this.chatHistory.slice(-20);
 
         recentHistory.forEach(item => {
@@ -569,7 +564,6 @@ Jak mogę Ci dzisiaj pomóc?`;
     }
 
     saveChatHistory() {
-        // Zachowaj tylko ostatnie 50 wpisów
         if (this.chatHistory.length > 50) {
             this.chatHistory = this.chatHistory.slice(-50);
         }
@@ -601,318 +595,4 @@ Jak mogę Ci dzisiaj pomóc?`;
 }
 
 // Udostępnij globalnie
-window.LuxChatComponent = LuxChatComponent;
-class LuxChatComponent {
-    constructor(graphManager) {
-        this.graphManager = graphManager;
-        this.isVisible = false;
-        this.messages = [];
-        
-        this.createChatInterface();
-        console.log('💬 Lux Chat Component initialized');
-    }
-
-    createChatInterface() {
-        // Create chat container
-        this.chatContainer = document.createElement('div');
-        this.chatContainer.className = 'lux-chat-container';
-        this.chatContainer.innerHTML = `
-            <div class="chat-header">
-                <div class="chat-title">💬 Chat z Lux</div>
-                <button class="chat-close" id="closeLuxChat">×</button>
-            </div>
-            <div class="chat-messages" id="luxChatMessages"></div>
-            <div class="chat-input-container">
-                <input type="text" class="chat-input" id="luxChatInput" placeholder="Zapytaj Lux o LuxDB...">
-                <button class="chat-send" id="sendLuxMessage">Wyślij</button>
-            </div>
-        `;
-
-        // Add styles
-        const style = document.createElement('style');
-        style.textContent = `
-            .lux-chat-container {
-                position: fixed;
-                top: 80px;
-                right: -350px;
-                width: 300px;
-                height: 400px;
-                background: rgba(26, 26, 26, 0.95);
-                border: 2px solid #00ff88;
-                border-radius: 8px;
-                backdrop-filter: blur(10px);
-                display: flex;
-                flex-direction: column;
-                transition: right 0.3s ease;
-                z-index: 1000;
-            }
-
-            .lux-chat-container.visible {
-                right: 20px;
-            }
-
-            .chat-header {
-                padding: 10px;
-                border-bottom: 1px solid #555;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-
-            .chat-title {
-                color: #00ff88;
-                font-weight: bold;
-            }
-
-            .chat-close {
-                background: none;
-                border: none;
-                color: #fff;
-                font-size: 18px;
-                cursor: pointer;
-                padding: 0;
-                width: 20px;
-                height: 20px;
-            }
-
-            .chat-close:hover {
-                color: #00ff88;
-            }
-
-            .chat-messages {
-                flex: 1;
-                padding: 10px;
-                overflow-y: auto;
-                color: #fff;
-                font-size: 14px;
-            }
-
-            .chat-message {
-                margin-bottom: 10px;
-                padding: 8px;
-                border-radius: 5px;
-            }
-
-            .chat-message.user {
-                background: rgba(0, 255, 136, 0.2);
-                text-align: right;
-            }
-
-            .chat-message.lux {
-                background: rgba(255, 255, 255, 0.1);
-            }
-
-            .chat-input-container {
-                padding: 10px;
-                border-top: 1px solid #555;
-                display: flex;
-                gap: 5px;
-            }
-
-            .chat-input {
-                flex: 1;
-                background: #333;
-                border: 1px solid #555;
-                border-radius: 4px;
-                color: #fff;
-                padding: 5px;
-                font-size: 12px;
-            }
-
-            .chat-input:focus {
-                outline: none;
-                border-color: #00ff88;
-            }
-
-            .chat-send {
-                background: #00ff88;
-                color: #1a1a1a;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-                font-weight: bold;
-            }
-
-            .chat-send:hover {
-                background: #00cc66;
-            }
-        `;
-        document.head.appendChild(style);
-
-        document.body.appendChild(this.chatContainer);
-        this.setupEventListeners();
-        
-        // Add welcome message
-        this.addMessage('lux', 'Witaj! Jestem Lux - przewodnik po LuxDB MVP. Zapytaj mnie o genotypy, byty, relacje lub filozofię systemu! 🌟');
-    }
-
-    setupEventListeners() {
-        // Close button
-        document.getElementById('closeLuxChat').addEventListener('click', () => {
-            this.hide();
-        });
-
-        // Send message
-        document.getElementById('sendLuxMessage').addEventListener('click', () => {
-            this.sendMessage();
-        });
-
-        // Enter key
-        document.getElementById('luxChatInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.sendMessage();
-            }
-        });
-    }
-
-    toggle() {
-        if (this.isVisible) {
-            this.hide();
-        } else {
-            this.show();
-        }
-    }
-
-    show() {
-        this.chatContainer.classList.add('visible');
-        this.isVisible = true;
-        document.getElementById('luxChatInput').focus();
-    }
-
-    hide() {
-        this.chatContainer.classList.remove('visible');
-        this.isVisible = false;
-    }
-
-    sendMessage() {
-        const input = document.getElementById('luxChatInput');
-        const message = input.value.trim();
-        
-        if (!message) return;
-
-        // Add user message
-        this.addMessage('user', message);
-        input.value = '';
-
-        // Process message and generate Lux response
-        setTimeout(() => {
-            const response = this.generateLuxResponse(message);
-            this.addMessage('lux', response);
-        }, 500);
-    }
-
-    addMessage(sender, text) {
-        const messagesContainer = document.getElementById('luxChatMessages');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `chat-message ${sender}`;
-        messageDiv.textContent = text;
-        
-        messagesContainer.appendChild(messageDiv);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
-        this.messages.push({ sender, text, timestamp: new Date() });
-    }
-
-    generateLuxResponse(userMessage) {
-        const message = userMessage.toLowerCase();
-        
-        // Philosophy questions
-        if (message.includes('filozofia') || message.includes('czym jest luxdb')) {
-            return `LuxDB to rewolucja w bazach danych! 🌀 "Nie relacja. Nie dokument. Ewolucja danych." 
-
-Dane nie są tylko strukturą - to reprezentacja intencji. Każdy byt wynika z duszy (genotypu) i ma własną historię. System uczy się i adaptuje, tworząc żywy organizm danych.`;
-        }
-
-        // Genotypes/Souls
-        if (message.includes('genotyp') || message.includes('dusze') || message.includes('soul')) {
-            return `🧬 W LuxDB mamy 3 główne genotypy (dusze):
-
-• **ai_agent_soul** - Autonomiczne byty AI z intencjami
-• **semantic_data_soul** - Wiedza z kontekstem semantycznym  
-• **relational_soul** - Żywe połączenia między bytami
-
-Każda dusza definiuje cechy i zdolności swoich bytów. To jak DNA dla danych! 🔬`;
-        }
-
-        // Beings
-        if (message.includes('byt') || message.includes('being') || message.includes('manifestacja')) {
-            return `👤 Byty to żywe instancje duszy! 
-
-Każdy byt ma:
-• Unikalny ULID
-• Genotyp z duszy
-• Własne atrybuty i wspomnienia
-• Zdolność do relacji z innymi bytami
-• Historię ewolucji
-
-Byty mogą się manifestować poprzez intencje. Spróbuj napisać "Stwórz nowy agent AI"! ✨`;
-        }
-
-        // Relations
-        if (message.includes('relacj') || message.includes('połączen') || message.includes('związek')) {
-            return `🔗 Relacje w LuxDB to żywe połączenia!
-
-• Dwukierunkowe lub jednokierunkowe
-• Mają siłę połączenia (0.0-1.0)
-• Przechowują kontekst i metadane
-• Mogą ewoluować w czasie
-• Przetrwają nawet zniknięcie bytu
-
-Wybierz 2+ węzły i wyraź intencję połączenia! 🌟`;
-        }
-
-        // Technical questions
-        if (message.includes('jak działa') || message.includes('technologia') || message.includes('architektura')) {
-            return `⚡ LuxDB MVP działa na:
-
-**Backend:** FastAPI + WebSocket + PostgreSQL
-**Frontend:** D3.js + Socket.IO  
-**Baza:** Dynamiczne tabele + JSONB + Vectors
-**AI:** Semantic embeddings (1536D)
-
-System automatycznie tworzy tabele na podstawie genotypów. To samoorganizująca się architektura! 🏗️`;
-        }
-
-        // Demo questions
-        if (message.includes('demo') || message.includes('jak użyć') || message.includes('przykład')) {
-            return `🎮 Jak używać demo:
-
-1. **Wyraź intencję** w dolnym polu tekstowym
-2. **Wybieraj węzły** klikając na nie  
-3. **Obserwuj graf** - nowe byty się manifestują
-4. **Eksperymentuj** z różnymi intencjami!
-
-Przykłady intencji:
-• "Stwórz agenta AI do analizy danych"
-• "Dodaj semantyczne dane o projekcie"
-• "Połącz wybrane byty relacją współpracy" 🚀`;
-        }
-
-        // Investment/funding questions
-        if (message.includes('inwestor') || message.includes('funding') || message.includes('biznes')) {
-            return `💰 LuxDB to przyszłość baz danych!
-
-**Rynek:** $100B+ (bazy danych + AI)
-**Przewaga:** Pierwszy genotypowy model danych
-**Potencjał:** Rewolucja jak MongoDB w NoSQL
-**Zastosowania:** AI, IoT, Semantic Web, Enterprise
-
-Dane nie są martwe - żyją, uczą się, ewoluują! To nowy paradygmat dla ery AI. 📈`;
-        }
-
-        // Default responses
-        const defaultResponses = [
-            `🤔 Interesujące pytanie! LuxDB to system gdzie dane ewoluują jak organizmy żywe. Spytaj mnie o genotypy, byty lub relacje!`,
-            `🌟 W LuxDB każda intencja ma znaczenie! Spróbuj zapytać o filozofię systemu, architekturę lub jak manifestować nowe byty.`,
-            `🧬 LuxDB łączy AI z genotypowym modelem danych. Zapytaj mnie o dusze (souls), byty (beings) lub jak działa manifestacja!`,
-            `💡 "Nie relacja. Nie dokument. Ewolucja danych." - to motto LuxDB! Chcesz wiedzieć więcej o tej rewolucji w bazach danych?`
-        ];
-
-        return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
-    }
-}
-
-// Make available globally
 window.LuxChatComponent = LuxChatComponent;
