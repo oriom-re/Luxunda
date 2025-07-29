@@ -16,7 +16,7 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "Start LuxOS Server (Port 3000)"
+runButton = "Demo Landing (app_v2)"
 
 [[workflows.workflow]]
 name = "Start LuxOS Server"
@@ -44,6 +44,15 @@ author = 43346420
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python main.py"
+
+[[workflows.workflow]]
+name = "Demo Landing (app_v2)"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python demo_landing.py"
 
 [[ports]]
 localPort = 3000
