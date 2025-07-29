@@ -80,11 +80,7 @@ async def serve_chat_js():
     with open("static/chat-component.js", "r", encoding="utf-8") as f:
         return Response(content=f.read(), media_type="application/javascript")
 
-@app.get("/file-explorer.js")
-async def serve_explorer_js():
-    """📁 Serwuje plik file-explorer.js (minimal stub)"""
-    with open("static/file-explorer.js", "r", encoding="utf-8") as f:
-        return Response(content=f.read(), media_type="application/javascript")
+
 
 @app.get("/demo", response_class=HTMLResponse)
 @app.get("/graph", response_class=HTMLResponse)
