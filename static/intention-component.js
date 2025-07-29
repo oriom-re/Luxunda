@@ -1,5 +1,5 @@
 // Prevent redeclaration
-if (typeof window.IntentionComponent === 'undefined') {
+if (typeof IntentionComponent === 'undefined' && typeof window.IntentionComponent === 'undefined') {
 class IntentionComponent {
     constructor(graphManager) {
         this.graphManager = graphManager;

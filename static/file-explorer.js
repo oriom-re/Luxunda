@@ -1,7 +1,7 @@
 
 // File Explorer Component - Minimal implementation
 // Prevent class redeclaration
-if (typeof window.FileExplorer === 'undefined') {
+if (typeof FileExplorer === 'undefined' && typeof window.FileExplorer === 'undefined') {
     class FileExplorer {
         constructor() {
             console.log('📁 FileExplorer stub initialized');

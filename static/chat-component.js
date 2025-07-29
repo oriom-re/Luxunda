@@ -1,5 +1,5 @@
 // Prevent redeclaration
-if (typeof window.LuxChatComponent === 'undefined') {
+if (typeof LuxChatComponent === 'undefined' && typeof window.LuxChatComponent === 'undefined') {
 class LuxChatComponent {
     constructor(graphManager) {
         this.graphManager = graphManager;
