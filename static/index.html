@@ -158,6 +158,8 @@
             right: 0;
             border-left: 2px solid #0088ff;
             transform: translateX(100%);
+            width: calc(100vw - 40px); /* Pełna szerokość minus margines */
+            max-width: calc(100vw - 40px);
         }
 
         .side-panel.visible {
@@ -713,15 +715,40 @@
             const toggle = document.getElementById(side + 'Toggle');
             
             if (side === 'left') {
+                // Jeśli otwieramy lewy panel, zamknij prawy
+                if (!leftPanelVisible && rightPanelVisible) {
+                    closePanel('right');
+                }
+                
                 leftPanelVisible = !leftPanelVisible;
                 panel.classList.toggle('visible', leftPanelVisible);
                 toggle.textContent = leftPanelVisible ? '◀' : '▶';
                 console.log('🔄 Lewy panel:', leftPanelVisible ? 'OTWARTY' : 'ZAMKNIĘTY');
             } else {
+                // Jeśli otwieramy prawy panel, zamknij lewy
+                if (!rightPanelVisible && leftPanelVisible) {
+                    closePanel('left');
+                }
+                
                 rightPanelVisible = !rightPanelVisible;
                 panel.classList.toggle('visible', rightPanelVisible);
                 toggle.textContent = rightPanelVisible ? '▶' : '◀';
                 console.log('🔄 Prawy panel:', rightPanelVisible ? 'OTWARTY' : 'ZAMKNIĘTY');
+            }
+        }
+
+        function closePanel(side) {
+            const panel = document.getElementById(side + 'Panel');
+            const toggle = document.getElementById(side + 'Toggle');
+            
+            if (side === 'left') {
+                leftPanelVisible = false;
+                panel.classList.remove('visible');
+                toggle.textContent = '▶';
+            } else {
+                rightPanelVisible = false;
+                panel.classList.remove('visible');
+                toggle.textContent = '◀';
             }
         }
 
