@@ -36,29 +36,31 @@ python demo_landing.py
 
 #### 🟡 **ARCHITEKTURA SYSTEMU**
 ```
-├── app_v2/                 # Główna architektura LuxDB
-│   ├── database/          # Warstwa danych
-│   │   ├── models/        # Modele Being, Soul, Relationship
-│   │   ├── postgre_db.py  # Połączenie PostgreSQL
-│   │   └── soul_repository.py  # Repository pattern
-│   ├── core/              # Podstawowe funkcjonalności
-│   │   ├── communication.py    # Komunikacja między bytami
-│   │   └── parser_table.py     # Parser genotypów → SQL
-│   ├── ai/                # Integracja AI
-│   │   ├── hybrid_ai_system.py # System hybrydowy AI
-│   │   └── openai_integration.py # OpenAI API
-│   └── services/          # Logika biznesowa
-│       ├── entity_manager.py   # Zarządzanie bytami
-│       └── genotype_service.py # Serwis genotypów
+├── database/              # Warstwa danych
+│   ├── models/            # Modele Being, Soul, Relationship
+│   ├── postgre_db.py      # Połączenie PostgreSQL
+│   └── soul_repository.py # Repository pattern
+├── core/                  # Podstawowe funkcjonalności
+│   ├── communication.py   # Komunikacja między bytami
+│   └── parser_table.py    # Parser genotypów → SQL
+├── ai/                    # Integracja AI
+│   ├── hybrid_ai_system.py # System hybrydowy AI
+│   └── openai_integration.py # OpenAI API
+├── services/              # Logika biznesowa
+│   ├── entity_manager.py  # Zarządzanie bytami
+│   └── genotype_service.py # Serwis genotypów
+├── gen_files/             # Pliki modułów genetycznych
+└── genetics/              # System genetyczny
 ```
 
 #### 🔵 **LEGACY/EKSPERYMENTY** 
 ```
-├── app/                   # Pierwsza wersja (legacy)
-├── main.py               # Stare demo
-├── test_*.py            # Testy różnych funkcjonalności
-├── tool_parser.py       # Narzędzia parsowania
-└── attached_assets/     # Dokumenty i plany
+├── legacy/                # Poprzednie wersje
+│   ├── app/              # Pierwsza wersja systemu
+│   ├── main.py           # Stare demo
+│   ├── test_*.py         # Testy różnych funkcjonalności
+│   ├── tool_parser.py    # Narzędzia parsowania
+│   └── attached_assets/  # Dokumenty i plany
 ```
 
 ### 🎯 **Dla Inwestorów - Kluczowe Wartości**
