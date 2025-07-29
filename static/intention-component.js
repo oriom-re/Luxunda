@@ -1,6 +1,5 @@
-// Prevent redeclaration - ULTIMATE PROTECTION
-if (typeof IntentionComponent === 'undefined' && typeof window.IntentionComponent === 'undefined' && !window.intentionComponentLoaded) {
-window.intentionComponentLoaded = true;
+// ===== INTENTION COMPONENT - CZYSTA IMPLEMENTACJA =====
+
 class IntentionComponent {
     constructor(graphManager) {
         this.graphManager = graphManager;
@@ -25,12 +24,10 @@ class IntentionComponent {
     }
 
     setupEventListeners() {
-        // Obsługa wysyłania intencji
         this.sendButton.addEventListener('click', () => {
             this.sendIntention();
         });
 
-        // Enter wysyła intencję
         this.intentionInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -38,13 +35,8 @@ class IntentionComponent {
             }
         });
 
-        // Licznik znaków
         this.intentionInput.addEventListener('input', () => {
             this.updateCharCounter();
-        });
-
-        // Auto-resize textarea
-        this.intentionInput.addEventListener('input', () => {
             this.autoResize();
         });
     }
@@ -55,7 +47,6 @@ class IntentionComponent {
 
         console.log('Wysyłanie intencji:', intention);
 
-        // Wyślij do backend
         if (this.graphManager && this.graphManager.socket) {
             this.graphManager.socket.emit('process_intention', {
                 intention: intention,
@@ -63,11 +54,9 @@ class IntentionComponent {
             });
         }
 
-        // Wyczyść pole
         this.intentionInput.value = '';
         this.updateCharCounter();
         this.autoResize();
-
         this.showFeedback('Intencja wysłana do uniwersum...');
     }
 
@@ -88,7 +77,6 @@ class IntentionComponent {
     }
 
     showFeedback(message) {
-        // Pokaż komunikat zwrotny
         const feedbackDiv = document.createElement('div');
         feedbackDiv.className = 'feedback-message';
         feedbackDiv.textContent = message;
@@ -113,24 +101,7 @@ class IntentionComponent {
             }
         }, 3000);
     }
-
-    handleIntentionResponse(response) {
-        console.log('Otrzymano odpowiedź na intencję:', response);
-
-        if (response.message) {
-            this.showFeedback(response.message);
-        }
-
-        if (response.new_being) {
-            this.showFeedback(`Nowy byt zmaterializowany: ${response.new_being.genesis?.name || 'Nieznany'}`);
-        }
-    }
 }
 
-// Make IntentionComponent available globally
+console.log('✅ IntentionComponent loaded');
 window.IntentionComponent = IntentionComponent;
-} else {
-    console.log('⚠️ IntentionComponent already defined, skipping redefinition');
-}
-
-} // End of conditional block

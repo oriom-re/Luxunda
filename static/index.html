@@ -1,98 +1,209 @@
-<!-- Load scripts synchronously in proper order with cache busting -->
-    <script src="graph.js?v=3.1"></script>
-    <script src="intention-component.js?v=3.1"></script>
-    <script src="chat-component.js?v=3.1"></script>
-    <script src="file-explorer.js?v=3.1"></script>
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌌 LuxDB - Relacyjno-Genetyczny Wszechświat Danych</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .universe-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .controls-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(26, 26, 26, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #00ff88;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+
+        .intention-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(26, 26, 26, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid #00ff88;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+
+        .intention-input {
+            width: 100%;
+            min-height: 50px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #00ff88;
+            border-radius: 10px;
+            color: #ffffff;
+            padding: 15px;
+            font-size: 16px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .intention-input:focus {
+            outline: none;
+            border-color: #00cc66;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn {
+            background: #00ff88;
+            color: #1a1a1a;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #00cc66;
+            transform: translateY(-2px);
+        }
+
+        .char-counter {
+            position: absolute;
+            bottom: 5px;
+            right: 10px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .lux-button {
+            position: fixed;
+            bottom: 150px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            border: none;
+            cursor: pointer;
+            font-size: 24px;
+            color: #1a1a1a;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+            transition: all 0.3s ease;
+            z-index: 1500;
+        }
+
+        .lux-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 30px rgba(0, 255, 136, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="universe-container">
+        <!-- Panel kontrolny -->
+        <div class="controls-panel">
+            <h3>🌌 LuxOS Control</h3>
+            <button class="btn" id="zoomIn">🔍 Zoom In</button>
+            <button class="btn" id="zoomOut">🔍 Zoom Out</button>
+            <button class="btn" id="zoomReset">🔄 Reset</button>
+        </div>
+
+        <!-- Panel intencji -->
+        <div class="intention-panel">
+            <h3>💫 Wyrażenie Intencji</h3>
+            <div style="position: relative;">
+                <textarea 
+                    id="intentionInput" 
+                    class="intention-input" 
+                    placeholder="Wyraź swoją intencję do wszechświata LuxOS..."
+                    maxlength="1000"
+                ></textarea>
+                <div class="char-counter">
+                    <span id="charCounter">0</span>/1000
+                </div>
+            </div>
+            <button class="btn" id="sendIntention">✨ Wyślij Intencję</button>
+        </div>
+
+        <!-- Przycisk Lux -->
+        <button class="lux-button" id="luxChat" title="Chat z Lux">💫</button>
+    </div>
+
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <!-- Czyste komponenty JavaScript -->
+    <script src="graph.js?v=4.0"></script>
+    <script src="intention-component.js?v=4.0"></script>
+    <script src="chat-component.js?v=4.0"></script>
+    <script src="file-explorer.js?v=4.0"></script>
 
     <script>
-        // Initialize app immediately after all scripts are loaded
+        // Inicjalizacja aplikacji - CZYSTA I BEZ BŁĘDÓW
         document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
-        });
+            console.log('🚀 Inicjalizacja LuxDB Graf...');
 
-        function initializeApp() {
             try {
-                console.log('🚀 Initializing LuxDB Graph...');
-
-                // Check if all required classes are loaded
+                // Sprawdź czy wszystkie klasy są załadowane
                 if (typeof LuxOSGraph === 'undefined') {
-                    console.error('❌ LuxOSGraph class not loaded');
-                    return;
+                    throw new Error('LuxOSGraph class not loaded');
                 }
-
                 if (typeof IntentionComponent === 'undefined') {
-                    console.error('❌ IntentionComponent class not loaded');
-                    return;
+                    throw new Error('IntentionComponent class not loaded');  
                 }
-
                 if (typeof LuxChatComponent === 'undefined') {
-                    console.error('❌ LuxChatComponent class not loaded');
-                    return;
+                    throw new Error('LuxChatComponent class not loaded');
                 }
 
-                // Initialize components
+                // Inicjalizuj komponenty
                 const graphManager = new LuxOSGraph();
                 const intentionComponent = new IntentionComponent(graphManager);
                 const luxChatComponent = new LuxChatComponent(graphManager);
 
-                // Store global references for debugging
+                // Globalne referencje
                 window.luxOSUniverse = graphManager;
                 window.intentionComponent = intentionComponent;
                 window.luxChatComponent = luxChatComponent;
 
-                // Add zoom controls event listeners
-                const zoomIn = document.getElementById('zoomIn');
-                const zoomOut = document.getElementById('zoomOut');
-                const zoomReset = document.getElementById('zoomReset');
-                const luxChat = document.getElementById('luxChat');
+                // Event listenery
+                document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
+                document.getElementById('zoomOut').addEventListener('click', () => graphManager.zoomOut());
+                document.getElementById('zoomReset').addEventListener('click', () => graphManager.resetZoom());
+                document.getElementById('luxChat').addEventListener('click', () => luxChatComponent.toggle());
 
-                if (zoomIn) zoomIn.addEventListener('click', () => graphManager.zoomIn());
-                if (zoomOut) zoomOut.addEventListener('click', () => graphManager.zoomOut());
-                if (zoomReset) zoomReset.addEventListener('click', () => graphManager.resetZoom());
-                if (luxChat) luxChat.addEventListener('click', () => luxChatComponent.toggle());
-
-                // Handle window resize
+                // Resize handler
                 window.addEventListener('resize', () => {
-                    if (graphManager && graphManager.resizeGraph) {
+                    if (graphManager.resizeGraph) {
                         graphManager.resizeGraph();
                     }
                 });
 
-                console.log('✅ LuxDB Graph initialized successfully');
-                console.log('💫 Intention input available:', !!document.getElementById('intentionInput'));
+                console.log('✅ LuxDB Graf zainicjalizowany pomyślnie');
 
             } catch (error) {
-                console.error('❌ Error initializing LuxDB application:', error);
-
-                // Show error in UI
-                const errorDiv = document.createElement('div');
-                errorDiv.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: #ff4444;
-                    color: white;
-                    padding: 20px;
-                    border-radius: 10px;
-                    z-index: 9999;
-                    text-align: center;
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-                `;
-                errorDiv.innerHTML = `
-                    <h3>⚠️ LuxDB Initialization Error</h3>
-                    <p>${error.message}</p>
-                    <button onclick="this.parentElement.remove()" style="
-                        margin-top: 10px;
-                        padding: 5px 15px;
-                        background: white;
-                        color: #ff4444;
-                        border: none;
-                        border-radius: 5px;
-                        cursor: pointer;
-                    ">Close</button>
-                `;
-                document.body.appendChild(errorDiv);
+                console.error('❌ Błąd inicjalizacji:', error);
             }
-        }
+        });
     </script>
+</body>
+</html>
