@@ -1,0 +1,487 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxDB MVP - System Relacyjno-Genetyczny</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px 0;
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid #00ff88;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00ff88, #0088ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #00ff88;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+            height: calc(100vh - 120px);
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            overflow-y: auto;
+        }
+
+        .sidebar h3 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .graph-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            border: 2px solid #00ff88;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .graph-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .control-btn:hover {
+            background: rgba(0, 255, 136, 0.4);
+            transform: translateY(-2px);
+        }
+
+        #graph {
+            width: 100%;
+            height: 100%;
+        }
+
+        .intention-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .intention-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            color: #ffffff;
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+
+        .intention-input:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+
+        .send-btn {
+            background: linear-gradient(45deg, #00ff88, #0088ff);
+            border: none;
+            color: #000;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.3s;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .chat-area {
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(0, 136, 255, 0.1);
+            border: 1px solid #0088ff;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #0088ff;
+        }
+
+        .beings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .being-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 10px;
+            border-left: 3px solid #00ff88;
+        }
+
+        .being-name {
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .being-type {
+            font-size: 0.8rem;
+            color: #cccccc;
+        }
+
+        /* Loading animation */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            font-size: 1.2rem;
+            color: #00ff88;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 255, 136, 0.1);
+            border-left: 4px solid #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">🌌 LuxDB MVP</div>
+            <div class="status-indicator">
+                <div class="status-dot" id="connectionStatus"></div>
+                <span id="connectionText">Łączenie...</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Left Sidebar: Stats & Beings -->
+        <div class="sidebar">
+            <h3>📊 Statystyki Systemu</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="beingsCount">0</div>
+                    <div>Bytów</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="connectionsCount">0</div>
+                    <div>Połączeń</div>
+                </div>
+            </div>
+
+            <h3>🧬 Aktywne Byty</h3>
+            <div class="beings-list" id="beingsList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Ładowanie bytów...
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Graph Visualization -->
+        <div class="graph-container">
+            <div class="graph-controls">
+                <button class="control-btn" onclick="luxGraph.zoomIn()">🔍+</button>
+                <button class="control-btn" onclick="luxGraph.zoomOut()">🔍-</button>
+                <button class="control-btn" onclick="luxGraph.resetZoom()">⟲</button>
+                <button class="control-btn" onclick="luxGraph.requestGraphData()">🔄</button>
+            </div>
+            <div id="graph">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Inicjalizacja wszechświata LuxDB...
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar: Intentions & Chat -->
+        <div class="sidebar">
+            <h3>💭 Panel Intencji</h3>
+            <div class="intention-panel">
+                <textarea 
+                    class="intention-input" 
+                    id="intentionInput" 
+                    placeholder="Opisz swoją intencję dla systemu LuxDB...
+Przykłady:
+- Stwórz nowy byt typu 'user'
+- Pokaż relacje między bytami
+- Wykonaj zapytanie semantyczne"
+                ></textarea>
+                <button class="send-btn" onclick="sendIntention()">🚀 Wyślij Intencję</button>
+            </div>
+
+            <h3>💬 Komunikacja Systemu</h3>
+            <div class="chat-area" id="chatArea">
+                <div class="message">
+                    <strong>System:</strong> Inicjalizacja LuxDB MVP...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="/static/graph.js?v=5.0"></script>
+    <script src="/static/intention-component.js?v=5.0"></script>
+    <script src="/static/chat-component.js?v=5.0"></script>
+    
+    <script>
+        // Global variables
+        let socket = null;
+        let luxGraph = null;
+        let connectionStatus = document.getElementById('connectionStatus');
+        let connectionText = document.getElementById('connectionText');
+
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Inicjalizacja LuxDB MVP...');
+            
+            // Initialize Socket.IO connection
+            initializeSocket();
+            
+            // Initialize Graph
+            luxGraph = new LuxOSGraph();
+            
+            // Initialize components
+            initializeIntentionComponent();
+            initializeChatComponent();
+            
+            console.log('✅ LuxDB MVP zainicjalizowany pomyślnie');
+        });
+
+        function initializeSocket() {
+            socket = io({
+                transports: ['websocket', 'polling'],
+                upgrade: true,
+                rememberUpgrade: true
+            });
+
+            socket.on('connect', () => {
+                console.log('✅ Połączono z LuxDB MVP Server');
+                updateConnectionStatus(true);
+                addChatMessage('System', 'Połączono z serwerem LuxDB MVP', 'success');
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('❌ Rozłączono z serwerem:', reason);
+                updateConnectionStatus(false);
+                addChatMessage('System', `Rozłączono: ${reason}`, 'error');
+            });
+
+            socket.on('demo_data', (data) => {
+                console.log('📦 Otrzymano dane demo:', data);
+                addChatMessage('Server', data.message, 'info');
+                updateStats();
+            });
+
+            socket.on('graph_data', (data) => {
+                console.log('📊 Otrzymano dane grafu:', data);
+                if (luxGraph) {
+                    luxGraph.updateGraphData(data);
+                }
+                updateBeingsList(data.beings || []);
+                updateStats(data);
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                connectionStatus.classList.add('connected');
+                connectionText.textContent = 'Połączono';
+            } else {
+                connectionStatus.classList.remove('connected');
+                connectionText.textContent = 'Rozłączono';
+            }
+        }
+
+        function updateStats(data = {}) {
+            const beingsCount = data.beings ? data.beings.length : 0;
+            document.getElementById('beingsCount').textContent = beingsCount;
+            
+            // Simulate connections count
+            document.getElementById('connectionsCount').textContent = socket && socket.connected ? 1 : 0;
+        }
+
+        function updateBeingsList(beings) {
+            const beingsList = document.getElementById('beingsList');
+            
+            if (beings.length === 0) {
+                beingsList.innerHTML = '<div class="message">Brak aktywnych bytów</div>';
+                return;
+            }
+
+            beingsList.innerHTML = beings.map(being => `
+                <div class="being-item">
+                    <div class="being-name">${being._soul?.genesis?.name || being.soul_uid}</div>
+                    <div class="being-type">${being._soul?.genesis?.type || 'unknown'}</div>
+                </div>
+            `).join('');
+        }
+
+        function initializeIntentionComponent() {
+            const intentionInput = document.getElementById('intentionInput');
+            
+            intentionInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendIntention();
+                }
+            });
+        }
+
+        function initializeChatComponent() {
+            // Chat component is ready
+        }
+
+        function sendIntention() {
+            const intentionInput = document.getElementById('intentionInput');
+            const intention = intentionInput.value.trim();
+            
+            if (!intention) return;
+            
+            console.log('💭 Wysyłanie intencji:', intention);
+            addChatMessage('Użytkownik', intention, 'user');
+            
+            // Simulate AI response
+            setTimeout(() => {
+                addChatMessage('AI System', 'Analizuję Twoją intencję i przygotowuję odpowiedź...', 'ai');
+            }, 500);
+            
+            intentionInput.value = '';
+        }
+
+        function addChatMessage(sender, message, type = 'info') {
+            const chatArea = document.getElementById('chatArea');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            messageElement.innerHTML = `
+                <strong>[${timestamp}] ${sender}:</strong> ${message}
+            `;
+            
+            chatArea.appendChild(messageElement);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            if (luxGraph) {
+                luxGraph.resizeGraph();
+            }
+        });
+    </script>
+</body>
+</html>
