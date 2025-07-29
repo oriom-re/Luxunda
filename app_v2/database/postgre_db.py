@@ -1,11 +1,23 @@
-
 import asyncpg
 
 db_pool = None
 
 class Postgre_db:
     """Klasa do zarządzania połączeniem z bazą danych PostgreSQL"""
-    
+
+    def __init__(self):
+        self.connection = None
+        self.pool = None
+
+    async def initialize(self):
+        """Inicjalizacja połączenia z bazą danych"""
+        try:
+            await self.connect()
+            print("✅ PostgreSQL połączenie zainicjalizowane")
+        except Exception as e:
+            print(f"❌ Błąd inicjalizacji PostgreSQL: {e}")
+            raise
+
     @staticmethod
     async def get_db_pool():
         """Zwraca pulę połączeń do bazy danych PostgreSQL"""
@@ -29,7 +41,7 @@ class Postgre_db:
             await Postgre_db.setup_tables()  # Upewnij się, że tabele są utworzone
             print("✅ Pula połączeń do bazy PostgreSQL zainicjalizowana")
         return db_pool
-    
+
     @staticmethod
     async def ensure_table(conn: asyncpg.Connection, table_name: str, column_def: str, index: bool, foreign_key: bool) -> dict:
         """Zapewnia istnienie tabeli w bazie danych PostgreSQL"""
@@ -95,7 +107,7 @@ class Postgre_db:
         if not db_pool:
             print("❌ Baza danych nie jest zainicjalizowana")
             return
-        
+
         try:
             async with db_pool.acquire() as conn:
 
@@ -138,5 +150,3 @@ class Postgre_db:
                 print("✅ Tabele PostgreSQL utworzone")
         except Exception as e:
             print(f"❌ Błąd tworzenia tabel PostgreSQL: {e}")
-
-

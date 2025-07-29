@@ -1,3 +1,4 @@
+
 import asyncio
 import json
 from datetime import datetime
@@ -12,8 +13,6 @@ import os
 from app_v2.database.postgre_db import Postgre_db
 from app_v2.database.models.base import Soul, Being
 from app_v2.services.entity_manager import EntityManager
-from app_v2.ai.hybrid_ai_system import HybridAISystem
-from app_v2.genetics.decorators import gene
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -24,7 +23,6 @@ app = web.Application()
 sio.attach(app)
 
 # System AI i manager
-hybrid_ai = HybridAISystem()
 entity_manager = EntityManager()
 
 # Globalne zmienne demo
@@ -40,26 +38,34 @@ async def connect(sid, environ, auth):
     demo_world['active_users'] += 1
 
     # Utwórz demo being dla użytkownika
-    user_soul = await entity_manager.create_soul(
-        genotype_name="demo_user",
-        attributes={
-            'session_id': sid,
-            'connected_at': datetime.now().isoformat(),
-            'user_agent': environ.get('HTTP_USER_AGENT', 'Unknown'),
-            'demo_participant': True
-        }
-    )
+    try:
+        user_soul = await Soul.create(
+            genotype={
+                'name': 'demo_user',
+                'attributes': {
+                    'session_id': {'py_type': 'str'},
+                    'connected_at': {'py_type': 'str'},
+                    'user_agent': {'py_type': 'str'},
+                    'demo_participant': {'py_type': 'bool'}
+                }
+            },
+            alias=f"demo_user_{sid[:8]}"
+        )
 
-    demo_world['beings'][sid] = user_soul
+        demo_world['beings'][sid] = user_soul
 
-    # Wyślij aktualny stan świata demo
-    await send_demo_world_state(sid)
+        # Wyślij aktualny stan świata demo
+        await send_demo_world_state(sid)
 
-    # Powiadom innych o nowym użytkowniku
-    await sio.emit('user_joined', {
-        'session_id': sid[:8],
-        'active_users': demo_world['active_users']
-    }, skip_sid=sid)
+        # Powiadom innych o nowym użytkowniku
+        await sio.emit('user_joined', {
+            'session_id': sid[:8],
+            'active_users': demo_world['active_users']
+        }, skip_sid=sid)
+
+    except Exception as e:
+        print(f"Błąd tworzenia demo user: {e}")
+        await sio.emit('error', {'message': f'Błąd połączenia: {str(e)}'}, room=sid)
 
 @sio.event
 async def disconnect(sid):
@@ -81,20 +87,19 @@ async def create_demo_entity(sid, data):
         entity_type = data.get('type', 'demo_entity')
         name = data.get('name', f'Entity_{datetime.now().strftime("%H%M%S")}')
 
-        # Użyj app_v2 EntityManager
-        soul = await entity_manager.create_soul(
-            genotype_name=entity_type,
-            attributes={
-                'name': name,
-                'created_by': sid,
-                'demo_entity': True,
-                'properties': data.get('properties', {}),
-                'visual': {
-                    'color': data.get('color', '#00ff88'),
-                    'size': data.get('size', 10),
-                    'position': data.get('position', {'x': 0, 'y': 0})
+        # Użyj app_v2 Soul
+        soul = await Soul.create(
+            genotype={
+                'name': entity_type,
+                'attributes': {
+                    'name': {'py_type': 'str'},
+                    'created_by': {'py_type': 'str'},
+                    'demo_entity': {'py_type': 'bool'},
+                    'properties': {'py_type': 'dict'},
+                    'visual': {'py_type': 'dict'}
                 }
-            }
+            },
+            alias=f"{entity_type}_{name}"
         )
 
         # Dodaj do demo world
@@ -105,33 +110,39 @@ async def create_demo_entity(sid, data):
             'name': name,
             'type': entity_type,
             'creator': sid[:8],
-            'visual': soul.attributes.get('visual', {})
+            'visual': data.get('visual', {})
         })
 
         await broadcast_world_update()
 
     except Exception as e:
+        print(f"Błąd tworzenia bytu: {e}")
         await sio.emit('error', {'message': f'Błąd tworzenia bytu: {str(e)}'}, room=sid)
 
 @sio.event
 async def ai_interaction(sid, data):
-    """Interakcja z systemem AI"""
+    """Interakcja z systemem AI - uproszczona wersja"""
     try:
         user_message = data.get('message', '')
 
-        # Użyj HybridAISystem z app_v2
-        response = await hybrid_ai.process_request(
-            user_message, 
-            context={'session_id': sid, 'demo_mode': True}
-        )
+        # Prosta odpowiedź bez HybridAI (dla MVP)
+        response = {
+            'message': f"Otrzymano: {user_message}",
+            'analysis': {
+                'intent': 'demo_interaction',
+                'confidence': 0.8
+            },
+            'demo_mode': True
+        }
 
         await sio.emit('ai_response', {
-            'message': response.get('final_result', 'Brak odpowiedzi'),
-            'method': response.get('method_used', 'unknown'),
+            'message': response['message'],
+            'method': 'demo_ai',
             'session_id': sid[:8]
         }, room=sid)
 
     except Exception as e:
+        print(f"Błąd AI: {e}")
         await sio.emit('error', {'message': f'Błąd AI: {str(e)}'}, room=sid)
 
 @sio.event
@@ -162,12 +173,19 @@ async def manage_demo_tables(sid, data):
 
         elif action == 'list':
             # Lista tabel demo
-            tables = await db.get_demo_tables()
+            query = """
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name LIKE 'demo_%'
+            """
+            result = await db.fetch_all(query)
+            tables = [row['table_name'] for row in result] if result else []
+            
             await sio.emit('tables_list', {'tables': tables}, room=sid)
 
         await broadcast_world_update()
 
     except Exception as e:
+        print(f"Błąd zarządzania tabelami: {e}")
         await sio.emit('error', {'message': f'Błąd zarządzania tabelami: {str(e)}'}, room=sid)
 
 @sio.event
@@ -189,6 +207,7 @@ async def execute_demo_command(sid, data):
         await broadcast_world_update()
 
     except Exception as e:
+        print(f"Błąd komendy: {e}")
         await sio.emit('error', {'message': f'Błąd komendy: {str(e)}'}, room=sid)
 
 async def process_demo_command(command, args, session_id):
@@ -196,13 +215,19 @@ async def process_demo_command(command, args, session_id):
     if command == 'spawn':
         # Stwórz nowy byt
         entity_type = args[0] if args else 'basic'
-        soul = await entity_manager.create_soul(
-            genotype_name=entity_type,
-            attributes={
-                'spawned_by': session_id,
-                'command_created': True
-            }
+        
+        soul = await Soul.create(
+            genotype={
+                'name': entity_type,
+                'attributes': {
+                    'spawned_by': {'py_type': 'str'},
+                    'command_created': {'py_type': 'bool'}
+                }
+            },
+            alias=f"spawned_{entity_type}_{datetime.now().strftime('%H%M%S')}"
         )
+        
+        demo_world['beings'][soul.soul_uid] = soul
         return f"Utworzono byt: {soul.soul_uid}"
 
     elif command == 'connect':
@@ -295,9 +320,13 @@ async def init_demo_app():
 async def main():
     print("🚀 Uruchamianie LuxOS Demo Landing (app_v2)...")
 
-    # Inicjalizacja app_v2 komponentów
-    await hybrid_ai.initialize()
-    await entity_manager.initialize()
+    # Inicjalizacja bazy danych
+    try:
+        db = Postgre_db()
+        await db.initialize()
+        print("✅ Baza danych zainicjalizowana")
+    except Exception as e:
+        print(f"⚠️ Błąd inicjalizacji bazy: {e}")
 
     # Inicjalizacja aplikacji
     await init_demo_app()
