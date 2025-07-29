@@ -216,102 +216,111 @@
             width: 100%;
         }
 
-        /* Bottom Chat Panel */
-        .chat-panel {
-            height: 200px;
-            background: rgba(0,0,0,0.9);
+        /* Bottom Input Bar */
+        .bottom-input-bar {
+            height: 80px;
+            background: rgba(0,0,0,0.95);
             border-top: 2px solid #00ff88;
-            backdrop-filter: blur(15px);
+            backdrop-filter: blur(20px);
             display: flex;
             flex-direction: column;
-            transition: height 0.3s ease;
+            padding: 10px 20px;
+            gap: 8px;
         }
 
-        .chat-panel.collapsed {
-            height: 40px;
+        .input-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
         }
 
-        .chat-header {
-            height: 40px;
-            background: rgba(0,255,136,0.1);
+        .main-input {
+            flex: 1;
+            height: 45px;
+            background: rgba(0,255,136,0.08);
+            border: 2px solid rgba(0,255,136,0.3);
+            border-radius: 25px;
+            color: #ffffff;
+            padding: 12px 20px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .main-input:focus {
+            border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0,255,136,0.4);
+            background: rgba(0,255,136,0.12);
+        }
+
+        .main-input::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .main-send-btn {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, #00ff88, #0088ff);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
+        }
+
+        .main-send-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 25px rgba(0,255,136,0.6);
+        }
+
+        .send-icon {
+            color: #000;
+            font-weight: bold;
+        }
+
+        .input-status {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 15px;
-            cursor: pointer;
-            border-bottom: 1px solid rgba(0,255,136,0.3);
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.6);
         }
 
-        .chat-title {
-            font-size: 0.9rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        .char-counter {
+            font-family: 'JetBrains Mono', monospace;
         }
 
-        .chat-toggle {
-            font-size: 1.2rem;
-            transition: transform 0.3s;
-        }
-
-        .chat-panel.collapsed .chat-toggle {
-            transform: rotate(180deg);
-        }
-
-        .chat-content {
-            flex: 1;
+        .status-indicators {
             display: flex;
-            overflow: hidden;
+            gap: 8px;
         }
 
-        .chat-messages {
-            flex: 1;
-            padding: 15px;
-            overflow-y: auto;
-            font-size: 0.85rem;
-            line-height: 1.4;
+        .indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            transition: background 0.3s;
         }
 
-        .chat-input-area {
-            width: 300px;
-            border-left: 1px solid rgba(0,255,136,0.3);
-            display: flex;
-            flex-direction: column;
-            padding: 15px;
+        .indicator.active {
+            background: #00ff88;
+            box-shadow: 0 0 8px rgba(0,255,136,0.6);
         }
 
-        .intention-input {
-            flex: 1;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(0,255,136,0.3);
-            border-radius: 6px;
-            color: #ffffff;
-            padding: 10px;
-            resize: none;
-            font-family: inherit;
-            font-size: 0.85rem;
-            margin-bottom: 10px;
-        }
-
-        .intention-input:focus {
+        /* Terminal styles */
+        .terminal-input:focus {
             outline: none;
-            border-color: #00ff88;
-            box-shadow: 0 0 10px rgba(0,255,136,0.3);
+            border-color: #0088ff;
+            box-shadow: 0 0 10px rgba(0,136,255,0.3);
         }
 
-        .send-btn {
-            height: 35px;
-            background: linear-gradient(45deg, #00ff88, #0088ff);
-            border: none;
-            color: #000;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 0.85rem;
-            transition: transform 0.3s;
-        }
-
-        .send-btn:hover {
+        .terminal-send-btn:hover {
             transform: translateY(-2px);
         }
 
@@ -459,8 +468,19 @@
                 height: 100%;
             }
             
-            .chat-input-area {
-                width: 200px;
+            .bottom-input-bar {
+                padding: 8px 15px;
+            }
+            
+            .main-input {
+                font-size: 0.85rem;
+                padding: 10px 15px;
+            }
+            
+            .main-send-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
             }
             
             .stats-hud {
@@ -547,56 +567,57 @@
             </div>
         </div>
 
-        <!-- Right Panel - Advanced Tools -->
+        <!-- Right Panel - Communication Terminal -->
         <div class="side-panel right" id="rightPanel">
-            <div class="panel-header">⚡ Narzędzia Zaawansowane</div>
-            <div class="panel-content">
-                <h3 style="color: #0088ff; margin-bottom: 10px; font-size: 0.9rem; text-transform: uppercase;">🔧 Akcje Systemu</h3>
+            <div class="panel-header">💬 Terminal Komunikacyjny</div>
+            <div class="panel-content" style="display: flex; flex-direction: column; height: calc(100vh - 100px);">
+                <div class="terminal-messages" id="terminalMessages" style="flex: 1; overflow-y: auto; padding: 10px 0; border-bottom: 1px solid rgba(0,255,136,0.3);">
+                    <div class="message">
+                        <span class="message-time">[00:00]</span>
+                        <span class="message-sender">System:</span>
+                        Inicjalizacja terminala komunikacyjnego LuxDB...
+                    </div>
+                </div>
                 
-                <button class="control-btn" style="width: 100%; height: 35px; margin-bottom: 10px;" onclick="executeSystemCommand('analyze')">
-                    🔍 Analizuj Graf
-                </button>
-                
-                <button class="control-btn" style="width: 100%; height: 35px; margin-bottom: 10px;" onclick="executeSystemCommand('optimize')">
-                    ⚡ Optymalizuj
-                </button>
-                
-                <button class="control-btn" style="width: 100%; height: 35px; margin-bottom: 10px;" onclick="executeSystemCommand('backup')">
-                    💾 Backup
-                </button>
-
-                <h3 style="color: #0088ff; margin: 20px 0 10px 0; font-size: 0.9rem; text-transform: uppercase;">📡 Monitoring</h3>
-                
-                <div style="background: rgba(0,136,255,0.1); border: 1px solid #0088ff; border-radius: 6px; padding: 10px; font-size: 0.8rem;">
-                    <div>CPU: <span style="color: #0088ff;">23%</span></div>
-                    <div>RAM: <span style="color: #0088ff;">156MB</span></div>
-                    <div>Uptime: <span style="color: #0088ff;">2h 15m</span></div>
+                <div class="terminal-input-area" style="padding: 15px 0;">
+                    <textarea 
+                        class="terminal-input" 
+                        id="terminalInput" 
+                        placeholder="Komunikuj się z systemem LuxDB..."
+                        style="width: 100%; height: 80px; background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.3); border-radius: 6px; color: #ffffff; padding: 10px; resize: none; font-family: inherit; font-size: 0.85rem; margin-bottom: 10px;"
+                    ></textarea>
+                    <button 
+                        class="terminal-send-btn" 
+                        onclick="sendTerminalMessage()"
+                        style="width: 100%; height: 35px; background: linear-gradient(45deg, #0088ff, #00ff88); border: none; color: #000; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85rem; transition: transform 0.3s;"
+                    >
+                        🚀 WYŚLIJ DO SYSTEMU
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Bottom Chat Panel -->
-    <div class="chat-panel" id="chatPanel">
-        <div class="chat-header" onclick="toggleChatPanel()">
-            <div class="chat-title">💬 Komunikacja Systemu</div>
-            <div class="chat-toggle">▲</div>
+    <!-- Bottom Input Bar -->
+    <div class="bottom-input-bar">
+        <div class="input-container">
+            <input 
+                type="text" 
+                class="main-input" 
+                id="mainInput" 
+                placeholder="🌀 Wyraź swoją intencję w uniwersum LuxDB..."
+                maxlength="500"
+            />
+            <button class="main-send-btn" onclick="sendMainInput()">
+                <span class="send-icon">🚀</span>
+            </button>
         </div>
-        <div class="chat-content">
-            <div class="chat-messages" id="chatArea">
-                <div class="message">
-                    <span class="message-time">[00:00]</span>
-                    <span class="message-sender">System:</span>
-                    Inicjalizacja LuxDB MVP...
-                </div>
-            </div>
-            <div class="chat-input-area">
-                <textarea 
-                    class="intention-input" 
-                    id="intentionInput" 
-                    placeholder="Twoja intencja dla systemu LuxDB..."
-                ></textarea>
-                <button class="send-btn" onclick="sendIntention()">🚀 WYŚLIJ</button>
+        <div class="input-status">
+            <span class="char-counter">0/500</span>
+            <div class="status-indicators">
+                <div class="indicator active" title="System gotowy">●</div>
+                <div class="indicator" title="AI Agent">●</div>
+                <div class="indicator" title="Graf aktywny">●</div>
             </div>
         </div>
     </div>
@@ -612,7 +633,6 @@
         let luxGraph = null;
         let leftPanelVisible = false;
         let rightPanelVisible = false;
-        let chatPanelCollapsed = false;
 
         // Initialize application
         document.addEventListener('DOMContentLoaded', function() {
@@ -698,11 +718,7 @@
             }
         }
 
-        function toggleChatPanel() {
-            const chatPanel = document.getElementById('chatPanel');
-            chatPanelCollapsed = !chatPanelCollapsed;
-            chatPanel.classList.toggle('collapsed', chatPanelCollapsed);
-        }
+        
 
         function updateConnectionStatus(connected) {
             const statusDot = document.getElementById('connectionStatus');
@@ -744,38 +760,67 @@
         }
 
         function initializeIntentionComponent() {
-            const intentionInput = document.getElementById('intentionInput');
+            const mainInput = document.getElementById('mainInput');
+            const terminalInput = document.getElementById('terminalInput');
             
-            intentionInput.addEventListener('keydown', (e) => {
+            // Main input handlers
+            mainInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMainInput();
+                }
+            });
+            
+            mainInput.addEventListener('input', updateCharCounter);
+            
+            // Terminal input handlers
+            terminalInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendIntention();
+                    sendTerminalMessage();
                 }
             });
         }
 
         function initializeChatComponent() {
-            // Chat component is ready
+            // Chat component moved to terminal
         }
 
-        function sendIntention() {
-            const intentionInput = document.getElementById('intentionInput');
-            const intention = intentionInput.value.trim();
+        function sendMainInput() {
+            const mainInput = document.getElementById('mainInput');
+            const intention = mainInput.value.trim();
             
             if (!intention) return;
             
-            console.log('💭 Wysyłanie intencji:', intention);
-            addChatMessage('Użytkownik', intention, 'user');
+            console.log('💭 Główna intencja:', intention);
+            addTerminalMessage('Użytkownik', intention, 'user');
             
             setTimeout(() => {
-                addChatMessage('AI System', 'Analizuję Twoją intencję...', 'ai');
+                addTerminalMessage('LuxDB Core', 'Przetwarzam Twoją intencję...', 'system');
             }, 500);
             
-            intentionInput.value = '';
+            mainInput.value = '';
+            updateCharCounter();
         }
 
-        function addChatMessage(sender, message, type = 'info') {
-            const chatArea = document.getElementById('chatArea');
+        function sendTerminalMessage() {
+            const terminalInput = document.getElementById('terminalInput');
+            const message = terminalInput.value.trim();
+            
+            if (!message) return;
+            
+            console.log('📡 Terminal komunikat:', message);
+            addTerminalMessage('Użytkownik', message, 'user');
+            
+            setTimeout(() => {
+                addTerminalMessage('AI Agent', 'Analizuję komunikat...', 'ai');
+            }, 500);
+            
+            terminalInput.value = '';
+        }
+
+        function addTerminalMessage(sender, message, type = 'info') {
+            const terminalMessages = document.getElementById('terminalMessages');
             const messageElement = document.createElement('div');
             messageElement.className = 'message';
             
@@ -786,8 +831,24 @@
                 ${message}
             `;
             
-            chatArea.appendChild(messageElement);
-            chatArea.scrollTop = chatArea.scrollHeight;
+            terminalMessages.appendChild(messageElement);
+            terminalMessages.scrollTop = terminalMessages.scrollHeight;
+        }
+
+        function updateCharCounter() {
+            const mainInput = document.getElementById('mainInput');
+            const charCounter = document.querySelector('.char-counter');
+            const length = mainInput.value.length;
+            
+            charCounter.textContent = `${length}/500`;
+            
+            if (length > 400) {
+                charCounter.style.color = '#ff6b6b';
+            } else if (length > 300) {
+                charCounter.style.color = '#ffd93d';
+            } else {
+                charCounter.style.color = 'rgba(255,255,255,0.6)';
+            }
         }
 
         function executeSystemCommand(command) {
