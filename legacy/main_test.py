@@ -10,29 +10,16 @@ from datetime import datetime
 from app_v2.beings.genotype import Genotype
 from app_v2.core.module_registry import ModuleRegistry
 from app_v2.services.entity_manager import EntityManager
+from app_v2.database.soul_repository import SoulRepository
 
 async def main():
     """Główna funkcja testowa"""
     print("🚀 Uruchamianie testów app_v2...")
-    
-    # 1. Test rejestracji modułów i genów
-    print("\n📝 Test 1: Rejestracja modułów i genów z plików")
+
+    # 1. Test rejestracji modułów
+    print("\n📝 Test 1: Rejestracja modułów z plików")
     registered_count = await ModuleRegistry.register_all_modules_from_directory("app_v2/gen_files")
     print(f"Zarejestrowano {registered_count} modułów")
-    
-    # 1b. Test rejestru genów
-    print("\n🧬 Test 1b: Sprawdzenie rejestru genów")
-    from app_v2.genetics import GeneRegistry
-    all_genes = GeneRegistry.get_all_genes()
-
-    print(f"Zarejestrowane geny: {list(all_genes.keys())}")
-    
-    # Sprawdź zależności
-    errors = GeneRegistry.validate_dependencies()
-    if errors:
-        print(f"⚠️ Błędy zależności: {errors}")
-    else:
-        print("✅ Wszystkie zależności genów są poprawne")
     
     # 2. Test tworzenia bytu
     print("\n🆕 Test 2: Tworzenie głównego bytu")
@@ -100,66 +87,7 @@ async def main():
     last_log = lux.recall("last_log")
     print(f"Ostatni log: {last_log}")
     
-    # 11. Test AI Brain
-    await test_ai_brain()
-    
     print("\n✅ Wszystkie testy zakończone!")
 
-
-async def test_ai_brain():
-    """Test AI Brain z genami"""
-    print("\n🧠 === TEST AI BRAIN ===")
-    
-    # Zainicjalizuj AI Brain
-    from app_v2.ai.ai_brain import AIBrain
-    ai = AIBrain()
-    
-    print(f"🔧 AI Brain ma {len(ai.available_functions)} dostępnych funkcji:")
-    for func_name in list(ai.available_functions.keys())[:10]:  # Pokaż pierwsze 10
-        print(f"  - {func_name}")
-    if len(ai.available_functions) > 10:
-        print(f"  ... i {len(ai.available_functions) - 10} więcej")
-    
-    # Test różnych intencji
-    test_inputs = [
-        "Find soul named logger",
-        "Get soul by name test_logger", 
-        "Execute basic_log function",
-        "Show me all available genes",
-        "Run log_message with hello world",
-        "Create new entity called test_bot"
-    ]
-    
-    for user_input in test_inputs:
-        print(f"\n👤 User: {user_input}")
-        try:
-            result = await ai.process_user_intent(user_input)
-            
-            print(f"🎯 Intent: {result['intent_analysis']['intent']}")
-            print(f"🔍 Found {len(result['relevant_functions'])} relevant functions")
-            print(f"⚡ Executed {len(result['results'])} actions")
-            
-            for res in result['results'][:3]:  # Pokaż max 3 wyniki
-                if res['success']:
-                    print(f"  ✅ {res['function_name']}: {str(res['result'])[:100]}...")
-                else:
-                    print(f"  ❌ {res['function_name']}: {res['error']}")
-        except Exception as e:
-            print(f"  ❌ Błąd AI Brain: {e}")
-    
-    # Test listy funkcji
-    print(f"\n📋 Lista dostępnych funkcji AI:")
-    functions = ai.list_available_functions()
-    for func_name, description in list(functions.items())[:5]:
-        print(f"  - {func_name}: {description}")
-    
-    # Test OpenAI integration (mock)
-    print(f"\n🤖 Test OpenAI integration (mock):")
-    from app_v2.ai.openai_integration import MockOpenAI
-    mock_ai = MockOpenAI()
-    
-    mock_result = await mock_ai.analyze_intent_with_llm(
-        "Find me a logger gene", 
-        ai.get_function_registry_for_openai()[:5]
-    )
-    print(f"Mock OpenAI response: {mock_result}")
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -34,3 +34,10 @@ async def test_hybrid_system_basic():
     assert "intent_analysis" in result["ai_brain_analysis"], "Brak analizy intencji w AI Brain"
     # Metoda hybrydowa powinna zawierać klucz openai_analysis nawet jeśli None
     assert "openai_analysis" in result
+
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])
+    # Uruchom testy w trybie asynchronicznym
+    import asyncio
+    asyncio.run(test_hybrid_system_basic())
+    
