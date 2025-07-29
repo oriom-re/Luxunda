@@ -574,32 +574,16 @@
             </div>
         </div>
 
-        <!-- Right Panel - Communication Terminal -->
+        <!-- Right Panel - Communication History -->
         <div class="side-panel right" id="rightPanel">
-            <div class="panel-header">💬 Terminal Komunikacyjny</div>
-            <div class="panel-content" style="display: flex; flex-direction: column; height: calc(100vh - 100px);">
-                <div class="terminal-messages" id="terminalMessages" style="flex: 1; overflow-y: auto; padding: 10px 0; border-bottom: 1px solid rgba(0,255,136,0.3);">
+            <div class="panel-header">💬 Historia Komunikacji</div>
+            <div class="panel-content" style="height: calc(100vh - 100px);">
+                <div class="terminal-messages" id="terminalMessages" style="height: 100%; overflow-y: auto; padding: 15px;">
                     <div class="message">
                         <span class="message-time">[00:00]</span>
                         <span class="message-sender">System:</span>
-                        Inicjalizacja terminala komunikacyjnego LuxDB...
+                        Witaj w systemie LuxDB! Użyj pola poniżej aby komunikować się z systemem.
                     </div>
-                </div>
-                
-                <div class="terminal-input-area" style="padding: 15px 0;">
-                    <textarea 
-                        class="terminal-input" 
-                        id="terminalInput" 
-                        placeholder="Komunikuj się z systemem LuxDB..."
-                        style="width: 100%; height: 80px; background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.3); border-radius: 6px; color: #ffffff; padding: 10px; resize: none; font-family: inherit; font-size: 0.85rem; margin-bottom: 10px;"
-                    ></textarea>
-                    <button 
-                        class="terminal-send-btn" 
-                        onclick="sendTerminalMessage()"
-                        style="width: 100%; height: 35px; background: linear-gradient(45deg, #0088ff, #00ff88); border: none; color: #000; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85rem; transition: transform 0.3s;"
-                    >
-                        🚀 WYŚLIJ DO SYSTEMU
-                    </button>
                 </div>
             </div>
         </div>
@@ -612,7 +596,7 @@
                 type="text" 
                 class="main-input" 
                 id="mainInput" 
-                placeholder="🌀 Wyraź swoją intencję w uniwersum LuxDB..."
+                placeholder="💬 Komunikuj się z systemem LuxDB - historia w prawym panelu..."
                 maxlength="500"
             />
             <button class="main-send-btn" onclick="sendMainInput()">
@@ -807,13 +791,7 @@
             
             mainInput.addEventListener('input', updateCharCounter);
             
-            // Terminal input handlers
-            terminalInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendTerminalMessage();
-                }
-            });
+            // Removed terminal input handlers - single input system
         }
 
         function initializeChatComponent() {
@@ -822,35 +800,24 @@
 
         function sendMainInput() {
             const mainInput = document.getElementById('mainInput');
-            const intention = mainInput.value.trim();
+            const message = mainInput.value.trim();
             
-            if (!intention) return;
+            if (!message) return;
             
-            console.log('💭 Główna intencja:', intention);
-            addTerminalMessage('Użytkownik', intention, 'user');
+            console.log('💬 Komunikat do systemu:', message);
+            addTerminalMessage('Użytkownik', message, 'user');
+            
+            // Automatycznie otwórz panel historii jeśli jest zamknięty
+            if (!rightPanelVisible) {
+                togglePanel('right');
+            }
             
             setTimeout(() => {
-                addTerminalMessage('LuxDB Core', 'Przetwarzam Twoją intencję...', 'system');
+                addTerminalMessage('LuxDB System', 'Przetwarzam Twoją wiadomość...', 'system');
             }, 500);
             
             mainInput.value = '';
             updateCharCounter();
-        }
-
-        function sendTerminalMessage() {
-            const terminalInput = document.getElementById('terminalInput');
-            const message = terminalInput.value.trim();
-            
-            if (!message) return;
-            
-            console.log('📡 Terminal komunikat:', message);
-            addTerminalMessage('Użytkownik', message, 'user');
-            
-            setTimeout(() => {
-                addTerminalMessage('AI Agent', 'Analizuję komunikat...', 'ai');
-            }, 500);
-            
-            terminalInput.value = '';
         }
 
         function addTerminalMessage(sender, message, type = 'info') {
