@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 import socketio
 
 # Nowa architektura z głównego poziomu
-from database.postgre_db import PostgreSQLManager
+from database.postgre_db import Postgre_db
 from database.soul_repository import SoulRepository
 from database.models.relationship import Relationship
 from services.entity_manager import EntityManager
@@ -40,7 +40,7 @@ socket_app = socketio.ASGIApp(sio, app)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Główne komponenty systemu
-postgresql_manager: Optional[PostgreSQLManager] = None
+postgresql_manager: Optional[Postgre_db] = None
 soul_repository: Optional[SoulRepository] = None
 entity_manager: Optional[EntityManager] = None
 genotype_service: Optional[GenotypService] = None
@@ -155,7 +155,8 @@ async def startup():
 
     try:
         # Inicjalizacja PostgreSQL
-        postgresql_manager = PostgreSQLManager()
+        postgresql_manager = Postgre_db()
+        await postgresql_manager.initialize()
         soul_repository = SoulRepository(postgresql_manager)
         entity_manager = EntityManager(soul_repository)
         genotype_service = GenotypService(soul_repository)
