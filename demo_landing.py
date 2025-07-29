@@ -96,7 +96,7 @@ async def serve_chat_js():
 @app.get("/graph", response_class=HTMLResponse)
 async def graph_demo():
     """🌀 Graf bytów LuxDB MVP Demo"""
-    with open("static/index.html", "r", encoding="utf-8") as f:
+    with open("static/graph.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
 def prepare_luxdb_genotypes():
