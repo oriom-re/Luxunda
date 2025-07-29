@@ -71,23 +71,33 @@ async def test_specialized_genotypes():
     print("✅ Generowanie wyspecjalizowanych genotypów zakończone sukcesem\n")
 
 
-async def test_soul_creation():
-    """Test tworzenia Soul z genotypu"""
-    print("👻 Test tworzenia Soul z genotypu...")
+async def test_simple_soul_creation():
+    """Test tworzenia Soul z klasy"""
+    print("👻 Test tworzenia Soul z klasy...")
     
-    genotype = GeneticsGenerator.generate_basic_genotype(
-        name="SoulTestBeing",
-        description="Testowy genotyp dla Soul",
-        include_fields=['alias']  # Tylko podstawowe pole
-    )
+    # Przykładowa klasa dziedzicząca po Being
+    from dataclasses import dataclass
+    from database.models.base import Being
+    
+    @dataclass 
+    class MessageBeing(Being):
+        content: str = None
+        timestamp: str = None
+        embedding: str = None
     
     try:
-        # soul = await GeneticsGenerator.create_genotype_soul(genotype, "test_soul")
+        # Generuj genotyp z klasy
+        genotype = GeneticsGenerator.generate_genotype_from_class(MessageBeing)
+        print("📋 Wygenerowany genotyp:")
+        print(json.dumps(genotype, indent=2, ensure_ascii=False))
+        
+        # W prawdziwej aplikacji:
+        # soul = await GeneticsGenerator.create_soul_from_class(MessageBeing, "message_soul")
         # print(f"Utworzono Soul: {soul.soul_hash}")
-        # print(f"Alias: {soul.alias}")
         print("⚠️ Test Soul pominięty - wymaga połączenia z bazą danych")
+        
     except Exception as e:
-        print(f"⚠️ Błąd tworzenia Soul (oczekiwany bez bazy): {e}")
+        print(f"⚠️ Błąd generowania genotypu: {e}")any bez bazy): {e}")
     
     print("✅ Test Soul zakończony\n")
 
@@ -124,7 +134,7 @@ async def main():
         await test_field_analysis()
         await test_genotype_generation() 
         await test_specialized_genotypes()
-        await test_soul_creation()
+        await test_simple_soul_creation()
         await test_documentation_generation()
         
         print("🎉 Wszystkie testy zakończone sukcesem!")

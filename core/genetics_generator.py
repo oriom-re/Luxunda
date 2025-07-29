@@ -112,88 +112,77 @@ class GeneticsGenerator:
         return origin is Optional or (origin is type(Union) and type(None) in args)
 
     @classmethod
-    def generate_basic_genotype(cls, name: str, description: str = None, 
-                               include_fields: List[str] = None,
-                               exclude_fields: List[str] = None,
-                               custom_genes: Dict[str, str] = None) -> Dict[str, Any]:
+    def generate_genotype_from_class(cls, being_class: type) -> Dict[str, Any]:
         """
-        Generuje podstawowy genotyp na podstawie pól Being
+        Generuje prosty genotyp na podstawie klasy dziedziczącej po Being
         
         Args:
-            name: Nazwa genotypu
-            description: Opis genotypu
-            include_fields: Lista pól do uwzględnienia (jeśli None, uwzględnia wszystkie)
-            exclude_fields: Lista pól do wykluczenia
-            custom_genes: Słownik genów {nazwa_genu: ścieżka_do_funkcji}
+            being_class: Klasa dziedzicząca po Being
+            
+        Returns:
+            Dict: Genotyp w formacie prostym
         """
-        field_info = cls.analyze_being_fields()
+        field_info = cls.analyze_being_fields(being_class)
         
-        # Filtrowanie pól
-        if include_fields:
-            field_info = {k: v for k, v in field_info.items() if k in include_fields}
-        
-        if exclude_fields:
-            field_info = {k: v for k, v in field_info.items() if k not in exclude_fields}
-        
-        # Budowanie atrybutów genotypu
+        # Budowanie atrybutów genotypu w prostym formacie
         attributes = {}
         for field_name, info in field_info.items():
             attributes[field_name] = {
-                "py_type": info['py_type'],
                 "table_name": info['table_name'],
-                "nullable": info['nullable'],
-                "description": f"Pole {field_name} typu {info['py_type']}"
+                "py_type": info['py_type']
             }
-        
-        # Podstawowe geny
-        genes = {
-            "initialize": "core.genes.basic.initialize_being",
-            "validate": "core.genes.basic.validate_being", 
-            "serialize": "core.genes.basic.serialize_being"
-        }
-        
-        # Dodaj custom geny
-        if custom_genes:
-            genes.update(custom_genes)
         
         genotype = {
-            "metadata": {
-                "name": name,
-                "description": description or f"Automatycznie wygenerowany genotyp: {name}",
-                "version": "1.0.0",
-                "created_at": datetime.now().isoformat(),
-                "generator": "GeneticsGenerator",
-                "field_count": len(attributes)
-            },
             "attributes": attributes,
-            "genes": genes,
-            "constraints": {
-                "max_instances": None,
-                "required_fields": [k for k, v in field_info.items() if not v['nullable']],
-                "validation_rules": []
-            }
+            "functions": {}  # Na razie puste, później rozbudujemy
         }
         
         return genotype
 
     @classmethod
-    async def create_genotype_soul(cls, genotype: Dict[str, Any], alias: str = None) -> Soul:
-        """Tworzy Soul na podstawie wygenerowanego genotypu"""
-        soul = Soul()
-        soul.alias = alias or genotype['metadata']['name']
-        soul.genotype = genotype
-        soul.soul_hash = hashlib.sha256(
+    async def create_soul_from_class(cls, being_class: type, alias: str = None) -> Soul:
+        """
+        Tworzy Soul na podstawie klasy dziedziczącej po Being
+        
+        Args:
+            being_class: Klasa dziedzicząca po Being
+            alias: Opcjonalny alias dla Soul
+            
+        Returns:
+            Soul: Nowy lub istniejący Soul z bazy danych
+        """
+        from database.models.base import Soul
+        
+        # Generuj genotyp z klasy
+        genotype = cls.generate_genotype_from_class(being_class)
+        
+        # Oblicz hash genotypu
+        genotype_hash = hashlib.sha256(
             json.dumps(genotype, sort_keys=True).encode()
         ).hexdigest()
         
-        # Zapisz do bazy
+        # Sprawdź czy Soul z tym hash już istnieje
         from database.soul_repository import SoulRepository
+        existing_souls = await Soul.load_all()
+        
+        for soul in existing_souls:
+            if soul and soul.soul_hash == genotype_hash:
+                print(f"🔄 Znaleziono istniejący Soul: {soul.soul_hash[:8]}...")
+                return soul
+        
+        # Jeśli nie istnieje, utwórz nowy
+        soul = Soul()
+        soul.alias = alias or f"{being_class.__name__}Soul"
+        soul.genotype = genotype
+        soul.soul_hash = genotype_hash
+        
         result = await SoulRepository.save(soul)
         
         if result and result.get('success'):
+            print(f"✅ Utworzono nowy Soul: {soul.soul_hash[:8]}... dla klasy {being_class.__name__}")
             return soul
         else:
-            raise Exception(f"Failed to create genotype soul: {soul.alias}")
+            raise Exception(f"Failed to create soul for class {being_class.__name__}")
 
     @classmethod
     def generate_specialized_genotypes(cls) -> Dict[str, Dict[str, Any]]:
