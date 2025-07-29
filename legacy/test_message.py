@@ -23,9 +23,6 @@ genotype_example = {
       "table_name": "_text",
       "py_type": "str"
     }
-  },
-  "functions": {
-    
   }
 }
 
