@@ -1,5 +1,6 @@
-// Prevent redeclaration
-if (typeof IntentionComponent === 'undefined' && typeof window.IntentionComponent === 'undefined') {
+// Prevent redeclaration - ULTIMATE PROTECTION
+if (typeof IntentionComponent === 'undefined' && typeof window.IntentionComponent === 'undefined' && !window.intentionComponentLoaded) {
+window.intentionComponentLoaded = true;
 class IntentionComponent {
     constructor(graphManager) {
         this.graphManager = graphManager;
