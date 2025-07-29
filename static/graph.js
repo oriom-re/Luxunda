@@ -15,7 +15,11 @@ class LuxOSGraph {
 
     initializeConnection() {
         try {
-            this.socket = io();
+            this.socket = io({
+                transports: ['websocket', 'polling'],
+                upgrade: true,
+                rememberUpgrade: true
+            });
 
             this.socket.on('connect', () => {
                 this.isConnected = true;
