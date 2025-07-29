@@ -19,6 +19,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
+import socketio  # Dodano import socketio
 
 # Importy z app_v2 - LuxDB MVP
 from app_v2.database.postgre_db import Postgre_db
@@ -31,12 +32,21 @@ from app_v2.services.entity_manager import EntityManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Socket.IO server
+sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode='asgi')
+
 # FastAPI aplikacja
 app = FastAPI(
     title="LuxDB MVP Demo",
     description="Genotypowy system danych - Nie relacja. Nie dokument. Ewolucja danych.",
     version="1.0.0"
 )
+
+# Integracja Socket.IO z FastAPI
+socket_app = socketio.ASGIApp(sio, app)
+
+# Stałe dla demo
+DEMO_USER = "anonymous"
 
 # 🌀 LuxDB MVP - Globalne struktury
 connected_users: Dict[str, WebSocket] = {}
@@ -466,13 +476,94 @@ async def startup_event():
     print("🔗 System relacji i intencji działa")
     print("📡 WebSocket komunikacja dostępna na /ws")
 
+# Socket.IO event handlers
+@sio.event
+async def connect(sid, environ):
+    """Obsługa połączenia klienta"""
+    print(f"🔌 Klient połączony: {sid}")
+    await sio.emit('connection_status', {'status': 'connected'}, room=sid)
+
+@sio.event
+async def disconnect(sid):
+    """Obsługa rozłączenia klienta"""
+    print(f"🔌 Klient rozłączony: {sid}")
+
+@sio.event
+async def get_graph_data(sid):
+    """Wysyła dane grafu do klienta"""
+    try:
+        beings = await Being.get_all()
+        relationships = await Relationship.get_all()
+
+        # Przygotuj dane dla frontendu
+        nodes_data = []
+        for being in beings:
+            try:
+                genesis_data = being._soul.genesis if hasattr(being._soul, 'genesis') else {}
+                if isinstance(genesis_data, str):
+                    import json
+                    genesis_data = json.loads(genesis_data)
+
+                node_data = {
+                    'soul': being.soul_uid,
+                    'soul_uid': being.soul_uid,
+                    '_soul': {
+                        'genesis': genesis_data,
+                        'attributes': being._soul.attributes if hasattr(being._soul, 'attributes') else {},
+                        'memories': being._soul.memories if hasattr(being._soul, 'memories') else [],
+                        'self_awareness': being._soul.self_awareness if hasattr(being._soul, 'self_awareness') else {}
+                    }
+                }
+                nodes_data.append(node_data)
+            except Exception as e:
+                print(f"❌ Błąd serializacji bytu {being.soul_uid}: {e}")
+
+        # Przygotuj dane relacji
+        relationships_data = []
+        for rel in relationships:
+            try:
+                rel_data = {
+                    'source_soul': rel.source_soul,
+                    'target_soul': rel.target_soul,
+                    'genesis': rel._soul.genesis if hasattr(rel._soul, 'genesis') else {},
+                    'attributes': rel._soul.attributes if hasattr(rel._soul, 'attributes') else {}
+                }
+                relationships_data.append(rel_data)
+            except Exception as e:
+                print(f"❌ Błąd serializacji relacji: {e}")
+
+        await sio.emit('graph_data', {
+            'nodes': nodes_data,
+            'relationships': relationships_data
+        }, room=sid)
+
+        print(f"📊 Wysłano dane grafu: {len(nodes_data)} bytów, {len(relationships_data)} relacji")
+
+    except Exception as e:
+        print(f"❌ Błąd wysyłania danych grafu: {e}")
+        await sio.emit('error', {'message': f'Błąd ładowania danych: {str(e)}'}, room=sid)
+
+@sio.event  
+async def process_intention(sid, data):
+    """Przetwarza intencję użytkownika"""
+    try:
+        intention = data.get('intention', '').strip()
+        print(f"💭 Otrzymano intencję od {sid}: {intention}")
+
+        # Symulacja przetwarzania intencji
+        response = {
+            'message': f'Intencja "{intention}" została przetworzona w uniwersum LuxDB',
+            'timestamp': data.get('timestamp'),
+            'status': 'processed'
+        }
+
+        await sio.emit('intention_response', response, room=sid)
+
+    except Exception as e:
+        print(f"❌ Błąd przetwarzania intencji: {e}")
+        await sio.emit('error', {'message': f'Błąd przetwarzania: {str(e)}'}, room=sid)
+
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Uruchamianie serwera LuxDB MVP (FastAPI) na porcie 3000...")
-    uvicorn.run(
-        "demo_landing:app", 
-        host="0.0.0.0", 
-        port=3000, 
-        reload=True,
-        log_level="info"
-    )
+    print("🚀 Uruchamianie serwera LuxDB MVP (FastAPI + Socket.IO) na porcie 3000...")
+    uvicorn.run(socket_app, host="0.0.0.0", port=3000, reload=False)
