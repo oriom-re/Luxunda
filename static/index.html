@@ -68,17 +68,12 @@
         }
 
         #graph {
-            width: calc(100% - 280px);
+            width: 100%;
             height: calc(100vh - 70px - 120px);
-            margin-left: 280px;
+            margin-left: 0;
             background: radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
             transition: all 0.3s ease;
             position: relative;
-        }
-
-        #graph.explorer-collapsed {
-            width: calc(100% - 40px);
-            margin-left: 40px;
         }
 
         .node {
@@ -352,13 +347,11 @@
                 const graphManager = new LuxOSGraph();
                 const intentionComponent = new IntentionComponent(graphManager);
                 const luxChatComponent = new LuxChatComponent(graphManager);
-                const fileExplorer = new FileExplorer(graphManager);
                 
                 // Zapisz globalne referencje dla debugowania
                 window.luxOSUniverse = graphManager;
                 window.intentionComponent = intentionComponent;
                 window.luxChatComponent = luxChatComponent;
-                window.fileExplorer = fileExplorer;
                 
                 // Dodaj obsługę kontrolek zoom
                 document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
