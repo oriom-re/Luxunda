@@ -116,14 +116,20 @@ async def request_graph_data(sid):
                     }
                 })
         
-        # Jeśli nie ma danych, użyj mock data
+        # Jeśli nie ma danych, użyj mock data z relacjami
         if not graph_data['beings']:
             graph_data = {
                 'beings': [
-                    {'soul_uid': 'no_data', '_soul': {'genesis': {'name': 'Brak danych', 'type': 'system'}}},
-                    {'soul_uid': 'create_soul', '_soul': {'genesis': {'name': 'Utwórz pierwszą duszę', 'type': 'action'}}}
+                    {'soul_uid': 'luxdb_core', '_soul': {'genesis': {'name': 'LuxDB Core', 'type': 'system'}}},
+                    {'soul_uid': 'ai_agent_1', '_soul': {'genesis': {'name': 'AI Agent', 'type': 'agent'}}},
+                    {'soul_uid': 'relation_manager', '_soul': {'genesis': {'name': 'Relations', 'type': 'manager'}}},
+                    {'soul_uid': 'semantic_data_1', '_soul': {'genesis': {'name': 'Semantic Data', 'type': 'data'}}}
                 ],
-                'relationships': []
+                'relationships': [
+                    {'source_soul': 'luxdb_core', 'target_soul': 'ai_agent_1', 'genesis': {'type': 'manages'}},
+                    {'source_soul': 'luxdb_core', 'target_soul': 'relation_manager', 'genesis': {'type': 'controls'}},
+                    {'source_soul': 'ai_agent_1', 'target_soul': 'semantic_data_1', 'genesis': {'type': 'processes'}}
+                ]
             }
         
         await sio.emit('graph_data', graph_data, room=sid)
