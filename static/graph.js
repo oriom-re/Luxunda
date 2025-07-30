@@ -80,25 +80,15 @@ class LuxOSGraph {
         // Create main group for all graph elements
         const g = this.svg.append('g');
 
-        // Create zoom behavior - PROPERLY CONFIGURED for D3.js v7
+        // Simple zoom behavior
         this.zoomBehavior = d3.zoom()
             .scaleExtent([0.1, 5])
             .on('zoom', (event) => {
-                console.log('🔍 Zoom event:', event.transform);
                 g.attr('transform', event.transform);
             });
 
-        // Apply zoom behavior to SVG - CRITICAL: this must work
+        // Apply zoom to SVG
         this.svg.call(this.zoomBehavior);
-        
-        // Add a transparent background rect to capture mouse events
-        this.svg.insert('rect', ':first-child')
-            .attr('width', width)
-            .attr('height', height)
-            .attr('fill', 'transparent')
-            .style('pointer-events', 'all');
-
-        console.log('✅ Zoom behavior applied to SVG');
             
         // Add gradient definitions for beautiful nodes
         const defs = this.svg.append('defs');
@@ -149,7 +139,7 @@ class LuxOSGraph {
             .style('stroke-width', 2)
             .style('opacity', 0.6);
             
-        // Draw nodes - POPRAWIONY DRAG dla D3.js v7
+        // Draw nodes with simple drag
         const node = g.append('g')
             .selectAll('circle')
             .data(nodes)
@@ -165,9 +155,6 @@ class LuxOSGraph {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
                     d.fx = d.x;
                     d.fy = d.y;
-                    // CRITICAL: Stop propagation to prevent zoom conflict
-                    event.sourceEvent.stopPropagation();
-                    console.log('🎯 Node drag started:', d.name);
                 })
                 .on('drag', (event, d) => {
                     d.fx = event.x;
@@ -177,11 +164,7 @@ class LuxOSGraph {
                     if (!event.active) simulation.alphaTarget(0);
                     d.fx = null;
                     d.fy = null;
-                    console.log('🎯 Node drag ended:', d.name);
-                }))
-            .on('click', (event, d) => {
-                console.log('🎯 Kliknięto węzeł:', d.name);
-            });
+                }));
             
         // Add node labels
         const labels = g.append('g')
@@ -235,48 +218,23 @@ class LuxOSGraph {
     }
 
     zoomIn() {
-        console.log('🔍 Zoom in clicked');
-        if (this.zoomBehavior && this.svg) {
-            console.log('✅ Applying zoom in transform');
-            this.svg.transition().duration(300).call(
-                this.zoomBehavior.scaleBy, 1.5
-            );
-        } else {
-            console.error('❌ Zoom behavior or SVG not available:', {
-                zoomBehavior: !!this.zoomBehavior,
-                svg: !!this.svg
-            });
+        if (this.svg && this.zoomBehavior) {
+            this.svg.transition().duration(300).call(this.zoomBehavior.scaleBy, 1.5);
         }
     }
 
     zoomOut() {
-        console.log('🔍 Zoom out clicked');
-        if (this.zoomBehavior && this.svg) {
-            console.log('✅ Applying zoom out transform');
-            this.svg.transition().duration(300).call(
-                this.zoomBehavior.scaleBy, 1 / 1.5
-            );
-        } else {
-            console.error('❌ Zoom behavior or SVG not available:', {
-                zoomBehavior: !!this.zoomBehavior,
-                svg: !!this.svg
-            });
+        if (this.svg && this.zoomBehavior) {
+            this.svg.transition().duration(300).call(this.zoomBehavior.scaleBy, 0.67);
         }
     }
 
     resetZoom() {
-        console.log('🔍 Reset zoom clicked');
-        if (this.zoomBehavior && this.svg) {
-            console.log('✅ Applying reset zoom transform');
+        if (this.svg && this.zoomBehavior) {
             this.svg.transition().duration(500).call(
                 this.zoomBehavior.transform,
-                d3.zoomIdentity.translate(0, 0).scale(1)
+                d3.zoomIdentity
             );
-        } else {
-            console.error('❌ Reset zoom failed:', {
-                zoomBehavior: !!this.zoomBehavior,
-                svg: !!this.svg
-            });
         }
     }
 
