@@ -80,20 +80,21 @@ class LuxOSGraph {
         // Create main group for all graph elements
         const g = this.svg.append('g');
 
-        // Create zoom behavior - POPRAWIONA IMPLEMENTACJA dla D3.js v7
+        // Create zoom behavior - FIXED for D3.js v7
         this.zoomBehavior = d3.zoom()
             .scaleExtent([0.1, 5])
             .on('zoom', (event) => {
                 g.attr('transform', event.transform);
             });
 
-        // Apply zoom behavior to SVG - KLUCZOWE!
+        // Apply zoom behavior to SVG - this enables zoom and pan
         this.svg.call(this.zoomBehavior);
 
-        // Dodaj obsługę scroll wheel zoom
-        this.svg.on('wheel', (event) => {
-            event.preventDefault();
-        });
+        // Add explicit event handlers for debugging
+        this.svg
+            .on('wheel.zoom', null) // Remove any existing wheel handlers
+            .call(this.zoomBehavior)
+            .on('dblclick.zoom', null); // Disable double-click zoom if needed
             
         // Add gradient definitions for beautiful nodes
         const defs = this.svg.append('defs');
@@ -160,6 +161,8 @@ class LuxOSGraph {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
                     d.fx = d.x;
                     d.fy = d.y;
+                    // Prevent zoom when dragging nodes
+                    event.sourceEvent.stopPropagation();
                 })
                 .on('drag', (event, d) => {
                     d.fx = event.x;
@@ -231,6 +234,8 @@ class LuxOSGraph {
             this.svg.transition().duration(300).call(
                 this.zoomBehavior.scaleBy, 1.5
             );
+        } else {
+            console.error('❌ Zoom behavior or SVG not available');
         }
     }
 
@@ -240,6 +245,8 @@ class LuxOSGraph {
             this.svg.transition().duration(300).call(
                 this.zoomBehavior.scaleBy, 1 / 1.5
             );
+        } else {
+            console.error('❌ Zoom behavior or SVG not available');
         }
     }
 
