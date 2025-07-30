@@ -75,6 +75,9 @@ class LuxOSGraph {
             .attr('width', width)
             .attr('height', height);
 
+        // Create main group for all graph elements
+        const g = svg.append('g');
+
         // Add zoom behavior with mouse wheel
         const zoom = d3.zoom()
             .scaleExtent([0.1, 5])
@@ -90,9 +93,6 @@ class LuxOSGraph {
 
         // Store zoom behavior for external access
         this.zoomBehavior = zoom;
-
-        // Create main group for all graph elements
-        const g = svg.append('g');
             
         // Add gradient definitions for beautiful nodes
         const defs = svg.append('defs');
