@@ -89,10 +89,14 @@ class LuxOSGraph {
                 g.attr('transform', event.transform);
             });
 
+        // Apply zoom behavior to SVG
         svg.call(zoom);
 
         // Store zoom behavior for external access
         this.zoomBehavior = zoom;
+        
+        // Store SVG reference for zoom controls
+        this.svg = svg;
             
         // Add gradient definitions for beautiful nodes
         const defs = svg.append('defs');
@@ -234,9 +238,8 @@ class LuxOSGraph {
 
     zoomIn() {
         console.log('🔍 Zoom in');
-        if (this.zoomBehavior) {
-            const svg = d3.select('#graph svg');
-            svg.transition().duration(300).call(
+        if (this.zoomBehavior && this.svg) {
+            this.svg.transition().duration(300).call(
                 this.zoomBehavior.scaleBy, 1.5
             );
         }
@@ -244,9 +247,8 @@ class LuxOSGraph {
 
     zoomOut() {
         console.log('🔍 Zoom out');
-        if (this.zoomBehavior) {
-            const svg = d3.select('#graph svg');
-            svg.transition().duration(300).call(
+        if (this.zoomBehavior && this.svg) {
+            this.svg.transition().duration(300).call(
                 this.zoomBehavior.scaleBy, 1 / 1.5
             );
         }
@@ -254,11 +256,8 @@ class LuxOSGraph {
 
     resetZoom() {
         console.log('🔍 Reset zoom');
-        if (this.zoomBehavior) {
-            const svg = d3.select('#graph svg');
-            const width = window.innerWidth;
-            const height = window.innerHeight - 200;
-            svg.transition().duration(500).call(
+        if (this.zoomBehavior && this.svg) {
+            this.svg.transition().duration(500).call(
                 this.zoomBehavior.transform,
                 d3.zoomIdentity.translate(0, 0).scale(1)
             );
