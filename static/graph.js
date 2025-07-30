@@ -75,9 +75,13 @@ class LuxOSGraph {
             .attr('width', width)
             .attr('height', height);
 
-        // Add zoom behavior
+        // Add zoom behavior with mouse wheel
         const zoom = d3.zoom()
             .scaleExtent([0.1, 5])
+            .wheelDelta(function(event) {
+                // Customize wheel sensitivity for better UX
+                return -event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002);
+            })
             .on('zoom', (event) => {
                 g.attr('transform', event.transform);
             });
