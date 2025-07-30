@@ -80,21 +80,25 @@ class LuxOSGraph {
         // Create main group for all graph elements
         const g = this.svg.append('g');
 
-        // Create zoom behavior - FIXED for D3.js v7
+        // Create zoom behavior - PROPERLY CONFIGURED for D3.js v7
         this.zoomBehavior = d3.zoom()
             .scaleExtent([0.1, 5])
             .on('zoom', (event) => {
+                console.log('🔍 Zoom event:', event.transform);
                 g.attr('transform', event.transform);
             });
 
-        // Apply zoom behavior to SVG - this enables zoom and pan
+        // Apply zoom behavior to SVG - CRITICAL: this must work
         this.svg.call(this.zoomBehavior);
+        
+        // Add a transparent background rect to capture mouse events
+        this.svg.insert('rect', ':first-child')
+            .attr('width', width)
+            .attr('height', height)
+            .attr('fill', 'transparent')
+            .style('pointer-events', 'all');
 
-        // Add explicit event handlers for debugging
-        this.svg
-            .on('wheel.zoom', null) // Remove any existing wheel handlers
-            .call(this.zoomBehavior)
-            .on('dblclick.zoom', null); // Disable double-click zoom if needed
+        console.log('✅ Zoom behavior applied to SVG');
             
         // Add gradient definitions for beautiful nodes
         const defs = this.svg.append('defs');
@@ -161,8 +165,9 @@ class LuxOSGraph {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
                     d.fx = d.x;
                     d.fy = d.y;
-                    // Prevent zoom when dragging nodes
+                    // CRITICAL: Stop propagation to prevent zoom conflict
                     event.sourceEvent.stopPropagation();
+                    console.log('🎯 Node drag started:', d.name);
                 })
                 .on('drag', (event, d) => {
                     d.fx = event.x;
@@ -172,6 +177,7 @@ class LuxOSGraph {
                     if (!event.active) simulation.alphaTarget(0);
                     d.fx = null;
                     d.fy = null;
+                    console.log('🎯 Node drag ended:', d.name);
                 }))
             .on('click', (event, d) => {
                 console.log('🎯 Kliknięto węzeł:', d.name);
@@ -229,34 +235,48 @@ class LuxOSGraph {
     }
 
     zoomIn() {
-        console.log('🔍 Zoom in');
+        console.log('🔍 Zoom in clicked');
         if (this.zoomBehavior && this.svg) {
+            console.log('✅ Applying zoom in transform');
             this.svg.transition().duration(300).call(
                 this.zoomBehavior.scaleBy, 1.5
             );
         } else {
-            console.error('❌ Zoom behavior or SVG not available');
+            console.error('❌ Zoom behavior or SVG not available:', {
+                zoomBehavior: !!this.zoomBehavior,
+                svg: !!this.svg
+            });
         }
     }
 
     zoomOut() {
-        console.log('🔍 Zoom out');
+        console.log('🔍 Zoom out clicked');
         if (this.zoomBehavior && this.svg) {
+            console.log('✅ Applying zoom out transform');
             this.svg.transition().duration(300).call(
                 this.zoomBehavior.scaleBy, 1 / 1.5
             );
         } else {
-            console.error('❌ Zoom behavior or SVG not available');
+            console.error('❌ Zoom behavior or SVG not available:', {
+                zoomBehavior: !!this.zoomBehavior,
+                svg: !!this.svg
+            });
         }
     }
 
     resetZoom() {
-        console.log('🔍 Reset zoom');
+        console.log('🔍 Reset zoom clicked');
         if (this.zoomBehavior && this.svg) {
+            console.log('✅ Applying reset zoom transform');
             this.svg.transition().duration(500).call(
                 this.zoomBehavior.transform,
                 d3.zoomIdentity.translate(0, 0).scale(1)
             );
+        } else {
+            console.error('❌ Reset zoom failed:', {
+                zoomBehavior: !!this.zoomBehavior,
+                svg: !!this.svg
+            });
         }
     }
 
