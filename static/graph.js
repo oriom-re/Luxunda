@@ -8,6 +8,7 @@ class LuxOSGraph {
         this.relationships = [];
         this.selectedNodes = [];
         this.isConnected = false;
+        this.zoomBehavior = null;
 
         console.log('🌀 LuxDB Graph initialized');
         this.initializeConnection();
@@ -73,6 +74,21 @@ class LuxOSGraph {
             .append('svg')
             .attr('width', width)
             .attr('height', height);
+
+        // Add zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 5])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            });
+
+        svg.call(zoom);
+
+        // Store zoom behavior for external access
+        this.zoomBehavior = zoom;
+
+        // Create main group for all graph elements
+        const g = svg.append('g');
             
         // Add gradient definitions for beautiful nodes
         const defs = svg.append('defs');
@@ -114,7 +130,7 @@ class LuxOSGraph {
             .force('collision', d3.forceCollide().radius(40));
             
         // Draw links
-        const link = svg.append('g')
+        const link = g.append('g')
             .selectAll('line')
             .data(links)
             .enter().append('line')
@@ -124,7 +140,7 @@ class LuxOSGraph {
             .style('opacity', 0.6);
             
         // Draw nodes
-        const node = svg.append('g')
+        const node = g.append('g')
             .selectAll('circle')
             .data(nodes)
             .enter().append('circle')
@@ -155,7 +171,7 @@ class LuxOSGraph {
             });
             
         // Add node labels
-        const labels = svg.append('g')
+        const labels = g.append('g')
             .selectAll('text')
             .data(nodes)
             .enter().append('text')
@@ -214,14 +230,35 @@ class LuxOSGraph {
 
     zoomIn() {
         console.log('🔍 Zoom in');
+        if (this.zoomBehavior) {
+            const svg = d3.select('#graph svg');
+            svg.transition().duration(300).call(
+                this.zoomBehavior.scaleBy, 1.5
+            );
+        }
     }
 
     zoomOut() {
         console.log('🔍 Zoom out');
+        if (this.zoomBehavior) {
+            const svg = d3.select('#graph svg');
+            svg.transition().duration(300).call(
+                this.zoomBehavior.scaleBy, 1 / 1.5
+            );
+        }
     }
 
     resetZoom() {
         console.log('🔍 Reset zoom');
+        if (this.zoomBehavior) {
+            const svg = d3.select('#graph svg');
+            const width = window.innerWidth;
+            const height = window.innerHeight - 200;
+            svg.transition().duration(500).call(
+                this.zoomBehavior.transform,
+                d3.zoomIdentity.translate(0, 0).scale(1)
+            );
+        }
     }
 
     resizeGraph() {
