@@ -77,26 +77,68 @@ async def disconnect(sid):
 
 @sio.event
 async def request_graph_data(sid):
-    """Obsługa żądania danych grafu"""
+    """Obsługa żądania danych grafu - pobiera rzeczywiste dane z systemu"""
     print(f"📊 Graph data requested by client: {sid}")
 
-    # Mock data for testing
-    test_data = {
-        'beings': [
-            {'soul_uid': 'luxdb_core', '_soul': {'genesis': {'name': 'LuxDB Core', 'type': 'system'}}},
-            {'soul_uid': 'ai_agent_1', '_soul': {'genesis': {'name': 'AI Agent', 'type': 'agent'}}},
-            {'soul_uid': 'relation_manager', '_soul': {'genesis': {'name': 'Relations', 'type': 'manager'}}},
-            {'soul_uid': 'semantic_data_1', '_soul': {'genesis': {'name': 'Semantic Data', 'type': 'data'}}}
-        ],
-        'relationships': [
-            {'source_soul': 'luxdb_core', 'target_soul': 'ai_agent_1', 'genesis': {'type': 'manages'}},
-            {'source_soul': 'luxdb_core', 'target_soul': 'relation_manager', 'genesis': {'type': 'controls'}},
-            {'source_soul': 'ai_agent_1', 'target_soul': 'semantic_data_1', 'genesis': {'type': 'processes'}}
-        ]
-    }
-
-    await sio.emit('graph_data', test_data, room=sid)
-    print(f"✅ Graph data sent to client {sid}")
+    try:
+        # Import system classes
+        from database.models.base import Soul, Being
+        
+        # Pobierz wszystkie dusze
+        souls = await Soul.load_all()
+        beings = await Being.load_all()
+        
+        # Formatuj dane dla grafu
+        graph_data = {
+            'beings': [],
+            'relationships': []  # Na razie puste - dodamy gdy stworzymy prawdziwe relacje
+        }
+        
+        # Dodaj dusze jako byty
+        for soul in souls:
+            if soul:
+                graph_data['beings'].append({
+                    'soul_uid': soul.soul_hash,
+                    '_soul': {
+                        'genesis': soul.genotype.get('genesis', {}),
+                        'alias': soul.alias
+                    }
+                })
+        
+        # Dodaj rzeczywiste byty
+        for being in beings:
+            if being:
+                graph_data['beings'].append({
+                    'soul_uid': f"being_{being.ulid}",
+                    '_soul': {
+                        'genesis': being.genotype.get('genesis', {}),
+                        'ulid': being.ulid
+                    }
+                })
+        
+        # Jeśli nie ma danych, użyj mock data
+        if not graph_data['beings']:
+            graph_data = {
+                'beings': [
+                    {'soul_uid': 'no_data', '_soul': {'genesis': {'name': 'Brak danych', 'type': 'system'}}},
+                    {'soul_uid': 'create_soul', '_soul': {'genesis': {'name': 'Utwórz pierwszą duszę', 'type': 'action'}}}
+                ],
+                'relationships': []
+            }
+        
+        await sio.emit('graph_data', graph_data, room=sid)
+        print(f"✅ Real graph data sent to client {sid}: {len(graph_data['beings'])} beings")
+        
+    except Exception as e:
+        print(f"❌ Error loading graph data: {e}")
+        # Fallback do mock data
+        fallback_data = {
+            'beings': [
+                {'soul_uid': 'error', '_soul': {'genesis': {'name': 'Błąd ładowania danych', 'type': 'error'}}}
+            ],
+            'relationships': []
+        }
+        await sio.emit('graph_data', fallback_data, room=sid)
 
 @app.get("/")
 async def main_page():
