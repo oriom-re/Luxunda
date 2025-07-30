@@ -1,5 +1,5 @@
-// ===== LUX OS GRAPH - KOMPLETNY RESET =====
-// Zero błędów składni, czysta implementacja
+
+// ===== LUX OS GRAPH - NAPRAWIONY ZOOM D3.js v7 =====
 
 class LuxOSGraph {
     constructor() {
@@ -9,6 +9,7 @@ class LuxOSGraph {
         this.selectedNodes = [];
         this.isConnected = false;
         this.zoomBehavior = null;
+        this.svg = null;
 
         console.log('🌀 LuxDB Graph initialized');
         this.initializeConnection();
@@ -70,36 +71,32 @@ class LuxOSGraph {
         const width = window.innerWidth;
         const height = window.innerHeight - 200;
         
-        const svg = d3.select('#graph')
+        // Create SVG
+        this.svg = d3.select('#graph')
             .append('svg')
             .attr('width', width)
             .attr('height', height);
 
         // Create main group for all graph elements
-        const g = svg.append('g');
+        const g = this.svg.append('g');
 
-        // Add zoom behavior with mouse wheel
-        const zoom = d3.zoom()
+        // Create zoom behavior - POPRAWIONA IMPLEMENTACJA dla D3.js v7
+        this.zoomBehavior = d3.zoom()
             .scaleExtent([0.1, 5])
-            .wheelDelta(function(event) {
-                // Customize wheel sensitivity for better UX
-                return -event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002);
-            })
             .on('zoom', (event) => {
                 g.attr('transform', event.transform);
             });
 
-        // Apply zoom behavior to SVG
-        svg.call(zoom);
+        // Apply zoom behavior to SVG - KLUCZOWE!
+        this.svg.call(this.zoomBehavior);
 
-        // Store zoom behavior for external access
-        this.zoomBehavior = zoom;
-        
-        // Store SVG reference for zoom controls
-        this.svg = svg;
+        // Dodaj obsługę scroll wheel zoom
+        this.svg.on('wheel', (event) => {
+            event.preventDefault();
+        });
             
         // Add gradient definitions for beautiful nodes
-        const defs = svg.append('defs');
+        const defs = this.svg.append('defs');
         const gradient = defs.append('radialGradient')
             .attr('id', 'nodeGradient')
             .attr('cx', '30%')
@@ -147,7 +144,7 @@ class LuxOSGraph {
             .style('stroke-width', 2)
             .style('opacity', 0.6);
             
-        // Draw nodes
+        // Draw nodes - POPRAWIONY DRAG dla D3.js v7
         const node = g.append('g')
             .selectAll('circle')
             .data(nodes)
@@ -175,7 +172,6 @@ class LuxOSGraph {
                 }))
             .on('click', (event, d) => {
                 console.log('🎯 Kliknięto węzeł:', d.name);
-                // Add selection logic here
             });
             
         // Add node labels
@@ -189,13 +185,6 @@ class LuxOSGraph {
             .style('text-anchor', 'middle')
             .style('pointer-events', 'none')
             .text(d => d.name);
-            
-        // Add beautiful pulsing animation
-        node.append('animate')
-            .attr('attributeName', 'r')
-            .attr('values', '25;30;25')
-            .attr('dur', '2s')
-            .attr('repeatCount', 'indefinite');
             
         // Update positions on simulation tick
         simulation.on('tick', () => {
@@ -269,10 +258,12 @@ class LuxOSGraph {
         const width = window.innerWidth;
         const height = window.innerHeight - 200;
         
-        d3.select('#graph svg')
-            .attr('width', width)
-            .attr('height', height);
-            
+        if (this.svg) {
+            this.svg
+                .attr('width', width)
+                .attr('height', height);
+        }
+        
         // Re-render the universe with new dimensions
         this.renderUniverse();
     }
