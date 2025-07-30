@@ -78,17 +78,20 @@ class LuxOSGraph {
             .attr('height', height);
 
         // Create main group for all graph elements
-        const g = this.svg.append('g');
+        const g = this.svg.append('g').attr('class', 'main-group');
 
-        // Simple zoom behavior
+        // Zoom behavior - MUSI być przed dodaniem elementów
         this.zoomBehavior = d3.zoom()
             .scaleExtent([0.1, 5])
             .on('zoom', (event) => {
                 g.attr('transform', event.transform);
             });
 
-        // Apply zoom to SVG
+        // Apply zoom to SVG - KRYTYCZNE: musi być tutaj
         this.svg.call(this.zoomBehavior);
+        
+        // Store reference to main group
+        this.mainGroup = g;
             
         // Add gradient definitions for beautiful nodes
         const defs = this.svg.append('defs');
@@ -155,6 +158,7 @@ class LuxOSGraph {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
                     d.fx = d.x;
                     d.fy = d.y;
+                    event.sourceEvent?.stopPropagation();
                 })
                 .on('drag', (event, d) => {
                     d.fx = event.x;
@@ -218,23 +222,35 @@ class LuxOSGraph {
     }
 
     zoomIn() {
+        console.log('🔍 Zoom In called');
         if (this.svg && this.zoomBehavior) {
             this.svg.transition().duration(300).call(this.zoomBehavior.scaleBy, 1.5);
+            console.log('✅ Zoom In executed');
+        } else {
+            console.error('❌ Zoom In failed - missing svg or zoomBehavior');
         }
     }
 
     zoomOut() {
+        console.log('🔍 Zoom Out called');
         if (this.svg && this.zoomBehavior) {
             this.svg.transition().duration(300).call(this.zoomBehavior.scaleBy, 0.67);
+            console.log('✅ Zoom Out executed');
+        } else {
+            console.error('❌ Zoom Out failed - missing svg or zoomBehavior');
         }
     }
 
     resetZoom() {
+        console.log('🔍 Reset Zoom called');
         if (this.svg && this.zoomBehavior) {
             this.svg.transition().duration(500).call(
                 this.zoomBehavior.transform,
                 d3.zoomIdentity
             );
+            console.log('✅ Reset Zoom executed');
+        } else {
+            console.error('❌ Reset Zoom failed - missing svg or zoomBehavior');
         }
     }
 
