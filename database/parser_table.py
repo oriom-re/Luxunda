@@ -1,6 +1,14 @@
 import json
 from typing import get_origin, get_args, Optional, Union, List, Dict, Any
 import hashlib
+
+def is_value_serializable(value) -> bool:
+    """Sprawdza czy wartość może być serializowana do JSON w runtime"""
+    try:
+        json.dumps(value)
+        return True
+    except (TypeError, ValueError):
+        return False
 def parse_py_type(attr_name: str, attr_meta: dict):
     # Bezpieczny eval + podstawowe typy
     namespace = {
@@ -31,8 +39,47 @@ def parse_py_type(attr_name: str, attr_meta: dict):
     # Bazowy typ
     base_type = get_args(py_type)[0] if is_optional else py_type
 
-    # Czy wymaga serializacji (np. listy, słowniki)
-    requires_serialization = get_origin(base_type) in [list, dict, List] or isinstance(base_type, type) and base_type in [list, dict]
+    # Sprawdź czy typ jest serializable dla JSONB
+    def is_serializable(typ):
+        """Sprawdza czy typ można serializować do JSON/JSONB"""
+        # Podstawowe typy JSON-safe
+        json_safe_types = {str, int, float, bool, type(None)}
+        
+        # Jeśli to bezpośrednio JSON-safe typ
+        if typ in json_safe_types:
+            return False
+        
+        # Jeśli to dict - zawsze wymaga serializacji
+        if typ is dict:
+            return True
+            
+        # Sprawdź typy generyczne (List, Optional, Union)
+        origin = get_origin(typ)
+        if origin is not None:
+            # Lista wymaga serializacji, chyba że to List[float] z vector_size (embedding)
+            if origin in [list, List]:
+                # Sprawdź czy to embedding vector
+                if attr_meta.get("vector_size"):
+                    return False  # Embeddings idą do VECTOR, nie JSONB
+                return True  # Inne listy idą do JSONB
+            
+            # Union/Optional - sprawdź składniki
+            if origin in [Union, Optional]:
+                args = get_args(typ)
+                # Sprawdź czy któryś z argumentów wymaga serializacji
+                for arg in args:
+                    if arg is not type(None) and is_serializable(arg):
+                        return True
+                return False
+        
+        # Złożone typy niestandardowe wymagają serializacji
+        if hasattr(typ, '__module__') and typ.__module__ not in ['builtins', '__builtin__']:
+            return True
+            
+        return False
+
+    # Czy wymaga serializacji (np. listy, słowniki, obiekty niestandardowe)
+    requires_serialization = is_serializable(base_type)
 
 
     # Flagi i dodatkowe informacje
@@ -40,7 +87,9 @@ def parse_py_type(attr_name: str, attr_meta: dict):
         "name": attr_name,
         "base_type": base_type,
         "is_optional": is_optional,
-        "requires_serialization": requires_serialization,  # Dodana flaga
+        "requires_serialization": requires_serialization,
+        "is_jsonb_type": requires_serialization and not attr_meta.get("vector_size"),  # JSONB ale nie VECTOR
+        "is_vector_type": bool(attr_meta.get("vector_size")),  # VECTOR type
         "index": attr_meta.get("index", False),
         "unique": attr_meta.get("unique", False),
         "max_length": attr_meta.get("max_length"),
@@ -48,7 +97,6 @@ def parse_py_type(attr_name: str, attr_meta: dict):
         "default": attr_meta.get("default"),
         "encoder": json.dumps if requires_serialization else lambda x: x,
         "decoder": json.loads if requires_serialization else lambda x: x,
-
     }
 
 def build_table_name(parsed: dict) -> tuple:
@@ -85,8 +133,12 @@ def build_table_name(parsed: dict) -> tuple:
             name += f"vector_{size}"
             column_name += f"VECTOR({size})"
         else:
-            name += "list"
-            column_name += "JSONB"  # lista jako jsonb, jeśli brak szczegółów
+            name += "jsonb"  # lista jako jsonb
+            column_name += "JSONB"
+    elif parsed.get("requires_serialization"):
+        # Dla wszystkich typów które wymagają serializacji
+        name += "jsonb"
+        column_name += "JSONB"
     else:
         name += "unknown"
         column_name += "TEXT"
