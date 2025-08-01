@@ -264,10 +264,10 @@ async def request_graph_data(sid):
                             "ulid": rel_being.ulid,
                             "source_soul": source_being.soul_hash,
                             "target_soul": target_being.soul_hash,
-                            "source_uid": source_uid,
+                            "source_uid": source_uid, 
                             "target_uid": target_uid,
                             "relation_type": attrs.get('relation_type', 'unknown'),
-                            "strength": attrs.get('strength', 0.5),
+                            "strength": float(attrs.get('strength', 0.5)),  # Ensure it's a float
                             "metadata": serialize_for_json(attrs.get('metadata', {})),
                             "genesis": {
                                 "type": rel_soul.genotype.get("genesis", {}).get("type", "relation"),
@@ -275,6 +275,7 @@ async def request_graph_data(sid):
                             }
                         }
                         graph_data["relationships"].append(relationship_data)
+                        print(f"✅ Dodano relację: {source_uid} -> {target_uid} ({attrs.get('relation_type', 'unknown')})")
 
         print(f"✅ Przygotowano dane grafu: {len(graph_data['beings'])} beings, {len(graph_data['relationships'])} relationships")
 

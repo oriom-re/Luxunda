@@ -128,38 +128,55 @@ class LuxOSGraph {
             being: being
         }));
         
-        // Create links data from relation beings
+        // Create links data from both relation beings and relationships
         const links = [];
         
-        // Dodaj linki z bytów relacji
+        console.log(`🔗 Przetwarzam ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
+        
+        // Dodaj linki z bytów relacji  
         relationBeings.forEach(relationBeing => {
             const attrs = relationBeing.attributes || {};
             const sourceUid = attrs.source_uid;
             const targetUid = attrs.target_uid;
             
             if (sourceUid && targetUid) {
-                links.push({
-                    source: sourceUid,
-                    target: targetUid,
-                    type: 'relation_being',
-                    relation_type: attrs.relation_type || 'connection',
-                    strength: attrs.strength || 0.5,
-                    metadata: attrs.metadata || {},
-                    being: relationBeing
-                });
+                // Sprawdź czy węzły istnieją
+                const sourceExists = nodes.find(n => n.id === sourceUid);
+                const targetExists = nodes.find(n => n.id === targetUid);
+                
+                if (sourceExists && targetExists) {
+                    links.push({
+                        source: sourceUid,
+                        target: targetUid,
+                        type: 'relation_being',
+                        relation_type: attrs.relation_type || 'connection',
+                        strength: parseFloat(attrs.strength) || 0.5,
+                        metadata: attrs.metadata || {},
+                        being: relationBeing
+                    });
+                    console.log(`✅ Dodano link z bytu relacji: ${sourceUid} -> ${targetUid}`);
+                } else {
+                    console.log(`⚠️ Nie znaleziono węzłów dla relacji: ${sourceUid} -> ${targetUid}`);
+                }
             }
         });
         
         // Dodaj również linki z tradycyjnych relationships (jeśli są)
         this.relationships.forEach(rel => {
-            links.push({
-                source: rel.source_uid,
-                target: rel.target_uid,
-                type: rel.genesis?.type || 'connection',
-                relation_type: rel.relation_type || 'unknown',
-                strength: rel.strength || 0.5,
-                metadata: rel.metadata || {}
-            });
+            const sourceExists = nodes.find(n => n.id === rel.source_uid);
+            const targetExists = nodes.find(n => n.id === rel.target_uid);
+            
+            if (sourceExists && targetExists) {
+                links.push({
+                    source: rel.source_uid,
+                    target: rel.target_uid,
+                    type: rel.genesis?.type || 'connection',
+                    relation_type: rel.relation_type || 'unknown',
+                    strength: parseFloat(rel.strength) || 0.5,
+                    metadata: rel.metadata || {}
+                });
+                console.log(`✅ Dodano link z relationships: ${rel.source_uid} -> ${rel.target_uid}`);
+            }
         });
         
         // Create force simulation
@@ -288,6 +305,8 @@ class LuxOSGraph {
         
         console.log(`✨ Graf renderowany z ${nodes.length} węzłami i ${links.length} połączeniami!`);
         console.log(`🔗 Znaleziono ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
+        console.log('📋 Szczegóły linków:', links.map(l => `${l.source} -> ${l.target} (${l.relation_type})`));
+        console.log('📋 Dostępne węzły:', nodes.map(n => `${n.id} (${n.name})`));
     }
 
     attemptReconnect() {
