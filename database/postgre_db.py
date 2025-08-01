@@ -132,6 +132,29 @@ class Postgre_db:
                         CREATE INDEX IF NOT EXISTS idx_beings_alias ON beings (alias);
                 """)
 
+                # Tradycyjna tabela relacji dla MVP
+                await conn.execute("""
+                        CREATE TABLE IF NOT EXISTS relationships (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            source_ulid CHAR(26) NOT NULL,
+                            target_ulid CHAR(26) NOT NULL,
+                            relation_type VARCHAR(100) NOT NULL DEFAULT 'connection',
+                            strength FLOAT DEFAULT 1.0,
+                            metadata JSONB DEFAULT '{}',
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (source_ulid) REFERENCES beings(ulid) ON DELETE CASCADE,
+                            FOREIGN KEY (target_ulid) REFERENCES beings(ulid) ON DELETE CASCADE
+                        );
+                        -- indexy dla wydajności
+                        CREATE INDEX IF NOT EXISTS idx_relationships_source ON relationships (source_ulid);
+                        CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships (target_ulid);
+                        CREATE INDEX IF NOT EXISTS idx_relationships_type ON relationships (relation_type);
+                        CREATE INDEX IF NOT EXISTS idx_relationships_strength ON relationships (strength);
+                        CREATE INDEX IF NOT EXISTS idx_relationships_created_at ON relationships (created_at);
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_relationship ON relationships (source_ulid, target_ulid, relation_type);
+                """)
+
                 print("✅ Tabele PostgreSQL utworzone")
         except Exception as e:
             print(f"❌ Błąd tworzenia tabel PostgreSQL: {e}")

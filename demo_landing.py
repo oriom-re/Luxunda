@@ -240,98 +240,34 @@ async def request_graph_data(sid):
             }
             graph_data["beings"].append(being_data)
 
-        # Pobierz relacje podobieństwa - szukaj souls z aliasem zawierającym 'relation'
-        relation_souls = [s for s in souls if s.alias and 'relation' in s.alias.lower()]
-        print(f"🔗 Znaleziono {len(relation_souls)} souls relacji")
-        for rs in relation_souls:
-            print(f"   - Soul relacji: {rs.alias} (hash: {rs.soul_hash})")
+        # Pobierz tradycyjne relacje z tabeli relationships
+        from database.models.relationship import Relationship
+        try:
+            relationships = await Relationship.get_all()
+            print(f"🔗 Znaleziono {len(relationships)} relacji w tabeli relationships")
 
-        for rel_soul in relation_souls:
-            # Pobierz beings (relacje) dla tej soul
-            relation_beings = await Being.load_all_by_soul_hash(rel_soul.soul_hash)
-            print(f"📋 Soul {rel_soul.alias} ma {len(relation_beings)} beings")
-            
-            if not relation_beings:
-                print(f"⚠️ Brak beings dla soul relacji {rel_soul.alias}")
-                continue
+            for rel in relationships:
+                relationship_data = {
+                    'id': rel.id,
+                    'source': rel.source_ulid,
+                    'target': rel.target_ulid,
+                    'type': rel.relation_type,
+                    'strength': rel.strength,
+                    'metadata': rel.metadata
+                }
+                graph_data["relationships"].append(relationship_data)
+                print(f"🔗 Relacja: {rel.source_ulid} → {rel.target_ulid} ({rel.relation_type})")
 
-            for rel_being in relation_beings:
-                # Pobierz wszystkie atrybuty being'a i wyprintuj je dla debugowania
-                all_attrs = {}
-                
-                # Sprawdź wszystkie tabele atrybutów
-                from database.postgre_db import Postgre_db
-                db_pool = await Postgre_db.get_db_pool()
-                
-                if db_pool:
-                    async with db_pool.acquire() as conn:
-                        # Sprawdź tabele z atrybutami - używamy jsonb zamiast json
-                        for table_suffix in ['_text', '_int', '_float', '_boolean', '_jsonb']:
-                            table_name = f"attr{table_suffix}"
-                            try:
-                                query = f"""
-                                    SELECT key, value 
-                                    FROM {table_name} 
-                                    WHERE being_ulid = $1
-                                """
-                                rows = await conn.fetch(query, rel_being.ulid)
-                                for row in rows:
-                                    all_attrs[row['key']] = row['value']
-                            except Exception as e:
-                                print(f"⚠️ Błąd czytania tabeli {table_name}: {e}")
-                
-                print(f"🔍 Being {rel_being.ulid} atrybuty: {all_attrs}")
-                
-                # Również spróbuj metody get_attributes (teraz async)
-                being_attrs = await rel_being.get_attributes()
-                print(f"🔍 Being {rel_being.ulid} przez get_attributes(): {being_attrs}")
-                
-                # Użyj atrybutów z bezpośredniego zapytania lub z metody
-                final_attrs = {**being_attrs, **all_attrs}  # all_attrs ma priorytet
-                
-                print(f"🔍 Final attrs dla {rel_being.ulid}: {final_attrs}")
-                
-                source_uid = final_attrs.get('source_uid')
-                target_uid = final_attrs.get('target_uid')
-
-                if source_uid and target_uid:
-                    # Znajdź beings które są źródłem i celem
-                    source_being = next((b for b in all_beings if b.ulid == source_uid), None)
-                    target_being = next((b for b in all_beings if b.ulid == target_uid), None)
-
-                    if source_being and target_being:
-                        relationship_data = {
-                            "ulid": rel_being.ulid,
-                            "source_soul": source_being.soul_hash,
-                            "target_soul": target_being.soul_hash,
-                            "source_uid": source_uid, 
-                            "target_uid": target_uid,
-                            "relation_type": final_attrs.get('relation_type', 'similarity'),
-                            "strength": float(final_attrs.get('strength', 0.7)),
-                            "metadata": serialize_for_json(final_attrs.get('metadata', {})),
-                            "genesis": {
-                                "type": rel_soul.genotype.get("genesis", {}).get("type", "relation"),
-                                "name": rel_soul.alias
-                            }
-                        }
-                        graph_data["relationships"].append(relationship_data)
-                        print(f"✅ Dodano relację: {source_uid} -> {target_uid} ({final_attrs.get('relation_type', 'similarity')})")
-                    else:
-                        print(f"⚠️ Nie znaleziono bytów dla relacji: {source_uid} -> {target_uid}")
-                        if not source_being:
-                            print(f"   Brak source being: {source_uid}")
-                        if not target_being:
-                            print(f"   Brak target being: {target_uid}")
-                else:
-                    print(f"⚠️ Being {rel_being.ulid} nie ma source_uid/target_uid")
+        except Exception as e:
+            print(f"❌ Błąd podczas ładowania relacji: {e}")
 
         print(f"✅ Przygotowano dane grafu: {len(graph_data['beings'])} beings, {len(graph_data['relationships'])} relationships")
 
         # Serialize all data to ensure JSON compatibility
         serialized_graph_data = serialize_for_json(graph_data)
-        
+
         print(f"📤 Wysyłam dane do klienta {sid}: {len(serialized_graph_data.get('beings', []))} beings, {len(serialized_graph_data.get('relationships', []))} relationships")
-        
+
         await sio.emit('graph_data', serialized_graph_data, room=sid)
 
     except Exception as e:
@@ -469,6 +405,53 @@ async def get_similar_messages(message_ulid: str, limit: int = 5):
     except Exception as e:
         print(f"Error in get_similar_messages: {e}")
         return {"error": str(e)}
+
+@app.post("/api/similarity/detect")
+async def detect_similarity():
+    """Wykrywa podobieństwa między wiadomościami i tworzy relacje"""
+    try:
+        result = await similarity_service.detect_and_create_relations()
+        await sio.emit('graph_data_updated')  # Powiadom o aktualizacji
+        return result
+    except Exception as e:
+        print(f"❌ Błąd podczas wykrywania podobieństw: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/relationships")
+async def create_relationship(request: Request):
+    """Tworzy nową relację między beings"""
+    try:
+        data = await request.json()
+        source_ulid = data.get('source_ulid')
+        target_ulid = data.get('target_ulid')
+        relation_type = data.get('relation_type', 'connection')
+        strength = data.get('strength', 1.0)
+        metadata = data.get('metadata', {})
+
+        if not source_ulid or not target_ulid:
+            return {"success": False, "error": "source_ulid i target_ulid są wymagane"}
+
+        from database.models.relationship import Relationship
+        relationship = await Relationship.create(
+            source_ulid=source_ulid,
+            target_ulid=target_ulid,
+            relation_type=relation_type,
+            strength=strength,
+            metadata=metadata
+        )
+
+        # Powiadom klientów o nowej relacji
+        await sio.emit('graph_data_updated')
+
+        return {
+            "success": True, 
+            "relationship": relationship.to_dict(),
+            "message": f"Utworzono relację {relation_type} między {source_ulid} a {target_ulid}"
+        }
+
+    except Exception as e:
+        print(f"❌ Błąd podczas tworzenia relacji: {e}")
+        return {"success": False, "error": str(e)}
 
 @app.get("/")
 async def main_page():
