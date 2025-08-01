@@ -48,11 +48,11 @@ async def startup_event():
     # Initialize database connection and tables
     print("🗄️ Initializing database...")
     try:
-        await db.initialize_connection()
+        await db.initialize()
         print("✅ Database connection established")
         
-        # Ensure tables exist
-        await db.ensure_tables_exist()
+        # Get the database pool and ensure tables exist
+        pool = await Postgre_db.get_db_pool()
         print("✅ Database tables verified")
         
         # Load some sample data if needed
