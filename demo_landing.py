@@ -192,12 +192,17 @@ async def request_graph_data(sid):
     print(f"📊 Graph data requested by client: {sid}")
 
     try:
-        # Import system classes
-        from database.models.base import Soul, Being
+        try:
+            # Import system classes
+            from database.models.base import Soul, Being
 
-        # Pobierz wszystkie dusze
-        souls = await Soul.load_all()
-        beings = await Being.load_all()
+            # Pobierz wszystkie dusze
+            souls = await Soul.load_all()
+            beings = await Being.load_all()
+        except ImportError as e:
+            print(f"⚠️ Import error: {e}")
+            souls = []
+            beings = []
 
         # 1. Tworzymy genotyp relacji
         relationship_genotype = {

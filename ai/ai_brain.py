@@ -20,58 +20,55 @@ class AIBrain:
     
     def _build_function_registry(self):
         """Buduje rejestr wszystkich dostępnych funkcji dla AI"""
-        from app_v2.genetics.gene_registry import GeneRegistry
-        from app_v2.database.soul_repository import SoulRepository
+        try:
+            from database.soul_repository import SoulRepository
+        except ImportError:
+            print("⚠️ SoulRepository not available")
+            SoulRepository = None
         
         print("🧠 Budowanie rejestru funkcji dla AI Brain...")
         
         # 1. Funkcje z bazy danych
-        self.available_functions.update({
-            "get_soul_by_name": {
-                "description": "Pobiera soul z bazy po nazwie",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "Nazwa soul do pobrania"}
+        if SoulRepository:
+            self.available_functions.update({
+                "get_soul_by_name": {
+                    "description": "Pobiera soul z bazy po nazwie",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Nazwa soul do pobrania"}
+                        },
+                        "required": ["name"]
                     },
-                    "required": ["name"]
+                    "function": SoulRepository.get_by_name
                 },
-                "function": SoulRepository.get_by_name
-            },
-            "save_soul": {
-                "description": "Zapisuje soul do bazy danych", 
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "soul": {"type": "object", "description": "Dane soul do zapisania"}
+                "save_soul": {
+                    "description": "Zapisuje soul do bazy danych", 
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "soul": {"type": "object", "description": "Dane soul do zapisania"}
+                        },
+                        "required": ["soul"]
                     },
-                    "required": ["soul"]
+                    "function": SoulRepository.save
                 },
-                "function": SoulRepository.save
-            },
-            "get_soul_by_field": {
-                "description": "Pobiera soul z bazy po dowolnym polu",
-                "parameters": {
-                    "type": "object", 
-                    "properties": {
-                        "field": {"type": "string", "description": "Nazwa pola do wyszukania"},
-                        "value": {"type": "string", "description": "Wartość do wyszukania"}
+                "get_soul_by_field": {
+                    "description": "Pobiera soul z bazy po dowolnym polu",
+                    "parameters": {
+                        "type": "object", 
+                        "properties": {
+                            "field": {"type": "string", "description": "Nazwa pola do wyszukania"},
+                            "value": {"type": "string", "description": "Wartość do wyszukania"}
+                        },
+                        "required": ["field", "value"]
                     },
-                    "required": ["field", "value"]
-                },
-                "function": SoulRepository.get_by_field
-            }
-        })
+                    "function": SoulRepository.get_by_field
+                }
+            })
         
-        # 2. Funkcje z genów
-        all_genes = GeneRegistry.get_all_genes()
-        print(f"🧬 Znaleziono {len(all_genes)} genów do zarejestrowania")
-        
-        for gene_name, gene in all_genes.items():
-            if hasattr(gene, 'function') and gene.function:
-                func_info = self._gene_to_function_spec(gene)
-                self.available_functions[f"gene_{gene_name}"] = func_info
-                self.gene_functions[gene_name] = gene
+        # 2. Funkcje z genów - na razie mock funkcje
+        print(f"🧬 Zarejestrowano podstawowe funkcje AI Brain")
         
         print(f"✅ AI Brain ma {len(self.available_functions)} dostępnych funkcji")
     
