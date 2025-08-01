@@ -101,7 +101,7 @@ class Being:
     genes: Dict[str, Callable] = field(default_factory=dict)
 
     @classmethod
-    async def create(cls, soul: 'Soul', data: Dict[str, Any], limit: int) -> 'Being':
+    async def create(cls, soul: 'Soul', data: Dict[str, Any], limit: int = None) -> 'Being':
         """Tworzy nowy byt na podstawie genotypu i wartości"""
 
         being = cls(
@@ -114,9 +114,12 @@ class Being:
 
         for key, value in data.items():
             setattr(being, key, value)
-        beings = await BeingRepository.load_all_by_soul_hash(soul.soul_hash)
-        if limit and len(beings) >= limit:
-            raise ValueError(f"Limit of {limit} beings reached for soul {soul.soul_hash}")
+        
+        # Sprawdź limit tylko jeśli został podany
+        if limit is not None:
+            beings = await BeingRepository.load_all_by_soul_hash(soul.soul_hash)
+            if len(beings) >= limit:
+                raise ValueError(f"Limit of {limit} beings reached for soul {soul.soul_hash}")
 
         # Load genes from genotype
         being.genes = soul.genotype.get("genes", {})
@@ -251,7 +254,7 @@ class Message(Being):
     message: Dict[str, Any] = field(default_factory=dict)  # Treść wiadomości
 
     @classmethod
-    async def create(cls, soul:Soul, source_uid: str, thread_uid: str, message: Dict[str, Any]) -> 'Message':
+    async def create(cls, soul:Soul, source_uid: str, thread_uid: str, message: Dict[str, Any], limit: int = None) -> 'Message':
         """Tworzy nową wiadomość"""
         instance = cls()
         instance.source_uid = source_uid
@@ -260,5 +263,12 @@ class Message(Being):
         instance._apply_genotype(soul.genotype)
         instance.soul_hash = soul.soul_hash
         instance.ulid = str(_ulid.ulid())
+        
+        # Sprawdź limit tylko jeśli został podany
+        if limit is not None:
+            beings = await BeingRepository.load_all_by_soul_hash(soul.soul_hash)
+            if len(beings) >= limit:
+                raise ValueError(f"Limit of {limit} beings reached for soul {soul.soul_hash}")
+                
         await instance.save(soul)
         return instance
