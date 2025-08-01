@@ -194,113 +194,84 @@ async def disconnect(sid):
 
 @sio.event
 async def request_graph_data(sid):
-    """Obsługa żądania danych grafu - pobiera rzeczywiste dane z systemu"""
-    print(f"📊 Graph data requested by client: {sid}")
-
+    """Endpoint do żądania aktualnych danych grafu"""
     try:
-        try:
-            # Import system classes
-            from database.models.base import Soul, Being
+        print("📡 Otrzymano żądanie danych grafu")
 
-            # Pobierz wszystkie dusze
-            souls = await Soul.load_all()
-            beings = await Being.load_all()
-        except ImportError as e:
-            print(f"⚠️ Import error: {e}")
-            souls = []
-            beings = []
+        # Pobierz wszystkie souls
+        souls = await Soul.load_all()
+        print(f"📊 Znaleziono {len(souls)} souls")
 
-        # Spróbuj utworzyć przykładową relację jeśli mamy byty
-        if len(beings) >= 2:
-            try:
-                # 1. Tworzymy genotyp relacji
-                relationship_genotype = {
-                    "genesis": {
-                        "name": "basic_relationship",
-                        "type": "relation",
-                        "doc": "Podstawowa relacja między bytami"
-                    },
-                    "attributes": {
-                        "source_uid": {"py_type": "str"},
-                        "target_uid": {"py_type": "str"},
-                        "relation_type": {"py_type": "str"},
-                        "strength": {"py_type": "float"},
-                    }
-                }
+        # Pobierz wszystkie beings
+        all_beings = await Being.load_all()
+        print(f"📊 Znaleziono {len(all_beings)} beings")
 
-                # 2. Tworzymy duszę relacji
-                relationship_soul = await Soul.create(relationship_genotype, alias="basic_relation")
-
-                # 3. Tworzymy byt relacji
-                relationship_being = await Being.create(
-                    relationship_soul, 
-                    {
-                        "source_uid": beings[0].ulid,
-                        "target_uid": beings[1].ulid,
-                        "relation_type": "communication",
-                        "strength": 0.8
-                    }
-                )
-            except Exception as e:
-                print(f"⚠️ Nie udało się utworzyć relacji: {e}")
-
-        # Formatuj dane dla grafu
+        # Przygotuj dane dla frontendu
         graph_data = {
-            'beings': [],
-            'relationships': []  # Na razie puste - dodamy gdy stworzymy prawdziwe relacje
+            "beings": [],
+            "relationships": []
         }
 
-        # Dodaj dusze jako byty
-        for soul in souls:
-            if soul:
-                graph_data['beings'].append({
-                    'soul_uid': soul.soul_hash,
-                    '_soul': {
-                        'genesis': soul.genotype.get('genesis', {}),
-                        'alias': soul.alias
-                    }
-                })
+        # Dodaj beings do grafu
+        for being in all_beings:
+            # Znajdź odpowiadającą soul
+            soul = next((s for s in souls if s.soul_hash == being.soul_hash), None)
 
-        # Dodaj rzeczywiste byty
-        for being in beings:
-            if being:
-                graph_data['beings'].append({
-                    'soul_uid': f"being_{being.ulid}",
-                    '_soul': {
-                        'genesis': being.genotype.get('genesis', {}),
-                        'ulid': being.ulid
-                    }
-                })
-
-        # Jeśli nie ma danych, użyj mock data z relacjami
-        if not graph_data['beings']:
-            graph_data = {
-                'beings': [
-                    {'soul_uid': 'luxdb_core', '_soul': {'genesis': {'name': 'LuxDB Core', 'type': 'system'}}},
-                    {'soul_uid': 'ai_agent_1', '_soul': {'genesis': {'name': 'AI Agent', 'type': 'agent'}}},
-                    {'soul_uid': 'relation_manager', '_soul': {'genesis': {'name': 'Relations', 'type': 'manager'}}},
-                    {'soul_uid': 'semantic_data_1', '_soul': {'genesis': {'name': 'Semantic Data', 'type': 'data'}}}
-                ],
-                'relationships': [
-                    {'source_soul': 'luxdb_core', 'target_soul': 'ai_agent_1', 'genesis': {'type': 'manages'}},
-                    {'source_soul': 'luxdb_core', 'target_soul': 'relation_manager', 'genesis': {'type': 'controls'}},
-                    {'source_soul': 'ai_agent_1', 'target_soul': 'semantic_data_1', 'genesis': {'type': 'processes'}}
-                ]
+            being_data = {
+                "ulid": being.ulid,
+                "soul_uid": being.soul_hash,
+                "_soul": {
+                    "genesis": soul.genotype.get("genesis", {}) if soul else {},
+                    "alias": soul.alias if soul else None
+                },
+                "created_at": being.created_at.isoformat() if being.created_at else None,
+                "attributes": being.get_attributes()
             }
+            graph_data["beings"].append(being_data)
+
+        # Pobierz relacje podobieństwa - szukaj souls z aliasem zawierającym 'relation'
+        relation_souls = [s for s in souls if s.alias and 'relation' in s.alias.lower()]
+        print(f"🔗 Znaleziono {len(relation_souls)} souls relacji")
+
+        for rel_soul in relation_souls:
+            # Pobierz beings (relacje) dla tej soul
+            relation_beings = await Being.load_all_by_soul_hash(rel_soul.soul_hash)
+
+            for rel_being in relation_beings:
+                # Sprawdź czy mamy source_uid i target_uid
+                attrs = rel_being.get_attributes()
+                source_uid = attrs.get('source_uid')
+                target_uid = attrs.get('target_uid')
+
+                if source_uid and target_uid:
+                    # Znajdź beings które są źródłem i celem
+                    source_being = next((b for b in all_beings if b.ulid == source_uid), None)
+                    target_being = next((b for b in all_beings if b.ulid == target_uid), None)
+
+                    if source_being and target_being:
+                        relationship_data = {
+                            "ulid": rel_being.ulid,
+                            "source_soul": source_being.soul_hash,
+                            "target_soul": target_being.soul_hash,
+                            "source_uid": source_uid,
+                            "target_uid": target_uid,
+                            "relation_type": attrs.get('relation_type', 'unknown'),
+                            "strength": attrs.get('strength', 0.5),
+                            "metadata": attrs.get('metadata', {}),
+                            "genesis": {
+                                "type": rel_soul.genotype.get("genesis", {}).get("type", "relation"),
+                                "name": rel_soul.alias
+                            }
+                        }
+                        graph_data["relationships"].append(relationship_data)
+
+        print(f"✅ Przygotowano dane grafu: {len(graph_data['beings'])} beings, {len(graph_data['relationships'])} relationships")
 
         await sio.emit('graph_data', graph_data, room=sid)
-        print(f"✅ Real graph data sent to client {sid}: {len(graph_data['beings'])} beings")
 
     except Exception as e:
-        print(f"❌ Error loading graph data: {e}")
-        # Fallback do mock data
-        fallback_data = {
-            'beings': [
-                {'soul_uid': 'error', '_soul': {'genesis': {'name': 'Błąd ładowania danych', 'type': 'error'}}}
-            ],
-            'relationships': []
-        }
-        await sio.emit('graph_data', fallback_data, room=sid)
+        print(f"❌ Błąd podczas pobierania danych grafu: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
 
 @sio.event
 async def send_intention(sid, data):

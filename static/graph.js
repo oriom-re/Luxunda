@@ -56,6 +56,7 @@ class LuxOSGraph {
         try {
             this.beings = data.beings || [];
             this.relationships = data.relationships || [];
+            console.log(`🔗 Otrzymano ${this.relationships.length} relacji:`, this.relationships);
             this.renderUniverse();
         } catch (error) {
             console.error('❌ Błąd aktualizacji danych:', error);
@@ -122,7 +123,10 @@ class LuxOSGraph {
         const links = this.relationships.map(rel => ({
             source: rel.source_soul,
             target: rel.target_soul,
-            type: rel.genesis?.type || 'connection'
+            type: rel.genesis?.type || 'connection',
+            relation_type: rel.relation_type || 'unknown',
+            strength: rel.strength || 0.5,
+            metadata: rel.metadata || {}
         }));
         
         // Create force simulation
@@ -132,15 +136,30 @@ class LuxOSGraph {
             .force('center', d3.forceCenter(width/2, height/2))
             .force('collision', d3.forceCollide().radius(40));
             
-        // Draw links
+        // Draw links with different styles based on relationship type
         const link = g.append('g')
             .selectAll('line')
             .data(links)
             .enter().append('line')
             .attr('class', 'link')
-            .style('stroke', '#555')
-            .style('stroke-width', 2)
-            .style('opacity', 0.6);
+            .style('stroke', d => {
+                if (d.relation_type === 'similar_content') return '#00ff88';
+                if (d.relation_type === 'communication') return '#ff8800';
+                return '#555';
+            })
+            .style('stroke-width', d => {
+                // Grubość linii zależna od siły relacji
+                return Math.max(1, d.strength * 4);
+            })
+            .style('opacity', d => {
+                // Przezroczystość zależna od siły relacji
+                return Math.max(0.3, d.strength);
+            })
+            .style('stroke-dasharray', d => {
+                // Różne style linii dla różnych typów relacji
+                if (d.relation_type === 'similar_content') return '5,5';
+                return 'none';
+            });
             
         // Draw nodes with simple drag
         const node = g.append('g')
@@ -170,6 +189,18 @@ class LuxOSGraph {
                     d.fy = null;
                 }));
             
+        // Add relationship labels for similarity relations
+        const relationLabels = g.append('g')
+            .selectAll('text')
+            .data(links.filter(d => d.relation_type === 'similar_content'))
+            .enter().append('text')
+            .attr('class', 'relation-label')
+            .style('fill', '#00ff88')
+            .style('font-size', '10px')
+            .style('text-anchor', 'middle')
+            .style('pointer-events', 'none')
+            .text(d => `${Math.round(d.strength * 100)}%`);
+
         // Add node labels
         const labels = g.append('g')
             .selectAll('text')
@@ -197,6 +228,10 @@ class LuxOSGraph {
             labels
                 .attr('x', d => d.x)
                 .attr('y', d => d.y + 5);
+                
+            relationLabels
+                .attr('x', d => (d.source.x + d.target.x) / 2)
+                .attr('y', d => (d.source.y + d.target.y) / 2 - 5);
         });
         
         console.log(`✨ Graf renderowany z ${nodes.length} węzłami i ${links.length} połączeniami!`);
