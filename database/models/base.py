@@ -192,20 +192,21 @@ class Being:
 
             if db_pool:
                 async with db_pool.acquire() as conn:
-                    # Sprawdź wszystkie tabele z atrybutami
-                    for table_suffix in ['_text', '_int', '_float', '_boolean', '_json']:
+                    # Sprawdź wszystkie tabele z atrybutami - używamy prawidłowych nazw kolumn
+                    for table_suffix in ['_text', '_int', '_float', '_boolean', '_jsonb']:
                         table_name = f"attr{table_suffix}"
                         try:
                             query = f"""
-                                SELECT attribute_name, attribute_value 
+                                SELECT key, value 
                                 FROM {table_name} 
                                 WHERE being_ulid = $1
                             """
                             rows = await conn.fetch(query, self.ulid)
                             for row in rows:
-                                attributes[row['attribute_name']] = row['attribute_value']
-                        except Exception:
-                            # Tabela może nie istnieć
+                                attributes[row['key']] = row['value']
+                        except Exception as e:
+                            # Tabela może nie istnieć lub mieć inną strukturę
+                            print(f"⚠️ Błąd czytania tabeli {table_name}: {e}")
                             continue
 
         except Exception as e:

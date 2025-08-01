@@ -265,18 +265,18 @@ async def request_graph_data(sid):
                 
                 if db_pool:
                     async with db_pool.acquire() as conn:
-                        # Sprawdź tabele z atrybutami tekstowymi
-                        for table_suffix in ['_text', '_int', '_float', '_boolean', '_json']:
+                        # Sprawdź tabele z atrybutami - używamy jsonb zamiast json
+                        for table_suffix in ['_text', '_int', '_float', '_boolean', '_jsonb']:
                             table_name = f"attr{table_suffix}"
                             try:
                                 query = f"""
-                                    SELECT attribute_name, attribute_value 
+                                    SELECT key, value 
                                     FROM {table_name} 
                                     WHERE being_ulid = $1
                                 """
                                 rows = await conn.fetch(query, rel_being.ulid)
                                 for row in rows:
-                                    all_attrs[row['attribute_name']] = row['attribute_value']
+                                    all_attrs[row['key']] = row['value']
                             except Exception as e:
                                 print(f"⚠️ Błąd czytania tabeli {table_name}: {e}")
                 
