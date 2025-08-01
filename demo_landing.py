@@ -243,11 +243,17 @@ async def request_graph_data(sid):
         # Pobierz relacje podobieństwa - szukaj souls z aliasem zawierającym 'relation'
         relation_souls = [s for s in souls if s.alias and 'relation' in s.alias.lower()]
         print(f"🔗 Znaleziono {len(relation_souls)} souls relacji")
+        for rs in relation_souls:
+            print(f"   - Soul relacji: {rs.alias} (hash: {rs.soul_hash})")
 
         for rel_soul in relation_souls:
             # Pobierz beings (relacje) dla tej soul
             relation_beings = await Being.load_all_by_soul_hash(rel_soul.soul_hash)
             print(f"📋 Soul {rel_soul.alias} ma {len(relation_beings)} beings")
+            
+            if not relation_beings:
+                print(f"⚠️ Brak beings dla soul relacji {rel_soul.alias}")
+                continue
 
             for rel_being in relation_beings:
                 # Pobierz wszystkie atrybuty being'a i wyprintuj je dla debugowania
@@ -282,6 +288,8 @@ async def request_graph_data(sid):
                 
                 # Użyj atrybutów z bezpośredniego zapytania lub z metody
                 final_attrs = {**being_attrs, **all_attrs}  # all_attrs ma priorytet
+                
+                print(f"🔍 Final attrs dla {rel_being.ulid}: {final_attrs}")
                 
                 source_uid = final_attrs.get('source_uid')
                 target_uid = final_attrs.get('target_uid')
@@ -321,6 +329,8 @@ async def request_graph_data(sid):
 
         # Serialize all data to ensure JSON compatibility
         serialized_graph_data = serialize_for_json(graph_data)
+        
+        print(f"📤 Wysyłam dane do klienta {sid}: {len(serialized_graph_data.get('beings', []))} beings, {len(serialized_graph_data.get('relationships', []))} relationships")
         
         await sio.emit('graph_data', serialized_graph_data, room=sid)
 
