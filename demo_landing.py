@@ -310,7 +310,7 @@ async def request_graph_data(sid):
                         'relation_type': row['relation_type'],
                         'type': row['relation_type'],
                         'strength': float(row['strength']) if row['strength'] else 1.0,
-                        'metadata': dict(row['metadata']) if row['metadata'] else {}
+                        'metadata': row['metadata'] if row['metadata'] else {}
                     }
                     graph_data["relationships"].append(relationship_data)
                     print(f"🔗 Relacja: {row['source_ulid']} → {row['target_ulid']} ({row['relation_type']})")
