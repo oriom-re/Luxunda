@@ -1,5 +1,5 @@
 
-from app_v2.clients.openai import OpenAIClient
+from clients.openai import OpenAIClient
 from typing import Dict, Any, List
 
 async def create_embedding(self, text: str) -> List[float]:

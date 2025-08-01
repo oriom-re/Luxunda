@@ -15,6 +15,9 @@ from fastapi.responses import HTMLResponse
 
 # Import AI system
 from ai.hybrid_ai_system import HybridAISystem
+from database.models.base import Soul, Being
+from database.soul_repository import SoulRepository, BeingRepository
+from services.message_similarity_service import MessageSimilarityService
 
 # FastAPI app
 app = FastAPI(title="LuxDB MVP", version="2.0.0")
@@ -61,6 +64,9 @@ db = Postgre_db()
 
 # Initialize AI System
 ai_system = HybridAISystem()
+similarity_service = MessageSimilarityService(similarity_threshold=0.7)
+print("🤖 Hybrid AI System initialized")
+print("🔍 Message Similarity Service initialized")
 
 # In-memory storage for demo (in production, use proper database)
 beings_data = [
@@ -368,6 +374,65 @@ async def send_intention(sid, data):
             "analysis": "Failed to process intention"
         }
         await sio.emit('intention_response', error_response, room=sid)
+
+@app.post("/api/send_message")
+async def send_message(message: dict):
+    """Endpoint do wysyłania wiadomości do AI"""
+    try:
+        content = message.get("message", "")
+        if not content:
+            return {"error": "Brak treści wiadomości"}
+
+        # Przetwórz wiadomość przez AI Brain
+        response = await ai_system.process_message(content)
+
+        return {
+            "response": response.get("response", "Brak odpowiedzi"),
+            "timestamp": datetime.now().isoformat(),
+            "status": "success"
+        }
+    except Exception as e:
+        print(f"Error in send_message: {e}")
+        return {"error": str(e)}
+
+@app.post("/api/compare_messages")
+async def compare_messages_similarity(request: dict):
+    """Endpoint do porównywania podobieństwa wiadomości i tworzenia relacji"""
+    try:
+        soul_hash = request.get("soul_hash")
+        threshold = request.get("threshold", 0.7)
+
+        if not soul_hash:
+            return {"error": "Brak soul_hash"}
+
+        # Ustaw próg podobieństwa
+        similarity_service.set_similarity_threshold(threshold)
+
+        # Porównaj wiadomości i stwórz relacje
+        result = await similarity_service.compare_messages_and_create_relations(soul_hash)
+
+        return {
+            "status": "success",
+            "result": result,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"Error in compare_messages_similarity: {e}")
+        return {"error": str(e)}
+
+@app.get("/api/similar_messages/{message_ulid}")
+async def get_similar_messages(message_ulid: str, limit: int = 5):
+    """Endpoint do pobierania wiadomości podobnych do danej"""
+    try:
+        similar = await similarity_service.get_similar_messages(message_ulid, limit)
+        return {
+            "status": "success",
+            "similar_messages": similar,
+            "count": len(similar)
+        }
+    except Exception as e:
+        print(f"Error in get_similar_messages: {e}")
+        return {"error": str(e)}
 
 @app.get("/")
 async def main_page():
