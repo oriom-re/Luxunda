@@ -201,7 +201,7 @@ def serialize_for_json(obj):
     elif isinstance(obj, list):
         return [serialize_for_json(item) for item in obj]
     else:
-        return obj
+        return str(obj)
 
 @sio.event
 async def request_graph_data(sid):
@@ -271,7 +271,7 @@ async def request_graph_data(sid):
                         strength=0.8,
                         metadata={"auto_created": True, "reason": "demo"}
                     )
-                    
+
                     if len(beings_list) >= 3:
                         # Stwórz drugą relację
                         rel2 = await Relationship.create(
@@ -281,7 +281,7 @@ async def request_graph_data(sid):
                             strength=0.6,
                             metadata={"auto_created": True, "reason": "demo"}
                         )
-                    
+
                     # Odśwież dane relacji
                     relationships = await Relationship.get_all()
                     for rel in relationships:
@@ -294,7 +294,7 @@ async def request_graph_data(sid):
                             'metadata': rel.metadata
                         }
                         graph_data["relationships"].append(relationship_data)
-                    
+
                     print(f"✅ Utworzono {len(relationships)} przykładowych relacji")
 
         except Exception as e:
@@ -528,9 +528,9 @@ async def create_sample_relations():
         beings = await Being.load_all()
         if len(beings) < 2:
             return {"error": "Potrzeba co najmniej 2 beings"}
-        
+
         from database.models.relationship import Relationship
-        
+
         # Stwórz 3 przykładowe relacje
         rel1 = await Relationship.create(
             source_ulid=beings[0].ulid,
@@ -538,7 +538,7 @@ async def create_sample_relations():
             relation_type="similarity",
             strength=0.9
         )
-        
+
         if len(beings) >= 3:
             rel2 = await Relationship.create(
                 source_ulid=beings[1].ulid,
@@ -546,21 +546,18 @@ async def create_sample_relations():
                 relation_type="connection",
                 strength=0.7
             )
-            
+
             rel3 = await Relationship.create(
                 source_ulid=beings[0].ulid,
                 target_ulid=beings[2].ulid,
                 relation_type="dependency",
                 strength=0.5
             )
-        
+
         # Powiadom klientów
         await sio.emit('graph_data_updated')
-        
+
         return {"success": True, "message": "Utworzono przykładowe relacje"}
-        
-    except Exception as e:
-        return {"error": str(e)}
 
 if __name__ == "__main__":
     import logging
