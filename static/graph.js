@@ -53,12 +53,26 @@ class LuxOSGraph {
 
     updateGraphData(data) {
         try {
-            this.beings = data.beings || [];
-            this.relationships = data.relationships || [];
-            console.log(`🔗 Otrzymano ${this.relationships.length} relacji:`, this.relationships);
-            this.renderUniverse();
+            console.log("📊 Otrzymano dane grafu:", data);
+
+            if (data.beings) {
+                const relationships = data.relationships || [];
+                console.log("🔗 Relationships data:", relationships);
+
+                // Mapowanie relacji do formatu D3.js
+                const mappedRelationships = relationships.map(rel => ({
+                    source: rel.source_uid || rel.source_soul,
+                    target: rel.target_uid || rel.target_soul,
+                    strength: rel.strength || rel.metadata?.strength || 0.5,
+                    type: rel.relation_type || rel.type || 'connection'
+                }));
+
+                console.log("🔗 Mapped relationships:", mappedRelationships);
+                this.renderUniverse(data.beings, mappedRelationships);
+            }
         } catch (error) {
-            console.error('❌ Błąd aktualizacji danych:', error);
+            console.error("❌ Błąd aktualizacji danych:", error);
+            console.error("Error details:", error.message, error.stack);
         }
     }
 
