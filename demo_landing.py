@@ -192,6 +192,17 @@ async def disconnect(sid):
     print(f"👋 CLIENT DISCONNECTED: {sid}")
     print(f"📊 Active connections: {len(sio.manager.rooms.get('/', {}))} ")
 
+def serialize_for_json(obj):
+    """Helper function to serialize datetime objects"""
+    if hasattr(obj, 'isoformat'):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {key: serialize_for_json(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [serialize_for_json(item) for item in obj]
+    else:
+        return obj
+
 @sio.event
 async def request_graph_data(sid):
     """Endpoint do żądania aktualnych danych grafu"""
@@ -225,7 +236,7 @@ async def request_graph_data(sid):
                     "alias": soul.alias if soul else None
                 },
                 "created_at": being.created_at.isoformat() if being.created_at else None,
-                "attributes": being.get_attributes()
+                "attributes": serialize_for_json(being.get_attributes())
             }
             graph_data["beings"].append(being_data)
 
@@ -257,7 +268,7 @@ async def request_graph_data(sid):
                             "target_uid": target_uid,
                             "relation_type": attrs.get('relation_type', 'unknown'),
                             "strength": attrs.get('strength', 0.5),
-                            "metadata": attrs.get('metadata', {}),
+                            "metadata": serialize_for_json(attrs.get('metadata', {})),
                             "genesis": {
                                 "type": rel_soul.genotype.get("genesis", {}).get("type", "relation"),
                                 "name": rel_soul.alias
@@ -267,7 +278,10 @@ async def request_graph_data(sid):
 
         print(f"✅ Przygotowano dane grafu: {len(graph_data['beings'])} beings, {len(graph_data['relationships'])} relationships")
 
-        await sio.emit('graph_data', graph_data, room=sid)
+        # Serialize all data to ensure JSON compatibility
+        serialized_graph_data = serialize_for_json(graph_data)
+        
+        await sio.emit('graph_data', serialized_graph_data, room=sid)
 
     except Exception as e:
         print(f"❌ Błąd podczas pobierania danych grafu: {e}")
