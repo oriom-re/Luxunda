@@ -109,9 +109,13 @@ class LuxOSGraph {
             .attr('stop-color', '#00cc66')
             .attr('stop-opacity', 0.8);
             
-        // Filtruj byty - usuń relacje z węzłów grafu
+        // Filtruj byty - usuń relacje z węzłów grafu, ale wyodrębnij je do linii
         const actualBeings = this.beings.filter(being => 
             being._soul?.genesis?.type !== 'relation'
+        );
+        
+        const relationBeings = this.beings.filter(being => 
+            being._soul?.genesis?.type === 'relation'
         );
         
         // Create nodes data with beautiful positions
@@ -124,15 +128,39 @@ class LuxOSGraph {
             being: being
         }));
         
-        // Create links data from relationships
-        const links = this.relationships.map(rel => ({
-            source: rel.source_uid,  // Używaj source_uid i target_uid
-            target: rel.target_uid,
-            type: rel.genesis?.type || 'connection',
-            relation_type: rel.relation_type || 'unknown',
-            strength: rel.strength || 0.5,
-            metadata: rel.metadata || {}
-        }));
+        // Create links data from relation beings
+        const links = [];
+        
+        // Dodaj linki z bytów relacji
+        relationBeings.forEach(relationBeing => {
+            const attrs = relationBeing.attributes || {};
+            const sourceUid = attrs.source_uid;
+            const targetUid = attrs.target_uid;
+            
+            if (sourceUid && targetUid) {
+                links.push({
+                    source: sourceUid,
+                    target: targetUid,
+                    type: 'relation_being',
+                    relation_type: attrs.relation_type || 'connection',
+                    strength: attrs.strength || 0.5,
+                    metadata: attrs.metadata || {},
+                    being: relationBeing
+                });
+            }
+        });
+        
+        // Dodaj również linki z tradycyjnych relationships (jeśli są)
+        this.relationships.forEach(rel => {
+            links.push({
+                source: rel.source_uid,
+                target: rel.target_uid,
+                type: rel.genesis?.type || 'connection',
+                relation_type: rel.relation_type || 'unknown',
+                strength: rel.strength || 0.5,
+                metadata: rel.metadata || {}
+            });
+        });
         
         // Create force simulation
         const simulation = d3.forceSimulation(nodes)
@@ -150,20 +178,30 @@ class LuxOSGraph {
             .style('stroke', d => {
                 if (d.relation_type === 'similar_content') return '#00ff88';
                 if (d.relation_type === 'communication') return '#ff8800';
+                if (d.type === 'relation_being') return '#00ccff'; // Niebieskie dla bytów relacji
                 return '#555';
             })
             .style('stroke-width', d => {
                 // Grubość linii zależna od siły relacji
-                return Math.max(1, d.strength * 4);
+                return Math.max(2, d.strength * 5);
             })
             .style('opacity', d => {
                 // Przezroczystość zależna od siły relacji
-                return Math.max(0.3, d.strength);
+                return Math.max(0.4, d.strength);
             })
             .style('stroke-dasharray', d => {
                 // Różne style linii dla różnych typów relacji
                 if (d.relation_type === 'similar_content') return '5,5';
+                if (d.type === 'relation_being') return '3,3';
                 return 'none';
+            })
+            .on('mouseover', function(event, d) {
+                // Podświetl linię przy najechaniu
+                d3.select(this).style('stroke-width', Math.max(4, d.strength * 6));
+            })
+            .on('mouseout', function(event, d) {
+                // Przywróć normalną grubość
+                d3.select(this).style('stroke-width', Math.max(2, d.strength * 5));
             });
             
         // Draw nodes with simple drag
@@ -194,17 +232,26 @@ class LuxOSGraph {
                     d.fy = null;
                 }));
             
-        // Add relationship labels for similarity relations
+        // Add relationship labels for all relations
         const relationLabels = g.append('g')
             .selectAll('text')
-            .data(links.filter(d => d.relation_type === 'similar_content'))
+            .data(links)
             .enter().append('text')
             .attr('class', 'relation-label')
-            .style('fill', '#00ff88')
-            .style('font-size', '10px')
+            .style('fill', d => {
+                if (d.type === 'relation_being') return '#00ccff';
+                if (d.relation_type === 'similar_content') return '#00ff88';
+                return '#fff';
+            })
+            .style('font-size', '9px')
             .style('text-anchor', 'middle')
             .style('pointer-events', 'none')
-            .text(d => `${Math.round(d.strength * 100)}%`);
+            .text(d => {
+                if (d.type === 'relation_being') {
+                    return `${d.relation_type} (${Math.round(d.strength * 100)}%)`;
+                }
+                return `${Math.round(d.strength * 100)}%`;
+            });
 
         // Add node labels
         const labels = g.append('g')
@@ -240,6 +287,7 @@ class LuxOSGraph {
         });
         
         console.log(`✨ Graf renderowany z ${nodes.length} węzłami i ${links.length} połączeniami!`);
+        console.log(`🔗 Znaleziono ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
     }
 
     attemptReconnect() {
