@@ -162,7 +162,7 @@ class MessageSimilarityService:
                 "target_uid": {"py_type": "str", "table_name": "_text"},
                 "relation_type": {"py_type": "str", "table_name": "_text"},
                 "strength": {"py_type": "float", "table_name": "_numeric"},
-                "metadata": {"py_type": "dict", "table_name": "_text"}
+                "metadata": {"py_type": "dict", "table_name": "_jsonb"}
             }
         }
         

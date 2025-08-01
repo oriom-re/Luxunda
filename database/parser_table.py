@@ -55,7 +55,7 @@ def build_table_name(parsed: dict) -> tuple:
     base = parsed["base_type"]
     name = "attr_"  # prefiks zamiast tylko "_"
     column_name = "value "
-
+    
     # Typ bazowy → SQL-friendly name
     if base is str:
         name += "text"
@@ -74,8 +74,8 @@ def build_table_name(parsed: dict) -> tuple:
         name += "boolean"
         column_name += "BOOLEAN"
     elif base is dict:
-        name += "text"
-        column_name += "TEXT"
+        name += "jsonb"
+        column_name += "JSONB"
     elif base is list or str(base).startswith("typing.List"):
         # Obsługa list np. List[float]
         if parsed.get("vector_size"):
@@ -86,12 +86,12 @@ def build_table_name(parsed: dict) -> tuple:
             column_name += f"VECTOR({size})"
         else:
             name += "list"
-            column_name += "TEXT"  # lista jako jsonb, jeśli brak szczegółów
+            column_name += "JSONB"  # lista jako jsonb, jeśli brak szczegółów
     else:
         name += "unknown"
         column_name += "TEXT"
         print(f"Warning: Unknown type {base} for attribute {parsed['name']}")
-
+    
     # Flagi i ograniczenia
     if parsed.get("unique"):
         name += "_unique"
@@ -133,7 +133,7 @@ def create_unique(table_hash: str) -> str:
 def process_genotype_for_tables(genotype: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Przetwarza genotyp i zwraca listę definicji tabel do utworzenia"""
     tables_to_create = []
-
+    
     attributes = genotype.get("attributes", {})
     for attr_name, attr_meta in attributes.items():
         parsed = parse_py_type(attr_name, attr_meta)
@@ -153,38 +153,38 @@ def process_genotype_for_tables(genotype: Dict[str, Any]) -> List[Dict[str, Any]
             "parsed": parsed
         }
         tables_to_create.append(table_info)
-
+    
     return tables_to_create
 
 def validate_genotype(genotype: Dict[str, Any]) -> Dict[str, Any]:
     """Waliduje strukturę genotypu"""
     errors = []
     warnings = []
-
+    
     if not isinstance(genotype, dict):
         errors.append("Genotype must be a dictionary")
         return {"valid": False, "errors": errors, "warnings": warnings}
-
+    
     if "attributes" not in genotype:
         errors.append("Genotype must have 'attributes' key")
         return {"valid": False, "errors": errors, "warnings": warnings}
-
+    
     attributes = genotype.get("attributes", {})
     if not isinstance(attributes, dict):
         errors.append("Genotype attributes must be a dictionary")
         return {"valid": False, "errors": errors, "warnings": warnings}
-
+    
     for attr_name, attr_meta in attributes.items():
         if not isinstance(attr_meta, dict):
             errors.append(f"Attribute '{attr_name}' metadata must be a dictionary")
             continue
-
+            
         py_type = attr_meta.get("py_type", "str")
         try:
             parse_py_type(attr_name, attr_meta)
         except Exception as e:
             errors.append(f"Invalid py_type '{py_type}' for attribute '{attr_name}': {e}")
-
+    
     return {
         "valid": len(errors) == 0,
         "errors": errors,
@@ -214,11 +214,11 @@ if __name__ == "__main__":
             }
         }
     }
-
+    
     print("==============================================")
     print("LuxDB Parser Table - Validation and Processing")
     print("==============================================")
-
+    
     # Walidacja genotypu
     validation = validate_genotype(test_genotype)
     print(f"Genotype validation: {'✅ VALID' if validation['valid'] else '❌ INVALID'}")
@@ -228,12 +228,12 @@ if __name__ == "__main__":
     if validation['warnings']:
         for warning in validation['warnings']:
             print(f"  ⚠️  Warning: {warning}")
-
+    
     if validation['valid']:
         # Przetwarzanie genotypu
         tables = process_genotype_for_tables(test_genotype)
         print(f"\n📊 Generated {len(tables)} table definitions:")
-
+        
         for table in tables:
             print(f"\n🔧 Attribute: {table['attr_name']}")
             print(f"   Table: {table['table_name']}")
@@ -241,197 +241,8 @@ if __name__ == "__main__":
             print(f"   SQL: {table['create_sql'].strip()}")
             if table['index_sql']:
                 print(f"   Index SQL: {table['index_sql']}")
-
+    
     print("\n==============================================")
     print("Ready for LuxDB MVP integration! 🚀")
     print("==============================================")
-```
 
-```python
-import json
-from sqlalchemy import create_engine, text
-from typing import List, Dict, Any
-
-class PostgresDB:
-    # Mapowanie typów na SQL
-    sql_type_map = {
-        "_text": "TEXT",
-        "_numeric": "NUMERIC",
-        "_boolean": "BOOLEAN",
-        "_jsonb": "TEXT",
-        "_vector": "VECTOR(1536)"
-    }
-    type_map = {
-        "str": "_text",
-        "int": "_numeric",
-        "float": "_numeric",
-        "bool": "_boolean",
-        "dict": "_text",
-        "List[str]": "_text",
-        "List[float]": "_vector",
-        "List[int]": "_text"
-    }
-    def __init__(self, db_name, user, password, host, port, genotype=None):
-        self.db_name = db_name
-        self.user = user
-        self.password = password
-        self.host = host
-        self.port = port
-        self.engine = None
-        self.genotype = genotype
-
-    def connect(self):
-        try:
-            url = f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
-            self.engine = create_engine(url)
-            self.connection = self.engine.connect()
-            print(f"Connected to PostgreSQL database {self.db_name} successfully!")
-            return self.connection
-        except Exception as e:
-            print(f"Error connecting to PostgreSQL: {e}")
-            return None
-
-    def disconnect(self):
-        if self.connection:
-            self.connection.close()
-            print("Disconnected from PostgreSQL database.")
-
-    def execute_query(self, query):
-        try:
-            result = self.connection.execute(text(query))
-            self.connection.commit()
-            return result
-        except Exception as e:
-            print(f"Error executing query: {e}")
-            self.connection.rollback()
-            return None
-
-    def create_table(self, table_name, columns):
-        """
-        Creates a table in the PostgreSQL database.
-
-        Parameters:
-        - table_name (str): The name of the table to be created.
-        - columns (dict): A dictionary where keys are column names and values are SQL data types.
-        """
-        try:
-            # Construct the SQL query for table creation
-            column_definitions = ', '.join([f"{col} {columns[col]}" for col in columns])
-            query = f"CREATE TABLE IF NOT EXISTS {table_name} ({column_definitions})"
-
-            # Execute the query
-            self.execute_query(query)
-            print(f"Table {table_name} created successfully!")
-
-        except Exception as e:
-            print(f"Error creating table {table_name}: {e}")
-
-    def insert_data(self, table_name, data):
-        """
-        Inserts data into the specified table.
-
-        Parameters:
-        - table_name (str): The name of the table.
-        - data (dict): A dictionary where keys are column names and values are the data to be inserted.
-        """
-        try:
-            # Construct the SQL query for data insertion
-            columns = ', '.join(data.keys())
-            values = ', '.join([f"'{v}'" if isinstance(v, str) else str(v) for v in data.values()])
-            query = f"INSERT INTO {table_name} ({columns}) VALUES ({values})"
-
-            # Execute the query
-            self.execute_query(query)
-            print(f"Data inserted into table {table_name} successfully!")
-
-        except Exception as e:
-            print(f"Error inserting data into table {table_name}: {e}")
-
-# Example usage
-if __name__ == '__main__':
-    from database.parser_table import process_genotype_for_tables, validate_genotype
-    test_genotype = {
-        "name": "TestGenotype",
-        "version": "1.0",
-        "description": "A test genotype for demonstration purposes.",
-        "attributes": {
-            "firstName": {
-                "py_type": "str",
-                "index": True,
-                "unique": False,
-                "max_length": 50
-            },
-            "lastName": {
-                "py_type": "str",
-                "index": True,
-                "unique": False,
-                "max_length": 50
-            },
-            "age": {
-                "py_type": "int",
-                "index": True,
-                "unique": False
-            },
-            "email": {
-                "py_type": "str",
-                "index": True,
-                "unique": True,
-                "max_length": 100
-            },
-            "isActive": {
-                "py_type": "bool",
-                "default": True
-            },
-            "embedding": {
-                "py_type": "List[float]",
-                "vector_size": 1536
-            },
-             "phoneNumbers": {
-                "py_type": "List[str]",
-            },
-            "address": {
-                "py_type": "dict",
-            }
-        }
-    }
-
-    # Walidacja genotypu
-    validation_result = validate_genotype(test_genotype)
-    if validation_result['valid']:
-        print("Genotype validation successful.")
-        tables = process_genotype_for_tables(test_genotype)
-        print(f"Generated {len(tables)} table definitions.")
-
-        # Example: Connect to the database and create tables
-        db = PostgresDB(db_name="your_db", user="your_user", password="your_password", host="localhost", port="5432", genotype=test_genotype)
-        connection = db.connect()
-        if connection:
-            try:
-                for table in tables:
-                    print(f"Creating table: {table['table_hash']}")
-                    db.execute_query(table["create_sql"])
-                    if table["index_sql"]:
-                        db.execute_query(table["index_sql"])
-                    if table["unique_sql"]:
-                        db.execute_query(table["unique_sql"])
-                print("All tables created successfully.")
-
-                # Example: Insert data into a table
-                # Assuming you have a table named 'attr_text_hash'
-                # and you want to insert data into it
-                sample_data = {
-                    "ulid": "some_ulid",
-                    "being_ulid": "some_being_ulid",
-                    "soul_hash": "some_soul_hash",
-                    "name": "firstName",
-                    "key": "firstName",
-                    "value": "John"
-                }
-                #db.insert_data("attr_text_hash", sample_data)
-
-            except Exception as e:
-                print(f"An error occurred: {e}")
-            finally:
-                db.disconnect()
-        else:
-            print("Failed to connect to the database.")
