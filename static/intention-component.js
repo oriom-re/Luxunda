@@ -21,6 +21,7 @@ class IntentionComponent {
         }
 
         this.setupEventListeners();
+        this.setupResponseHandler();
     }
 
     setupEventListeners() {
@@ -76,7 +77,7 @@ class IntentionComponent {
         this.intentionInput.style.height = newHeight + 'px';
     }
 
-    showFeedback(message) {
+    showFeedback(message, isSuccess = true) {
         const feedbackDiv = document.createElement('div');
         feedbackDiv.className = 'feedback-message';
         feedbackDiv.textContent = message;
@@ -84,13 +85,14 @@ class IntentionComponent {
             position: fixed;
             top: 100px;
             right: 20px;
-            background: #00ff88;
+            background: ${isSuccess ? '#00ff88' : '#ff6b6b'};
             color: #1a1a1a;
             padding: 10px 15px;
             border-radius: 5px;
             z-index: 2000;
             max-width: 300px;
             font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         `;
 
         document.body.appendChild(feedbackDiv);
@@ -99,7 +101,28 @@ class IntentionComponent {
             if (feedbackDiv.parentNode) {
                 feedbackDiv.parentNode.removeChild(feedbackDiv);
             }
-        }, 3000);
+        }, 4000);
+    }
+
+    setupResponseHandler() {
+        if (this.graphManager && this.graphManager.socket) {
+            this.graphManager.socket.on('intention_response', (response) => {
+                console.log('📥 Intention response received:', response);
+                
+                if (response.status === 'processed') {
+                    const analysis = response.analysis;
+                    let message = `🎯 Intent: ${analysis.intent}`;
+                    if (analysis.new_being_created) {
+                        message += `\n✨ Created: ${analysis.being_name}`;
+                    }
+                    this.showFeedback(message, true);
+                } else if (response.status === 'error') {
+                    this.showFeedback(`❌ Error: ${response.error}`, false);
+                } else {
+                    this.showFeedback('📤 Intention sent!', true);
+                }
+            });
+        }
     }
 }
 

@@ -8,6 +8,13 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from database.postgre_db import Postgre_db
+import asyncio
+import json
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+
+# Import AI system
+from ai.hybrid_ai_system import HybridAISystem
 
 # FastAPI app
 app = FastAPI(title="LuxDB MVP", version="2.0.0")
@@ -52,6 +59,110 @@ socket_app = socketio.ASGIApp(sio, app)
 # Konfiguracja PostgreSQL
 db = Postgre_db()
 
+# Initialize AI System
+ai_system = HybridAISystem()
+
+# In-memory storage for demo (in production, use proper database)
+beings_data = [
+    {
+        "soul_uid": "soul_001",
+        "_soul": {
+            "genesis": {
+                "name": "AI_Brain",
+                "type": "intelligence"
+            }
+        }
+    },
+    {
+        "soul_uid": "soul_002", 
+        "_soul": {
+            "genesis": {
+                "name": "Data_Processor",
+                "type": "processor"
+            }
+        }
+    },
+    {
+        "soul_uid": "soul_003",
+        "_soul": {
+            "genesis": {
+                "name": "Communication_Hub",
+                "type": "communication"
+            }
+        }
+    }
+]
+
+relationships_data = [
+    {
+        "source_soul": "soul_001",
+        "target_soul": "soul_002",
+        "genesis": {"type": "processes"}
+    },
+    {
+        "source_soul": "soul_002", 
+        "target_soul": "soul_003",
+        "genesis": {"type": "sends_to"}
+    }
+]
+
+def create_being_from_intent(intent_analysis, ai_response):
+    """Create a new being based on AI analysis"""
+    intent = intent_analysis.get("intent", "unknown")
+    entities = intent_analysis.get("entities", [])
+
+    # Generate unique ID
+    new_id = f"soul_{len(beings_data) + 1:03d}"
+
+    # Determine being type and name based on intent
+    if intent == "create":
+        being_type = "creation"
+        name = f"Created_Entity_{datetime.now().strftime('%H%M%S')}"
+    elif intent == "execute":
+        being_type = "execution"
+        name = f"Executed_Task_{datetime.now().strftime('%H%M%S')}"
+    elif intent == "retrieve":
+        being_type = "query"
+        name = f"Query_Result_{datetime.now().strftime('%H%M%S')}"
+    else:
+        being_type = "interaction"
+        name = f"User_Intent_{datetime.now().strftime('%H%M%S')}"
+
+    # Extract entity names if available
+    for entity in entities:
+        if entity.get("type") in ["gene", "file"]:
+            name = f"{entity['value'].title()}_Being"
+            break
+
+    new_being = {
+        "soul_uid": new_id,
+        "_soul": {
+            "genesis": {
+                "name": name,
+                "type": being_type,
+                "created_from_intent": True,
+                "original_intent": intent_analysis.get("raw_input", ""),
+                "ai_response": ai_response
+            }
+        }
+    }
+
+    return new_being
+
+def create_relationship_to_ai_brain(new_being_id, intent):
+    """Create relationship between new being and AI Brain"""
+    relationship_type = "analyzed_by" if intent in ["analyze", "process"] else "created_by"
+
+    return {
+        "source_soul": "soul_001",  # AI Brain
+        "target_soul": new_being_id,
+        "genesis": {
+            "type": relationship_type,
+            "created_at": datetime.now().isoformat(),
+            "automated": True
+        }
+    }
+
 @sio.event
 async def connect(sid, environ):
     """Obsługa połączenia klienta"""
@@ -83,7 +194,7 @@ async def request_graph_data(sid):
     try:
         # Import system classes
         from database.models.base import Soul, Being
-        
+
         # Pobierz wszystkie dusze
         souls = await Soul.load_all()
         beings = await Being.load_all()
@@ -119,13 +230,13 @@ async def request_graph_data(sid):
             },
             limit=None
         )
-        
+
         # Formatuj dane dla grafu
         graph_data = {
             'beings': [],
             'relationships': []  # Na razie puste - dodamy gdy stworzymy prawdziwe relacje
         }
-        
+
         # Dodaj dusze jako byty
         for soul in souls:
             if soul:
@@ -136,7 +247,7 @@ async def request_graph_data(sid):
                         'alias': soul.alias
                     }
                 })
-        
+
         # Dodaj rzeczywiste byty
         for being in beings:
             if being:
@@ -147,7 +258,7 @@ async def request_graph_data(sid):
                         'ulid': being.ulid
                     }
                 })
-        
+
         # Jeśli nie ma danych, użyj mock data z relacjami
         if not graph_data['beings']:
             graph_data = {
@@ -163,10 +274,10 @@ async def request_graph_data(sid):
                     {'source_soul': 'ai_agent_1', 'target_soul': 'semantic_data_1', 'genesis': {'type': 'processes'}}
                 ]
             }
-        
+
         await sio.emit('graph_data', graph_data, room=sid)
         print(f"✅ Real graph data sent to client {sid}: {len(graph_data['beings'])} beings")
-        
+
     except Exception as e:
         print(f"❌ Error loading graph data: {e}")
         # Fallback do mock data
@@ -177,6 +288,79 @@ async def request_graph_data(sid):
             'relationships': []
         }
         await sio.emit('graph_data', fallback_data, room=sid)
+
+@sio.event
+async def send_intention(sid, data):
+    """Handle user intention with AI processing"""
+    intention = data.get('intention', '')
+    print(f"📥 Received intention from {sid}: {intention}")
+
+    try:
+        # Process intention with AI system
+        print(f"🤖 Processing intention with AI: {intention}")
+        ai_result = await ai_system.process_request(intention, use_openai=False)
+
+        # Extract key information
+        intent_analysis = ai_result.get("final_result", {}).get("intent_analysis", {})
+        intent = intent_analysis.get("intent", "unknown")
+        confidence = intent_analysis.get("confidence", 0.0)
+
+        # Create response message
+        if ai_result.get("final_result", {}).get("results"):
+            # If AI executed functions
+            executed_functions = ai_result["final_result"]["results"]
+            success_count = sum(1 for r in executed_functions if r.get("success"))
+            ai_response = f"Executed {success_count} functions successfully"
+        else:
+            ai_response = f"Recognized intent: {intent} (confidence: {confidence:.1f})"
+
+        # Create new being from this intention
+        new_being = create_being_from_intent(intent_analysis, ai_response)
+        beings_data.append(new_being)
+
+        # Create relationship to AI Brain
+        new_relationship = create_relationship_to_ai_brain(new_being["soul_uid"], intent)
+        relationships_data.append(new_relationship)
+
+        print(f"✅ Created new being: {new_being['_soul']['genesis']['name']}")
+
+        # Prepare response
+        response = {
+            "status": "processed",
+            "intention": intention,
+            "timestamp": datetime.now().isoformat(),
+            "analysis": {
+                "intent": intent,
+                "confidence": confidence,
+                "ai_response": ai_response,
+                "new_being_created": True,
+                "being_name": new_being['_soul']['genesis']['name']
+            },
+            "ai_result": ai_result
+        }
+
+        # Send response to user
+        await sio.emit('intention_response', response, room=sid)
+
+        # Broadcast updated graph data to all clients
+        graph_data = {
+            "beings": beings_data,
+            "relationships": relationships_data
+        }
+        await sio.emit('graph_data', graph_data)
+
+        print(f"📊 Graph updated with new being and relationship")
+
+    except Exception as e:
+        print(f"❌ Error processing intention: {e}")
+        error_response = {
+            "status": "error",
+            "intention": intention,
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "analysis": "Failed to process intention"
+        }
+        await sio.emit('intention_response', error_response, room=sid)
 
 @app.get("/")
 async def main_page():
