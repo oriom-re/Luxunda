@@ -106,12 +106,11 @@ class Postgre_db:
                             soul_hash CHAR(64) PRIMARY KEY,
                             global_ulid CHAR(26) NOT NULL,
                             alias VARCHAR(255),
-                            genotype JSONB NOT NULL,
+                            genotype TEXT NOT NULL,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
 
                         -- indexy
-                        CREATE INDEX IF NOT EXISTS idx_souls_genotype ON souls USING gin (genotype);
                         CREATE INDEX IF NOT EXISTS idx_souls_alias ON souls (alias);
                         CREATE INDEX IF NOT EXISTS idx_souls_created_at ON souls (created_at);
                 """)
