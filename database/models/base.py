@@ -114,7 +114,7 @@ class Being:
 
         for key, value in data.items():
             setattr(being, key, value)
-        
+
         # Sprawdź limit tylko jeśli został podany
         if limit is not None:
             beings = await BeingRepository.load_all_by_soul_hash(soul.soul_hash)
@@ -182,8 +182,36 @@ class Being:
         await DynamicRepository.insert_data_transaction(self, soul.genotype)
         return self
 
-    def get_attributes(self) -> Dict[str, Any]:
-        return asdict(self)
+    async def get_attributes(self):
+        """Zwraca wszystkie atrybuty tego bytu z bazy danych"""
+        attributes = {}
+
+        try:
+            from database.postgre_db import Postgre_db
+            db_pool = await Postgre_db.get_db_pool()
+
+            if db_pool:
+                async with db_pool.acquire() as conn:
+                    # Sprawdź wszystkie tabele z atrybutami
+                    for table_suffix in ['_text', '_int', '_float', '_boolean', '_json']:
+                        table_name = f"attr{table_suffix}"
+                        try:
+                            query = f"""
+                                SELECT attribute_name, attribute_value 
+                                FROM {table_name} 
+                                WHERE being_ulid = $1
+                            """
+                            rows = await conn.fetch(query, self.ulid)
+                            for row in rows:
+                                attributes[row['attribute_name']] = row['attribute_value']
+                        except Exception:
+                            # Tabela może nie istnieć
+                            continue
+
+        except Exception as e:
+            print(f"❌ Błąd pobierania atrybutów dla {self.ulid}: {e}")
+
+        return attributes
 
     @classmethod
     async def load_by_ulid(cls, ulid: str) -> 'Being':
@@ -263,12 +291,12 @@ class Message(Being):
         instance._apply_genotype(soul.genotype)
         instance.soul_hash = soul.soul_hash
         instance.ulid = str(_ulid.ulid())
-        
+
         # Sprawdź limit tylko jeśli został podany
         if limit is not None:
             beings = await BeingRepository.load_all_by_soul_hash(soul.soul_hash)
             if len(beings) >= limit:
                 raise ValueError(f"Limit of {limit} beings reached for soul {soul.soul_hash}")
-                
+
         await instance.save(soul)
         return instance

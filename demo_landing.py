@@ -236,7 +236,7 @@ async def request_graph_data(sid):
                     "alias": soul.alias if soul else None
                 },
                 "created_at": being.created_at.isoformat() if being.created_at else None,
-                "attributes": serialize_for_json(being.get_attributes())
+                "attributes": serialize_for_json(await being.get_attributes())
             }
             graph_data["beings"].append(being_data)
 
@@ -247,12 +247,44 @@ async def request_graph_data(sid):
         for rel_soul in relation_souls:
             # Pobierz beings (relacje) dla tej soul
             relation_beings = await Being.load_all_by_soul_hash(rel_soul.soul_hash)
+            print(f"📋 Soul {rel_soul.alias} ma {len(relation_beings)} beings")
 
             for rel_being in relation_beings:
-                # Sprawdź czy mamy source_uid i target_uid
-                attrs = rel_being.get_attributes()
-                source_uid = attrs.get('source_uid')
-                target_uid = attrs.get('target_uid')
+                # Pobierz wszystkie atrybuty being'a i wyprintuj je dla debugowania
+                all_attrs = {}
+                
+                # Sprawdź wszystkie tabele atrybutów
+                from database.postgre_db import Postgre_db
+                db_pool = await Postgre_db.get_db_pool()
+                
+                if db_pool:
+                    async with db_pool.acquire() as conn:
+                        # Sprawdź tabele z atrybutami tekstowymi
+                        for table_suffix in ['_text', '_int', '_float', '_boolean', '_json']:
+                            table_name = f"attr{table_suffix}"
+                            try:
+                                query = f"""
+                                    SELECT attribute_name, attribute_value 
+                                    FROM {table_name} 
+                                    WHERE being_ulid = $1
+                                """
+                                rows = await conn.fetch(query, rel_being.ulid)
+                                for row in rows:
+                                    all_attrs[row['attribute_name']] = row['attribute_value']
+                            except Exception as e:
+                                print(f"⚠️ Błąd czytania tabeli {table_name}: {e}")
+                
+                print(f"🔍 Being {rel_being.ulid} atrybuty: {all_attrs}")
+                
+                # Również spróbuj metody get_attributes (teraz async)
+                being_attrs = await rel_being.get_attributes()
+                print(f"🔍 Being {rel_being.ulid} przez get_attributes(): {being_attrs}")
+                
+                # Użyj atrybutów z bezpośredniego zapytania lub z metody
+                final_attrs = {**being_attrs, **all_attrs}  # all_attrs ma priorytet
+                
+                source_uid = final_attrs.get('source_uid')
+                target_uid = final_attrs.get('target_uid')
 
                 if source_uid and target_uid:
                     # Znajdź beings które są źródłem i celem
@@ -266,16 +298,24 @@ async def request_graph_data(sid):
                             "target_soul": target_being.soul_hash,
                             "source_uid": source_uid, 
                             "target_uid": target_uid,
-                            "relation_type": attrs.get('relation_type', 'unknown'),
-                            "strength": float(attrs.get('strength', 0.5)),  # Ensure it's a float
-                            "metadata": serialize_for_json(attrs.get('metadata', {})),
+                            "relation_type": final_attrs.get('relation_type', 'similarity'),
+                            "strength": float(final_attrs.get('strength', 0.7)),
+                            "metadata": serialize_for_json(final_attrs.get('metadata', {})),
                             "genesis": {
                                 "type": rel_soul.genotype.get("genesis", {}).get("type", "relation"),
                                 "name": rel_soul.alias
                             }
                         }
                         graph_data["relationships"].append(relationship_data)
-                        print(f"✅ Dodano relację: {source_uid} -> {target_uid} ({attrs.get('relation_type', 'unknown')})")
+                        print(f"✅ Dodano relację: {source_uid} -> {target_uid} ({final_attrs.get('relation_type', 'similarity')})")
+                    else:
+                        print(f"⚠️ Nie znaleziono bytów dla relacji: {source_uid} -> {target_uid}")
+                        if not source_being:
+                            print(f"   Brak source being: {source_uid}")
+                        if not target_being:
+                            print(f"   Brak target being: {target_uid}")
+                else:
+                    print(f"⚠️ Being {rel_being.ulid} nie ma source_uid/target_uid")
 
         print(f"✅ Przygotowano dane grafu: {len(graph_data['beings'])} beings, {len(graph_data['relationships'])} relationships")
 
