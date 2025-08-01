@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 import json
 from database.postgre_db import Postgre_db
 from core.globals import Globals
-from database.parser_table import parse_py_type, build_table_name
+from database.parser_table import parse_py_type, build_table_name, process_genotype_for_tables
 # pobiera typy
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -428,6 +428,24 @@ class DynamicRepository:
                 
                 attributes = genotype.get("attributes", {})
 
+                # przygotuj tabele
+                tables_to_create = process_genotype_for_tables(genotype)
+                for table_info in tables_to_create:
+                    table_hash = table_info['table_hash']
+                    table_name = table_info['table_name']
+                    column_def = table_info['column_def']
+                    index = table_info['index']
+                    foreign_key = table_info['foreign_key']
+                    unique = table_info['unique']
+                    
+                    # Sprawdź, czy tabela istnieje i zbuduj ją, jeśli nie
+                    result = await Postgre_db.ensure_table(
+                        conn, table_hash=table_hash, table_name=table_name, column_def=column_def, index=index, foreign_key=foreign_key, unique=unique
+                    )
+                    
+                    if result.get("status") == "error":
+                        print(f"❌ Error creating table {table_name}: {result.get('error')}")
+                        return False
                 # iteruje po atrybutach i zapisuje je w odpowiednich tabelach
                 for attr_name, attr_meta in attributes.items():
 

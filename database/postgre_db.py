@@ -1,5 +1,6 @@
 import asyncpg
 
+from database.parser_table import create_foreign_key, parse_py_type, build_table_name, create_query_table, create_index, create_unique
 db_pool = None
 
 class Postgre_db:
@@ -43,60 +44,44 @@ class Postgre_db:
         return db_pool
 
     @staticmethod
-    async def ensure_table(conn: asyncpg.Connection, table_name: str, column_def: str, index: bool, foreign_key: bool) -> dict:
+    async def ensure_table(conn: asyncpg.Connection, table_hash: str, table_name:str, column_def: str, index: bool, foreign_key: bool, unique: dict) -> dict:
         """Zapewnia istnienie tabeli w bazie danych PostgreSQL"""
         try:
+            
             # Sprawdź, czy tabela istnieje
             exists = await conn.fetchval("""
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables 
                     WHERE table_schema = 'public' AND table_name = $1
                 )
-            """, table_name)
+            """, table_hash)
 
             if exists:
-                print(f"Table {table_name} already exists, skipping creation.")
-                return {"status": "exists", "table_name": table_name}
-
-            # Buduj zapytanie do stworzenia tabeli
-            create_table_sql = f"""
-                CREATE TABLE {table_name} (
-                    ulid CHAR(26) NOT NULL,
-                    being_ulid CHAR(26) NOT NULL,
-                    soul_hash CHAR(64) NOT NULL,
-                    key TEXT NOT NULL,
-                    {column_def},
-                    PRIMARY KEY (being_ulid, key),
-                    FOREIGN KEY (being_ulid) REFERENCES beings(ulid),
-                    FOREIGN KEY (soul_hash) REFERENCES souls(soul_hash),
-                    -- Dodaj kolumny do śledzenia czasu utworzenia i modyfikacji
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """
+                print(f"Table {table_hash} already exists, skipping creation.")
+                return {"status": "exists", "table_name": table_hash}
 
             # Transakcja z utworzeniem tabeli i indeksów
             async with conn.transaction():
-                await conn.execute(create_table_sql)
+                await conn.execute(create_query_table(table_hash, table_name, column_def))
                 if index:
-                    index_name = f"idx_{table_name}_key"
-                    await conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} (key)")
+                    query = create_index(table_hash)
+                    await conn.execute(query)
                 if foreign_key:
                     # Jeśli chcesz FK na value, dodaj osobny constraint
-                    fk_name = f"fk_{table_name}_value"
                     try:
-                        await conn.execute(f"""
-                            ALTER TABLE {table_name}
-                            ADD CONSTRAINT {fk_name} FOREIGN KEY (value) REFERENCES beings(ulid)
-                        """)
+                        query = create_foreign_key(table_hash)
+                        await conn.execute(query)
                     except asyncpg.exceptions.DuplicateObjectError:
                         # constraint już istnieje
                         pass
+                if unique:
+                    unique_sql = create_unique(table_hash)
+                    await conn.execute(unique_sql)
 
-            print(f"Table {table_name} created successfully.")
-            return {"status": "created", "table_name": table_name}
+            print(f"Table {table_hash} created successfully.")
+            return {"status": "created", "table_name": table_hash}
         except Exception as e:
-            print(f"Error creating table {table_name}: {e}")
+            print(f"Error creating table {table_hash}: {e}")
             return {"status": "error", "error": str(e)}
 
 

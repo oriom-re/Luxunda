@@ -1,6 +1,6 @@
 import json
 from typing import get_origin, get_args, Optional, Union, List, Dict, Any
-
+import hashlib
 def parse_py_type(attr_name: str, attr_meta: dict):
     # Bezpieczny eval + podstawowe typy
     namespace = {
@@ -53,55 +53,64 @@ def parse_py_type(attr_name: str, attr_meta: dict):
 
 def build_table_name(parsed: dict) -> str:
     base = parsed["base_type"]
-    table_name = "attr_"  # prefiks zamiast tylko "_"
+    name = "attr_"  # prefiks zamiast tylko "_"
     column_name = "value "
     
     # Typ bazowy → SQL-friendly name
     if base is str:
-        table_name += "text"
+        name += "text"
         max_len = parsed.get("max_length", 255)
+        if not max_len:
+            max_len = 255
+        print(f"Max length for {parsed['name']}: {max_len}")
         column_name += f"VARCHAR({max_len})"
     elif base is int:
-        table_name += "int"
+        name += "int"
         column_name += "INTEGER"
     elif base is float:
-        table_name += "float"
+        name += "float"
         column_name += "FLOAT"
     elif base is bool:
-        table_name += "boolean"
+        name += "boolean"
         column_name += "BOOLEAN"
     elif base is dict:
-        table_name += "jsonb"
+        name += "jsonb"
         column_name += "JSONB"
     elif base is list or str(base).startswith("typing.List"):
         # Obsługa list np. List[float]
         if parsed.get("vector_size"):
             size = parsed["vector_size"]
-            table_name += f"vector_{size}"
+            if not size or size <= 0:
+                size = 1536
+            name += f"vector_{size}"
             column_name += f"VECTOR({size})"
         else:
-            table_name += "list"
+            name += "list"
             column_name += "JSONB"  # lista jako jsonb, jeśli brak szczegółów
     else:
-        table_name += "unknown"
+        name += "unknown"
         column_name += "TEXT"
         print(f"Warning: Unknown type {base} for attribute {parsed['name']}")
     
     # Flagi i ograniczenia
     if parsed.get("unique"):
-        column_name += " UNIQUE"
+        name += "_unique"
     if not parsed.get("is_optional", True):
+        name += "_not_null"
         column_name += " NOT NULL"
-    
-    return table_name, column_name.strip(), parsed.get("index", False), parsed.get("foreign_key", False)
+    # zamiana na hash dla unikalnych kolumn
+    table_hash = "attr_" + str(hashlib.sha256(name.encode()).hexdigest()[:50])  # skrócenie do 10 znaków
+    return table_hash, name, column_name.strip(), parsed.get("index", False), parsed.get("foreign_key", False), parsed.get("unique", False)
 
 
-def create_query_table(table_name: str, column_def: str) -> str:
+def create_query_table(table_hash: str, name: str, column_def: str) -> str:
+    print(f"Creating table {table_hash} with definition: {column_def} name: {name}")
     return f"""
-    CREATE TABLE IF NOT EXISTS {table_name} (
+    CREATE TABLE IF NOT EXISTS {table_hash} (
         ulid CHAR(26) NOT NULL,
         being_ulid CHAR(26) NOT NULL,
         soul_hash CHAR(64) NOT NULL,
+        name TEXT NOT NULL DEFAULT '{name}',
         key TEXT NOT NULL,
         {column_def},
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -112,8 +121,14 @@ def create_query_table(table_name: str, column_def: str) -> str:
     );
     """
 
-def create_index(table_name: str) -> str:
-    return f"CREATE INDEX IF NOT EXISTS idx_{table_name}_key ON {table_name} (key);"
+def create_index(table_hash: str) -> str:
+    return f"CREATE INDEX IF NOT EXISTS idx_{table_hash}_key ON {table_hash} (key);"
+
+def create_foreign_key(table_hash: str, foreign_table: str) -> str:
+    return f"ALTER TABLE {table_hash} ADD CONSTRAINT fk_{table_hash}_{foreign_table} FOREIGN KEY (value) REFERENCES {foreign_table}(ulid);"
+
+def create_unique(table_hash: str) -> str:
+    return f"ALTER TABLE {table_hash} ADD CONSTRAINT unique_{table_hash}_value UNIQUE (soul_hash, value);"
 
 def process_genotype_for_tables(genotype: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Przetwarza genotyp i zwraca listę definicji tabel do utworzenia"""
@@ -122,15 +137,18 @@ def process_genotype_for_tables(genotype: Dict[str, Any]) -> List[Dict[str, Any]
     attributes = genotype.get("attributes", {})
     for attr_name, attr_meta in attributes.items():
         parsed = parse_py_type(attr_name, attr_meta)
-        table_name, column_def, index, foreign_key = build_table_name(parsed)
-        
+        table_hash, table_name, column_def, index, foreign_key, unique = build_table_name(parsed)
+
         table_info = {
             "table_name": table_name,
+            "table_hash": table_hash,  # używamy tego samego jako hash
             "column_def": column_def,
             "index": index,
             "foreign_key": foreign_key,
-            "create_sql": create_query_table(table_name, column_def),
-            "index_sql": create_index(table_name) if index else None,
+            "unique": unique,
+            "unique_sql": create_unique(table_hash) if unique else None,
+            "create_sql": create_query_table(table_hash, table_name, column_def),
+            "index_sql": create_index(table_hash) if index else None,
             "attr_name": attr_name,
             "parsed": parsed
         }
