@@ -9,7 +9,7 @@ import asyncio
 class MessageSimilarityService:
     """Serwis do porównywania wiadomości i tworzenia relacji na podstawie podobieństwa"""
     
-    def __init__(self, similarity_threshold: float = 0.8):
+    def __init__(self, similarity_threshold: float = 0.75):
         self.similarity_threshold = similarity_threshold
     
     async def calculate_cosine_similarity(self, embedding1: List[float], embedding2: List[float]) -> float:

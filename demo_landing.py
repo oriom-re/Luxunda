@@ -64,7 +64,7 @@ db = Postgre_db()
 
 # Initialize AI System
 ai_system = HybridAISystem()
-similarity_service = MessageSimilarityService(similarity_threshold=0.7)
+similarity_service = MessageSimilarityService()
 print("🤖 Hybrid AI System initialized")
 print("🔍 Message Similarity Service initialized")
 

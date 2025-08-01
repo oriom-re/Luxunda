@@ -109,20 +109,25 @@ class LuxOSGraph {
             .attr('stop-color', '#00cc66')
             .attr('stop-opacity', 0.8);
             
+        // Filtruj byty - usuń relacje z węzłów grafu
+        const actualBeings = this.beings.filter(being => 
+            being._soul?.genesis?.type !== 'relation'
+        );
+        
         // Create nodes data with beautiful positions
-        const nodes = this.beings.map((being, i) => ({
-            id: being.soul_uid || `node_${i}`,
+        const nodes = actualBeings.map((being, i) => ({
+            id: being.ulid,  // Używaj ulid jako ID węzła
             name: being._soul?.genesis?.name || `Being ${i}`,
             type: being._soul?.genesis?.type || 'unknown',
-            x: width/2 + Math.cos(i * 2 * Math.PI / this.beings.length) * 200,
-            y: height/2 + Math.sin(i * 2 * Math.PI / this.beings.length) * 200,
+            x: width/2 + Math.cos(i * 2 * Math.PI / actualBeings.length) * 200,
+            y: height/2 + Math.sin(i * 2 * Math.PI / actualBeings.length) * 200,
             being: being
         }));
         
-        // Create links data
+        // Create links data from relationships
         const links = this.relationships.map(rel => ({
-            source: rel.source_soul,
-            target: rel.target_soul,
+            source: rel.source_uid,  // Używaj source_uid i target_uid
+            target: rel.target_uid,
             type: rel.genesis?.type || 'connection',
             relation_type: rel.relation_type || 'unknown',
             strength: rel.strength || 0.5,
