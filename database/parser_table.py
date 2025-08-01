@@ -51,7 +51,7 @@ def parse_py_type(attr_name: str, attr_meta: dict):
 
     }
 
-def build_table_name(parsed: dict) -> str:
+def build_table_name(parsed: dict) -> tuple:
     base = parsed["base_type"]
     name = "attr_"  # prefiks zamiast tylko "_"
     column_name = "value "
