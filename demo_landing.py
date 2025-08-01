@@ -258,8 +258,48 @@ async def request_graph_data(sid):
                 graph_data["relationships"].append(relationship_data)
                 print(f"🔗 Relacja: {rel.source_ulid} → {rel.target_ulid} ({rel.relation_type})")
 
+            # Jeśli nie ma relacji, stwórz przykładowe
+            if len(relationships) == 0:
+                print("📝 Tworzę przykładowe relacje między beings...")
+                beings_list = list(all_beings)
+                if len(beings_list) >= 2:
+                    # Stwórz relację między pierwszymi dwoma beings
+                    rel1 = await Relationship.create(
+                        source_ulid=beings_list[0].ulid,
+                        target_ulid=beings_list[1].ulid,
+                        relation_type="similarity",
+                        strength=0.8,
+                        metadata={"auto_created": True, "reason": "demo"}
+                    )
+                    
+                    if len(beings_list) >= 3:
+                        # Stwórz drugą relację
+                        rel2 = await Relationship.create(
+                            source_ulid=beings_list[1].ulid,
+                            target_ulid=beings_list[2].ulid,
+                            relation_type="connection",
+                            strength=0.6,
+                            metadata={"auto_created": True, "reason": "demo"}
+                        )
+                    
+                    # Odśwież dane relacji
+                    relationships = await Relationship.get_all()
+                    for rel in relationships:
+                        relationship_data = {
+                            'id': rel.id,
+                            'source': rel.source_ulid,
+                            'target': rel.target_ulid,
+                            'type': rel.relation_type,
+                            'strength': rel.strength,
+                            'metadata': rel.metadata
+                        }
+                        graph_data["relationships"].append(relationship_data)
+                    
+                    print(f"✅ Utworzono {len(relationships)} przykładowych relacji")
+
         except Exception as e:
             print(f"❌ Błąd podczas ładowania relacji: {e}")
+            # Kontynuuj bez relacji
 
         print(f"✅ Przygotowano dane grafu: {len(graph_data['beings'])} beings, {len(graph_data['relationships'])} relationships")
 
@@ -476,10 +516,51 @@ async def test_endpoint():
     print("🧪 Test endpoint called!")
     return {
         "message": "LuxDB MVP Server is working!",
-        "socket_io": "enabled",
+        "socket_io": "enabled", 
         "static_files": "mounted",
         "timestamp": datetime.now().isoformat()
     }
+
+@app.post("/test/create_sample_relations")
+async def create_sample_relations():
+    """Stwórz przykładowe relacje między beings"""
+    try:
+        beings = await Being.load_all()
+        if len(beings) < 2:
+            return {"error": "Potrzeba co najmniej 2 beings"}
+        
+        from database.models.relationship import Relationship
+        
+        # Stwórz 3 przykładowe relacje
+        rel1 = await Relationship.create(
+            source_ulid=beings[0].ulid,
+            target_ulid=beings[1].ulid,
+            relation_type="similarity",
+            strength=0.9
+        )
+        
+        if len(beings) >= 3:
+            rel2 = await Relationship.create(
+                source_ulid=beings[1].ulid,
+                target_ulid=beings[2].ulid,
+                relation_type="connection",
+                strength=0.7
+            )
+            
+            rel3 = await Relationship.create(
+                source_ulid=beings[0].ulid,
+                target_ulid=beings[2].ulid,
+                relation_type="dependency",
+                strength=0.5
+            )
+        
+        # Powiadom klientów
+        await sio.emit('graph_data_updated')
+        
+        return {"success": True, "message": "Utworzono przykładowe relacje"}
+        
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     import logging

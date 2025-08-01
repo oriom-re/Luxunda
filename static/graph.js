@@ -1,4 +1,3 @@
-
 // ===== LUX OS GRAPH - NAPRAWIONY ZOOM D3.js v7 =====
 
 class LuxOSGraph {
@@ -65,13 +64,13 @@ class LuxOSGraph {
 
     renderUniverse() {
         console.log(`🌌 Renderuję wszechświat z ${this.beings.length} bytami`);
-        
+
         // Clear previous graph
         d3.select('#graph').selectAll('*').remove();
-        
+
         const width = window.innerWidth;
         const height = window.innerHeight - 200;
-        
+
         // Create SVG
         this.svg = d3.select('#graph')
             .append('svg')
@@ -90,10 +89,10 @@ class LuxOSGraph {
 
         // Apply zoom to SVG - KRYTYCZNE: musi być tutaj
         this.svg.call(this.zoomBehavior);
-        
+
         // Store reference to main group
         this.mainGroup = g;
-            
+
         // Add gradient definitions for beautiful nodes
         const defs = this.svg.append('defs');
         const gradient = defs.append('radialGradient')
@@ -108,16 +107,16 @@ class LuxOSGraph {
             .attr('offset', '100%')
             .attr('stop-color', '#00cc66')
             .attr('stop-opacity', 0.8);
-            
+
         // Filtruj byty - usuń relacje z węzłów grafu, ale wyodrębnij je do linii
         const actualBeings = this.beings.filter(being => 
             being._soul?.genesis?.type !== 'relation'
         );
-        
+
         const relationBeings = this.beings.filter(being => 
             being._soul?.genesis?.type === 'relation'
         );
-        
+
         // Create nodes data with beautiful positions
         const nodes = actualBeings.map((being, i) => ({
             id: being.ulid,  // Używaj ulid jako ID węzła
@@ -127,23 +126,23 @@ class LuxOSGraph {
             y: height/2 + Math.sin(i * 2 * Math.PI / actualBeings.length) * 200,
             being: being
         }));
-        
+
         // Create links data from both relation beings and relationships
         const links = [];
-        
+
         console.log(`🔗 Przetwarzam ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
-        
+
         // Dodaj linki z bytów relacji  
         relationBeings.forEach(relationBeing => {
             const attrs = relationBeing.attributes || {};
             const sourceUid = attrs.source_uid;
             const targetUid = attrs.target_uid;
-            
+
             if (sourceUid && targetUid) {
                 // Sprawdź czy węzły istnieją
                 const sourceExists = nodes.find(n => n.id === sourceUid);
                 const targetExists = nodes.find(n => n.id === targetUid);
-                
+
                 if (sourceExists && targetExists) {
                     links.push({
                         source: sourceUid,
@@ -160,12 +159,12 @@ class LuxOSGraph {
                 }
             }
         });
-        
+
         // Dodaj również linki z tradycyjnych relationships (jeśli są)
         this.relationships.forEach(rel => {
             const sourceExists = nodes.find(n => n.id === rel.source_uid);
             const targetExists = nodes.find(n => n.id === rel.target_uid);
-            
+
             if (sourceExists && targetExists) {
                 links.push({
                     source: rel.source_uid,
@@ -178,14 +177,14 @@ class LuxOSGraph {
                 console.log(`✅ Dodano link z relationships: ${rel.source_uid} -> ${rel.target_uid}`);
             }
         });
-        
+
         // Create force simulation
         const simulation = d3.forceSimulation(nodes)
             .force('link', d3.forceLink(links).id(d => d.id).distance(150))
             .force('charge', d3.forceManyBody().strength(-300))
             .force('center', d3.forceCenter(width/2, height/2))
             .force('collision', d3.forceCollide().radius(40));
-            
+
         // Draw links with different styles based on relationship type
         const link = g.append('g')
             .selectAll('line')
@@ -220,7 +219,7 @@ class LuxOSGraph {
                 // Przywróć normalną grubość
                 d3.select(this).style('stroke-width', Math.max(2, d.strength * 5));
             });
-            
+
         // Draw nodes with simple drag
         const node = g.append('g')
             .selectAll('circle')
@@ -248,7 +247,7 @@ class LuxOSGraph {
                     d.fx = null;
                     d.fy = null;
                 }));
-            
+
         // Add relationship labels for all relations
         const relationLabels = g.append('g')
             .selectAll('text')
@@ -281,7 +280,7 @@ class LuxOSGraph {
             .style('text-anchor', 'middle')
             .style('pointer-events', 'none')
             .text(d => d.name);
-            
+
         // Update positions on simulation tick
         simulation.on('tick', () => {
             link
@@ -289,20 +288,20 @@ class LuxOSGraph {
                 .attr('y1', d => d.source.y)
                 .attr('x2', d => d.target.x)
                 .attr('y2', d => d.target.y);
-                
+
             node
                 .attr('cx', d => d.x)
                 .attr('cy', d => d.y);
-                
+
             labels
                 .attr('x', d => d.x)
                 .attr('y', d => d.y + 5);
-                
+
             relationLabels
                 .attr('x', d => (d.source.x + d.target.x) / 2)
                 .attr('y', d => (d.source.y + d.target.y) / 2 - 5);
         });
-        
+
         console.log(`✨ Graf renderowany z ${nodes.length} węzłami i ${links.length} połączeniami!`);
         console.log(`🔗 Znaleziono ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
         console.log('📋 Szczegóły linków:', links.map(l => `${l.source} -> ${l.target} (${l.relation_type})`));
@@ -365,13 +364,13 @@ class LuxOSGraph {
         console.log('📏 Resize graph');
         const width = window.innerWidth;
         const height = window.innerHeight - 200;
-        
+
         if (this.svg) {
             this.svg
                 .attr('width', width)
                 .attr('height', height);
         }
-        
+
         // Re-render the universe with new dimensions
         this.renderUniverse();
     }
