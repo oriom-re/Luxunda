@@ -31,16 +31,27 @@ class AIBrain:
         # 1. Funkcje z bazy danych
         if SoulRepository:
             self.available_functions.update({
-                "get_soul_by_name": {
-                    "description": "Pobiera soul z bazy po nazwie",
+                "get_soul_by_hash": {
+                    "description": "Pobiera soul z bazy po ULID",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "name": {"type": "string", "description": "Nazwa soul do pobrania"}
+                            "hash": {"type": "string", "description": "ULID soul do pobrania"}
                         },
-                        "required": ["name"]
+                        "required": ["hash"]
                     },
-                    "function": SoulRepository.get_by_name
+                    "function": SoulRepository.load_by_hash
+                },
+                "get_soul_by_alias": {
+                    "description": "Pobiera soul z bazy po aliasie",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "alias": {"type": "string", "description": "Alias soul do pobrania"}
+                        },
+                        "required": ["alias"]
+                    },
+                    "function": SoulRepository.load_by_alias
                 },
                 "save_soul": {
                     "description": "Zapisuje soul do bazy danych", 
@@ -53,17 +64,13 @@ class AIBrain:
                     },
                     "function": SoulRepository.save
                 },
-                "get_soul_by_field": {
-                    "description": "Pobiera soul z bazy po dowolnym polu",
+                "get_all_souls": {
+                    "description": "Pobiera wszystkie souls z bazy danych",
                     "parameters": {
-                        "type": "object", 
-                        "properties": {
-                            "field": {"type": "string", "description": "Nazwa pola do wyszukania"},
-                            "value": {"type": "string", "description": "Wartość do wyszukania"}
-                        },
-                        "required": ["field", "value"]
+                        "type": "object",
+                        "properties": {}
                     },
-                    "function": SoulRepository.get_by_field
+                    "function": SoulRepository.load_all
                 }
             })
         
@@ -327,50 +334,56 @@ class AIBrain:
         entities = intent_analysis.get("entities", [])
         raw_input = intent_analysis.get("raw_input", "")
         
-        # Jeśli funkcja potrzebuje 'name' 
-        if "name" in func_spec["parameters"].get("properties", {}):
+        # Jeśli funkcja potrzebuje 'hash' (ULID)
+        if "hash" in func_spec["parameters"].get("properties", {}):
             # Sprawdź entities
             for entity in entities:
-                if entity["type"] in ["gene", "file"]:
-                    args["name"] = entity["value"].replace(".module", "").replace(".py", "")
+                if entity["type"] in ["gene", "file", "ulid"]:
+                    args["hash"] = entity["value"].replace(".module", "").replace(".py", "")
                     break
             
             # Jeśli nie znaleziono w entities, spróbuj wyciągnąć z tekstu
-            if "name" not in args:
-                # Pattern: "find soul named X" -> name = "X"
+            if "hash" not in args:
+                # Pattern: "find soul with hash X" -> hash = "X"
                 import re
-                name_patterns = [
+                hash_patterns = [
+                    r'hash\s+([A-Z0-9]{26})',
+                    r'ulid\s+([A-Z0-9]{26})',
+                    r'id\s+([A-Z0-9]{26})',
+                    r'with\s+([A-Z0-9]{26})'
+                ]
+                
+                for pattern in hash_patterns:
+                    match = re.search(pattern, raw_input, re.IGNORECASE)
+                    if match:
+                        args["hash"] = match.group(1)
+                        break
+        
+        # Jeśli funkcja potrzebuje 'alias'
+        if "alias" in func_spec["parameters"].get("properties", {}):
+            # Sprawdź entities
+            for entity in entities:
+                if entity["type"] in ["gene", "file", "alias"]:
+                    args["alias"] = entity["value"].replace(".module", "").replace(".py", "")
+                    break
+            
+            # Jeśli nie znaleziono w entities, spróbuj wyciągnąć z tekstu
+            if "alias" not in args:
+                # Pattern: "find soul named X" -> alias = "X"
+                import re
+                alias_patterns = [
                     r'named\s+(\w+)',
                     r'called\s+(\w+)', 
+                    r'alias\s+(\w+)',
                     r'find\s+(\w+)',
                     r'get\s+(\w+)',
                     r'soul\s+(\w+)'
                 ]
                 
-                for pattern in name_patterns:
+                for pattern in alias_patterns:
                     match = re.search(pattern, raw_input, re.IGNORECASE)
                     if match:
-                        args["name"] = match.group(1)
-                        break
-        
-        # Jeśli funkcja potrzebuje 'field' i 'value'
-        if "field" in func_spec["parameters"].get("properties", {}) and "value" in func_spec["parameters"].get("properties", {}):
-            # Domyślnie szukaj po nazwie
-            args["field"] = "name"
-            
-            # Użyj tej samej logiki co dla 'name'
-            for entity in entities:
-                if entity["type"] in ["gene", "file"]:
-                    args["value"] = entity["value"].replace(".module", "").replace(".py", "")
-                    break
-            
-            if "value" not in args:
-                # Spróbuj wyciągnąć z tekstu
-                import re
-                for pattern in [r'named\s+(\w+)', r'called\s+(\w+)', r'find\s+(\w+)']:
-                    match = re.search(pattern, raw_input, re.IGNORECASE)
-                    if match:
-                        args["value"] = match.group(1)
+                        args["alias"] = match.group(1)
                         break
         
         # Jeśli funkcja potrzebuje 'query' 
