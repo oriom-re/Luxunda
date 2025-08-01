@@ -558,6 +558,10 @@ async def create_sample_relations():
         await sio.emit('graph_data_updated')
 
         return {"success": True, "message": "Utworzono przykładowe relacje"}
+        
+    except Exception as e:
+        print(f"❌ Błąd podczas tworzenia relacji: {e}")
+        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
     import logging
