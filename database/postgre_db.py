@@ -160,93 +160,11 @@ class Postgre_db:
         except Exception as e:
             print(f"❌ Błąd tworzenia tabel PostgreSQL: {e}")
 
-    async def get_db_pool(self):
-        """Zwraca pulę połączeń do bazy danych"""
-        if not self.pool:
-            await self.initialize_connection()
-        return self.pool
-
-    async def ensure_tables_exist(self):
-        """Zapewnia że wszystkie wymagane tabele istnieją"""
-        if not self.pool:
-            await self.initialize_connection()
-
-        async with self.pool.acquire() as conn:
-            # Create souls table
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS souls (
-                    soul_hash VARCHAR(128) PRIMARY KEY,
-                    genotype JSONB NOT NULL,
-                    alias VARCHAR(255),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-
-            # Create beings table  
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS beings (
-                    ulid VARCHAR(26) PRIMARY KEY,
-                    soul_hash VARCHAR(128) REFERENCES souls(soul_hash),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-
-            # Create attribute tables
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS attr_text (
-                    being_ulid VARCHAR(26) REFERENCES beings(ulid) ON DELETE CASCADE,
-                    attribute_name VARCHAR(100) NOT NULL,
-                    value TEXT,
-                    PRIMARY KEY (being_ulid, attribute_name)
-                );
-            """)
-
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS attr_numeric (
-                    being_ulid VARCHAR(26) REFERENCES beings(ulid) ON DELETE CASCADE,
-                    attribute_name VARCHAR(100) NOT NULL,
-                    value NUMERIC,
-                    PRIMARY KEY (being_ulid, attribute_name)
-                );
-            """)
-
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS attr_boolean (
-                    being_ulid VARCHAR(26) REFERENCES beings(ulid) ON DELETE CASCADE,
-                    attribute_name VARCHAR(100) NOT NULL,
-                    value BOOLEAN,
-                    PRIMARY KEY (being_ulid, attribute_name)
-                );
-            """)
-
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS attr_json (
-                    being_ulid VARCHAR(26) REFERENCES beings(ulid) ON DELETE CASCADE,
-                    attribute_name VARCHAR(100) NOT NULL,
-                    value JSONB,
-                    PRIMARY KEY (being_ulid, attribute_name)
-                );
-            """)
-
-            # Create relationships table
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS relationships (
-                    id SERIAL PRIMARY KEY,
-                    source_ulid VARCHAR(26) NOT NULL,
-                    target_ulid VARCHAR(26) NOT NULL,
-                    relation_type VARCHAR(100) NOT NULL,
-                    strength FLOAT DEFAULT 1.0,
-                    metadata JSONB DEFAULT '{}',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    CONSTRAINT unique_relationship UNIQUE (source_ulid, target_ulid, relation_type)
-                );
-            """)
-
-            # Create indexes for performance
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_beings_soul_hash ON beings(soul_hash);")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_source ON relationships(source_ulid);")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships(target_ulid);")
-
-            print("✅ All database tables created/verified")
+    async def connect(self):
+        """Łączy się z bazą danych PostgreSQL"""
+        try:
+            self.pool = await Postgre_db.get_db_pool()
+            print("✅ Connected to PostgreSQL database")
+        except Exception as e:
+            print(f"❌ Failed to connect to PostgreSQL: {e}")
+            raise
