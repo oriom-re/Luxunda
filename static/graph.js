@@ -34,9 +34,23 @@ class LuxOSGraph {
                 this.attemptReconnect();
             });
 
+            // Setup socket listeners
             this.socket.on('graph_data', (data) => {
                 console.log('📊 Otrzymano dane grafu:', data);
-                this.updateGraphData(data);
+                console.log('📊 Beings count:', data.beings ? data.beings.length : 'no beings');
+                console.log('📊 Relationships count:', data.relationships ? data.relationships.length : 'no relationships');
+
+                if (data && data.beings && Array.isArray(data.beings)) {
+                    this.renderUniverse(data.beings);
+                } else {
+                    console.log('❌ Invalid beings data received:', data.beings);
+                }
+
+                if (data && data.relationships && Array.isArray(data.relationships)) {
+                    this.updateRelationships(data.relationships);
+                } else {
+                    console.log('❌ Invalid relationships data received:', data.relationships);
+                }
             });
 
         } catch (error) {
@@ -51,6 +65,20 @@ class LuxOSGraph {
         }
     }
 
+    updateRelationships(relationships) {
+        console.log('🔗 Otrzymano tradycyjne relacje:', relationships);
+        this.relationships = relationships.map(rel => ({
+            source_uid: rel.source_uid || rel.source_soul,
+            target_uid: rel.target_uid || rel.target_soul,
+            relation_type: rel.relation_type || rel.type || 'connection',
+            strength: rel.strength || rel.metadata?.strength || 0.5,
+            metadata: rel.metadata || {}
+        }));
+        // Refresh the graph with updated relationships
+        this.renderUniverse(this.beings);
+    }
+
+
     updateGraphData(data) {
         try {
             console.log("📊 Otrzymano dane grafu:", data);
@@ -59,7 +87,7 @@ class LuxOSGraph {
                 const relationships = data.relationships || [];
                 console.log("🔗 Relationships data:", relationships);
 
-                // Mapowanie relacji do formatu D3.js
+                // Map relationships to D3.js format
                 const mappedRelationships = relationships.map(rel => ({
                     source: rel.source_uid || rel.source_soul,
                     target: rel.target_uid || rel.target_soul,
@@ -76,8 +104,25 @@ class LuxOSGraph {
         }
     }
 
-    renderUniverse() {
-        console.log(`🌌 Renderuję wszechświat z ${this.beings.length} bytami`);
+    renderUniverse(beings) {
+        console.log(`🌌 Renderuję wszechświat z ${beings ? beings.length : 0} bytami`);
+        console.log(`📊 Raw beings data:`, beings);
+
+        // Clear existing nodes and links
+        this.nodes = [];
+        this.links = [];
+
+        // Ensure beings is an array
+        if (!beings || !Array.isArray(beings)) {
+            console.log(`❌ Beings data is not valid array:`, beings);
+            return;
+        }
+
+        // Process beings into nodes
+        beings.forEach((being, index) => {
+            console.log(`🔍 Processing being ${index}:`, being);
+        });
+
 
         // Clear previous graph
         d3.select('#graph').selectAll('*').remove();
@@ -94,14 +139,14 @@ class LuxOSGraph {
         // Create main group for all graph elements
         const g = this.svg.append('g').attr('class', 'main-group');
 
-        // Zoom behavior - MUSI być przed dodaniem elementów
+        // Zoom behavior - MUST be before adding elements
         this.zoomBehavior = d3.zoom()
             .scaleExtent([0.1, 5])
             .on('zoom', (event) => {
                 g.attr('transform', event.transform);
             });
 
-        // Apply zoom to SVG - KRYTYCZNE: musi być tutaj
+        // Apply zoom to SVG - CRITICAL: must be here
         this.svg.call(this.zoomBehavior);
 
         // Store reference to main group
@@ -122,18 +167,18 @@ class LuxOSGraph {
             .attr('stop-color', '#00cc66')
             .attr('stop-opacity', 0.8);
 
-        // Filtruj byty - usuń relacje z węzłów grafu, ale wyodrębnij je do linii
-        const actualBeings = this.beings.filter(being => 
-            being._soul?.genesis?.type !== 'relation'
+        // Filter beings - separate relation beings for links, but keep them in nodes for potential interaction
+        const actualBeings = beings.filter(being =>
+            being._soul?.genesis?.type !== 'relation' && being.ulid // Ensure it has a ULID to be a node
         );
 
-        const relationBeings = this.beings.filter(being => 
-            being._soul?.genesis?.type === 'relation'
+        const relationBeings = beings.filter(being =>
+            being._soul?.genesis?.type === 'relation' && being.ulid // Ensure it has a ULID to be a node
         );
 
         // Create nodes data with beautiful positions
         const nodes = actualBeings.map((being, i) => ({
-            id: being.ulid,  // Używaj ulid jako ID węzła
+            id: being.ulid,  // Use ulid as node ID
             name: being._soul?.genesis?.name || `Being ${i}`,
             type: being._soul?.genesis?.type || 'unknown',
             x: width/2 + Math.cos(i * 2 * Math.PI / actualBeings.length) * 200,
@@ -141,19 +186,21 @@ class LuxOSGraph {
             being: being
         }));
 
+        // Store the processed nodes for later use (e.g., updating relationships)
+        this.nodes = nodes;
+
         // Create links data from both relation beings and relationships
         const links = [];
 
         console.log(`🔗 Przetwarzam ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
 
-        // Dodaj linki z bytów relacji  
+        // Add links from relation beings
         relationBeings.forEach(relationBeing => {
             const attrs = relationBeing.attributes || {};
             const sourceUid = attrs.source_uid;
             const targetUid = attrs.target_uid;
 
             if (sourceUid && targetUid) {
-                // Sprawdź czy węzły istnieją
                 const sourceExists = nodes.find(n => n.id === sourceUid);
                 const targetExists = nodes.find(n => n.id === targetUid);
 
@@ -165,16 +212,16 @@ class LuxOSGraph {
                         relation_type: attrs.relation_type || 'connection',
                         strength: parseFloat(attrs.strength) || 0.5,
                         metadata: attrs.metadata || {},
-                        being: relationBeing
+                        being: relationBeing // Keep the relation being itself for context
                     });
                     console.log(`✅ Dodano link z bytu relacji: ${sourceUid} -> ${targetUid}`);
                 } else {
-                    console.log(`⚠️ Nie znaleziono węzłów dla relacji: ${sourceUid} -> ${targetUid}`);
+                    console.log(`⚠️ Nie znaleziono węzłów dla relacji z bytu: ${sourceUid} -> ${targetUid}`);
                 }
             }
         });
 
-        // Dodaj również linki z tradycyjnych relationships (jeśli są)
+        // Add links from traditional relationships
         this.relationships.forEach(rel => {
             const sourceExists = nodes.find(n => n.id === rel.source_uid);
             const targetExists = nodes.find(n => n.id === rel.target_uid);
@@ -183,14 +230,19 @@ class LuxOSGraph {
                 links.push({
                     source: rel.source_uid,
                     target: rel.target_uid,
-                    type: rel.genesis?.type || 'connection',
+                    type: rel.genesis?.type || 'connection', // Use genesis type if available, fallback to 'connection'
                     relation_type: rel.relation_type || 'unknown',
                     strength: parseFloat(rel.strength) || 0.5,
                     metadata: rel.metadata || {}
                 });
                 console.log(`✅ Dodano link z relationships: ${rel.source_uid} -> ${rel.target_uid}`);
+            } else {
+                 console.log(`⚠️ Nie znaleziono węzłów dla relacji z relationships: ${rel.source_uid} -> ${rel.target_uid}`);
             }
         });
+
+        // Store the processed links for later use
+        this.links = links;
 
         // Create force simulation
         const simulation = d3.forceSimulation(nodes)
@@ -208,29 +260,29 @@ class LuxOSGraph {
             .style('stroke', d => {
                 if (d.relation_type === 'similar_content') return '#00ff88';
                 if (d.relation_type === 'communication') return '#ff8800';
-                if (d.type === 'relation_being') return '#00ccff'; // Niebieskie dla bytów relacji
+                if (d.type === 'relation_being') return '#00ccff'; // Blue for relation beings
                 return '#555';
             })
             .style('stroke-width', d => {
-                // Grubość linii zależna od siły relacji
+                // Line thickness dependent on relationship strength
                 return Math.max(2, d.strength * 5);
             })
             .style('opacity', d => {
-                // Przezroczystość zależna od siły relacji
+                // Opacity dependent on relationship strength
                 return Math.max(0.4, d.strength);
             })
             .style('stroke-dasharray', d => {
-                // Różne style linii dla różnych typów relacji
+                // Different line styles for different relationship types
                 if (d.relation_type === 'similar_content') return '5,5';
                 if (d.type === 'relation_being') return '3,3';
                 return 'none';
             })
             .on('mouseover', function(event, d) {
-                // Podświetl linię przy najechaniu
+                // Highlight line on hover
                 d3.select(this).style('stroke-width', Math.max(4, d.strength * 6));
             })
             .on('mouseout', function(event, d) {
-                // Przywróć normalną grubość
+                // Restore normal thickness
                 d3.select(this).style('stroke-width', Math.max(2, d.strength * 5));
             });
 
@@ -386,7 +438,7 @@ class LuxOSGraph {
         }
 
         // Re-render the universe with new dimensions
-        this.renderUniverse();
+        this.renderUniverse(this.beings); // Pass this.beings to re-render
     }
 }
 

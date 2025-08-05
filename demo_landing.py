@@ -278,9 +278,11 @@ async def request_graph_data(sid):
         }
 
         # Dodaj beings do grafu
-        for being in all_beings:
+        print(f"🔄 Processing {len(all_beings)} beings for graph...")
+        for i, being in enumerate(all_beings):
             # Znajdź odpowiadającą soul
             soul = next((s for s in souls if s.soul_hash == being.soul_hash), None)
+            print(f"🔍 Being {i}: {being.ulid}, Soul: {soul.alias if soul else 'None'}")
 
             being_data = {
                 "ulid": being.ulid,
@@ -293,6 +295,8 @@ async def request_graph_data(sid):
                 "attributes": serialize_for_json(await being.get_attributes())
             }
             graph_data["beings"].append(being_data)
+            if i < 3:  # Show first 3 for debugging
+                print(f"📋 Being data sample {i}:", being_data)
 
         # Pobierz relacje bezpośrednio z bazy danych
         try:
@@ -580,6 +584,32 @@ async def health_check():
         "version": "2.0.0",
         "timestamp": datetime.now().isoformat()
     }
+
+@app.get("/api/db-status")
+async def database_status():
+    """Database status endpoint"""
+    try:
+        from database.models.base import Soul, Being
+        souls = await Soul.load_all()
+        beings = await Being.load_all()
+        
+        async with db.pool.acquire() as conn:
+            relations = await conn.fetch("SELECT COUNT(*) as count FROM relationships")
+            relations_count = relations[0]['count'] if relations else 0
+        
+        return {
+            "status": "connected",
+            "souls_count": len(souls),
+            "beings_count": len(beings),
+            "relationships_count": relations_count,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 @app.get("/test")
 async def test_endpoint():
