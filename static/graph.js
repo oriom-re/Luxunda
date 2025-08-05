@@ -205,8 +205,25 @@ class LuxOSGraph {
 
         // Create nodes data with beautiful positions and type distinction
         const nodes = actualBeings.map((being, i) => {
-            const isSoul = being._soul && being._soul.alias && !being.attributes;
+            // Detect Soul vs Being vs Relation
+            const hasNoAttributes = !being.attributes || Object.keys(being.attributes).length === 0;
+            const hasUndefinedType = !being._soul?.genesis?.type || being._soul?.genesis?.type === undefined;
+            const hasAlias = being._soul?.alias;
             const isRelation = being._soul?.genesis?.type === 'relation';
+            
+            // Soul detection: has alias, no attributes (or empty), and undefined type
+            const isSoul = hasAlias && hasNoAttributes && hasUndefinedType && !isRelation;
+            
+            console.log(`🔍 Node analysis: ${being.ulid}:`, {
+                hasAlias,
+                hasNoAttributes,
+                hasUndefinedType,
+                isRelation,
+                isSoul,
+                alias: being._soul?.alias,
+                type: being._soul?.genesis?.type,
+                attributesCount: being.attributes ? Object.keys(being.attributes).length : 0
+            });
 
             return {
                 id: being.ulid,
@@ -420,19 +437,23 @@ class LuxOSGraph {
             .text(d => {
                 const being = d.being;
                 let prefix = '';
+                let label = '';
 
                 if (d.isSoul) {
-                    prefix = '♦ ';
+                    prefix = '♦ SOUL: ';
+                    // For souls, prioritize alias
+                    label = being._soul?.alias || 'Unknown Soul';
                 } else if (d.isRelation) {
-                    prefix = '⟷ ';
+                    prefix = '⟷ REL: ';
+                    // For relations, show relation type if available
+                    label = being.attributes?.relation_type || 'Relation';
                 } else {
-                    prefix = '● ';
+                    prefix = '● BEING: ';
+                    // For beings, show name or alias
+                    label = being.attributes?.name || being._soul?.alias || (being.ulid ? being.ulid.substring(0, 8) + '...' : 'Unknown');
                 }
 
-                if (being._soul && being._soul.alias) {
-                    return prefix + being._soul.alias;
-                }
-                return prefix + (being.ulid ? being.ulid.substring(0, 8) + '...' : 'Unknown');
+                return prefix + label;
             });
 
         // Add type label below main label
@@ -484,9 +505,9 @@ class LuxOSGraph {
             .attr('transform', 'translate(20, 60)');
 
         const legendData = [
-            { type: 'soul', label: 'Soul (Genotype)', color: '#ffd700', shape: 'diamond', icon: '♦' },
-            { type: 'being', label: 'Being (Instance)', color: '#4a90e2', shape: 'circle', icon: '●' },
-            { type: 'relation', label: 'Relation', color: '#8b5cf6', shape: 'hexagon', icon: '⟷' }
+            { type: 'soul', label: 'Soul (Genotype/Template)', color: '#ffd700', shape: 'diamond', icon: '♦' },
+            { type: 'being', label: 'Being (Data Instance)', color: '#4a90e2', shape: 'circle', icon: '●' },
+            { type: 'relation', label: 'Relation (Connection)', color: '#8b5cf6', shape: 'hexagon', icon: '⟷' }
         ];
 
         const legendItems = legend.selectAll('.legend-item')
