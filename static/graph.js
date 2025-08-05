@@ -41,15 +41,23 @@ class LuxOSGraph {
                 console.log('📊 Relationships count:', data.relationships ? data.relationships.length : 'no relationships');
 
                 if (data && data.beings && Array.isArray(data.beings)) {
+                    // Store relationships first
+                    if (data.relationships && Array.isArray(data.relationships)) {
+                        this.relationships = data.relationships.map(rel => ({
+                            source_uid: rel.source_uid || rel.source_soul,
+                            target_uid: rel.target_uid || rel.target_soul,
+                            relation_type: rel.relation_type || rel.type || 'connection',
+                            strength: rel.strength || rel.metadata?.strength || 0.5,
+                            metadata: rel.metadata || {}
+                        }));
+                    } else {
+                        this.relationships = [];
+                    }
+
+                    // Now render universe with beings
                     this.renderUniverse(data.beings);
                 } else {
                     console.log('❌ Invalid beings data received:', data.beings);
-                }
-
-                if (data && data.relationships && Array.isArray(data.relationships)) {
-                    this.updateRelationships(data.relationships);
-                } else {
-                    console.log('❌ Invalid relationships data received:', data.relationships);
                 }
             });
 
@@ -84,19 +92,12 @@ class LuxOSGraph {
             console.log("📊 Otrzymano dane grafu:", data);
 
             if (data.beings) {
-                const relationships = data.relationships || [];
-                console.log("🔗 Relationships data:", relationships);
+                // Store relationships for later use
+                this.relationships = data.relationships || [];
+                console.log("🔗 Relationships data:", this.relationships);
 
-                // Map relationships to D3.js format
-                const mappedRelationships = relationships.map(rel => ({
-                    source: rel.source_uid || rel.source_soul,
-                    target: rel.target_uid || rel.target_soul,
-                    strength: rel.strength || rel.metadata?.strength || 0.5,
-                    type: rel.relation_type || rel.type || 'connection'
-                }));
-
-                console.log("🔗 Mapped relationships:", mappedRelationships);
-                this.renderUniverse(data.beings, mappedRelationships);
+                // Render universe with beings
+                this.renderUniverse(data.beings);
             }
         } catch (error) {
             console.error("❌ Błąd aktualizacji danych:", error);
@@ -107,6 +108,9 @@ class LuxOSGraph {
     renderUniverse(beings) {
         console.log(`🌌 Renderuję wszechświat z ${beings ? beings.length : 0} bytami`);
         console.log(`📊 Raw beings data:`, beings);
+        
+        // Store beings for later use
+        this.beings = beings || [];
         
         // Debug being types
         if (beings && beings.length > 0) {
