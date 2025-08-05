@@ -1,0 +1,28 @@
+
+include README.md
+include LICENSE
+include MANIFEST.in
+include setup.py
+include luxdb/py.typed
+
+recursive-include luxdb *.py
+recursive-include examples *.py
+recursive-include tests *.py
+
+recursive-exclude luxdb *.pyc
+recursive-exclude luxdb __pycache__
+recursive-exclude examples *.pyc  
+recursive-exclude examples __pycache__
+recursive-exclude tests *.pyc
+recursive-exclude tests __pycache__
+
+# Exclude development and build files
+exclude .gitignore
+exclude .replit
+exclude pyproject.toml
+exclude uv.lock
+recursive-exclude .git *
+recursive-exclude legacy *
+recursive-exclude static *
+recursive-exclude .pytest_cache *
+recursive-exclude .config *

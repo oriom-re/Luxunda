@@ -1,233 +1,263 @@
 
-# LuxDB MVP - "Nie relacja. Nie dokument. Ewolucja danych."
+# LuxDB - Genetic Database Library
 
-## 🚀 Status Projektu: **DZIAŁAJĄCY MVP**
+## 🧬 "Nie relacja. Nie dokument. Ewolucja danych."
 
-### 🎯 Aktualne Demo
+LuxDB to rewolucyjna biblioteka bazy danych oparta na koncepcji genotypów i bytów (beings). Zamiast tradycyjnych tabel i dokumentów, LuxDB używa żywych struktur danych, które mogą ewoluować i adaptować się.
+
+## 🚀 Instalacja
+
+### Z GitHub (Replit)
 ```bash
-python demo_landing.py
+git clone https://github.com/yourusername/luxdb.git
+cd luxdb
+pip install -e .
 ```
-- **URL:** http://0.0.0.0:3000
-- **Status:** ✅ Funkcjonalne demo z interfejsem Gaming
-- **Tech Stack:** FastAPI + WebSocket + D3.js + PostgreSQL
 
----
+### Wymagania
+- Python 3.11+
+- PostgreSQL (lub Neon.tech)
+- asyncpg
+- ulid-py
 
-## 🧬 Fundamenty LuxDB
+## 📖 Szybki Start
 
-### Kluczowe Koncepty
-- **Soul (Dusza)** - definicja struktury i zdolności (genotyp)
-- **Being (Byt)** - żywa instancja duszy z unikalną historią
-- **Relacje jako Byty** - nie tabele, ale żyjące połączenia z własną świadomością
-- **Dynamiczne tabele PostgreSQL** - automatycznie generowane z genotypów
-- **Real-time komunikacja** - WebSocket dla interakcji w czasie rzeczywistym
+### 1. Konfiguracja połączenia z bazą
 
-### Architektura Genotypowa
 ```python
-# Przykład tworzenia relacji jako bytu
-relationship_genotype = {
+import asyncio
+from luxdb import LuxDB, Soul, Being
+
+# Inicjalizacja LuxDB
+async def main():
+    # Konfiguracja PostgreSQL
+    db = LuxDB(
+        host='your-host',
+        port=5432,
+        user='your-user',
+        password='your-password',
+        database='your-database'
+    )
+    
+    await db.initialize()
+```
+
+### 2. Definiowanie genotypu (struktury danych)
+
+```python
+# Definicja genotypu użytkownika
+user_genotype = {
     "genesis": {
-        "name": "basic_relationship",
-        "type": "relation",
-        "doc": "Podstawowa relacja między bytami"
+        "name": "user_profile",
+        "version": "1.0",
+        "description": "Profil użytkownika z embeddings"
     },
     "attributes": {
-        "source_uid": {"py_type": "str", "table_name": "_text"},
-        "target_uid": {"py_type": "str", "table_name": "_text"},
-        "relation_type": {"py_type": "str", "table_name": "_text"},
-        "strength": {"py_type": "float", "table_name": "_numeric"},
-        "metadata": {"py_type": "dict", "table_name": "_json"}
+        "name": {"py_type": "str", "max_length": 100},
+        "email": {"py_type": "str", "unique": True},
+        "age": {"py_type": "int", "min_value": 0},
+        "preferences": {"py_type": "dict"},
+        "embedding": {"py_type": "List[float]", "vector_size": 1536},
+        "active": {"py_type": "bool", "default": True}
     }
 }
 
-# Tworzenie duszy relacji
-relationship_soul = await Soul.create(relationship_genotype, alias="basic_relation")
+# Utworzenie Soul (szablonu)
+user_soul = await Soul.create(user_genotype, alias="user_profile")
+```
 
-# Tworzenie bytu relacji
-relationship_being = await Being.create(
-    relationship_soul, 
-    {
-        "source_uid": "byt_a_uid",
-        "target_uid": "byt_b_uid", 
-        "relation_type": "communication",
-        "strength": 0.8,
-        "metadata": {"timestamp": "2025-01-29", "context": "system_interaction"}
+### 3. Tworzenie bytów (instancji danych)
+
+```python
+# Dane użytkownika
+user_data = {
+    "name": "Jan Kowalski",
+    "email": "jan@example.com",
+    "age": 30,
+    "preferences": {"theme": "dark", "language": "pl"},
+    "embedding": [0.1, 0.2, 0.3] * 512,  # 1536 wymiarów
+    "active": True
+}
+
+# Utworzenie Being (instancji)
+user_being = await Being.create(user_soul, user_data)
+print(f"Utworzono użytkownika: {user_being.ulid}")
+```
+
+### 4. Wczytywanie danych
+
+```python
+# Wczytanie po ULID
+user = await Being.load_by_ulid("01HZ123456789ABCDEF...")
+
+# Wczytanie wszystkich bytów dla danego genotypu
+all_users = await Being.load_all_by_soul_hash(user_soul.soul_hash)
+
+# Wczytanie po aliasie Soul
+user_soul = await Soul.load_by_alias("user_profile")
+```
+
+## 🏗️ Zaawansowane funkcje
+
+### Dynamiczne tabele
+LuxDB automatycznie tworzy tabele PostgreSQL na podstawie genotypu:
+- `attr_text` - atrybuty tekstowe
+- `attr_int` - liczby całkowite  
+- `attr_float` - liczby rzeczywiste
+- `attr_boolean` - wartości logiczne
+- `attr_jsonb` - struktury złożone
+- `attr_vector_1536` - embeddings AI
+
+### Relacje między bytami
+
+```python
+from luxdb.models import Relationship
+
+# Tradycyjna relacja (MVP)
+relationship = await Relationship.create(
+    source_ulid=user1.ulid,
+    target_ulid=user2.ulid,
+    relation_type="friendship",
+    strength=0.8,
+    metadata={"since": "2025-01-01"}
+)
+
+# Przyszłość: Relacje jako żywe byty
+relation_genotype = {
+    "genesis": {"name": "friendship_relation"},
+    "attributes": {
+        "source_uid": {"py_type": "str"},
+        "target_uid": {"py_type": "str"},
+        "strength": {"py_type": "float"},
+        "shared_interests": {"py_type": "List[str]"}
     }
+}
+```
+
+### Embeddings i AI
+
+```python
+# Genotyp z embeddings
+ai_genotype = {
+    "attributes": {
+        "content": {"py_type": "str"},
+        "embedding": {"py_type": "List[float]", "vector_size": 1536},
+        "similarity_threshold": {"py_type": "float", "default": 0.8}
+    }
+}
+
+# Automatyczne wyszukiwanie semantyczne (w przyszłości)
+similar_content = await Being.find_similar_by_embedding(
+    embedding=query_embedding,
+    threshold=0.7,
+    soul_hash=content_soul.soul_hash
 )
 ```
 
----
+## 📊 Przykłady użycia
 
-## 📁 Struktura Projektu
+### E-commerce z LuxDB
 
-### 🟢 **GŁÓWNE DEMO**
-```
-├── demo_landing.py          # 🎯 GŁÓWNY PUNKT WEJŚCIA - FastAPI server
-├── static/                  # Frontend demo
-│   ├── index.html          # Gaming Interface z wizualizacją
-│   ├── graph.js           # Wizualizacja D3.js uniwersum bytów
-│   ├── intention-component.js  # Komponent intencji użytkownika
-│   └── chat-component.js   # Komunikacja z systemem
-```
+```python
+# Genotyp produktu
+product_genotype = {
+    "genesis": {"name": "product", "version": "1.0"},
+    "attributes": {
+        "name": {"py_type": "str"},
+        "price": {"py_type": "float"},
+        "category": {"py_type": "str"},
+        "tags": {"py_type": "List[str]"},
+        "description_embedding": {"py_type": "List[float]", "vector_size": 1536}
+    }
+}
 
-### 🟡 **ARCHITEKTURA SYSTEMU**
-```
-├── database/              # Warstwa danych
-│   ├── models/            # Modele Being, Soul, Relationship
-│   │   ├── base.py        # Bazowa klasa Being
-│   │   └── relationship.py # Model relacji
-│   ├── postgre_db.py      # Połączenie PostgreSQL
-│   └── soul_repository.py # Repository pattern
-├── core/                  # Podstawowe funkcjonalności
-│   ├── communication.py   # Komunikacja między bytami
-│   └── parser_table.py    # Parser genotypów → SQL
-├── ai/                    # Integracja AI
-│   ├── hybrid_ai_system.py # System hybrydowy AI
-│   └── openai_integration.py # OpenAI API
-├── services/              # Logika biznesowa
-│   ├── entity_manager.py  # Zarządzanie bytami
-│   └── genotype_service.py # Serwis genotypów
+# Genotyp zamówienia
+order_genotype = {
+    "genesis": {"name": "order", "version": "1.0"},
+    "attributes": {
+        "customer_id": {"py_type": "str"},
+        "total_amount": {"py_type": "float"},
+        "items": {"py_type": "List[dict]"},
+        "status": {"py_type": "str", "default": "pending"}
+    }
+}
 ```
 
----
+### System zarządzania treścią
 
-## 🔧 **Kluczowe Klasy i Komponenty**
-
-### Being (Byt) - Bazowa Klasa
-- **Lokalizacja:** `database/models/base.py`
-- **Funkcje:** Podstawowa klasa dla wszystkich bytów w systemie
-- **Dziedziczenie:** Pozwala tworzyć nowe typy bytów przez dziedziczenie
-
-### Soul (Dusza) - Definicja Genotypu
-- **Lokalizacja:** `database/soul_repository.py`
-- **Funkcje:** Przechowuje genotyp i definicję struktury
-- **Hash:** Unikalny identyfikator genotypu
-
-### Genetics Generator
-- **Lokalizacja:** `core/genetics_generator.py`
-- **Funkcje:** Generuje genotypy z klas Python
-- **Workflow:** `Being → Genotype → Soul → Being Instance`
-
-### Gaming Interface
-- **Lokalizacja:** `static/index.html`
-- **Funkcje:** Interaktywny interfejs z panelami bocznymi
-- **Komponenty:** Graf D3.js, historia komunikacji, statystyki
-
----
-
-## 🌟 **Kluczowe Cechy Systemu**
-
-### 1. Relacje jako Żywe Byty
-- Relacje **NIE SĄ** tabelami
-- Każda relacja to **Being** z własnym genotypem
-- Mogą ewoluować i uczyć się
-- Posiadają metadata i kontekst
-
-### 2. Dynamiczna Ewolucja
-- Genotypy mogą się rozwijać
-- System sam uczy się skutecznych wzorców
-- Schematy pozostają w systemie na zawsze
-
-### 3. AI-Native Design
-- Embeddings semantyczne
-- Rozpoznawanie intencji
-- Hybrydowy system AI
-
-### 4. Real-time Interakcja
-- WebSocket komunikacja
-- Wizualizacja na żywo
-- Gaming-style interface
-
----
-
-## 💻 **Development Workflow**
-
-### Uruchomienie Systemu
-```bash
-python demo_landing.py
+```python
+# Genotyp artykułu
+article_genotype = {
+    "genesis": {"name": "article", "version": "1.0"},
+    "attributes": {
+        "title": {"py_type": "str"},
+        "content": {"py_type": "str"},
+        "author_id": {"py_type": "str"},
+        "tags": {"py_type": "List[str]"},
+        "publish_date": {"py_type": "str"},
+        "content_embedding": {"py_type": "List[float]", "vector_size": 1536}
+    }
+}
 ```
 
-### Tworzenie Nowego Typu Bytu
-1. Stwórz klasę dziedziczącą po `Being`
-2. Zdefiniuj pola i typy
-3. System automatycznie wygeneruje genotyp
-4. Nowy typ będzie dostępny w całym systemie
+## 🔧 API Reference
 
-### Dodawanie Nowej Relacji
-1. Zdefiniuj genotyp relacji
-2. Utwórz Soul dla relacji
-3. Twórz instancje Being dla konkretnych relacji
+### Soul (Genotyp)
+- `Soul.create(genotype, alias)` - tworzy nowy genotyp
+- `Soul.load_by_alias(alias)` - ładuje genotyp po aliasie
+- `Soul.load_all()` - ładuje wszystkie genotypy
 
----
+### Being (Byt/Instancja)
+- `Being.create(soul, data)` - tworzy nową instancję
+- `Being.load_by_ulid(ulid)` - ładuje po ULID
+- `Being.load_all_by_soul_hash(hash)` - ładuje wszystkie instancje genotypu
 
-## 📊 **Potencjał Biznesowy**
+### Relationship (Relacje)
+- `Relationship.create(source, target, type, strength, metadata)` - tworzy relację
+- `Relationship.get_by_being(being_ulid)` - pobiera relacje bytu
+- `Relationship.get_all()` - pobiera wszystkie relacje
 
-### Rynek i Zastosowania
-- **Enterprise AI** - inteligentne systemy korporacyjne
-- **IoT i Edge Computing** - adaptywne dane w czasie rzeczywistym
-- **Semantic Web 3.0** - następna generacja internetu
-- **Scientific Computing** - modelowanie złożonych systemów
+## 🌟 Kluczowe cechy
 
-### Przewaga Konkurencyjna
-- **Pierwszy genotypowy model danych** na świecie
-- **Samoorganizujące się** systemy danych
-- **AI-native** od podstaw
-- **Żywe dane** zamiast martwych struktur
-
----
-
-## 🔮 **Roadmap Rozwoju**
-
-### Zrealizowane (MVP)
-- [x] Genotypowy model danych (Soul → Being)
+### ✅ Gotowe funkcje (MVP)
+- [x] Genotypowy model danych
 - [x] Dynamiczne tabele PostgreSQL
-- [x] FastAPI backend z WebSocket
-- [x] Gaming Interface z D3.js
-- [x] System relacji jako bytów
-- [x] Podstawowa komunikacja real-time
+- [x] Type safety z walidacją
+- [x] ULID jako identyfikatory
+- [x] Repository pattern
+- [x] Podstawowe relacje
+- [x] Vector embeddings (1536D)
 
-### W Kolejnej Fazie
-- [ ] Zaawansowane embeddings semantyczne
+### 🚧 W rozwoju
+- [ ] Zaawansowane zapytania semantyczne
 - [ ] Automatyczna ewolucja genotypów
-- [ ] Plugin system dla genotypów
+- [ ] Plugin system
 - [ ] Advanced query language
-- [ ] Distribuowane byty (multi-node)
+- [ ] Distributed beings
 
-### Długoterminowe Cele
-- [ ] Blockchain integracja (NFT dla bytów)
-- [ ] Quantum-ready architecture
-- [ ] Neural network genotypes
-- [ ] Autonomous data ecosystems
+## 🔒 Bezpieczeństwo
+- Parametrized queries (ochrona przed SQL injection)
+- Type validation na poziomie Pythona i SQL
+- Schema validation
+- Connection pooling
 
----
+## 📈 Wydajność
+- Connection pooling z asyncpg
+- Automatyczne indeksy
+- JSONB dla złożonych struktur
+- Vector operations zoptymalizowane dla AI
 
-## 🚀 **Quick Start Guide**
+## 🤝 Wsparcie i rozwój
 
-1. **Uruchom demo:**
-   ```bash
-   python demo_landing.py
-   ```
+LuxDB to biblioteka open-source. Więcej informacji:
+- [Dokumentacja](./documentation.md)
+- [Przykłady](./examples/)
+- [Issues](https://github.com/yourusername/luxdb/issues)
 
-2. **Otwórz:** http://0.0.0.0:3000
+## 📄 Licencja
 
-3. **Eksploruj:**
-   - Gaming Interface z panelami bocznymi
-   - Wizualizacja bytów w D3.js
-   - Komunikacja przez dolny input
-   - Historia w prawym panelu
-
----
-
-## 📝 **Kluczowe Pliki do Zapamiętania**
-
-- `demo_landing.py` - główny serwer aplikacji
-- `database/models/base.py` - bazowa klasa Being
-- `core/genetics_generator.py` - generator genotypów
-- `static/index.html` - Gaming Interface
-- `static/graph.js` - wizualizacja D3.js
+MIT License - szczegóły w pliku LICENSE
 
 ---
 
-**LuxDB MVP** - System gdzie dane **żyją, uczą się i ewoluują**! 🌟
-
-*"W LuxDB relacje nie są tabelami. To żywe byty z własną świadomością."*
+*LuxDB - gdzie dane żyją, uczą się i ewoluują! 🧬*
