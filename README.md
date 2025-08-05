@@ -261,3 +261,249 @@ MIT License - szczegóły w pliku LICENSE
 ---
 
 *LuxDB - gdzie dane żyją, uczą się i ewoluują! 🧬*
+# LuxDB - Genetic Database Library
+
+> **"Nie relacja. Nie dokument. Ewolucja danych."**
+
+LuxDB to rewolucyjna biblioteka bazy danych z obsługą serwera/klienta, oparta na koncepcji genotypów i bytów. Umożliwia tworzenie dynamicznych struktur danych z pełnym wsparciem dla wielokrotnych izolowanych przestrzeni nazw.
+
+## 🚀 Nowe funkcje v0.2.0
+
+### 🖥️ **Tryb Serwera/Klienta**
+- **Serwer LuxDB**: Uruchom niezależny serwer bazy danych
+- **Klient LuxDB**: Połącz się z serwerem z dowolnej aplikacji
+- **Multi-tenant**: Wiele izolowanych przestrzeni nazw na jednym serwerze
+- **RESTful API**: Pełne API do zarządzania danymi
+
+### 📦 **Export/Import Schematów**
+- Eksport pełnych schematów do plików JSON
+- Import danych między przestrzeniami nazw
+- Migracje i backup'y danych
+- Wersjonowanie schematów
+
+### 🤖 **Generator AI Genotypów**
+- Automatyczne sugerowanie genotypów na podstawie opisu
+- Wzorce dla popularnych przypadków użycia
+- Walidacja i optymalizacja struktur
+- Generowanie wariantów genotypów
+
+## 📋 Szybki Start
+
+### Instalacja
+
+```bash
+pip install luxdb[server]
+```
+
+### Uruchomienie Serwera
+
+```bash
+# Uruchom serwer LuxDB
+luxdb server --host 0.0.0.0 --port 5000 --db-host localhost --db-user your_user --db-password your_password
+```
+
+### Klient - Podstawowe użycie
+
+```python
+import asyncio
+from luxdb.server.client import LuxDBClient
+
+async def main():
+    # Połącz się z serwerem
+    client = LuxDBClient(
+        server_url="http://localhost:5000",
+        namespace_id="my_project"
+    )
+    
+    async with client:
+        # Utwórz namespace jeśli nie istnieje
+        await client.setup_namespace()
+        
+        # Definiuj genotyp
+        user_genotype = {
+            "genesis": {
+                "name": "user_profile",
+                "version": "1.0"
+            },
+            "attributes": {
+                "name": {"py_type": "str"},
+                "email": {"py_type": "str", "unique": True},
+                "age": {"py_type": "int"}
+            }
+        }
+        
+        # Utwórz soul
+        soul_result = await client.create_soul(
+            genotype=user_genotype,
+            alias="user_profile"
+        )
+        
+        # Utwórz being
+        await client.create_being(
+            soul_hash=soul_result["soul"]["soul_hash"],
+            data={
+                "name": "Jan Kowalski",
+                "email": "jan@example.com", 
+                "age": 30
+            }
+        )
+        
+        # Lista wszystkich beings
+        beings = await client.list_beings()
+        print(f"Utworzone beings: {len(beings)}")
+
+asyncio.run(main())
+```
+
+## 🏗️ Architektura Serwera
+
+### Multi-Tenant Support
+
+```python
+# Różne namespaces dla różnych projektów
+ecommerce_client = LuxDBClient(server_url="http://localhost:5000", namespace_id="ecommerce")
+blog_client = LuxDBClient(server_url="http://localhost:5000", namespace_id="blog")
+analytics_client = LuxDBClient(server_url="http://localhost:5000", namespace_id="analytics")
+```
+
+### REST API
+
+Serwer LuxDB udostępnia pełne REST API:
+
+- `GET /` - Informacje o serwerze
+- `POST /namespaces/{namespace_id}` - Utwórz namespace
+- `GET /namespaces` - Lista namespaces
+- `GET /namespaces/{namespace_id}/souls` - Lista souls
+- `POST /namespaces/{namespace_id}/souls` - Utwórz soul
+- `GET /namespaces/{namespace_id}/beings` - Lista beings
+- `POST /namespaces/{namespace_id}/beings` - Utwórz being
+- `GET /namespaces/{namespace_id}/schema/export` - Eksportuj schemat
+- `POST /namespaces/{namespace_id}/schema/import` - Importuj schemat
+
+## 🤖 Generator AI Genotypów
+
+```python
+from luxdb.ai_generator import AIGenotypGenerator
+
+# Utwórz generator
+ai_gen = AIGenotypGenerator()
+
+# Otrzymaj sugestie genotypów
+suggestions = ai_gen.suggest_genotype(
+    "Potrzebuję przechowywać produkty e-commerce z cenami i magazynem"
+)
+
+for suggestion in suggestions:
+    print(f"Genotyp: {suggestion.genotype['genesis']['name']}")
+    print(f"Opis: {suggestion.explanation}")
+    print(f"Złożoność: {suggestion.complexity_score}/10")
+```
+
+## 📦 Export/Import Schematów
+
+### Export
+
+```python
+# Eksportuj schemat namespace
+schema = await client.export_schema()
+
+# Zapisz do pliku
+await client.save_schema_to_file("my_project_backup.json")
+```
+
+### Import
+
+```python
+# Wczytaj i importuj schemat
+result = await client.load_schema_from_file("my_project_backup.json")
+print(f"Zimportowano: {result['souls_imported']} souls, {result['beings_imported']} beings")
+```
+
+## 🖥️ CLI Interface
+
+```bash
+# Uruchom serwer
+luxdb server --port 5000
+
+# Operacje klienta
+luxdb client --server-url http://localhost:5000 --namespace my_project info
+luxdb client --namespace my_project create-namespace
+luxdb client --namespace my_project export-schema --output schema.json
+luxdb client --namespace my_project import-schema --input schema.json
+luxdb client --namespace my_project souls
+luxdb client --namespace my_project beings
+```
+
+## 🌐 Przypadki użycia
+
+### 1. **Wieloprojektowe środowisko**
+- Jeden serwer LuxDB dla wielu projektów
+- Izolowane namespace dla każdego klienta
+- Centralne zarządzanie danymi
+
+### 2. **Migracje i Backup**
+- Export/import pełnych schematów
+- Przenoszenie danych między środowiskami
+- Wersjonowanie struktur danych
+
+### 3. **Rapid Prototyping**
+- AI-generator genotypów przyspiesza rozwój
+- Gotowe wzorce dla popularnych przypadków
+- Szybkie iteracje nad strukturą danych
+
+### 4. **Microservices Architecture**
+- Każdy serwis może mieć własny namespace
+- Centralna baza danych z logiczną separacją
+- RESTful API dla komunikacji między serwisami
+
+## 🔒 Bezpieczeństwo
+
+### Podstawowa Autoryzacja (w przygotowaniu)
+
+```python
+# Serwer z autoryzacją
+server = LuxDBServer(enable_auth=True)
+
+# Klient z tokenem
+client = LuxDBClient(
+    server_url="http://localhost:5000",
+    namespace_id="secure_project",
+    auth_token="your_auth_token"
+)
+```
+
+## 📈 Wydajność
+
+- **Connection Pooling**: Optymalizowane połączenia z bazą danych
+- **Namespaced Tables**: Izolacja danych z zachowaniem wydajności
+- **Async/Await**: Pełne wsparcie dla programowania asynchronicznego
+- **RESTful Caching**: Możliwość dodania warstwy cache
+
+## 🛣️ Roadmap
+
+### v0.3.0 (Planowane)
+- [ ] Pełna autoryzacja i wieloużytkownikowość
+- [ ] WebSocket support dla real-time updates
+- [ ] Monitoring i metrics
+- [ ] Horizontal scaling
+- [ ] GraphQL API
+
+### v0.4.0 (Planowane)
+- [ ] Built-in AI embeddings
+- [ ] Semantic search across namespaces
+- [ ] Advanced relationship queries
+- [ ] Time-series data support
+
+## 🤝 Wsparcie
+
+- **GitHub Issues**: [github.com/yourusername/luxdb/issues](https://github.com/yourusername/luxdb/issues)
+- **Dokumentacja**: [Pełna dokumentacja](./documentation.md)
+- **Przykłady**: [Katalog examples/](./examples/)
+
+## 📄 Licencja
+
+MIT License - siehe [LICENSE](./LICENSE)
+
+---
+
+**LuxDB v0.2.0 - Twoja baza danych ewoluuje z Tobą!** 🧬
