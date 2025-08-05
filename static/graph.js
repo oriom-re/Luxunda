@@ -42,7 +42,7 @@ class LuxOSGraph {
 
                 if (data && data.beings && Array.isArray(data.beings)) {
                     console.log('✅ Validating beings data:', data.beings.slice(0, 3)); // Show first 3 for debug
-                    
+
                     // Store relationships first
                     if (data.relationships && Array.isArray(data.relationships)) {
                         this.relationships = data.relationships.map(rel => ({
@@ -113,10 +113,10 @@ class LuxOSGraph {
     renderUniverse(beings) {
         console.log(`🌌 Renderuję wszechświat z ${beings ? beings.length : 0} bytami`);
         console.log(`📊 Raw beings data:`, beings);
-        
+
         // Store beings for later use
         this.beings = beings || [];
-        
+
         // Debug being types
         if (beings && beings.length > 0) {
             const types = beings.map(b => b._soul?.genesis?.type || 'unknown');
@@ -203,15 +203,23 @@ class LuxOSGraph {
 
         console.log(`📊 Filtered: ${actualBeings.length} actualBeings, ${relationBeings.length} relationBeings`);
 
-        // Create nodes data with beautiful positions
-        const nodes = actualBeings.map((being, i) => ({
-            id: being.ulid,  // Use ulid as node ID
-            name: being._soul?.genesis?.name || `Being ${i}`,
-            type: being._soul?.genesis?.type || 'unknown',
-            x: width/2 + Math.cos(i * 2 * Math.PI / actualBeings.length) * 200,
-            y: height/2 + Math.sin(i * 2 * Math.PI / actualBeings.length) * 200,
-            being: being
-        }));
+        // Create nodes data with beautiful positions and type distinction
+        const nodes = actualBeings.map((being, i) => {
+            const isSoul = being._soul && being._soul.alias && !being.attributes;
+            const isRelation = being._soul?.genesis?.type === 'relation';
+
+            return {
+                id: being.ulid,
+                x: width/2 + Math.cos(i * 2 * Math.PI / actualBeings.length) * 200,
+                y: height/2 + Math.sin(i * 2 * Math.PI / actualBeings.length) * 200,
+                being: being,
+                vx: 0,
+                vy: 0,
+                type: isSoul ? 'soul' : (isRelation ? 'relation' : 'being'),
+                isSoul: isSoul,
+                isRelation: isRelation
+            };
+        });
 
         // Store the processed nodes for later use (e.g., updating relationships)
         this.nodes = nodes;
@@ -313,23 +321,18 @@ class LuxOSGraph {
                 d3.select(this).style('stroke-width', Math.max(2, d.strength * 5));
             });
 
-        // Draw nodes with simple drag
+        // Create nodes with type-specific styling
         const node = g.append('g')
-            .selectAll('circle')
+            .selectAll('.node')
             .data(nodes)
-            .enter().append('circle')
-            .attr('class', 'node')
-            .attr('r', 25)
-            .style('fill', 'url(#nodeGradient)')
-            .style('stroke', '#00ff88')
-            .style('stroke-width', 2)
+            .enter().append('g')
+            .attr('class', d => `node ${d.type}`)
             .style('cursor', 'pointer')
             .call(d3.drag()
                 .on('start', (event, d) => {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
                     d.fx = d.x;
                     d.fy = d.y;
-                    event.sourceEvent?.stopPropagation();
                 })
                 .on('drag', (event, d) => {
                     d.fx = event.x;
@@ -339,40 +342,111 @@ class LuxOSGraph {
                     if (!event.active) simulation.alphaTarget(0);
                     d.fx = null;
                     d.fy = null;
-                }));
+                })
+            );
 
-        // Add relationship labels for all relations
-        const relationLabels = g.append('g')
-            .selectAll('text')
-            .data(links)
-            .enter().append('text')
-            .attr('class', 'relation-label')
-            .style('fill', d => {
-                if (d.type === 'relation_being') return '#00ccff';
-                if (d.relation_type === 'similar_content') return '#00ff88';
-                return '#fff';
-            })
-            .style('font-size', '9px')
-            .style('text-anchor', 'middle')
-            .style('pointer-events', 'none')
+        // Add shapes based on node type
+        node.each(function(d) {
+            const nodeElement = d3.select(this);
+
+            if (d.isSoul) {
+                // Souls - Diamond shape, gold color
+                nodeElement.append('rect')
+                    .attr('width', 30)
+                    .attr('height', 30)
+                    .attr('x', -15)
+                    .attr('y', -15)
+                    .attr('transform', 'rotate(45)')
+                    .style('fill', '#ffd700')
+                    .style('stroke', '#b8860b')
+                    .style('stroke-width', 3)
+                    .style('filter', 'url(#glow)');
+
+                // Soul icon
+                nodeElement.append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '0.35em')
+                    .style('font-size', '16px')
+                    .style('fill', '#b8860b')
+                    .style('font-weight', 'bold')
+                    .text('♦');
+
+            } else if (d.isRelation) {
+                // Relations - Hexagon, purple color
+                const hexagon = "M0,-20 L17.32,-10 L17.32,10 L0,20 L-17.32,10 L-17.32,-10 Z";
+                nodeElement.append('path')
+                    .attr('d', hexagon)
+                    .style('fill', '#8b5cf6')
+                    .style('stroke', '#5b21b6')
+                    .style('stroke-width', 2)
+                    .style('filter', 'url(#glow)');
+
+                // Relation icon
+                nodeElement.append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '0.35em')
+                    .style('font-size', '14px')
+                    .style('fill', 'white')
+                    .style('font-weight', 'bold')
+                    .text('⟷');
+
+            } else {
+                // Beings - Circle, blue color
+                nodeElement.append('circle')
+                    .attr('r', 22)
+                    .style('fill', '#4a90e2')
+                    .style('stroke', '#2c5282')
+                    .style('stroke-width', 2)
+                    .style('filter', 'url(#glow)');
+
+                // Being icon
+                nodeElement.append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '0.35em')
+                    .style('font-size', '16px')
+                    .style('fill', 'white')
+                    .style('font-weight', 'bold')
+                    .text('●');
+            }
+        });
+
+        // Add labels to nodes with type indicators
+        node.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dy', 35)
+            .style('font-size', '11px')
+            .style('fill', d => d.isSoul ? '#b8860b' : (d.isRelation ? '#5b21b6' : '#2c5282'))
+            .style('font-weight', 'bold')
             .text(d => {
-                if (d.type === 'relation_being') {
-                    return `${d.relation_type} (${Math.round(d.strength * 100)}%)`;
+                const being = d.being;
+                let prefix = '';
+
+                if (d.isSoul) {
+                    prefix = '♦ ';
+                } else if (d.isRelation) {
+                    prefix = '⟷ ';
+                } else {
+                    prefix = '● ';
                 }
-                return `${Math.round(d.strength * 100)}%`;
+
+                if (being._soul && being._soul.alias) {
+                    return prefix + being._soul.alias;
+                }
+                return prefix + (being.ulid ? being.ulid.substring(0, 8) + '...' : 'Unknown');
             });
 
-        // Add node labels
-        const labels = g.append('g')
-            .selectAll('text')
-            .data(nodes)
-            .enter().append('text')
-            .attr('class', 'node-label')
-            .style('fill', '#ffffff')
-            .style('font-size', '12px')
-            .style('text-anchor', 'middle')
-            .style('pointer-events', 'none')
-            .text(d => d.name);
+        // Add type label below main label
+        node.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dy', 48)
+            .style('font-size', '9px')
+            .style('fill', '#666')
+            .style('font-style', 'italic')
+            .text(d => {
+                if (d.isSoul) return 'Soul';
+                if (d.isRelation) return 'Relation';
+                return 'Being';
+            });
 
         // Update positions on simulation tick
         simulation.on('tick', () => {
@@ -383,8 +457,7 @@ class LuxOSGraph {
                 .attr('y2', d => d.target.y);
 
             node
-                .attr('cx', d => d.x)
-                .attr('cy', d => d.y);
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
 
             labels
                 .attr('x', d => d.x)
@@ -393,6 +466,70 @@ class LuxOSGraph {
             relationLabels
                 .attr('x', d => (d.source.x + d.target.x) / 2)
                 .attr('y', d => (d.source.y + d.target.y) / 2 - 5);
+        });
+
+        // Add title
+        svg.append('text')
+            .attr('x', width / 2)
+            .attr('y', 30)
+            .attr('text-anchor', 'middle')
+            .style('font-size', '24px')
+            .style('font-weight', 'bold')
+            .style('fill', '#333')
+            .text('🌌 Universe Graph');
+
+        // Add legend
+        const legend = svg.append('g')
+            .attr('class', 'legend')
+            .attr('transform', 'translate(20, 60)');
+
+        const legendData = [
+            { type: 'soul', label: 'Soul (Genotype)', color: '#ffd700', shape: 'diamond', icon: '♦' },
+            { type: 'being', label: 'Being (Instance)', color: '#4a90e2', shape: 'circle', icon: '●' },
+            { type: 'relation', label: 'Relation', color: '#8b5cf6', shape: 'hexagon', icon: '⟷' }
+        ];
+
+        const legendItems = legend.selectAll('.legend-item')
+            .data(legendData)
+            .enter().append('g')
+            .attr('class', 'legend-item')
+            .attr('transform', (d, i) => `translate(0, ${i * 25})`);
+
+        legendItems.each(function(d) {
+            const item = d3.select(this);
+
+            if (d.shape === 'diamond') {
+                item.append('rect')
+                    .attr('width', 12)
+                    .attr('height', 12)
+                    .attr('x', -6)
+                    .attr('y', -6)
+                    .attr('transform', 'rotate(45)')
+                    .style('fill', d.color)
+                    .style('stroke', '#666')
+                    .style('stroke-width', 1);
+            } else if (d.shape === 'hexagon') {
+                const hexagon = "M0,-8 L6.93,-4 L6.93,4 L0,8 L-6.93,4 L-6.93,-4 Z";
+                item.append('path')
+                    .attr('d', hexagon)
+                    .style('fill', d.color)
+                    .style('stroke', '#666')
+                    .style('stroke-width', 1);
+            } else {
+                item.append('circle')
+                    .attr('r', 8)
+                    .style('fill', d.color)
+                    .style('stroke', '#666')
+                    .style('stroke-width', 1);
+            }
+
+            item.append('text')
+                .attr('x', 20)
+                .attr('y', 0)
+                .attr('dy', '0.35em')
+                .style('font-size', '12px')
+                .style('fill', '#333')
+                .text(`${d.icon} ${d.label}`);
         });
 
         console.log(`✨ Graf renderowany z ${nodes.length} węzłami i ${links.length} połączeniami!`);
