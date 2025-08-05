@@ -107,6 +107,16 @@ class LuxOSGraph {
     renderUniverse(beings) {
         console.log(`🌌 Renderuję wszechświat z ${beings ? beings.length : 0} bytami`);
         console.log(`📊 Raw beings data:`, beings);
+        
+        // Debug being types
+        if (beings && beings.length > 0) {
+            const types = beings.map(b => b._soul?.genesis?.type || 'unknown');
+            console.log(`📋 Being types:`, types);
+            console.log(`📊 Type counts:`, types.reduce((acc, type) => {
+                acc[type] = (acc[type] || 0) + 1;
+                return acc;
+            }, {}));
+        }
 
         // Clear existing nodes and links
         this.nodes = [];
@@ -169,11 +179,11 @@ class LuxOSGraph {
 
         // Filter beings - separate relation beings for links, but keep them in nodes for potential interaction
         const actualBeings = beings.filter(being =>
-            being._soul?.genesis?.type !== 'relation' && being.ulid // Ensure it has a ULID to be a node
+            being.ulid // Just ensure it has a ULID - show all beings including relations
         );
 
         const relationBeings = beings.filter(being =>
-            being._soul?.genesis?.type === 'relation' && being.ulid // Ensure it has a ULID to be a node
+            being._soul?.genesis?.type === 'relation' && being.ulid // Keep relation beings for creating links
         );
 
         // Create nodes data with beautiful positions
