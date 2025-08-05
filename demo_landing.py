@@ -44,7 +44,7 @@ sio = socketio.AsyncServer(
 async def startup_event():
     print("🌟 FastAPI server started successfully!")
     print("📡 Socket.IO server initialized")
-    
+
     # Initialize database connection and tables
     print("🗄️ Initializing database...")
     try:
@@ -54,16 +54,16 @@ async def startup_event():
         db.pool = pool
         print("✅ Database connection established")
         print("✅ Database tables verified")
-        
+
         # Load some sample data if needed
         souls = await Soul.load_all()
         beings = await Being.load_all()
         print(f"📊 Loaded {len(souls)} souls and {len(beings)} beings")
-        
+
         # If no data exists, create some sample beings
         if len(souls) == 0:
             print("📝 Creating sample data...")
-            
+
             # Create sample soul/genotype
             sample_genotype = {
                 "genesis": {
@@ -77,10 +77,10 @@ async def startup_event():
                     "active": {"py_type": "bool", "table_name": "_boolean"}
                 }
             }
-            
+
             sample_soul = await Soul.create(sample_genotype, alias="sample_entity")
             print(f"✅ Created sample soul: {sample_soul.alias}")
-            
+
             # Create sample beings
             for i in range(3):
                 being = await Being.create(
@@ -92,12 +92,12 @@ async def startup_event():
                     }
                 )
                 print(f"✅ Created sample being: {being.ulid}")
-        
+
     except Exception as e:
         print(f"❌ Database initialization error: {e}")
         import traceback
         traceback.print_exc()
-    
+
     print("🔗 Ready to accept connections...")
 
 @app.middleware("http")
@@ -319,7 +319,7 @@ async def request_graph_data(sid):
                 if len(relationships_rows) == 0 and len(all_beings) >= 2:
                     print("📝 Tworzę przykładowe relacje między beings...")
                     beings_list = list(all_beings)
-                    
+
                     # Stwórz relacje bezpośrednio w bazie
                     await conn.execute("""
                         INSERT INTO relationships (source_ulid, target_ulid, relation_type, strength, metadata)
@@ -327,7 +327,7 @@ async def request_graph_data(sid):
                         ON CONFLICT (source_ulid, target_ulid, relation_type) DO NOTHING
                     """, beings_list[0].ulid, beings_list[1].ulid, "connection", 0.8, 
                          {"auto_created": True, "reason": "demo"})
-                    
+
                     if len(beings_list) >= 3:
                         await conn.execute("""
                             INSERT INTO relationships (source_ulid, target_ulid, relation_type, strength, metadata)
@@ -339,7 +339,7 @@ async def request_graph_data(sid):
                     # Przeładuj relacje
                     relationships_rows = await conn.fetch("SELECT * FROM relationships ORDER BY created_at DESC")
                     graph_data["relationships"] = []  # Clear and reload
-                    
+
                     for row in relationships_rows:
                         relationship_data = {
                             'id': row['id'],
@@ -559,6 +559,16 @@ async def main_page():
     """Główna strona z interfejsem LuxDB"""
     print("🏠 Serving main page...")
     return FileResponse("static/index.html")
+
+@app.get("/graph")
+async def graph_page():
+    """Strona z grafem"""
+    return FileResponse('static/graph.html')
+
+@app.get("/admin")
+async def admin_page():
+    """Panel administracyjny bazy danych"""
+    return FileResponse('static/database-admin.html')
 
 @app.get("/health")
 async def health_check():
