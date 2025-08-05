@@ -41,6 +41,8 @@ class LuxOSGraph {
                 console.log('📊 Relationships count:', data.relationships ? data.relationships.length : 'no relationships');
 
                 if (data && data.beings && Array.isArray(data.beings)) {
+                    console.log('✅ Validating beings data:', data.beings.slice(0, 3)); // Show first 3 for debug
+                    
                     // Store relationships first
                     if (data.relationships && Array.isArray(data.relationships)) {
                         this.relationships = data.relationships.map(rel => ({
@@ -50,11 +52,14 @@ class LuxOSGraph {
                             strength: rel.strength || rel.metadata?.strength || 0.5,
                             metadata: rel.metadata || {}
                         }));
+                        console.log('🔗 Processed relationships:', this.relationships);
                     } else {
                         this.relationships = [];
                     }
 
-                    // Now render universe with beings
+                    // Store beings and render immediately
+                    this.beings = data.beings;
+                    console.log(`🚀 Calling renderUniverse with ${data.beings.length} beings`);
                     this.renderUniverse(data.beings);
                 } else {
                     console.log('❌ Invalid beings data received:', data.beings);
@@ -181,14 +186,22 @@ class LuxOSGraph {
             .attr('stop-color', '#00cc66')
             .attr('stop-opacity', 0.8);
 
+        // Debug beings structure
+        console.log('🔍 First being structure:', beings[0]);
+        console.log('🔍 Being types found:', beings.map(b => b._soul?.genesis?.type).filter((v, i, a) => a.indexOf(v) === i));
+
         // Filter beings - separate relation beings for links, but keep them in nodes for potential interaction
-        const actualBeings = beings.filter(being =>
-            being.ulid // Just ensure it has a ULID - show all beings including relations
-        );
+        const actualBeings = beings.filter(being => {
+            const hasUlid = being.ulid;
+            console.log(`🔍 Being ${being.ulid}: hasUlid=${hasUlid}, type=${being._soul?.genesis?.type}`);
+            return hasUlid; // Just ensure it has a ULID - show all beings including relations
+        });
 
         const relationBeings = beings.filter(being =>
             being._soul?.genesis?.type === 'relation' && being.ulid // Keep relation beings for creating links
         );
+
+        console.log(`📊 Filtered: ${actualBeings.length} actualBeings, ${relationBeings.length} relationBeings`);
 
         // Create nodes data with beautiful positions
         const nodes = actualBeings.map((being, i) => ({
