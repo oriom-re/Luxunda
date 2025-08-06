@@ -536,3 +536,172 @@ class DynamicRepository:
                         value = json.loads(row['value']) if parsed["requires_serialization"] else row['value']
                         result[row['key']] = value
             return result if result else None
+
+
+class RelationRepository:
+    """Repository pattern dla operacji na relations w bazie danych"""
+    
+    @staticmethod
+    async def save(relation) -> dict:
+        """Zapisuje relację do bazy danych"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    INSERT INTO relations (ulid, soul_hash, alias, source_ulid, target_ulid)
+                    VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (ulid) DO UPDATE SET
+                        soul_hash = EXCLUDED.soul_hash,
+                        alias = EXCLUDED.alias,
+                        source_ulid = EXCLUDED.source_ulid,
+                        target_ulid = EXCLUDED.target_ulid,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING created_at, updated_at
+                """
+                result = await conn.fetchrow(query, 
+                    relation.ulid, 
+                    relation.soul_hash, 
+                    relation.alias,
+                    relation.source_ulid,
+                    relation.target_ulid
+                )
+                if result:
+                    relation.created_at = result['created_at']
+                    relation.updated_at = result['updated_at']
+                    
+            return {"success": True, "relation": relation}
+        except Exception as e:
+            print(f"❌ Error saving relation: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def load_by_ulid(ulid: str) -> dict:
+        """Ładuje relację z bazy danych na podstawie ULID"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM relations WHERE ulid = $1
+                """
+                row = await conn.fetchrow(query, ulid)
+                if row:
+                    # Import tutaj aby uniknąć circular imports
+                    from database.models.relation import Relation
+                    relation = Relation()
+                    relation.ulid = row['ulid']
+                    relation.soul_hash = row['soul_hash']
+                    relation.alias = row['alias']
+                    relation.source_ulid = row['source_ulid']
+                    relation.target_ulid = row['target_ulid']
+                    relation.created_at = row['created_at']
+                    relation.updated_at = row['updated_at']
+                    return {"success": True, "relation": relation}
+                else:
+                    return {"success": False, "relation": None}
+        except Exception as e:
+            print(f"❌ Error loading relation by ulid: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def load_all_by_soul_hash(soul_hash: str) -> dict:
+        """Ładuje wszystkie relacje z bazy danych na podstawie soul_hash"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM relations
+                    WHERE soul_hash = $1
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query, soul_hash)
+                from database.models.relation import Relation
+                relations = []
+                for row in rows:
+                    relation = Relation()
+                    relation.ulid = row['ulid']
+                    relation.soul_hash = row['soul_hash']
+                    relation.alias = row['alias']
+                    relation.source_ulid = row['source_ulid']
+                    relation.target_ulid = row['target_ulid']
+                    relation.created_at = row['created_at']
+                    relation.updated_at = row['updated_at']
+                    relations.append(relation)
+                    
+            return {"success": True, "relations": relations}
+        except Exception as e:
+            print(f"❌ Error loading relations by soul hash: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def load_all() -> dict:
+        """Ładuje wszystkie relacje z bazy danych"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM relations
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query)
+                from database.models.relation import Relation
+                relations = []
+                for row in rows:
+                    relation = Relation()
+                    relation.ulid = row['ulid']
+                    relation.soul_hash = row['soul_hash']
+                    relation.alias = row['alias']
+                    relation.source_ulid = row['source_ulid']
+                    relation.target_ulid = row['target_ulid']
+                    relation.created_at = row['created_at']
+                    relation.updated_at = row['updated_at']
+                    relations.append(relation)
+                    
+            return {"success": True, "relations": relations}
+        except Exception as e:
+            print(f"❌ Error loading all relations: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def load_by_being(being_ulid: str) -> dict:
+        """Ładuje wszystkie relacje dla danego being"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM relations
+                    WHERE source_ulid = $1 OR target_ulid = $1
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query, being_ulid)
+                from database.models.relation import Relation
+                relations = []
+                for row in rows:
+                    relation = Relation()
+                    relation.ulid = row['ulid']
+                    relation.soul_hash = row['soul_hash']
+                    relation.alias = row['alias']
+                    relation.source_ulid = row['source_ulid']
+                    relation.target_ulid = row['target_ulid']
+                    relation.created_at = row['created_at']
+                    relation.updated_at = row['updated_at']
+                    relations.append(relation)
+                    
+            return {"success": True, "relations": relations}
+        except Exception as e:
+            print(f"❌ Error loading relations by being: {e}")
+            return {"success": False, "error": str(e)}

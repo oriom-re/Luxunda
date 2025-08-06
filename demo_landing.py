@@ -134,7 +134,7 @@ beings_data = [
         }
     },
     {
-        "soul_uid": "soul_002", 
+        "soul_uid": "soul_002",
         "_soul": {
             "genesis": {
                 "name": "Data_Processor",
@@ -160,7 +160,7 @@ relationships_data = [
         "genesis": {"type": "processes"}
     },
     {
-        "source_soul": "soul_002", 
+        "source_soul": "soul_002",
         "target_soul": "soul_003",
         "genesis": {"type": "sends_to"}
     }
@@ -263,115 +263,30 @@ async def request_graph_data(sid):
     try:
         print("📡 Otrzymano żądanie danych grafu")
 
-        # Pobierz wszystkie souls
+        # Pobierz dane z bazy
         souls = await Soul.load_all()
-        print(f"📊 Znaleziono {len(souls)} souls")
+        beings = await Being.load_all()
+        relationships = await Relationship.get_all()  # Stara tabela relationships
 
-        # Pobierz wszystkie beings
-        all_beings = await Being.load_all()
-        print(f"📊 Znaleziono {len(all_beings)} beings")
+        # Pobierz nowe dedykowane relacje
+        from database.models.relation import Relation
+        relations = await Relation.load_all()
 
-        # Przygotuj dane dla frontendu
+        print(f"🔍 Pobrano z bazy: {len(souls)} souls, {len(beings)} beings, {len(relationships)} relationships, {len(relations)} relations")
+
+        # Przygotuj dane grafu
         graph_data = {
-            "beings": [],
-            "relationships": []
+            'beings': [being.to_dict() for being in beings],
+            'relationships': [rel.to_dict() for rel in relationships],
+            'relations': [rel.to_dict() for rel in relations]  # Nowe dedykowane relacje
         }
 
-        # Dodaj beings do grafu
-        print(f"🔄 Processing {len(all_beings)} beings for graph...")
-        for i, being in enumerate(all_beings):
-            # Znajdź odpowiadającą soul
-            soul = next((s for s in souls if s.soul_hash == being.soul_hash), None)
-            print(f"🔍 Being {i}: {being.ulid}, Soul: {soul.alias if soul else 'None'}")
-
-            being_data = {
-                "ulid": being.ulid,
-                "soul_uid": being.soul_hash,
-                "_soul": {
-                    "genesis": soul.genotype.get("genesis", {}) if soul else {},
-                    "alias": soul.alias if soul else None
-                },
-                "created_at": being.created_at.isoformat() if being.created_at else None,
-                "attributes": serialize_for_json(await being.get_attributes())
-            }
-            graph_data["beings"].append(being_data)
-            if i < 3:  # Show first 3 for debugging
-                print(f"📋 Being data sample {i}:", being_data)
-
-        # Pobierz relacje bezpośrednio z bazy danych
-        try:
-            async with db.pool.acquire() as conn:
-                relationships_rows = await conn.fetch("SELECT * FROM relationships ORDER BY created_at DESC")
-                print(f"🔗 Znaleziono {len(relationships_rows)} relacji w tabeli relationships")
-
-                for row in relationships_rows:
-                    relationship_data = {
-                        'id': row['id'],
-                        'source_uid': row['source_ulid'],  # Changed to match frontend expectations
-                        'target_uid': row['target_ulid'],  # Changed to match frontend expectations
-                        'source': row['source_ulid'],
-                        'target': row['target_ulid'],
-                        'relation_type': row['relation_type'],
-                        'type': row['relation_type'],
-                        'strength': float(row['strength']) if row['strength'] else 1.0,
-                        'metadata': row['metadata'] if row['metadata'] else {}
-                    }
-                    graph_data["relationships"].append(relationship_data)
-                    print(f"🔗 Relacja: {row['source_ulid']} → {row['target_ulid']} ({row['relation_type']})")
-
-                # Jeśli nie ma relacji, stwórz przykładowe
-                if len(relationships_rows) == 0 and len(all_beings) >= 2:
-                    print("📝 Tworzę przykładowe relacje między beings...")
-                    beings_list = list(all_beings)
-
-                    # Stwórz relacje bezpośrednio w bazie
-                    await conn.execute("""
-                        INSERT INTO relationships (source_ulid, target_ulid, relation_type, strength, metadata)
-                        VALUES ($1, $2, $3, $4, $5)
-                        ON CONFLICT (source_ulid, target_ulid, relation_type) DO NOTHING
-                    """, beings_list[0].ulid, beings_list[1].ulid, "connection", 0.8, 
-                         {"auto_created": True, "reason": "demo"})
-
-                    if len(beings_list) >= 3:
-                        await conn.execute("""
-                            INSERT INTO relationships (source_ulid, target_ulid, relation_type, strength, metadata)
-                            VALUES ($1, $2, $3, $4, $5)
-                            ON CONFLICT (source_ulid, target_ulid, relation_type) DO NOTHING
-                        """, beings_list[1].ulid, beings_list[2].ulid, "similarity", 0.7,
-                             {"auto_created": True, "reason": "demo"})
-
-                    # Przeładuj relacje
-                    relationships_rows = await conn.fetch("SELECT * FROM relationships ORDER BY created_at DESC")
-                    graph_data["relationships"] = []  # Clear and reload
-
-                    for row in relationships_rows:
-                        relationship_data = {
-                            'id': row['id'],
-                            'source_uid': row['source_ulid'],
-                            'target_uid': row['target_ulid'], 
-                            'source': row['source_ulid'],
-                            'target': row['target_ulid'],
-                            'relation_type': row['relation_type'],
-                            'type': row['relation_type'],
-                            'strength': float(row['strength']) if row['strength'] else 1.0,
-                            'metadata': dict(row['metadata']) if row['metadata'] else {}
-                        }
-                        graph_data["relationships"].append(relationship_data)
-
-                    print(f"✅ Utworzono {len(relationships_rows)} przykładowych relacji")
-
-        except Exception as e:
-            print(f"❌ Błąd podczas ładowania relacji: {e}")
-            import traceback
-            traceback.print_exc()
-            # Kontynuuj bez relacji
-
-        print(f"✅ Przygotowano dane grafu: {len(graph_data['beings'])} beings, {len(graph_data['relationships'])} relationships")
+        print(f"✅ Przygotowano dane grafu: {len(beings)} beings, {len(relationships)} relationships, {len(relations)} relations")
 
         # Serialize all data to ensure JSON compatibility
         serialized_graph_data = serialize_for_json(graph_data)
 
-        print(f"📤 Wysyłam dane do klienta {sid}: {len(serialized_graph_data.get('beings', []))} beings, {len(serialized_graph_data.get('relationships', []))} relationships")
+        print(f"📤 Wysyłam dane do klienta {sid}: {len(serialized_graph_data.get('beings', []))} beings, {len(serialized_graph_data.get('relationships', []))} relationships, {len(serialized_graph_data.get('relations', []))} relations")
 
         await sio.emit('graph_data', serialized_graph_data, room=sid)
 
@@ -549,7 +464,7 @@ async def create_relationship(request: Request):
         await sio.emit('graph_data_updated')
 
         return {
-            "success": True, 
+            "success": True,
             "relationship": relationship.to_dict(),
             "message": f"Utworzono relację {relation_type} między {source_ulid} a {target_ulid}"
         }
@@ -557,6 +472,43 @@ async def create_relationship(request: Request):
     except Exception as e:
         print(f"❌ Błąd podczas tworzenia relacji: {e}")
         return {"success": False, "error": str(e)}
+
+@app.post("/api/relations")
+async def create_relation(request: Request):
+    """Tworzy nową dedykowaną relację"""
+    try:
+        data = await request.json()
+        source_ulid = data.get('source_ulid')
+        target_ulid = data.get('target_ulid')
+        relation_type = data.get('relation_type', 'connection')
+        strength = data.get('strength', 1.0)
+        metadata = data.get('metadata', {})
+
+        if not source_ulid or not target_ulid:
+            return {"success": False, "error": "source_ulid i target_ulid są wymagane"}
+
+        from database.models.relation import Relation
+        relation = await Relation.create(
+            source_ulid=source_ulid,
+            target_ulid=target_ulid,
+            relation_type=relation_type,
+            strength=strength,
+            metadata=metadata
+        )
+
+        # Powiadom klientów o nowej relacji
+        await sio.emit('graph_data_updated')
+
+        return {
+            "success": True,
+            "relation": relation.to_dict(),
+            "message": f"Utworzono relację {relation_type} między {source_ulid} a {target_ulid}"
+        }
+
+    except Exception as e:
+        print(f"❌ Błąd podczas tworzenia relacji: {e}")
+        return {"success": False, "error": str(e)}
+
 
 @app.get("/")
 async def main_page():
@@ -592,16 +544,22 @@ async def database_status():
         from database.models.base import Soul, Being
         souls = await Soul.load_all()
         beings = await Being.load_all()
-        
+
         async with db.pool.acquire() as conn:
             relations = await conn.fetch("SELECT COUNT(*) as count FROM relationships")
             relations_count = relations[0]['count'] if relations else 0
-        
+            
+            # Dodaj licznik dla nowych relacji
+            from database.models.relation import Relation
+            new_relations = await conn.fetch("SELECT COUNT(*) as count FROM relations")
+            new_relations_count = new_relations[0]['count'] if new_relations else 0
+
         return {
             "status": "connected",
             "souls_count": len(souls),
             "beings_count": len(beings),
             "relationships_count": relations_count,
+            "relations_count": new_relations_count, # Nowy licznik
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
@@ -617,7 +575,7 @@ async def test_endpoint():
     print("🧪 Test endpoint called!")
     return {
         "message": "LuxDB MVP Server is working!",
-        "socket_io": "enabled", 
+        "socket_io": "enabled",
         "static_files": "mounted",
         "timestamp": datetime.now().isoformat()
     }
@@ -631,8 +589,9 @@ async def create_sample_relations():
             return {"error": "Potrzeba co najmniej 2 beings"}
 
         from database.models.relationship import Relationship
+        from database.models.relation import Relation
 
-        # Stwórz 3 przykładowe relacje
+        # Stwórz 3 przykładowe relacje (stary typ)
         rel1 = await Relationship.create(
             source_ulid=beings[0].ulid,
             target_ulid=beings[1].ulid,
@@ -653,6 +612,29 @@ async def create_sample_relations():
                 target_ulid=beings[2].ulid,
                 relation_type="dependency",
                 strength=0.5
+            )
+
+        # Stwórz 3 przykładowe relacje (nowy typ)
+        rel4 = await Relation.create(
+            source_ulid=beings[0].ulid,
+            target_ulid=beings[1].ulid,
+            relation_type="interacts_with",
+            strength=0.8
+        )
+
+        if len(beings) >= 3:
+            rel5 = await Relation.create(
+                source_ulid=beings[1].ulid,
+                target_ulid=beings[2].ulid,
+                relation_type="supports",
+                strength=0.6
+            )
+
+            rel6 = await Relation.create(
+                source_ulid=beings[0].ulid,
+                target_ulid=beings[2].ulid,
+                relation_type="depends_on",
+                strength=0.4
             )
 
         # Powiadom klientów

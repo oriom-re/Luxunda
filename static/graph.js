@@ -39,6 +39,8 @@ class LuxOSGraph {
                 console.log('📊 Otrzymano dane grafu:', data);
                 console.log('📊 Beings count:', data.beings ? data.beings.length : 'no beings');
                 console.log('📊 Relationships count:', data.relationships ? data.relationships.length : 'no relationships');
+                console.log('📊 Relations count:', data.relations ? data.relations.length : 'no relations');
+
 
                 if (data && data.beings && Array.isArray(data.beings)) {
                     console.log('✅ Validating beings data:', data.beings.slice(0, 3)); // Show first 3 for debug
@@ -209,13 +211,13 @@ class LuxOSGraph {
             const hasAlias = being._soul?.alias;
             const genesisType = being._soul?.genesis?.type;
             const hasAttributes = being.attributes && Object.keys(being.attributes).length > 0;
-            
+
             // Soul detection: has alias AND (no genesis type OR genesis type is undefined) AND not a relation
             const isSoul = hasAlias && (!genesisType || genesisType === undefined) && genesisType !== 'relation';
-            
+
             // Relation detection: explicit relation type
             const isRelation = genesisType === 'relation';
-            
+
             console.log(`🔍 Node analysis: ${being.ulid}:`, {
                 alias: hasAlias ? being._soul.alias : 'NO_ALIAS',
                 genesisType: genesisType || 'UNDEFINED',
@@ -428,7 +430,7 @@ class LuxOSGraph {
         });
 
         // Add labels to nodes with type indicators
-        node.append('text')
+        const labels = node.append('text')
             .attr('text-anchor', 'middle')
             .attr('dy', 35)
             .style('font-size', '11px')
@@ -457,7 +459,7 @@ class LuxOSGraph {
             });
 
         // Add type label below main label
-        node.append('text')
+        const relationLabels = node.append('text')
             .attr('text-anchor', 'middle')
             .attr('dy', 48)
             .style('font-size', '9px')
@@ -485,11 +487,12 @@ class LuxOSGraph {
                 .attr('y', d => d.y + 5);
 
             relationLabels
-                .attr('x', d => (d.source.x + d.target.x) / 2)
-                .attr('y', d => (d.source.y + d.target.y) / 2 - 5);
+                .attr('x', d => d.x)
+                .attr('y', d => d.y + 18);
         });
 
         // Add title
+        const svg = this.svg; // Ensure svg is accessible here
         svg.append('text')
             .attr('x', width / 2)
             .attr('y', 30)
@@ -555,8 +558,8 @@ class LuxOSGraph {
 
         console.log(`✨ Graf renderowany z ${nodes.length} węzłami i ${links.length} połączeniami!`);
         console.log(`🔗 Znaleziono ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
-        console.log('📋 Szczegóły linków:', links.map(l => `${l.source} -> ${l.target} (${l.relation_type})`));
-        console.log('📋 Dostępne węzły:', nodes.map(n => `${n.id} (${n.name})`));
+        console.log('📋 Szczegóły linków:', links.map(l => `${l.source} -> ${l.target} (${l.relation_type}) [${l.table}]`));
+        console.log('📋 Dostępne węzły:', nodes.map(n => `${n.id} (${n.being.attributes?.name || n.being._soul?.alias || n.being.ulid.substring(0,8)}...)`));
     }
 
     attemptReconnect() {

@@ -133,6 +133,29 @@ class Postgre_db:
                         CREATE INDEX IF NOT EXISTS idx_beings_alias ON beings (alias);
                 """)
 
+                # Nowa dedykowana tabela relations
+                await conn.execute("""
+                        CREATE TABLE IF NOT EXISTS relations (
+                            ulid CHAR(26) PRIMARY KEY,
+                            soul_hash CHAR(64) NOT NULL,
+                            alias VARCHAR(255),
+                            source_ulid CHAR(26),
+                            target_ulid CHAR(26),
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (soul_hash) REFERENCES souls(soul_hash),
+                            FOREIGN KEY (source_ulid) REFERENCES beings(ulid) ON DELETE CASCADE,
+                            FOREIGN KEY (target_ulid) REFERENCES beings(ulid) ON DELETE CASCADE
+                        );
+                        -- indexy dla relations
+                        CREATE INDEX IF NOT EXISTS idx_relations_soul_hash ON relations (soul_hash);
+                        CREATE INDEX IF NOT EXISTS idx_relations_source ON relations (source_ulid);
+                        CREATE INDEX IF NOT EXISTS idx_relations_target ON relations (target_ulid);
+                        CREATE INDEX IF NOT EXISTS idx_relations_created_at ON relations (created_at);
+                        CREATE INDEX IF NOT EXISTS idx_relations_updated_at ON relations (updated_at);
+                        CREATE INDEX IF NOT EXISTS idx_relations_alias ON relations (alias);
+                """)
+
                 # Tradycyjna tabela relacji dla MVP
                 await conn.execute("""
                         CREATE TABLE IF NOT EXISTS relationships (
