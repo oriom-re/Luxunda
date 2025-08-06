@@ -266,7 +266,15 @@ async def request_graph_data(sid):
 
         # Pobierz dane z bazy
         souls = await Soul.load_all()
-        beings = await Being.load_all()
+        
+        # Try to load beings with better error handling
+        beings_result = await Being.load_all()
+        if not beings_result.get("success", False):
+            print(f"❌ Failed to load beings: {beings_result.get('error', 'Unknown error')}")
+            beings = []
+        else:
+            beings = beings_result.get("beings", [])
+            
         relationships = await Relationship.get_all()  # Stara tabela relationships
 
         # Pobierz nowe dedykowane relacje
@@ -274,6 +282,9 @@ async def request_graph_data(sid):
         relations = await Relation.load_all()
 
         print(f"🔍 Pobrano z bazy: {len(souls)} souls, {len(beings)} beings, {len(relationships)} relationships, {len(relations)} relations")
+        print(f"🔍 Souls loaded: {souls is not None}")
+        print(f"🔍 Beings loaded: {beings is not None} (count: {len(beings) if beings else 0})")
+        print(f"🔍 First few beings: {[b.ulid[:8] + '...' if hasattr(b, 'ulid') else str(type(b)) for b in beings[:3]] if beings else 'No beings'}")
 
         # Przygotuj dane grafu
         graph_data = {

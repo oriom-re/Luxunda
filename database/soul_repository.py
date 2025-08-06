@@ -374,11 +374,22 @@ class BeingRepository:
                 return {"success": False}
 
             async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM beings
-                    ORDER BY created_at DESC
-                """
-                rows = await conn.fetch(query)
+                # Force fresh statement plan if cached plan is invalid
+                try:
+                    query = """
+                        SELECT * FROM beings
+                        ORDER BY created_at DESC
+                    """
+                    rows = await conn.fetch(query)
+                except Exception as e:
+                    if "cached statement plan is invalid" in str(e).lower():
+                        print("🔄 Cached statement plan invalid, forcing reset...")
+                        # Reset connection and try again
+                        await conn.execute("DEALLOCATE ALL")
+                        rows = await conn.fetch(query)
+                    else:
+                        raise e
+                
                 Being = get_being_class()
                 beings: List['Being'] = []
                 for row in rows:
@@ -387,9 +398,12 @@ class BeingRepository:
                     being.soul_hash = row['soul_hash']
                     being.alias = row['alias']
                     being.created_at = row['created_at']
+                    # Add table_type if it exists
+                    if 'table_type' in row:
+                        being.table_type = row['table_type']
                     beings.append(being)
                 if not beings:
-                    beings = [None]
+                    beings = []  # Return empty list instead of [None]
             return {"success": True, "beings": beings}
         except Exception as e:
             print(f"❌ Error loading all beings: {e}")

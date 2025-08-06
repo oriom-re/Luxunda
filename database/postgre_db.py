@@ -37,7 +37,8 @@ class Postgre_db:
                 max_size=5,
                 server_settings={
                     'statement_cache_size': '0',  # Wyłącz cache statementów
-                    'plan_cache_mode': 'force_custom_plan'
+                    'plan_cache_mode': 'force_custom_plan',
+                    'application_name': 'luxdb_mvp'
                 }
             )
             await Postgre_db.setup_tables()  # Upewnij się, że tabele są utworzone
