@@ -207,16 +207,27 @@ class LuxOSGraph {
 
         // Create nodes data with beautiful positions and type distinction
         const nodes = actualBeings.map((being, i) => {
-            // Detect Soul vs Being vs Relation
+            // Detect Soul vs Being vs Relation based on multiple criteria
             const hasAlias = being._soul?.alias;
             const genesisType = being._soul?.genesis?.type;
             const hasAttributes = being.attributes && Object.keys(being.attributes).length > 0;
 
-            // Soul detection: has alias AND (no genesis type OR genesis type is undefined) AND not a relation
-            const isSoul = hasAlias && (!genesisType || genesisType === undefined) && genesisType !== 'relation';
+            // Check if this is from relations table (dedicated relation table)
+            const isFromRelationsTable = being.table_type === 'relation' || 
+                                       (being.source_ulid && being.target_ulid);
 
-            // Relation detection: explicit relation type
-            const isRelation = genesisType === 'relation';
+            // Check if this is a soul template (should have alias but no attributes)
+            const isSoulTemplate = hasAlias && !hasAttributes && 
+                                  ['user_profile', 'ai_agent', 'basic_relation', 'sample_entity'].includes(being._soul?.alias);
+
+            // Soul detection: has specific soul aliases OR explicit soul markers
+            const isSoul = isSoulTemplate || 
+                          (hasAlias && !hasAttributes && (!genesisType || genesisType === undefined));
+
+            // Relation detection: explicit relation type OR from relations table OR has relation attributes
+            const isRelation = genesisType === 'relation' || 
+                              isFromRelationsTable ||
+                              (hasAttributes && (being.attributes.source_uid || being.attributes.relation_type));
 
             console.log(`🔍 Node analysis: ${being.ulid}:`, {
                 alias: hasAlias ? being._soul.alias : 'NO_ALIAS',
@@ -224,7 +235,10 @@ class LuxOSGraph {
                 hasAttributes,
                 isSoul,
                 isRelation,
-                attributesCount: being.attributes ? Object.keys(being.attributes).length : 0
+                isFromRelationsTable,
+                isSoulTemplate,
+                attributesCount: being.attributes ? Object.keys(being.attributes).length : 0,
+                hasRelationAttrs: hasAttributes && (being.attributes.source_uid || being.attributes.relation_type)
             });
 
             return {
@@ -284,7 +298,7 @@ class LuxOSGraph {
                 links.push({
                     source: rel.source_uid,
                     target: rel.target_uid,
-                    type: rel.genesis?.type || 'connection', // Use genesis type if available, fallback to 'connection'
+                    type: 'connection', // Default type for relationships
                     relation_type: rel.relation_type || 'unknown',
                     strength: parseFloat(rel.strength) || 0.5,
                     metadata: rel.metadata || {}
@@ -550,7 +564,7 @@ class LuxOSGraph {
 
         console.log(`✨ Graf renderowany z ${nodes.length} węzłami i ${links.length} połączeniami!`);
         console.log(`🔗 Znaleziono ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
-        console.log('📋 Szczegóły linków:', links.map(l => `${l.source} -> ${l.target} (${l.relation_type}) [${l.table}]`));
+        console.log('📋 Szczegóły linków:', links.map(l => `${l.source} -> ${l.target} (${l.relation_type})`));
         console.log('📋 Dostępne węzły:', nodes.map(n => `${n.id} (${n.being.attributes?.name || n.being._soul?.alias || n.being.ulid.substring(0,8)}...)`));
     }
 

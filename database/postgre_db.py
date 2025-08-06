@@ -122,15 +122,26 @@ class Postgre_db:
                             ulid CHAR(26) PRIMARY KEY,
                             soul_hash CHAR(64) NOT NULL,
                             alias VARCHAR(255),
+                            table_type VARCHAR(50) DEFAULT 'being',
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             FOREIGN KEY (soul_hash) REFERENCES souls(soul_hash)
                         );
+                        -- Add table_type column if it doesn't exist
+                        DO $$ 
+                        BEGIN 
+                            IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                         WHERE table_name='beings' AND column_name='table_type') THEN
+                                ALTER TABLE beings ADD COLUMN table_type VARCHAR(50) DEFAULT 'being';
+                            END IF;
+                        END $$;
+
                         -- indexy
                         CREATE INDEX IF NOT EXISTS idx_beings_soul_hash ON beings (soul_hash);
                         CREATE INDEX IF NOT EXISTS idx_beings_created_at ON beings (created_at);
                         CREATE INDEX IF NOT EXISTS idx_beings_updated_at ON beings (updated_at);
                         CREATE INDEX IF NOT EXISTS idx_beings_alias ON beings (alias);
+                        CREATE INDEX IF NOT EXISTS idx_beings_table_type ON beings (table_type);
                 """)
 
                 # Nowa dedykowana tabela relations

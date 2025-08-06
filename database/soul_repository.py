@@ -218,16 +218,31 @@ class BeingRepository:
             return {"success": False}
 
         async with pool.acquire() as conn:
+            # Determine table_type based on soul alias and genotype
+            table_type = 'being'  # default
+            if hasattr(being, '_soul') and being._soul:
+                soul_alias = getattr(being._soul, 'alias', None)
+                genotype = getattr(being._soul, 'genotype', {})
+                genesis_type = genotype.get('genesis', {}).get('type', None)
+                
+                if soul_alias in ['user_profile', 'ai_agent']:
+                    table_type = 'soul'
+                elif genesis_type == 'relation' or soul_alias == 'basic_relation':
+                    table_type = 'relation'
+            
             query = """
-                INSERT INTO beings (ulid, soul_hash, alias)
-                VALUES ($1, $2, $3)
+                INSERT INTO beings (ulid, soul_hash, alias, table_type)
+                VALUES ($1, $2, $3, $4)
                 ON CONFLICT (ulid) DO UPDATE SET
+                    alias = EXCLUDED.alias,
+                    table_type = EXCLUDED.table_type,
                     updated_at = CURRENT_TIMESTAMP
             """
             result = await conn.execute(query,
                 being.ulid,
                 being.soul_hash,
-                being.alias
+                being.alias,
+                table_type
             )
             if result.endswith("1"):
                 if not being.created_at:
