@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse
 # Import AI system
 from ai.hybrid_ai_system import HybridAISystem
 from database.models.base import Soul, Being
+from database.models.relationship import Relationship
 from database.soul_repository import SoulRepository, BeingRepository
 from services.message_similarity_service import MessageSimilarityService
 

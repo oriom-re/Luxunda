@@ -481,14 +481,6 @@ class LuxOSGraph {
 
             node
                 .attr('transform', d => `translate(${d.x}, ${d.y})`);
-
-            labels
-                .attr('x', d => d.x)
-                .attr('y', d => d.y + 5);
-
-            relationLabels
-                .attr('x', d => d.x)
-                .attr('y', d => d.y + 18);
         });
 
         // Add title
