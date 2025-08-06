@@ -269,11 +269,14 @@ async def request_graph_data(sid):
         
         # Try to load beings with better error handling
         beings_result = await Being.load_all()
-        if not beings_result.get("success", False):
+        if isinstance(beings_result, dict) and not beings_result.get("success", False):
             print(f"❌ Failed to load beings: {beings_result.get('error', 'Unknown error')}")
             beings = []
-        else:
+        elif isinstance(beings_result, dict):
             beings = beings_result.get("beings", [])
+        else:
+            # beings_result is a list directly
+            beings = beings_result if beings_result else []
             
         relationships = await Relationship.get_all()  # Stara tabela relationships
 

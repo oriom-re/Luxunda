@@ -35,7 +35,7 @@ class Soul:
     async def load_by_hash(cls, hash: str) -> 'Soul':
         """Ładuje byt z bazy danych na podstawie jego unikalnego hasha"""
         result = await SoulRepository.load_by_hash(hash)
-        if result: 
+        if result:
             return result.get('soul', None)
         return None
 
@@ -197,8 +197,8 @@ class Being:
                         table_name = f"attr{table_suffix}"
                         try:
                             query = f"""
-                                SELECT key, value 
-                                FROM {table_name} 
+                                SELECT key, value
+                                FROM {table_name}
                                 WHERE being_ulid = $1
                             """
                             rows = await conn.fetch(query, self.ulid)
@@ -230,11 +230,11 @@ class Being:
             return result.get('beings', [])
 
     @classmethod
-    async def load_all(cls) -> list['Being']:
-        """Ładuje wszystkie byty z bazy danych"""
+    async def load_all(cls) -> List['Being']:
+        """Ładuje wszystkie beings z bazy danych"""
         result = await BeingRepository.load_all()
-        if result:
-            return result.get('beings', [])
+        if isinstance(result, dict) and result.get("success") and result.get("beings"):
+            return result["beings"]
         return []
 
     @classmethod

@@ -404,9 +404,12 @@ class BeingRepository:
                     beings.append(being)
                 if not beings:
                     beings = []  # Return empty list instead of [None]
+            print(f"✅ BeingRepository.load_all returning {len(beings)} beings")
             return {"success": True, "beings": beings}
         except Exception as e:
             print(f"❌ Error loading all beings: {e}")
+            import traceback
+            traceback.print_exc()
             return {"success": False, "error": str(e)}
     
     @staticmethod
