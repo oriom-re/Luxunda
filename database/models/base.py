@@ -77,7 +77,6 @@ class Soul:
             return result.get('souls', [])
         return []
 
-    @staticmethod
     def to_dict(self) -> Dict[str, Any]:
         """Konwertuje Soul do słownika"""
         return {
@@ -88,12 +87,12 @@ class Soul:
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
-    @staticmethod
-    def parser(soul_data: Dict[str, Any]) -> 'Soul':
+    @classmethod
+    def parser(cls, soul_data: Dict[str, Any]) -> 'Soul':
         """Parser dla danych duszy"""
         if not soul_data:
             return None
-        soul = Soul()
+        soul = cls()
         for key, value in soul_data.items():
             setattr(soul, key, value)
         return soul
