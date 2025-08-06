@@ -96,7 +96,7 @@ async def startup_event():
                 sample_soul = await Soul.create(sample_genotype, alias="sample_entity")
                 print(f"✅ Created sample soul: {sample_soul.alias}")
 
-            # Create only a few sample beings if we don't have enough
+            # Create only a few sample beings if we don't have enough (using limit parameter)
             beings_to_create = max(0, 3 - demo_beings_count)
             for i in range(beings_to_create):
                 being = await Being.create(
@@ -105,7 +105,8 @@ async def startup_event():
                         "name": f"Entity_{demo_beings_count + i + 1}",
                         "energy": float(50 + (demo_beings_count + i) * 10),
                         "active": True
-                    }
+                    },
+                    limit=10  # Wykorzystanie parametru limit - maksymalnie 10 beings na soul
                 )
                 print(f"✅ Created sample being: {being.ulid}")
         else:
@@ -281,7 +282,7 @@ async def request_graph_data(sid):
     try:
         print("📡 Otrzymano żądanie danych grafu")
 
-        # Pobierz dane z bazy
+        # Pobierz dane z bazy - dodaj souls do grafu
         souls = await Soul.load_all()
         
         # Try to load beings with better error handling
@@ -306,8 +307,9 @@ async def request_graph_data(sid):
         print(f"🔍 Beings loaded: {beings is not None} (count: {len(beings) if beings else 0})")
         print(f"🔍 First few beings: {[b.ulid[:8] + '...' if hasattr(b, 'ulid') else str(type(b)) for b in beings[:3]] if beings else 'No beings'}")
 
-        # Przygotuj dane grafu
+        # Przygotuj dane grafu - DODAJ souls i relations jako osobne kategorie
         graph_data = {
+            'souls': [soul.to_dict() for soul in souls] if souls else [],  # NOWE: dodaj souls
             'beings': [being.to_dict() for being in beings],
             'relationships': [rel.to_dict() for rel in relationships],
             'relations': [rel.to_dict() for rel in relations]  # Nowe dedykowane relacje

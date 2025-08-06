@@ -78,6 +78,17 @@ class Soul:
         return []
 
     @staticmethod
+    def to_dict(self) -> Dict[str, Any]:
+        """Konwertuje Soul do słownika"""
+        return {
+            'soul_hash': self.soul_hash,
+            'global_ulid': self.global_ulid,
+            'alias': self.alias,
+            'genotype': self.genotype,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+    @staticmethod
     def parser(soul_data: Dict[str, Any]) -> 'Soul':
         """Parser dla danych duszy"""
         if not soul_data:

@@ -112,22 +112,33 @@ class LuxOSGraph {
         }
     }
 
-    renderUniverse(beings) {
-        console.log(`🌌 Renderuję wszechświat z ${beings ? beings.length : 0} bytami`);
-        console.log(`📊 Raw beings data:`, beings);
+    renderUniverse(data) {
+        console.log("🌌 Renderuję wszechświat z", data.beings?.length || 0, "bytami,", data.souls?.length || 0, "duszami,", data.relations?.length || 0, "relacjami");
 
-        // Store beings for later use
-        this.beings = beings || [];
+        const souls = data.souls || [];
+        const beings = data.beings || [];
+        const relations = data.relations || [];
 
-        // Debug being types
-        if (beings && beings.length > 0) {
-            const types = beings.map(b => b._soul?.genesis?.type || 'unknown');
-            console.log(`📋 Being types:`, types);
-            console.log(`📊 Type counts:`, types.reduce((acc, type) => {
-                acc[type] = (acc[type] || 0) + 1;
-                return acc;
-            }, {}));
-        }
+        console.log("📊 Raw data:", { souls: souls.length, beings: beings.length, relations: relations.length });
+        console.log("🔍 First being structure:", beings[0] || null);
+        console.log("🔍 First soul structure:", souls[0] || null);
+        console.log("🔍 First relation structure:", relations[0] || null);
+
+        // Check what types we have
+        console.log("🔍 Being types found:", beings.map(b => b._soul?.genesis?.type).filter((v, i, a) => a.indexOf(v) === i));
+
+        // Filter beings - separate relation beings for links, but keep them in nodes for potential interaction
+        const actualBeings = beings.filter(being => {
+            const hasUlid = being.ulid;
+            console.log(`🔍 Being ${being.ulid}: hasUlid=${hasUlid}, type=${being._soul?.genesis?.type}`);
+            return hasUlid; // Just ensure it has a ULID - show all beings including relations
+        });
+
+        const relationBeings = beings.filter(being =>
+            being._soul?.genesis?.type === 'relation' && being.ulid // Keep relation beings for creating links
+        );
+
+        console.log(`📊 Filtered: ${actualBeings.length} actualBeings, ${relationBeings.length} relationBeings`);
 
         // Clear existing nodes and links
         this.nodes = [];
@@ -138,12 +149,6 @@ class LuxOSGraph {
             console.log(`❌ Beings data is not valid array:`, beings);
             return;
         }
-
-        // Process beings into nodes
-        beings.forEach((being, index) => {
-            console.log(`🔍 Processing being ${index}:`, being);
-        });
-
 
         // Clear previous graph
         d3.select('#graph').selectAll('*').remove();
@@ -192,42 +197,47 @@ class LuxOSGraph {
         console.log('🔍 First being structure:', beings[0]);
         console.log('🔍 Being types found:', beings.map(b => b._soul?.genesis?.type).filter((v, i, a) => a.indexOf(v) === i));
 
-        // Filter beings - separate relation beings for links, but keep them in nodes for potential interaction
-        const actualBeings = beings.filter(being => {
-            const hasUlid = being.ulid;
-            console.log(`🔍 Being ${being.ulid}: hasUlid=${hasUlid}, type=${being._soul?.genesis?.type}`);
-            return hasUlid; // Just ensure it has a ULID - show all beings including relations
+        // Create nodes data with beautiful positions and type distinction
+        const soulNodes = souls.map((soul, i) => {
+            const hasAlias = soul._soul?.alias;
+            const genesisType = soul._soul?.genesis?.type;
+            const hasAttributes = soul.attributes && Object.keys(soul.attributes).length > 0;
+
+            const isSoulTemplate = hasAlias && !hasAttributes &&
+                                  ['user_profile', 'ai_agent', 'basic_relation', 'sample_entity'].includes(soul._soul?.alias);
+
+            console.log(`🔍 Node analysis: ${soul.ulid}:`, {
+                alias: hasAlias ? soul._soul.alias : 'NO_ALIAS',
+                genesisType: genesisType || 'UNDEFINED',
+                hasAttributes,
+                isSoulTemplate,
+                attributesCount: soul.attributes ? Object.keys(soul.attributes).length : 0,
+            });
+
+            return {
+                id: soul.ulid,
+                x: width/2 + Math.cos(i * 2 * Math.PI / souls.length) * 200,
+                y: height/2 + Math.sin(i * 2 * Math.PI / souls.length) * 200,
+                being: soul,
+                vx: 0,
+                vy: 0,
+                type: 'soul',
+                isSoul: true,
+                isRelation: false
+            };
         });
 
-        const relationBeings = beings.filter(being =>
-            being._soul?.genesis?.type === 'relation' && being.ulid // Keep relation beings for creating links
-        );
-
-        console.log(`📊 Filtered: ${actualBeings.length} actualBeings, ${relationBeings.length} relationBeings`);
-
-        // Create nodes data with beautiful positions and type distinction
-        const nodes = actualBeings.map((being, i) => {
-            // Detect Soul vs Being vs Relation based on multiple criteria
+        const beingNodes = actualBeings.map((being, i) => {
             const hasAlias = being._soul?.alias;
             const genesisType = being._soul?.genesis?.type;
             const hasAttributes = being.attributes && Object.keys(being.attributes).length > 0;
 
-            // Check if this is from relations table (dedicated relation table)
-            const isFromRelationsTable = being.table_type === 'relation' || 
-                                       (being.source_ulid && being.target_ulid);
+            const isSoul = hasAlias && !hasAttributes &&
+                          ['user_profile', 'ai_agent', 'basic_relation', 'sample_entity'].includes(being._soul?.alias);
 
-            // Check if this is a soul template (should have alias but no attributes)
-            const isSoulTemplate = hasAlias && !hasAttributes && 
-                                  ['user_profile', 'ai_agent', 'basic_relation', 'sample_entity'].includes(being._soul?.alias);
-
-            // Soul detection: has specific soul aliases OR explicit soul markers
-            const isSoul = isSoulTemplate || 
-                          (hasAlias && !hasAttributes && (!genesisType || genesisType === undefined));
-
-            // Relation detection: explicit relation type OR from relations table OR has relation attributes
-            const isRelation = genesisType === 'relation' || 
-                              isFromRelationsTable ||
+            const isRelation = genesisType === 'relation' ||
                               (hasAttributes && (being.attributes.source_uid || being.attributes.relation_type));
+
 
             console.log(`🔍 Node analysis: ${being.ulid}:`, {
                 alias: hasAlias ? being._soul.alias : 'NO_ALIAS',
@@ -235,8 +245,6 @@ class LuxOSGraph {
                 hasAttributes,
                 isSoul,
                 isRelation,
-                isFromRelationsTable,
-                isSoulTemplate,
                 attributesCount: being.attributes ? Object.keys(being.attributes).length : 0,
                 hasRelationAttrs: hasAttributes && (being.attributes.source_uid || being.attributes.relation_type)
             });
@@ -254,13 +262,29 @@ class LuxOSGraph {
             };
         });
 
+        const relationNodes = relationBeings.map((relation, i) => ({
+            id: relation.ulid,
+            x: width/2 + Math.cos(i * 2 * Math.PI / relationBeings.length) * 200,
+            y: height/2 + Math.sin(i * 2 * Math.PI / relationBeings.length) * 200,
+            being: relation,
+            vx: 0,
+            vy: 0,
+            type: 'relation',
+            isSoul: false,
+            isRelation: true
+        }));
+
         // Store the processed nodes for later use (e.g., updating relationships)
-        this.nodes = nodes;
+        // this.nodes = nodes; // This is now handled by allNodes
 
-        // Create links data from both relation beings and relationships
+        // Process relationships and relations for links
+        console.log("🔗 Przetwarzam", relationBeings.length, "bytów relacji i", this.relationships.length, "tradycyjnych relacji");
+
+        // Create a map of node IDs for easier lookup
+        const nodeMap = new Map();
+        [...soulNodes, ...beingNodes, ...relationNodes].forEach(node => nodeMap.set(node.id, node));
+
         const links = [];
-
-        console.log(`🔗 Przetwarzam ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
 
         // Add links from relation beings
         relationBeings.forEach(relationBeing => {
@@ -269,8 +293,8 @@ class LuxOSGraph {
             const targetUid = attrs.target_uid;
 
             if (sourceUid && targetUid) {
-                const sourceExists = nodes.find(n => n.id === sourceUid);
-                const targetExists = nodes.find(n => n.id === targetUid);
+                const sourceExists = nodeMap.get(sourceUid);
+                const targetExists = nodeMap.get(targetUid);
 
                 if (sourceExists && targetExists) {
                     links.push({
@@ -291,8 +315,8 @@ class LuxOSGraph {
 
         // Add links from traditional relationships
         this.relationships.forEach(rel => {
-            const sourceExists = nodes.find(n => n.id === rel.source_uid);
-            const targetExists = nodes.find(n => n.id === rel.target_uid);
+            const sourceExists = nodeMap.get(rel.source_uid);
+            const targetExists = nodeMap.get(rel.target_uid);
 
             if (sourceExists && targetExists) {
                 links.push({
@@ -312,8 +336,12 @@ class LuxOSGraph {
         // Store the processed links for later use
         this.links = links;
 
+        // POŁĄCZ wszystkie typy węzłów
+        const allNodes = [...soulNodes, ...beingNodes, ...relationNodes];
+        console.log(`📊 Total nodes: ${allNodes.length} (${soulNodes.length} souls + ${beingNodes.length} beings + ${relationNodes.length} relations)`);
+
         // Create force simulation
-        const simulation = d3.forceSimulation(nodes)
+        const simulation = d3.forceSimulation(allNodes)
             .force('link', d3.forceLink(links).id(d => d.id).distance(150))
             .force('charge', d3.forceManyBody().strength(-300))
             .force('center', d3.forceCenter(width/2, height/2))
@@ -357,7 +385,7 @@ class LuxOSGraph {
         // Create nodes with type-specific styling
         const node = g.append('g')
             .selectAll('.node')
-            .data(nodes)
+            .data(allNodes)
             .enter().append('g')
             .attr('class', d => `node ${d.type}`)
             .style('cursor', 'pointer')
@@ -382,7 +410,7 @@ class LuxOSGraph {
         node.each(function(d) {
             const nodeElement = d3.select(this);
 
-            if (d.isSoul) {
+            if (d.type === 'soul') {
                 // Souls - Diamond shape, gold color
                 nodeElement.append('rect')
                     .attr('width', 30)
@@ -404,7 +432,7 @@ class LuxOSGraph {
                     .style('font-weight', 'bold')
                     .text('♦');
 
-            } else if (d.isRelation) {
+            } else if (d.type === 'relation') {
                 // Relations - Hexagon, purple color
                 const hexagon = "M0,-20 L17.32,-10 L17.32,10 L0,20 L-17.32,10 L-17.32,-10 Z";
                 nodeElement.append('path')
@@ -448,18 +476,18 @@ class LuxOSGraph {
             .attr('text-anchor', 'middle')
             .attr('dy', 35)
             .style('font-size', '11px')
-            .style('fill', d => d.isSoul ? '#b8860b' : (d.isRelation ? '#5b21b6' : '#2c5282'))
+            .style('fill', d => d.type === 'soul' ? '#b8860b' : (d.type === 'relation' ? '#5b21b6' : '#2c5282'))
             .style('font-weight', 'bold')
             .text(d => {
                 const being = d.being;
                 let prefix = '';
                 let label = '';
 
-                if (d.isSoul) {
+                if (d.type === 'soul') {
                     prefix = '♦ SOUL: ';
                     // For souls, prioritize alias
                     label = being._soul?.alias || 'Unknown Soul';
-                } else if (d.isRelation) {
+                } else if (d.type === 'relation') {
                     prefix = '⟷ REL: ';
                     // For relations, show relation type if available
                     label = being.attributes?.relation_type || 'Relation';
@@ -480,8 +508,8 @@ class LuxOSGraph {
             .style('fill', '#666')
             .style('font-style', 'italic')
             .text(d => {
-                if (d.isSoul) return 'Soul';
-                if (d.isRelation) return 'Relation';
+                if (d.type === 'soul') return 'Soul';
+                if (d.type === 'relation') return 'Relation';
                 return 'Being';
             });
 
@@ -562,10 +590,10 @@ class LuxOSGraph {
                 .text(`${d.icon} ${d.label}`);
         });
 
-        console.log(`✨ Graf renderowany z ${nodes.length} węzłami i ${links.length} połączeniami!`);
+        console.log(`✨ Graf renderowany z ${allNodes.length} węzłami i ${links.length} połączeniami!`);
         console.log(`🔗 Znaleziono ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
         console.log('📋 Szczegóły linków:', links.map(l => `${l.source} -> ${l.target} (${l.relation_type})`));
-        console.log('📋 Dostępne węzły:', nodes.map(n => `${n.id} (${n.being.attributes?.name || n.being._soul?.alias || n.being.ulid.substring(0,8)}...)`));
+        console.log("📋 Dostępne węzły:", allNodes.map(n => `${n.label} (${n.id.substring(0, 8)}...) [${n.type}]`));
     }
 
     attemptReconnect() {
