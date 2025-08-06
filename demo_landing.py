@@ -38,7 +38,9 @@ sio = socketio.AsyncServer(
     cors_allowed_origins="*",
     logger=False,
     engineio_logger=False,
-    transports=['websocket', 'polling']
+    transports=['websocket', 'polling'],
+    ping_timeout=60,
+    ping_interval=25
 )
 
 @app.on_event("startup")
@@ -720,6 +722,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=3001,
         reload=False,
-        log_level="debug",
-        access_log=True
+        log_level="info",
+        access_log=False
     )

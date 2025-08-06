@@ -9,6 +9,7 @@ class LuxOSGraph {
         this.isConnected = false;
         this.zoomBehavior = null;
         this.svg = null;
+        this.lastData = null; // Store last data for resize operations
 
         console.log('🌀 LuxDB Graph initialized');
         this.initializeConnection();
@@ -41,9 +42,12 @@ class LuxOSGraph {
                 console.log('📊 Relationships count:', data.relationships ? data.relationships.length : 'no relationships');
                 console.log('📊 Relations count:', data.relations ? data.relations.length : 'no relations');
 
-
-                if (data && data.beings && Array.isArray(data.beings)) {
-                    console.log('✅ Validating beings data:', data.beings.slice(0, 3)); // Show first 3 for debug
+                if (data && (data.beings || data.souls || data.relations)) {
+                    console.log('✅ Validating data:', {
+                        beings: data.beings ? data.beings.length : 0,
+                        souls: data.souls ? data.souls.length : 0,
+                        relations: data.relations ? data.relations.length : 0
+                    });
 
                     // Store relationships first
                     if (data.relationships && Array.isArray(data.relationships)) {
@@ -59,12 +63,13 @@ class LuxOSGraph {
                         this.relationships = [];
                     }
 
-                    // Store beings and render immediately
-                    this.beings = data.beings;
-                    console.log(`🚀 Calling renderUniverse with ${data.beings.length} beings`);
-                    this.renderUniverse(data.beings);
+                    // Store beings and render with complete data structure
+                    this.beings = data.beings || [];
+                    this.lastData = data; // Store complete data for resize operations
+                    console.log(`🚀 Calling renderUniverse with complete data`);
+                    this.renderUniverse(data); // Pass complete data object, not just beings
                 } else {
-                    console.log('❌ Invalid beings data received:', data.beings);
+                    console.log('❌ No valid data received:', data);
                 }
             });
 
@@ -659,8 +664,12 @@ class LuxOSGraph {
                 .attr('height', height);
         }
 
-        // Re-render the universe with new dimensions
-        this.renderUniverse(this.beings); // Pass this.beings to re-render
+        // Re-render the universe with new dimensions using stored data
+        if (this.lastData) {
+            this.renderUniverse(this.lastData);
+        } else {
+            console.warn("Resize called but no lastData available to re-render.");
+        }
     }
 }
 
