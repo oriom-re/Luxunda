@@ -61,38 +61,55 @@ async def startup_event():
         beings = await Being.load_all()
         print(f"📊 Loaded {len(souls)} souls and {len(beings)} beings")
 
-        # If no data exists, create some sample beings
-        if len(souls) == 0:
-            print("📝 Creating sample data...")
+        # Check if we already have demo data (limit creation to prevent endless beings)
+        demo_beings_count = 0
+        for being in beings:
+            # Count beings that look like demo entities
+            if hasattr(being, 'alias') and being.alias == "sample_entity":
+                demo_beings_count += 1
+        
+        # If no souls exist or we have very few demo beings, create some sample data
+        if len(souls) == 0 or demo_beings_count < 5:
+            print("📝 Creating limited sample data...")
 
-            # Create sample soul/genotype
-            sample_genotype = {
-                "genesis": {
-                    "name": "sample_entity",
-                    "type": "entity",
-                    "doc": "Sample entity for demo"
-                },
-                "attributes": {
-                    "name": {"py_type": "str", "table_name": "_text"},
-                    "energy": {"py_type": "float", "table_name": "_numeric"},
-                    "active": {"py_type": "bool", "table_name": "_boolean"}
+            # Create or get sample soul/genotype
+            sample_soul = None
+            for soul in souls:
+                if soul.alias == "sample_entity":
+                    sample_soul = soul
+                    break
+            
+            if not sample_soul:
+                sample_genotype = {
+                    "genesis": {
+                        "name": "sample_entity",
+                        "type": "entity",
+                        "doc": "Sample entity for demo"
+                    },
+                    "attributes": {
+                        "name": {"py_type": "str", "table_name": "_text"},
+                        "energy": {"py_type": "float", "table_name": "_numeric"},
+                        "active": {"py_type": "bool", "table_name": "_boolean"}
+                    }
                 }
-            }
 
-            sample_soul = await Soul.create(sample_genotype, alias="sample_entity")
-            print(f"✅ Created sample soul: {sample_soul.alias}")
+                sample_soul = await Soul.create(sample_genotype, alias="sample_entity")
+                print(f"✅ Created sample soul: {sample_soul.alias}")
 
-            # Create sample beings
-            for i in range(3):
+            # Create only a few sample beings if we don't have enough
+            beings_to_create = max(0, 3 - demo_beings_count)
+            for i in range(beings_to_create):
                 being = await Being.create(
                     sample_soul,
                     {
-                        "name": f"Entity_{i+1}",
-                        "energy": float(50 + i * 10),
+                        "name": f"Entity_{demo_beings_count + i + 1}",
+                        "energy": float(50 + (demo_beings_count + i) * 10),
                         "active": True
                     }
                 )
                 print(f"✅ Created sample being: {being.ulid}")
+        else:
+            print(f"ℹ️  Demo data already exists ({demo_beings_count} demo beings found), skipping creation")
 
     except Exception as e:
         print(f"❌ Database initialization error: {e}")
@@ -594,6 +611,26 @@ async def test_endpoint():
         "static_files": "mounted",
         "timestamp": datetime.now().isoformat()
     }
+
+@app.post("/admin/cleanup_demo_beings")
+async def cleanup_demo_beings():
+    """Czyści nadmiar demo beings, zostawia tylko pierwsze 5"""
+    try:
+        beings = await Being.load_all()
+        demo_beings = [b for b in beings if hasattr(b, 'alias') and b.alias == "sample_entity"]
+        
+        if len(demo_beings) <= 5:
+            return {"message": f"Only {len(demo_beings)} demo beings found, no cleanup needed"}
+        
+        # Tu można dodać logikę usuwania nadmiaru beings
+        # Na razie tylko informujemy o ilości
+        return {
+            "message": f"Found {len(demo_beings)} demo beings. Cleanup logic would remove {len(demo_beings) - 5} beings",
+            "total_beings": len(beings),
+            "demo_beings": len(demo_beings)
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/test/create_sample_relations")
 async def create_sample_relations():
