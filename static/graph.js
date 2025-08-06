@@ -206,22 +206,22 @@ class LuxOSGraph {
         // Create nodes data with beautiful positions and type distinction
         const nodes = actualBeings.map((being, i) => {
             // Detect Soul vs Being vs Relation
-            const hasNoAttributes = !being.attributes || Object.keys(being.attributes).length === 0;
-            const hasUndefinedType = !being._soul?.genesis?.type || being._soul?.genesis?.type === undefined;
             const hasAlias = being._soul?.alias;
-            const isRelation = being._soul?.genesis?.type === 'relation';
+            const genesisType = being._soul?.genesis?.type;
+            const hasAttributes = being.attributes && Object.keys(being.attributes).length > 0;
             
-            // Soul detection: has alias, no attributes (or empty), and undefined type
-            const isSoul = hasAlias && hasNoAttributes && hasUndefinedType && !isRelation;
+            // Soul detection: has alias AND (no genesis type OR genesis type is undefined) AND not a relation
+            const isSoul = hasAlias && (!genesisType || genesisType === undefined) && genesisType !== 'relation';
+            
+            // Relation detection: explicit relation type
+            const isRelation = genesisType === 'relation';
             
             console.log(`🔍 Node analysis: ${being.ulid}:`, {
-                hasAlias,
-                hasNoAttributes,
-                hasUndefinedType,
-                isRelation,
+                alias: hasAlias ? being._soul.alias : 'NO_ALIAS',
+                genesisType: genesisType || 'UNDEFINED',
+                hasAttributes,
                 isSoul,
-                alias: being._soul?.alias,
-                type: being._soul?.genesis?.type,
+                isRelation,
                 attributesCount: being.attributes ? Object.keys(being.attributes).length : 0
             });
 
