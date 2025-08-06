@@ -37,10 +37,10 @@ class SoulRepository:
         pool = await Postgre_db.get_db_pool()
         if not pool:
             return {"success": False}
-        
+
 
         async with pool.acquire() as conn:
-  
+
             query = """
                 INSERT INTO souls (soul_hash, global_ulid, alias, genotype)
                 VALUES ($1, $2, $3, $4)
@@ -113,7 +113,7 @@ class SoulRepository:
         except Exception as e:
             print(f"❌ Error loading soul by ulid: {e}")
             return {"success": False, "error": str(e)}
-        
+
     @staticmethod
     async def load_by_alias(alias: str) -> dict:
         """Ładuje soul z bazy danych na podstawie jego aliasu"""
@@ -174,7 +174,7 @@ class SoulRepository:
         except Exception as e:
             print(f"❌ Error loading all souls: {e}")
             return {"success": False, "error": str(e)}
-    
+
     @staticmethod
     async def load_all_by_alias(alias: str) -> dict:
         """Ładuje wszystkie souls z bazy danych na podstawie aliasu"""
@@ -224,12 +224,12 @@ class BeingRepository:
                 soul_alias = getattr(being._soul, 'alias', None)
                 genotype = getattr(being._soul, 'genotype', {})
                 genesis_type = genotype.get('genesis', {}).get('type', None)
-                
+
                 if soul_alias in ['user_profile', 'ai_agent']:
                     table_type = 'soul'
                 elif genesis_type == 'relation' or soul_alias == 'basic_relation':
                     table_type = 'relation'
-            
+
             query = """
                 INSERT INTO beings (ulid, soul_hash, alias, table_type)
                 VALUES ($1, $2, $3, $4)
@@ -249,7 +249,7 @@ class BeingRepository:
                     await BeingRepository.load(being)
                 print(f"✅ Being saved with ulid: {being.ulid[:8]}... and soul hash: {being.soul_hash[:8]}...")
             return {"success": True}
-    
+
     @staticmethod
     async def load_by_ulid(ulid: str) -> dict:
         """Ładuje being z bazy danych na podstawie jego unikalnego ulid"""
@@ -277,7 +277,7 @@ class BeingRepository:
         except Exception as e:
             print(f"❌ Error loading being by ulid: {e}")
             return {"success": False, "error": str(e)}
-        
+
     @staticmethod
     async def load(being: 'Being') -> dict:
         """Ładuje being z bazy danych na podstawie jego unikalnego ulid"""
@@ -300,7 +300,7 @@ class BeingRepository:
         except Exception as e:
             print(f"❌ Error loading being: {e}")
             return {"success": False, "error": str(e)}
-    
+
     @staticmethod
     async def load_all_by_soul_hash(soul_hash: str) -> dict:
         """Ładuje beings z bazy danych na podstawie unikalnego soul_hash"""
@@ -333,7 +333,7 @@ class BeingRepository:
         except Exception as e:
             print(f"❌ Error loading beings by soul hash: {e}")
             return {"success": False, "error": str(e)}
-        
+
     @staticmethod
     async def load_last_by_soul_hash(soul_hash: str) -> dict:
         """Ładuje beings z bazy danych na podstawie unikalnego soul_hash"""
@@ -364,7 +364,7 @@ class BeingRepository:
         except Exception as e:
             print(f"❌ Error loading beings by soul hash: {e}")
             return {"success": False, "error": str(e)}
-    
+
     @staticmethod
     async def load_all() -> dict:
         """Ładuje wszystkie beings z bazy danych"""
@@ -389,7 +389,7 @@ class BeingRepository:
                         rows = await conn.fetch(query)
                     else:
                         raise e
-                
+
                 Being = get_being_class()
                 beings: List['Being'] = []
                 for row in rows:
@@ -411,7 +411,7 @@ class BeingRepository:
             import traceback
             traceback.print_exc()
             return {"success": False, "error": str(e)}
-    
+
     @staticmethod
     async def load_all_by_alias(alias: str) -> dict:
         """Ładuje beings z bazy danych na podstawie aliasu"""
@@ -442,7 +442,7 @@ class BeingRepository:
         except Exception as e:
             print(f"❌ Error loading beings by alias: {e}")
             return {"success": False, "error": str(e)}
-        
+
 class DynamicRepository:
     """Repository dla dynamicznych pól w souls"""
 
@@ -457,7 +457,7 @@ class DynamicRepository:
             async with conn.transaction():
                 # wpisuje being
                 await BeingRepository.save(being)
-                
+
                 attributes = genotype.get("attributes", {})
 
                 # przygotuj tabele
@@ -469,12 +469,12 @@ class DynamicRepository:
                     index = table_info['index']
                     foreign_key = table_info['foreign_key']
                     unique = table_info['unique']
-                    
+
                     # Sprawdź, czy tabela istnieje i zbuduj ją, jeśli nie
                     result = await Postgre_db.ensure_table(
                         conn, table_hash=table_hash, table_name=table_name, column_def=column_def, index=index, foreign_key=foreign_key, unique=unique
                     )
-                    
+
                     if result.get("status") == "error":
                         print(f"❌ Error creating table {table_name}: {result.get('error')}")
                         return False
@@ -483,7 +483,7 @@ class DynamicRepository:
 
                     # parsuje typ atrybutu
                     parsed = parse_py_type(attr_name, attr_meta)
-                    table_name, column_def, index, foreign_key = build_table_name(parsed)
+                    table_name, column_def, index, foreign_key, unique = build_table_name(parsed)
 
                     # Sprawdź, czy tabela istnieje i zbuduj ją, jeśli nie
                     result = await Postgre_db.ensure_table(
@@ -504,13 +504,13 @@ class DynamicRepository:
                         # pobiera atrybut z being
                         being_data = getattr(being, attr_name, None)
                         value = json.dumps(being_data) if parsed["requires_serialization"] else being_data
-                        
+
                         # wstawia dane do tabeli
                         if value is None:
                             print(f"🔍 No value for attribute {attr_name} in being data.")
                             continue
                         await conn.execute(query, _ulid, being.ulid, being.soul_hash, attr_name, value)
-                
+
                 return True
 
     @staticmethod
@@ -527,7 +527,7 @@ class DynamicRepository:
                 for key in key_list:
                     #odszukaj nazwę tabeli na podstawie genotype attributes
                     parsed = parse_py_type(key, attributes.get(key, {}))
-                    table_name, column_def, index, foreign_key = build_table_name(parsed)
+                    table_name, column_def, index, foreign_key, unique = build_table_name(parsed)
                     # Pobiera dane z dynamicznej tabeli
                     query = f"""
                         SELECT value FROM {table_name}
@@ -556,7 +556,7 @@ class DynamicRepository:
                 for key in key_list:
                     #odszukaj nazwę tabeli na podstawie genotype attributes
                     parsed = parse_py_type(key, attributes.get(key, {}))
-                    table_name, column_def, index, foreign_key = build_table_name(parsed)
+                    table_name, column_def, index, foreign_key, unique = build_table_name(parsed)
                     # Pobiera dane z dynamicznej tabeli
                     query = f"""
                         SELECT * FROM {table_name}
@@ -572,7 +572,7 @@ class DynamicRepository:
 
 class RelationRepository:
     """Repository pattern dla operacji na relations w bazie danych"""
-    
+
     @staticmethod
     async def save(relation) -> dict:
         """Zapisuje relację do bazy danych"""
@@ -603,7 +603,7 @@ class RelationRepository:
                 if result:
                     relation.created_at = result['created_at']
                     relation.updated_at = result['updated_at']
-                    
+
             return {"success": True, "relation": relation}
         except Exception as e:
             print(f"❌ Error saving relation: {e}")
@@ -667,7 +667,7 @@ class RelationRepository:
                     relation.created_at = row['created_at']
                     relation.updated_at = row['updated_at']
                     relations.append(relation)
-                    
+
             return {"success": True, "relations": relations}
         except Exception as e:
             print(f"❌ Error loading relations by soul hash: {e}")
@@ -699,7 +699,7 @@ class RelationRepository:
                     relation.created_at = row['created_at']
                     relation.updated_at = row['updated_at']
                     relations.append(relation)
-                    
+
             return {"success": True, "relations": relations}
         except Exception as e:
             print(f"❌ Error loading all relations: {e}")
@@ -732,7 +732,7 @@ class RelationRepository:
                     relation.created_at = row['created_at']
                     relation.updated_at = row['updated_at']
                     relations.append(relation)
-                    
+
             return {"success": True, "relations": relations}
         except Exception as e:
             print(f"❌ Error loading relations by being: {e}")
