@@ -66,8 +66,8 @@ class LuxOSGraph {
                     // Store beings and render with complete data structure
                     this.beings = data.beings || [];
                     this.lastData = data; // Store complete data for resize operations
-                    console.log(`🚀 Calling renderUniverse with complete data`);
-                    this.renderUniverse(data); // Pass complete data object, not just beings
+                    console.log(`🚀 Calling renderUniverse with ${data.beings ? data.beings.length : 0} beings`);
+                    this.renderUniverse(data.beings || []); // Pass beings array as expected by function
                 } else {
                     console.log('❌ No valid data received:', data);
                 }
@@ -117,26 +117,30 @@ class LuxOSGraph {
         }
     }
 
-    renderUniverse(data) {
-        console.log("🌌 Renderuję wszechświat z", data.beings?.length || 0, "bytami,", data.souls?.length || 0, "duszami,", data.relations?.length || 0, "relacjami");
+    renderUniverse(beings) {
+        console.log("🌌 Renderuję wszechświat z", beings?.length || 0, "beings");
 
-        const souls = data.souls || [];
-        const beings = data.beings || [];
-        const relations = data.relations || [];
+        // Use stored data for souls and relations
+        const souls = this.lastData?.souls || [];
+        const relations = this.lastData?.relations || [];
+        
+        // Ensure beings is an array
+        beings = beings || [];
 
         console.log("📊 Raw data:", { souls: souls.length, beings: beings.length, relations: relations.length });
         console.log("🔍 First being structure:", beings[0] || null);
         console.log("🔍 First soul structure:", souls[0] || null);
-        console.log("🔍 First relation structure:", relations[0] || null);
 
         // Check what types we have
-        console.log("🔍 Being types found:", beings.map(b => b._soul?.genesis?.type).filter((v, i, a) => a.indexOf(v) === i));
+        console.log("🔍 Being types found:", beings.map(b => b._soul?.genesis?.type || 'unknown').filter((v, i, a) => a.indexOf(v) === i));
 
-        // Filter beings - separate relation beings for links, but keep them in nodes for potential interaction
+        // Filter beings - show all beings with ULID
         const actualBeings = beings.filter(being => {
             const hasUlid = being.ulid;
-            console.log(`🔍 Being ${being.ulid}: hasUlid=${hasUlid}, type=${being._soul?.genesis?.type}`);
-            return hasUlid; // Just ensure it has a ULID - show all beings including relations
+            if (hasUlid) {
+                console.log(`🔍 Being ${being.ulid}: type=${being._soul?.genesis?.type || 'unknown'}`);
+            }
+            return hasUlid; // Just ensure it has a ULID
         });
 
         const relationBeings = beings.filter(being =>
@@ -665,10 +669,10 @@ class LuxOSGraph {
         }
 
         // Re-render the universe with new dimensions using stored data
-        if (this.lastData) {
-            this.renderUniverse(this.lastData);
+        if (this.lastData && this.lastData.beings) {
+            this.renderUniverse(this.lastData.beings);
         } else {
-            console.warn("Resize called but no lastData available to re-render.");
+            console.warn("Resize called but no beings data available to re-render.");
         }
     }
 }
