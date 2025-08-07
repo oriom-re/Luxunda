@@ -73,8 +73,21 @@ async def startup_event():
             entity_type="ai_agent"
         )
 
-        # Create simple connection
+        # Create project entity
+        project = await luxdb.create_entity(
+            name="LuxDB Project",
+            data={
+                "description": "Revolutionary genetic database",
+                "status": "active",
+                "version": "3.0.0"
+            },
+            entity_type="project"
+        )
+
+        # Create simple connections
         await luxdb.connect_entities(user.id, agent.id, "interacts_with")
+        await luxdb.connect_entities(user.id, project.id, "owns")
+        await luxdb.connect_entities(agent.id, project.id, "assists_with")
 
         print("✅ Demo entities created successfully!")
 
