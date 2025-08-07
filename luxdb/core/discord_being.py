@@ -14,6 +14,98 @@ from dataclasses import dataclass
 import ulid
 from datetime import datetime
 
+
+class BeingInteractionView(discord.ui.View):
+    """Interactive view for Being communication with buttons and modals"""
+    
+    def __init__(self, being_ulid: str, message_type: str):
+        super().__init__(timeout=300)  # 5 minutes timeout
+        self.being_ulid = being_ulid
+        self.message_type = message_type
+    
+    @discord.ui.button(label='💬 Quick Reply', style=discord.ButtonStyle.primary)
+    async def quick_reply(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Quick reply button - opens modal with pre-filled ULID"""
+        modal = QuickReplyModal(self.being_ulid)
+        await interaction.response.send_modal(modal)
+    
+    @discord.ui.button(label='✅ Acknowledge', style=discord.ButtonStyle.success)
+    async def acknowledge(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Acknowledge button - sends automatic response"""
+        communicator = get_discord_communicator()
+        if communicator and self.being_ulid in communicator.pending_responses:
+            communicator.received_responses[self.being_ulid] = "Acknowledged ✅"
+            communicator.pending_responses[self.being_ulid].set()
+            
+        await interaction.response.send_message(
+            f"✅ Acknowledged Being `{self.being_ulid[:8]}...`", 
+            ephemeral=True
+        )
+    
+    @discord.ui.button(label='🔄 Forward to Admin', style=discord.ButtonStyle.secondary)
+    async def forward_admin(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Forward to admin - mentions admin with ULID"""
+        await interaction.response.send_message(
+            f"🔔 <@&ADMIN_ROLE_ID> Being `{self.being_ulid}` needs attention!\n"
+            f"Reply with: `@{self.being_ulid} your response`"
+        )
+    
+    @discord.ui.button(label='❌ Reject', style=discord.ButtonStyle.danger)
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Reject button - sends rejection response"""
+        communicator = get_discord_communicator()
+        if communicator and self.being_ulid in communicator.pending_responses:
+            communicator.received_responses[self.being_ulid] = "Request rejected ❌"
+            communicator.pending_responses[self.being_ulid].set()
+            
+        await interaction.response.send_message(
+            f"❌ Rejected request from Being `{self.being_ulid[:8]}...`", 
+            ephemeral=True
+        )
+
+
+class QuickReplyModal(discord.ui.Modal):
+    """Modal for quick replies with pre-filled ULID"""
+    
+    def __init__(self, being_ulid: str):
+        super().__init__(title=f"Reply to Being {being_ulid[:8]}...")
+        self.being_ulid = being_ulid
+        
+        # Add text input with ULID already filled
+        self.response_input = discord.ui.TextInput(
+            label='Your Response',
+            placeholder=f'Your response to Being {being_ulid[:8]}...',
+            required=True,
+            max_length=1000,
+            style=discord.TextStyle.paragraph
+        )
+        self.add_item(self.response_input)
+        
+        # Hidden field with ULID for reference
+        self.ulid_reference = discord.ui.TextInput(
+            label='Being Reference (do not modify)',
+            default=f"@{being_ulid}",
+            required=False,
+            max_length=100
+        )
+        self.add_item(self.ulid_reference)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle modal submission"""
+        response_text = self.response_input.value
+        
+        # Send response to Being
+        communicator = get_discord_communicator()
+        if communicator and self.being_ulid in communicator.pending_responses:
+            communicator.received_responses[self.being_ulid] = response_text
+            communicator.pending_responses[self.being_ulid].set()
+        
+        await interaction.response.send_message(
+            f"✅ Response sent to Being `{self.being_ulid[:8]}...`:\n"
+            f"```{response_text}```",
+            ephemeral=True
+        )
+
 @dataclass
 class DiscordMessage:
     being_ulid: str
@@ -58,6 +150,13 @@ class DiscordBeingCommunicator:
             # Obsługuj odpowiedzi admina
             if message.channel.id == self.admin_channel_id:
                 await self._handle_admin_response(message)
+        
+        @self.client.event
+        async def on_interaction(self, interaction):
+            """Handle slash command interactions"""
+            if interaction.type == discord.InteractionType.application_command:
+                if interaction.data['name'] == 'manage_beings':
+                    await self._handle_manage_beings_command(interaction)
     
     async def _handle_admin_response(self, message):
         """Obsługuje odpowiedzi administratora na wiadomości od Beings"""
@@ -96,10 +195,12 @@ class DiscordBeingCommunicator:
         
         embed.add_field(name="Being ULID", value=f"`{being_ulid}`", inline=True)
         embed.add_field(name="Type", value=message.message_type, inline=True)
-        embed.add_field(name="Response", value=f"Reply with: `@{being_ulid} your response`", inline=False)
         
-        # Wyślij embed
-        await channel.send(embed=embed)
+        # Twórz interactive components
+        view = BeingInteractionView(being_ulid, message.message_type)
+        
+        # Wyślij embed z przyciskami
+        await channel.send(embed=embed, view=view)
         
         # Jeśli to nie jest tylko status, czekaj na odpowiedź
         if message.message_type != 'status':
@@ -148,6 +249,96 @@ class DiscordBeingCommunicator:
     async def close(self):
         """Zamyka połączenie Discord"""
         await self.client.close()
+    
+    async def _handle_manage_beings_command(self, interaction):
+        """Handle /manage_beings slash command"""
+        # Get active beings (this would come from your database)
+        active_beings = await self._get_active_beings()
+        
+        if not active_beings:
+            await interaction.response.send_message(
+                "No active beings found.", ephemeral=True
+            )
+            return
+        
+        # Create select menu with beings
+        view = BeingSelectView(active_beings)
+        embed = discord.Embed(
+            title="🤖 Active Beings Management",
+            description="Select a being to interact with:",
+            color=0x00FF00
+        )
+        
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    
+    async def _get_active_beings(self):
+        """Get list of active beings - placeholder for database query"""
+        # TODO: Replace with actual database query
+        return [
+            {"ulid": "01HXY123ABC456DEF789", "name": "TestBeing1", "type": "AI Assistant"},
+            {"ulid": "01HXY456GHI789JKL012", "name": "TestBeing2", "type": "Data Processor"},
+        ]
+    
+    async def setup_slash_commands(self):
+        """Setup slash commands for the bot"""
+        try:
+            # Define the slash command
+            command = discord.SlashCommand(
+                name="manage_beings",
+                description="Manage active beings"
+            )
+            
+            # Register the command
+            await self.client.tree.sync()
+            print("✅ Slash commands synchronized")
+            
+        except Exception as e:
+            print(f"❌ Error setting up slash commands: {e}")
+
+
+class BeingSelectView(discord.ui.View):
+    """Select menu for choosing beings"""
+    
+    def __init__(self, beings_list):
+        super().__init__(timeout=300)
+        self.add_item(BeingSelect(beings_list))
+
+
+class BeingSelect(discord.ui.Select):
+    """Select menu for beings"""
+    
+    def __init__(self, beings_list):
+        options = []
+        
+        for being in beings_list[:25]:  # Discord limit of 25 options
+            options.append(discord.SelectOption(
+                label=f"{being['name']} ({being['type']})",
+                description=f"ULID: {being['ulid'][:8]}...",
+                value=being['ulid'],
+                emoji="🤖"
+            ))
+        
+        super().__init__(
+            placeholder="Choose a being to interact with...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        """Handle being selection"""
+        selected_being_ulid = self.values[0]
+        
+        # Create interaction view for selected being
+        view = BeingInteractionView(selected_being_ulid, "management")
+        
+        embed = discord.Embed(
+            title=f"🤖 Managing Being: {selected_being_ulid[:8]}...",
+            description="Choose an action:",
+            color=0x0099FF
+        )
+        
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 # Globalna instancja komunikatora (do wykorzystania przez Beings)

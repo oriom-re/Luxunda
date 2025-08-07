@@ -35,6 +35,9 @@ async def demo_discord_communication():
     # Poczekaj na połączenie
     await asyncio.sleep(2)
     
+    # Setup slash commands
+    await communicator.setup_slash_commands()
+    
     try:
         # Stwórz genotyp rewolucyjnego Being
         revolutionary_genotype = {
