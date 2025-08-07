@@ -251,5 +251,25 @@ class Being:
         from dataclasses import asdict
         return asdict(self)
 
+    async def discord_report_error(self, error_message: str):
+        """Zgłasza błąd przez Discord"""
+        from ..core.discord_being import being_discord_report_error
+        return await being_discord_report_error(self, error_message)
+    
+    async def discord_suggest(self, suggestion: str):
+        """Wysyła sugestię przez Discord"""
+        from ..core.discord_being import being_discord_suggest
+        return await being_discord_suggest(self, suggestion)
+    
+    async def discord_revolution_talk(self, message_content: str):
+        """Rozmawia o rewolucji przez Discord"""
+        from ..core.discord_being import being_discord_revolution_talk
+        return await being_discord_revolution_talk(self, message_content)
+    
+    async def discord_status(self, status_message: str):
+        """Wysyła status przez Discord"""
+        from ..core.discord_being import being_discord_status
+        return await being_discord_status(self, status_message)
+
     def __repr__(self):
         return f"Being(ulid={self.ulid[:8]}..., soul_hash={self.soul_hash[:8] if self.soul_hash else None}...)"
