@@ -79,7 +79,7 @@ class SoulRepository:
                 if row:
                     soul.alias = row['alias']
                     soul.soul_hash = row['soul_hash']
-                    soul.genotype = json.loads(row['genotype']) 
+                    soul.genotype = json.loads(row['genotype'])
                     soul.created_at = row['created_at']
                     soul.global_ulid = row['global_ulid']
             return {"success": True}
@@ -163,7 +163,7 @@ class SoulRepository:
                 for row in rows:
                     soul = Soul()
                     soul.soul_hash = row['soul_hash']
-                    soul.alias = row['alias'] 
+                    soul.alias = row['alias']
                     soul.genotype = json.loads(row['genotype'])
                     soul.created_at = row['created_at']
                     soul.global_ulid = row['global_ulid']
@@ -483,7 +483,16 @@ class DynamicRepository:
 
                     # parsuje typ atrybutu
                     parsed = parse_py_type(attr_name, attr_meta)
-                    table_name, column_def, index, foreign_key, unique = build_table_name(parsed)
+                    build_result = build_table_name(parsed)
+                    if len(build_result) == 5:
+                        table_name, column_def, index, foreign_key, unique = build_result
+                    else:
+                        # Handle case where build_table_name returns different number of values
+                        table_name, column_def = build_result[:2]
+                        index = False
+                        foreign_key = False
+                        unique = {}
+
 
                     # Sprawdź, czy tabela istnieje i zbuduj ją, jeśli nie
                     result = await Postgre_db.ensure_table(
@@ -593,9 +602,9 @@ class RelationRepository:
                         updated_at = CURRENT_TIMESTAMP
                     RETURNING created_at, updated_at
                 """
-                result = await conn.fetchrow(query, 
-                    relation.ulid, 
-                    relation.soul_hash, 
+                result = await conn.fetchrow(query,
+                    relation.ulid,
+                    relation.soul_hash,
                     relation.alias,
                     relation.source_ulid,
                     relation.target_ulid

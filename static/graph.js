@@ -640,7 +640,7 @@ class LuxOSGraph {
 
         console.log(`✨ Graf renderowany z ${allNodes.length} węzłami i ${links.length} połączeniami!`);
         console.log(`🔗 Znaleziono ${relationBeings.length} bytów relacji i ${this.relationships.length} tradycyjnych relacji`);
-        console.log('📋 Szczegóły linków:', links.map(l => `${l.source} -> ${l.target} (${l.relation_type})`));
+        console.log('📋 Szczegóły linków:', links.map(l => `${l.source?.id || l.source} -> ${l.target?.id || l.target} (${l.relation_type})`));
         console.log("📋 Dostępne węzły:", allNodes.map(n => `${n.label} (${n.id.substring(0, 8)}...) [${n.type}]`));
     }
 

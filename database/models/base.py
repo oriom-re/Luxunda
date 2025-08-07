@@ -279,8 +279,21 @@ class Being:
             setattr(being, key, value)
         return being
 
-    def to_dict(self) -> Dict[str, Any] :
-        return asdict(self)
+    def to_dict(self) -> Dict[str, Any]:
+        """Konwertuje Being do słownika z uwzględnieniem _soul dla frontend"""
+        result = asdict(self)
+        
+        # Dodaj pole _soul dla kompatybilności z frontendem
+        if hasattr(self, 'soul_hash') and self.soul_hash:
+            # Pobierz soul na podstawie hash
+            result['_soul'] = {
+                'soul_hash': self.soul_hash,
+                'genesis': self.genotype.get('genesis', {}),
+                'alias': self.alias,
+                'genotype': self.genotype
+            }
+        
+        return result
 
     def __repr__(self):
         return f"<Being {self.ulid} fields={self.to_dict()}>"
