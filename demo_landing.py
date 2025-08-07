@@ -16,16 +16,33 @@ import engineio
 
 # Import simplified system
 from luxdb.simple_api import SimpleLuxDB, SimpleEntity
+from luxdb.core.deployment_manager import deployment_manager
+from luxdb.core.workspace_manager import workspace_manager
 
-# FastAPI app
-app = FastAPI(title="LuxDB MVP - Simplified", version="3.0.0")
+# FastAPI app - configured by deployment mode
+app_config = {
+    "title": f"LuxDB MVP - {deployment_manager.mode.value.title()}",
+    "version": "3.0.0",
+    "debug": deployment_manager.get_config('debug')
+}
+
+if not deployment_manager.is_production():
+    app_config["docs_url"] = "/docs"
+    app_config["redoc_url"] = "/redoc"
+
+app = FastAPI(**app_config)
 
 # Add CORS middleware
+cors_origins = ["*"] if deployment_manager.is_development() else [
+    os.getenv('FRONTEND_URL', 'https://*.replit.dev'),
+    os.getenv('DOMAIN_URL', 'https://*.replit.co')
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -133,9 +150,8 @@ async def disconnect(sid):
 async def request_graph_data(sid):
     print("📡 Fetching graph data with simple API...")
     try:
-        # Pobierz dane z Simple API - tworzymy instancję
-        simple_db = SimpleLuxDB()
-        graph_data = simple_db.get_graph_data()
+        # Pobierz dane z Simple API - używaj globalnej instancji
+        graph_data = await luxdb.get_graph_data_async()
 
         await sio.emit('graph_data', {
             'beings': graph_data.get('beings', []),
@@ -207,7 +223,58 @@ async def health_check():
         "status": "healthy",
         "service": "Simplified LuxDB",
         "version": "3.0.0",
-        "entities": len(await luxdb.query_entities()) if luxdb else 0
+        "mode": deployment_manager.mode.value,
+        "entities": len(await luxdb.query_entities()) if luxdb else 0,
+        "workspace_enabled": deployment_manager.should_enable_feature('workspace')
+    }
+
+@app.get("/api/workspace/changes")
+async def get_workspace_changes(limit: int = 50):
+    """Get recent workspace changes"""
+    if not deployment_manager.should_enable_feature('workspace'):
+        return {"error": "Workspace disabled in production"}
+    
+    return {
+        "changes": workspace_manager.get_changes(limit),
+        "total": len(workspace_manager.changes_log)
+    }
+
+@app.get("/api/workspace/being/{being_ulid}")
+async def get_being_workspace(being_ulid: str):
+    """Get files created by specific being"""
+    if not deployment_manager.should_enable_feature('workspace'):
+        return {"error": "Workspace disabled in production"}
+    
+    return {
+        "being_ulid": being_ulid,
+        "files": workspace_manager.get_being_files(being_ulid)
+    }
+
+@app.post("/api/workspace/create_file")
+async def create_workspace_file(request: Request):
+    """Create file in workspace"""
+    if not deployment_manager.should_enable_feature('workspace'):
+        return {"error": "Workspace disabled in production"}
+    
+    data = await request.json()
+    file_path = await workspace_manager.create_file(
+        being_ulid=data.get('being_ulid'),
+        filename=data.get('filename'),
+        content=data.get('content'),
+        file_type=data.get('file_type', 'py')
+    )
+    
+    # Notify via socket
+    await sio.emit('workspace_change', {
+        'action': 'file_created',
+        'being_ulid': data.get('being_ulid'),
+        'file_path': file_path
+    })
+    
+    return {
+        "success": True,
+        "file_path": file_path,
+        "message": "File created in workspace"
     }
 
 @app.get("/test")
@@ -232,11 +299,28 @@ async def test_data():
     return test_data
 
 if __name__ == "__main__":
-    print("🚀 Starting Simplified LuxDB Demo...")
-    print("=" * 50)
-    print("✨ Now with intuitive API!")
-    print("📡 Much simpler entity management")
-    print("🎯 Easy graph synchronization")
-    print("=" * 50)
+    config = deployment_manager.get_config()
+    
+    print(f"🚀 Starting LuxDB {deployment_manager.mode.value.title()} Mode...")
+    print("=" * 60)
+    print(f"🌍 Host: {config['host']}:{config['port']}")
+    print(f"🔧 Debug: {config['debug']}")
+    print(f"📁 Workspace: {config['workspace_enabled']}")
+    print(f"🤖 Discord: {config['discord_enabled']}")
+    print("=" * 60)
 
-    uvicorn.run(socket_app, host="0.0.0.0", port=3001, log_level="info")
+    # Setup workspace sync callback for Socket.IO
+    if deployment_manager.should_enable_feature('workspace'):
+        async def workspace_sync_callback(change):
+            await sio.emit('workspace_sync', change)
+        
+        workspace_manager.add_sync_callback(workspace_sync_callback)
+        print("📁 Workspace synchronization enabled")
+
+    uvicorn.run(
+        socket_app,
+        host=config['host'],
+        port=config['port'],
+        log_level=config['log_level'].lower(),
+        reload=config.get('hot_reload', False)
+    )
