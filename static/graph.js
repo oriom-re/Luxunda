@@ -202,12 +202,12 @@ class LuxOSGraph {
             .attr('stop-color', '#00cc66')
             .attr('stop-opacity', 0.8);
 
-        // Debug beings structure
-        console.log('🔍 First being structure:', beings[0]);
-        console.log('🔍 Being types found:', beings.map(b => b._soul?.genesis?.type).filter((v, i, a) => a.indexOf(v) === i));
+        // Debug entities structure (simplified)
+        console.log('🔍 First entity structure:', beings[0]);
+        console.log('🔍 Entity types found:', beings.map(e => e.type || 'unknown').filter((v, i, a) => a.indexOf(v) === i));
 
-        // Create nodes data with beautiful positions and type distinction
-        const soulNodes = souls.map((soul, i) => {
+        // Create nodes from simplified entities
+        const entityNodes = beings.map((entity, i) => {
             const hasAlias = soul._soul?.alias;
             const genesisType = soul._soul?.genesis?.type;
             const hasAttributes = soul.attributes && Object.keys(soul.attributes).length > 0;
@@ -224,15 +224,14 @@ class LuxOSGraph {
             });
 
             return {
-                id: soul.ulid,
-                x: width/2 + Math.cos(i * 2 * Math.PI / souls.length) * 200,
-                y: height/2 + Math.sin(i * 2 * Math.PI / souls.length) * 200,
-                being: soul,
+                id: entity.id,
+                x: width/2 + Math.cos(i * 2 * Math.PI / beings.length) * 150,
+                y: height/2 + Math.sin(i * 2 * Math.PI / beings.length) * 150,
+                entity: entity,
                 vx: 0,
                 vy: 0,
-                type: 'soul',
-                isSoul: true,
-                isRelation: false
+                type: entity.type || 'entity',
+                label: entity.name || 'Unnamed'
             };
         });
 
