@@ -40,6 +40,41 @@ class SimpleEntity:
             relation_type=relation_type
         )
     
+    async def execute_gene(self, gene_name: str, *args, **kwargs):
+        """Wykonuje gen (funkcję) na tym bycie"""
+        if not self._being:
+            return {"error": "No underlying being available"}
+        
+        try:
+            # Sprawdź czy being ma ten gen
+            genes = getattr(self._being, 'genes', {})
+            if gene_name not in genes:
+                return {"error": f"Gene '{gene_name}' not found in being"}
+            
+            gene_path = genes[gene_name]
+            
+            # Import modułu genów (dynamiczny)
+            try:
+                from genes import GeneRegistry
+                gene_func = GeneRegistry.get_gene(gene_path)
+                
+                if not gene_func:
+                    return {"error": f"Gene function not found: {gene_path}"}
+                
+                # Wykonaj gen
+                if asyncio.iscoroutinefunction(gene_func):
+                    result = await gene_func(self._being, *args, **kwargs)
+                else:
+                    result = gene_func(self._being, *args, **kwargs)
+                
+                return {"success": True, "result": result, "gene": gene_name}
+                
+            except ImportError:
+                return {"error": "Genes module not available"}
+                
+        except Exception as e:
+            return {"error": f"Gene execution failed: {str(e)}"}
+    
     async def get_connections(self):
         """Zwraca wszystkie połączenia tej encji"""
         relationships = await Relationship.get_by_being(self.id)
