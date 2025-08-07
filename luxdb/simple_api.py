@@ -103,6 +103,7 @@ class SimpleLuxDB:
     def __init__(self, db_config=None):
         self._entities = {}  # Cache entities
         self._initialized = False
+        self.connections = [] # Placeholder for connection data, if needed elsewhere
 
     async def _ensure_initialized(self):
         """Upewnia się, że baza jest gotowa"""
@@ -240,6 +241,12 @@ class SimpleLuxDB:
                 target_type="being",
                 relation_type=relation_type
             )
+            # Store connection details for get_graph_data_async
+            self.connections.append({
+                'entity1_id': entity1_id,
+                'entity2_id': entity2_id,
+                'relation_type': relation_type
+            })
             print(f"✅ Connected {entity1_id} -> {entity2_id} ({relation_type})")
             return True
         except Exception as e:
@@ -321,6 +328,61 @@ class SimpleLuxDB:
                 'stats': {'total_entities': 0, 'total_connections': 0}
             }
 
-    async def get_graph_data_async(self) -> Dict[str, Any]:
-        """Async version of get_graph_data for better performance"""
-        return self.get_graph_data()
+    async def get_graph_data_async(self):
+        """Get graph data for visualization (async version)"""
+        try:
+            entities = await self.query_entities()
+
+            beings = []
+            relationships = []
+
+            if not entities:
+                print("📝 No entities found, creating sample data...")
+                # Create some sample entities if none exist
+                sample_user = await self.create_entity(
+                    name="Sample User",
+                    data={"role": "tester", "active": True},
+                    entity_type="user"
+                )
+
+                sample_ai = await self.create_entity(
+                    name="Sample AI",
+                    data={"model": "gpt-4", "capabilities": ["chat", "analysis"]},
+                    entity_type="ai_agent"
+                )
+
+                # Create a simple relationship
+                await self.connect_entities(sample_user.id, sample_ai.id, "interacts_with")
+
+                # Refresh entities
+                entities = await self.query_entities()
+
+            for i, entity in enumerate(entities):
+                beings.append({
+                    'id': entity.id,
+                    'name': entity.name,
+                    'type': entity.type,
+                    'data': entity.data,
+                    'x': (i * 150) % 600 + 100,  # Better positioning
+                    'y': (i // 4) * 120 + 150
+                })
+
+            # Get actual relationships from the connections
+            for connection in self.connections:
+                relationships.append({
+                    'id': f"rel_{connection['entity1_id']}_{connection['entity2_id']}",
+                    'source': connection['entity1_id'],
+                    'target': connection['entity2_id'],
+                    'type': connection['relation_type']
+                })
+
+            print(f"📊 Returning {len(beings)} beings and {len(relationships)} relationships")
+            return {
+                'beings': beings,
+                'relationships': relationships
+            }
+        except Exception as e:
+            print(f"❌ Error in get_graph_data_async: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'beings': [], 'relationships': []}

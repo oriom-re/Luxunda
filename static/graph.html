@@ -295,7 +295,38 @@
             </div>
         </div>
 
-        <svg id="graph"></svg>
+        <div id="graph-container" style="position: relative;">
+            <div id="loading-indicator" style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0,0,0,0.8);
+                color: white;
+                padding: 20px;
+                border-radius: 10px;
+                display: none;
+                z-index: 1000;
+            ">
+                🌀 Ładowanie grafu LuxDB...
+            </div>
+            <div id="error-indicator" style="
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                background: rgba(255,68,68,0.9);
+                color: white;
+                padding: 15px;
+                border-radius: 8px;
+                display: none;
+                max-width: 300px;
+                z-index: 1000;
+            ">
+                <strong>⚠️ Problem z ładowaniem</strong>
+                <div id="error-message"></div>
+            </div>
+            <svg id="graph-svg"></svg>
+        </div>
 
         <div class="stats-overlay">
             <div class="stat-item">
@@ -416,6 +447,77 @@
                 `;
                 document.body.appendChild(errorDiv);
             }
+        });
+
+        // Połączenie z Socket.IO
+        const socket = io();
+        const statusDot = document.getElementById('connectionDot');
+        const connectionStatusText = document.getElementById('connectionStatus');
+
+        // Funkcja do obsługi błędów
+        function showError(message) {
+            const errorDiv = document.getElementById('error-indicator');
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = message;
+            errorDiv.style.display = 'block';
+
+            // Automatycznie ukryj po 5 sekundach
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // Socket.IO event handling
+        socket.on('connect', () => {
+            console.log('✅ Połączono z serverem');
+            connectionStatusText.textContent = '🟢 Połączony';
+            statusDot.classList.add('connected');
+
+            // Pokaż loading indicator
+            const loading = document.getElementById('loading-indicator');
+            loading.style.display = 'block';
+
+            // Automatycznie żądaj danych grafu
+            setTimeout(() => {
+                console.log('📡 Żądanie danych grafu...');
+                socket.emit('request_graph_data');
+            }, 500);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ Rozłączono z serverem');
+            connectionStatusText.textContent = '🔴 Rozłączony';
+            statusDot.classList.remove('connected');
+            showError('Połączenie z serwerem zostało utracone.');
+        });
+
+        socket.on('graph_data', (data) => {
+            console.log('📊 Otrzymano dane grafu:', data);
+
+            // Ukryj loading indicator
+            const loading = document.getElementById('loading-indicator');
+            loading.style.display = 'none';
+
+            // Ukryj błędy
+            const errorDiv = document.getElementById('error-indicator');
+            errorDiv.style.display = 'none';
+
+            if (luxGraph) {
+                luxGraph.updateGraph(data);
+                console.log('✅ Graf zaktualizowany pomyślnie');
+            } else {
+                console.error('❌ LuxGraph nie jest zainicjalizowany');
+                showError('Graf nie został zainicjalizowany');
+            }
+        });
+
+        socket.on('error', (error) => {
+            console.error('❌ Błąd Socket.IO:', error);
+            showError(error.message || 'Nieznany błąd połączenia');
+
+            // Ukryj loading indicator
+            const loading = document.getElementById('loading-indicator');
+            loading.style.display = 'none';
         });
     </script>
 </body>

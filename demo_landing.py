@@ -152,15 +152,84 @@ async def request_graph_data(sid):
     try:
         # Pobierz dane z Simple API - używaj globalnej instancji
         graph_data = await luxdb.get_graph_data_async()
-
-        await sio.emit('graph_data', {
-            'beings': graph_data.get('beings', []),
-            'relationships': graph_data.get('relationships', [])
-        }, room=sid)
-        print(f"📤 Sending simplified graph data: {len(graph_data.get('beings', []))} entities")
+        
+        # Jeśli nie ma danych, wyślij testowe
+        if not graph_data.get('beings') and not graph_data.get('relationships'):
+            print("📝 Sending test data as fallback...")
+            test_data = {
+                'beings': [
+                    {
+                        'id': 'demo_user',
+                        'name': 'Demo User',
+                        'type': 'user',
+                        'x': 100,
+                        'y': 100,
+                        'data': {'email': 'demo@luxdb.com', 'age': 25}
+                    },
+                    {
+                        'id': 'ai_assistant',
+                        'name': 'AI Assistant', 
+                        'type': 'ai_agent',
+                        'x': 200,
+                        'y': 150,
+                        'data': {'model': 'gpt-4', 'active': True}
+                    },
+                    {
+                        'id': 'luxdb_project',
+                        'name': 'LuxDB Project',
+                        'type': 'project', 
+                        'x': 150,
+                        'y': 200,
+                        'data': {'version': '3.0.0', 'status': 'active'}
+                    }
+                ],
+                'relationships': [
+                    {
+                        'id': 'rel_1',
+                        'source': 'demo_user',
+                        'target': 'ai_assistant',
+                        'type': 'interacts_with'
+                    },
+                    {
+                        'id': 'rel_2', 
+                        'source': 'demo_user',
+                        'target': 'luxdb_project',
+                        'type': 'owns'
+                    },
+                    {
+                        'id': 'rel_3',
+                        'source': 'ai_assistant',
+                        'target': 'luxdb_project', 
+                        'type': 'assists_with'
+                    }
+                ]
+            }
+            await sio.emit('graph_data', test_data, room=sid)
+        else:
+            await sio.emit('graph_data', {
+                'beings': graph_data.get('beings', []),
+                'relationships': graph_data.get('relationships', [])
+            }, room=sid)
+            
+        print(f"📤 Graph data sent successfully")
     except Exception as e:
         print(f"❌ Error fetching graph data: {e}")
-        await sio.emit('error', {'message': str(e)}, room=sid)
+        # Wyślij testowe dane jako fallback
+        test_data = {
+            'beings': [
+                {
+                    'id': 'error_fallback',
+                    'name': 'LuxDB System',
+                    'type': 'system',
+                    'x': 150,
+                    'y': 150,
+                    'data': {'status': 'initializing', 'error': str(e)[:100]}
+                }
+            ],
+            'relationships': []
+        }
+        await sio.emit('graph_data', test_data, room=sid)
+        await sio.emit('error', {'message': f'Fallback data loaded due to: {str(e)}'}, room=sid)
 
 @sio.event
 async def ping(sid):

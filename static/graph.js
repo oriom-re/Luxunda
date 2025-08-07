@@ -13,6 +13,8 @@ class LuxOSGraph {
         this.connectionStatus = 'disconnected';
         this.reconnectAttempts = 0;
         this.heartbeatInterval = null;
+        this.width = window.innerWidth; // Initialize width
+        this.height = window.innerHeight - 200; // Initialize height
 
         console.log('🌀 LuxDB Graph initialized');
         this.initializeConnection();
@@ -189,6 +191,20 @@ class LuxOSGraph {
         }
     }
 
+    getTestData() {
+        // Dummy data for testing purposes if no data is received
+        console.log("🧪 Używam danych testowych.");
+        return {
+            beings: [
+                { id: 'test-being-1', ulid: 'test-ulid-1', name: 'Test Being 1', _soul: { alias: 'sample_entity', genesis: { type: 'test' } } },
+                { id: 'test-being-2', ulid: 'test-ulid-2', name: 'Test Being 2', _soul: { alias: 'sample_entity', genesis: { type: 'test' } } }
+            ],
+            relationships: [
+                { source_uid: 'test-ulid-1', target_uid: 'test-ulid-2', relation_type: 'connected', strength: 0.8 }
+            ]
+        };
+    }
+
     renderUniverse(beings) {
         console.log("🌌 Renderuję wszechświat z", beings?.length || 0, "beings");
 
@@ -234,8 +250,9 @@ class LuxOSGraph {
         // Clear previous graph
         d3.select('#graph').selectAll('*').remove();
 
-        const width = window.innerWidth;
-        const height = window.innerHeight - 200;
+        // Use initialized width and height
+        const width = this.width;
+        const height = this.height;
 
         // Create SVG
         this.svg = d3.select('#graph')
@@ -273,6 +290,19 @@ class LuxOSGraph {
             .attr('offset', '100%')
             .attr('stop-color', '#00cc66')
             .attr('stop-opacity', 0.8);
+
+        // Add glow filter for nodes
+        const filter = defs.append('filter')
+            .attr('id', 'glow');
+        filter.append('feGaussianBlur')
+            .attr('stdDeviation', 3)
+            .attr('result', 'coloredBlur');
+        filter.append('feMerge');
+        filter.append('feMergeNode')
+            .attr('in', 'coloredBlur');
+        filter.append('feMergeNode')
+            .attr('in', 'SourceGraphic');
+
 
         // Debug entities structure (simplified)
         console.log('🔍 First entity structure:', beings[0]);
@@ -431,9 +461,9 @@ class LuxOSGraph {
         // Create force simulation
         const simulation = d3.forceSimulation(allNodes)
             .force('link', d3.forceLink(links).id(d => d.id).distance(150))
-            .force('charge', d3.forceManyBody().strength(-300))
+            .force('charge', d3.forceManyBody().strength(-500))
             .force('center', d3.forceCenter(width/2, height/2))
-            .force('collision', d3.forceCollide().radius(40));
+            .force('collision', d3.forceCollide().radius(50));
 
         // Draw links with different styles based on relationship type
         const link = g.append('g')
@@ -769,20 +799,66 @@ class LuxOSGraph {
 
     resizeGraph() {
         console.log('📏 Resize graph');
-        const width = window.innerWidth;
-        const height = window.innerHeight - 200;
+        // Update width and height based on current window dimensions
+        this.width = window.innerWidth;
+        this.height = window.innerHeight - 200;
 
         if (this.svg) {
             this.svg
-                .attr('width', width)
-                .attr('height', height);
+                .attr('width', this.width)
+                .attr('height', this.height);
         }
 
         // Re-render the universe with new dimensions using stored data
+        // If lastData is not available, we can't re-render accurately.
+        // It's better to ensure lastData is populated correctly or handle this case.
         if (this.lastData && this.lastData.beings) {
             this.renderUniverse(this.lastData.beings);
         } else {
             console.warn("Resize called but no beings data available to re-render.");
+            // Optionally, clear the graph or show a message if no data is present
+            d3.select('#graph').selectAll('*').remove();
+        }
+    }
+
+    // Placeholder for updateGraph function if it's meant to be global
+    // If it's part of this class, it should be called as this.updateGraph
+    // Based on the usage in the socket listener, it seems to be a global function.
+    // For the sake of completeness and if it's intended to be internal:
+    updateGraph(data) {
+        console.log('📊 Aktualizacja grafu z danymi:', data);
+
+        if (!data) {
+            console.log('⚠️ Brak danych - używam danych testowych');
+            data = this.getTestData();
+        }
+
+        if (!data.beings && !data.nodes) {
+            console.log('⚠️ Brak nodes/beings - używam danych testowych');
+            data = this.getTestData();
+        }
+
+        // Assuming data.beings is the primary source for rendering
+        if (data.beings) {
+            this.lastData = data; // Store data for resize
+            this.renderUniverse(data.beings);
+        } else if (data.nodes) {
+            // If only nodes are provided, we need a way to convert them to the format expected by renderUniverse
+            // or modify renderUniverse to handle nodes directly.
+            // For now, let's assume renderUniverse expects beings.
+            console.warn("Received only nodes, but renderUniverse expects beings. Attempting to convert.");
+            // This conversion logic would be complex and depend on the structure of 'nodes'
+            // Example: Convert nodes to a beings-like structure if possible
+            const convertedBeings = data.nodes.map(node => ({
+                ulid: node.id, // Assuming node.id is the ULID
+                name: node.label || node.id, // Assuming node.label or id is the name
+                _soul: { genesis: { type: 'converted_node' } }, // Default type
+                // Add other properties if they exist in node and are needed for renderUniverse
+            }));
+            this.lastData = { beings: convertedBeings, relationships: data.links || [] };
+            this.renderUniverse(convertedBeings);
+        } else {
+            console.log('❌ Brak danych do przetworzenia w funkcji updateGraph');
         }
     }
 }
