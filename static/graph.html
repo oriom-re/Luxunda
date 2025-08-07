@@ -283,15 +283,111 @@
             color: #1a1a1a;
             transform: scale(1.1);
         }
+
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .session-info {
+            display: flex;
+            gap: 15px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .user-info {
+            padding: 4px 12px;
+            background: rgba(76, 175, 80, 0.2);
+            border-radius: 12px;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .connection-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .connection-status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+
+        .connection-status.error {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        #graph {
+            margin-top: 60px; /* Make room for top bar */
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div class="logo">LuxDB MVP - "Nie relacja. Nie dokument. Ewolucja danych."</div>
-            <div class="connection-status">
-                <div class="status-dot" id="connectionDot"></div>
-                <span id="connectionStatus">Łączenie...</span>
+        <div class="top-bar">
+            <div id="sessionInfo" class="session-info">
+                <span class="user-info">👤 Connecting...</span>
+                <span class="connection-status disconnected">disconnected</span>
+            </div>
+            <div class="controls">
+                <button onclick="window.graph.zoomIn()" class="control-btn">🔍+</button>
+                <button onclick="window.graph.zoomOut()" class="control-btn">🔍-</button>
+                <button onclick="window.graph.resetZoom()" class="control-btn">⌂</button>
+                <button onclick="clearGraph()" class="control-btn">🗑️</button>
+                <button onclick="testData()" class="control-btn">🧪</button>
+                <button onclick="showSessionInfo()" class="control-btn">👤</button>
             </div>
         </div>
 
@@ -453,6 +549,9 @@
         const socket = io();
         const statusDot = document.getElementById('connectionDot');
         const connectionStatusText = document.getElementById('connectionStatus');
+        const sessionInfoDiv = document.getElementById('sessionInfo');
+        const userInfoSpan = sessionInfoDiv.querySelector('.user-info');
+        const sessionConnectionStatusSpan = sessionInfoDiv.querySelector('.connection-status');
 
         // Funkcja do obsługi błędów
         function showError(message) {
@@ -460,6 +559,12 @@
             const errorMessage = document.getElementById('error-message');
             errorMessage.textContent = message;
             errorDiv.style.display = 'block';
+
+            // Aktualizacja statusu sesji na błąd
+            if (sessionConnectionStatusSpan) {
+                sessionConnectionStatusSpan.textContent = 'error';
+                sessionConnectionStatusSpan.className = 'connection-status error';
+            }
 
             // Automatycznie ukryj po 5 sekundach
             setTimeout(() => {
@@ -472,6 +577,12 @@
             console.log('✅ Połączono z serverem');
             connectionStatusText.textContent = '🟢 Połączony';
             statusDot.classList.add('connected');
+
+            // Aktualizacja statusu sesji na połączony
+            if (sessionConnectionStatusSpan) {
+                sessionConnectionStatusSpan.textContent = 'connected';
+                sessionConnectionStatusSpan.className = 'connection-status connected';
+            }
 
             // Pokaż loading indicator
             const loading = document.getElementById('loading-indicator');
@@ -488,6 +599,16 @@
             console.log('❌ Rozłączono z serverem');
             connectionStatusText.textContent = '🔴 Rozłączony';
             statusDot.classList.remove('connected');
+
+            // Aktualizacja statusu sesji na rozłączony
+            if (sessionConnectionStatusSpan) {
+                sessionConnectionStatusSpan.textContent = 'disconnected';
+                sessionConnectionStatusSpan.className = 'connection-status disconnected';
+            }
+            if (userInfoSpan) {
+                userInfoSpan.textContent = '👤 N/A';
+            }
+
             showError('Połączenie z serwerem zostało utracone.');
         });
 
@@ -519,6 +640,66 @@
             const loading = document.getElementById('loading-indicator');
             loading.style.display = 'none';
         });
+
+        // Obsługa danych sesji WebSocket
+        socket.on('session_update', (sessionData) => {
+            console.log('🔄 Aktualizacja danych sesji:', sessionData);
+            if (sessionData.session_id) {
+                if (userInfoSpan) {
+                    userInfoSpan.textContent = `👤 ${sessionData.user_name || 'Niezalogowany'}`;
+                }
+                if (sessionConnectionStatusSpan) {
+                    sessionConnectionStatusSpan.textContent = sessionData.connected ? 'connected' : 'disconnected';
+                    sessionConnectionStatusSpan.className = `connection-status ${sessionData.connected ? 'connected' : 'disconnected'}`;
+                }
+            } else {
+                 if (userInfoSpan) {
+                    userInfoSpan.textContent = '👤 N/A';
+                }
+                if (sessionConnectionStatusSpan) {
+                    sessionConnectionStatusSpan.textContent = 'disconnected';
+                    sessionConnectionStatusSpan.className = 'connection-status disconnected';
+                }
+            }
+        });
+
+        function testData() {
+            console.log('🧪 Ładowanie danych testowych...');
+            fetch('/test-data')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('✅ Otrzymano dane testowe:', data);
+                })
+                .catch(error => {
+                    console.error('❌ Błąd podczas ładowania danych testowych:', error);
+                });
+        }
+
+        async function showSessionInfo() {
+            try {
+                const response = await fetch('/api/session');
+                const sessionData = await response.json();
+
+                if (sessionData.error) {
+                    alert('Błąd sesji: ' + sessionData.error);
+                    return;
+                }
+
+                const info = `
+Sesja: ${sessionData.session_id.substring(0, 8)}...
+Użytkownik: ${sessionData.user_name}
+Admin: ${sessionData.is_admin ? 'Tak' : 'Nie'}
+Utworzona: ${new Date(sessionData.created_at).toLocaleString()}
+Ostatnia aktywność: ${new Date(sessionData.last_active).toLocaleString()}
+Status: ${sessionData.connected ? 'Połączony' : 'Rozłączony'}
+                `.trim();
+
+                alert(info);
+            } catch (error) {
+                console.error('❌ Błąd pobierania informacji o sesji:', error);
+                alert('Błąd pobierania informacji o sesji');
+            }
+        }
     </script>
 </body>
 </html>

@@ -6,18 +6,76 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
+from typing import Optional, Dict
 from database.postgre_db import Postgre_db
 import asyncio
 import json
-from fastapi import Request
-from fastapi.responses import HTMLResponse
+from fastapi import Request, Cookie, Header
+from fastapi.responses import HTMLResponse, RedirectResponse
 import engineio
+import uuid
+import secrets
 
 # Import simplified system
 from luxdb.simple_api import SimpleLuxDB, SimpleEntity
 from luxdb.core.deployment_manager import deployment_manager
 from luxdb.core.workspace_manager import workspace_manager
+
+# Session Management
+class SessionManager:
+    def __init__(self):
+        self.sessions: Dict[str, dict] = {}
+        self.socket_sessions: Dict[str, str] = {}  # socket_id -> session_id
+    
+    def create_session(self, replit_user_id: str = None, replit_user_name: str = None) -> str:
+        session_id = str(uuid.uuid4())
+        self.sessions[session_id] = {
+            'session_id': session_id,
+            'created_at': datetime.now().isoformat(),
+            'last_active': datetime.now().isoformat(),
+            'replit_user_id': replit_user_id,
+            'replit_user_name': replit_user_name or f'Guest-{session_id[:8]}',
+            'socket_id': None,
+            'is_admin': True,  # Wszyscy mają uprawnienia admina
+            'workspace_data': {},
+            'graph_state': {}
+        }
+        print(f"🆕 Utworzono nową sesję: {session_id} dla użytkownika: {replit_user_name or 'Guest'}")
+        return session_id
+    
+    def get_session(self, session_id: str) -> Optional[dict]:
+        if session_id in self.sessions:
+            self.sessions[session_id]['last_active'] = datetime.now().isoformat()
+            return self.sessions[session_id]
+        return None
+    
+    def update_session_socket(self, session_id: str, socket_id: str):
+        if session_id in self.sessions:
+            # Usuń poprzednie mapowanie socket -> session
+            old_socket = self.sessions[session_id].get('socket_id')
+            if old_socket and old_socket in self.socket_sessions:
+                del self.socket_sessions[old_socket]
+            
+            # Ustaw nowe mapowanie
+            self.sessions[session_id]['socket_id'] = socket_id
+            self.socket_sessions[socket_id] = session_id
+            print(f"🔄 Zaktualizowano socket sesji {session_id[:8]}: {socket_id}")
+    
+    def get_session_by_socket(self, socket_id: str) -> Optional[dict]:
+        session_id = self.socket_sessions.get(socket_id)
+        if session_id:
+            return self.get_session(session_id)
+        return None
+    
+    def disconnect_socket(self, socket_id: str):
+        session_id = self.socket_sessions.get(socket_id)
+        if session_id and session_id in self.sessions:
+            self.sessions[session_id]['socket_id'] = None
+            del self.socket_sessions[socket_id]
+            print(f"💔 Rozłączono socket {socket_id} z sesji {session_id[:8]}")
+
+# Initialize Session Manager
+session_manager = SessionManager()
 
 # FastAPI app - configured by deployment mode
 app_config = {
@@ -124,27 +182,82 @@ async def startup_event():
 app.mount("/static", StaticFiles(directory="static"), name="static")
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-# Socket.IO Events with improved error handling
+# Socket.IO Events with session support
 @sio.event
-async def connect(sid, environ):
+async def connect(sid, environ, auth=None):
     print(f"🌟 CLIENT CONNECTED: {sid}")
-
+    
     try:
-        # Send welcome message
+        # Wyciągnij session_id z auth lub headers
+        session_id = None
+        replit_user_id = None
+        replit_user_name = None
+        
+        # Sprawdź Replit Auth headers
+        headers = dict(environ.get('headers', []))
+        if b'x-replit-user-id' in [h[0] for h in headers]:
+            replit_user_id = next(h[1].decode() for h in headers if h[0] == b'x-replit-user-id')
+            replit_user_name = next((h[1].decode() for h in headers if h[0] == b'x-replit-user-name'), None)
+            print(f"🔐 Replit Auth: {replit_user_name} ({replit_user_id})")
+        
+        # Sprawdź czy auth zawiera session_id
+        if auth and isinstance(auth, dict) and 'session_id' in auth:
+            session_id = auth['session_id']
+            session = session_manager.get_session(session_id)
+            if session:
+                print(f"🔄 Wznawianie sesji: {session_id[:8]} dla {session['replit_user_name']}")
+            else:
+                print(f"⚠️ Nieważna sesja: {session_id[:8]}, tworzę nową")
+                session_id = None
+        
+        # Utwórz nową sesję jeśli potrzeba
+        if not session_id:
+            session_id = session_manager.create_session(replit_user_id, replit_user_name)
+        
+        # Przypisz socket do sesji
+        session_manager.update_session_socket(session_id, sid)
+        session = session_manager.get_session(session_id)
+        
+        # Send session info and welcome message
+        await sio.emit('session_established', {
+            'session_id': session_id,
+            'user_name': session['replit_user_name'],
+            'is_admin': session['is_admin'],
+            'timestamp': datetime.now().isoformat()
+        }, room=sid)
+        
         await sio.emit('demo_data', {
-            'message': 'Connected to Simplified LuxDB',
+            'message': f'Connected as {session["replit_user_name"]}',
             'timestamp': datetime.now().isoformat(),
-            'version': '3.0.0'
+            'version': '3.0.0',
+            'session_id': session_id
         }, room=sid)
 
         # Auto-send initial graph data
         await request_graph_data(sid)
+        
     except Exception as e:
         print(f"❌ Error in connect handler: {e}")
+        # Fallback - utwórz sesję gościa
+        session_id = session_manager.create_session()
+        session_manager.update_session_socket(session_id, sid)
+        await sio.emit('session_established', {
+            'session_id': session_id,
+            'user_name': 'Guest',
+            'is_admin': True,
+            'timestamp': datetime.now().isoformat()
+        }, room=sid)
 
 @sio.event
 async def disconnect(sid):
-    print(f"💔 CLIENT DISCONNECTED: {sid}")
+    session = session_manager.get_session_by_socket(sid)
+    if session:
+        print(f"💔 CLIENT DISCONNECTED: {sid} (Sesja: {session['session_id'][:8]}, User: {session['replit_user_name']})")
+    else:
+        print(f"💔 CLIENT DISCONNECTED: {sid} (Brak sesji)")
+    
+    # Odłącz socket ale zachowaj sesję
+    session_manager.disconnect_socket(sid)
 
 @sio.event
 async def request_graph_data(sid):
@@ -279,8 +392,38 @@ async def connect_entities_endpoint(request: Request):
         return {"success": False, "error": str(e)}
 
 @app.get("/")
-async def main_page():
-    return FileResponse("static/index.html")
+async def main_page(request: Request, session_id: str = Cookie(None)):
+    """Main page with session cookie support"""
+    # Sprawdź Replit Auth
+    replit_user_id = request.headers.get('x-replit-user-id')
+    replit_user_name = request.headers.get('x-replit-user-name')
+    
+    # Sprawdź czy sesja z cookie jest ważna
+    if session_id:
+        session = session_manager.get_session(session_id)
+        if session:
+            print(f"🔄 Istniejąca sesja z cookie: {session_id[:8]} dla {session['replit_user_name']}")
+        else:
+            # Cookie nieważne, usuń
+            session_id = None
+    
+    # Utwórz nową sesję jeśli potrzeba
+    if not session_id:
+        session_id = session_manager.create_session(replit_user_id, replit_user_name)
+        session = session_manager.get_session(session_id)
+        print(f"🆕 Nowa sesja HTTP: {session_id[:8]} dla {session['replit_user_name']}")
+    
+    # Zwróć HTML z ustawionym cookie
+    response = FileResponse("static/graph.html")  # Używamy graph.html jako główną stronę
+    response.set_cookie(
+        key="session_id", 
+        value=session_id, 
+        max_age=30*24*60*60,  # 30 dni
+        httponly=False,  # Potrzebny dostęp z JS dla Socket.IO
+        secure=False,  # HTTP dla development
+        samesite="lax"
+    )
+    return response
 
 @app.get("/graph")
 async def graph_page():
@@ -349,6 +492,40 @@ async def create_workspace_file(request: Request):
 @app.get("/test")
 async def test():
     return {"message": "Hello from LuxDB Demo!"}
+
+@app.get("/api/session")
+async def get_session_info(session_id: str = Cookie(None)):
+    """Get current session info"""
+    if not session_id:
+        return {"error": "No session cookie"}
+    
+    session = session_manager.get_session(session_id)
+    if not session:
+        return {"error": "Invalid session"}
+    
+    return {
+        "session_id": session_id,
+        "user_name": session['replit_user_name'],
+        "is_admin": session['is_admin'],
+        "created_at": session['created_at'],
+        "last_active": session['last_active'],
+        "connected": session['socket_id'] is not None
+    }
+
+@app.get("/api/sessions")
+async def list_sessions():
+    """List all active sessions (admin only)"""
+    sessions = []
+    for session_id, session in session_manager.sessions.items():
+        sessions.append({
+            "session_id": session_id,
+            "user_name": session['replit_user_name'],
+            "created_at": session['created_at'],
+            "last_active": session['last_active'],
+            "connected": session['socket_id'] is not None,
+            "replit_user_id": session.get('replit_user_id')
+        })
+    return {"sessions": sessions, "total": len(sessions)}
 
 @app.get("/test-data")
 async def test_data():

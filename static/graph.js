@@ -15,15 +15,49 @@ class LuxOSGraph {
         this.heartbeatInterval = null;
         this.width = window.innerWidth; // Initialize width
         this.height = window.innerHeight - 200; // Initialize height
+        
+        // Session management
+        this.sessionId = null;
+        this.userName = 'Guest';
+        this.isAdmin = false;
 
         console.log('🌀 LuxDB Graph initialized');
+        this.loadSessionFromCookie();
         this.initializeConnection();
+    }
+    
+    loadSessionFromCookie() {
+        // Pobierz session_id z cookie
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'session_id') {
+                this.sessionId = value;
+                console.log('🍪 Znaleziono session_id w cookie:', this.sessionId.substring(0, 8) + '...');
+                break;
+            }
+        }
+    }
+    
+    updateSessionUI() {
+        // Zaktualizuj UI z informacją o sesji
+        const sessionInfo = document.getElementById('sessionInfo');
+        if (sessionInfo) {
+            sessionInfo.innerHTML = `
+                <span class="user-info">👤 ${this.userName} ${this.isAdmin ? '(Admin)' : ''}</span>
+                <span class="connection-status ${this.connectionStatus}">${this.connectionStatus}</span>
+            `;
+        }
     }
 
     initializeConnection() {
         try {
-            // Initialize Socket.IO with robust reconnection
+            // Przygotuj auth object z session_id
+            const auth = this.sessionId ? { session_id: this.sessionId } : {};
+            
+            // Initialize Socket.IO with robust reconnection and session support
             this.socket = io({
+                auth: auth,
                 transports: ['websocket', 'polling'],
                 upgrade: true,
                 rememberUpgrade: true,
@@ -42,6 +76,23 @@ class LuxOSGraph {
                 this.reconnectAttempts = 0;
                 this.requestGraphData();
                 this.startHeartbeat();
+                this.updateSessionUI();
+            });
+            
+            // Session events
+            this.socket.on('session_established', (data) => {
+                console.log('🔐 Sesja nawiązana:', data);
+                this.sessionId = data.session_id;
+                this.userName = data.user_name;
+                this.isAdmin = data.is_admin;
+                
+                // Zapisz session_id do cookie jeśli jest nowe
+                if (data.session_id !== this.getCookieValue('session_id')) {
+                    document.cookie = `session_id=${data.session_id}; max-age=${30*24*60*60}; path=/; samesite=lax`;
+                }
+                
+                this.updateSessionUI();
+                this.showNotification(`Zalogowano jako ${this.userName}`, 'success');
             });
 
             this.socket.on('disconnect', (reason) => {
@@ -133,6 +184,42 @@ class LuxOSGraph {
         } catch (error) {
             console.error('❌ Błąd inicjalizacji połączenia:', error);
         }
+    }
+
+    getCookieValue(name) {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            const [cookieName, cookieValue] = cookie.trim().split('=');
+            if (cookieName === name) {
+                return cookieValue;
+            }
+        }
+        return null;
+    }
+    
+    showNotification(message, type = 'info') {
+        // Prosty system notyfikacji
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
+            color: white;
+            border-radius: 4px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease-in';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
 
     requestGraphData() {
