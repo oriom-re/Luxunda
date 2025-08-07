@@ -322,23 +322,31 @@ class LuxOSGraph {
             }
         });
 
-        // Add links from traditional relationships
+        // Add links from traditional relationships (now supports mixed ID types)
         this.relationships.forEach(rel => {
-            const sourceExists = nodeMap.get(rel.source_uid);
-            const targetExists = nodeMap.get(rel.target_uid);
+            // Handle both new and legacy relationship formats
+            const sourceId = rel.source_id || rel.source_ulid;
+            const targetId = rel.target_id || rel.target_ulid;
+            const sourceType = rel.source_type || 'being';
+            const targetType = rel.target_type || 'being';
+
+            const sourceExists = nodeMap.get(sourceId);
+            const targetExists = nodeMap.get(targetId);
 
             if (sourceExists && targetExists) {
                 links.push({
-                    source: rel.source_uid,
-                    target: rel.target_uid,
-                    type: 'connection', // Default type for relationships
+                    source: sourceId,
+                    target: targetId,
+                    type: sourceType === 'soul' || targetType === 'soul' ? 'soul_relation' : 'connection',
                     relation_type: rel.relation_type || 'unknown',
                     strength: parseFloat(rel.strength) || 0.5,
-                    metadata: rel.metadata || {}
+                    metadata: rel.metadata || {},
+                    source_type: sourceType,
+                    target_type: targetType
                 });
-                console.log(`✅ Dodano link z relationships: ${rel.source_uid} -> ${rel.target_uid}`);
+                console.log(`✅ Dodano link z relationships: ${sourceType}(${sourceId.substring(0,8)}...) -> ${targetType}(${targetId.substring(0,8)}...)`);
             } else {
-                 console.log(`⚠️ Nie znaleziono węzłów dla relacji z relationships: ${rel.source_uid} -> ${rel.target_uid}`);
+                 console.log(`⚠️ Nie znaleziono węzłów dla relacji: ${sourceType}(${sourceId?.substring(0,8)}...) -> ${targetType}(${targetId?.substring(0,8)}...)`);
             }
         });
 
@@ -363,32 +371,63 @@ class LuxOSGraph {
             .enter().append('line')
             .attr('class', 'link')
             .style('stroke', d => {
+                if (d.type === 'soul_relation') return '#ffd700'; // Gold for soul-being relationships
+                if (d.relation_type === 'instantiates') return '#ffaa00'; // Orange for instantiation
                 if (d.relation_type === 'similar_content') return '#00ff88';
                 if (d.relation_type === 'communication') return '#ff8800';
                 if (d.type === 'relation_being') return '#00ccff'; // Blue for relation beings
+                if (d.relation_type === 'similarity') return '#aa88ff'; // Purple for similarity
                 return '#555';
             })
             .style('stroke-width', d => {
-                // Line thickness dependent on relationship strength
-                return Math.max(2, d.strength * 5);
+                // Thicker lines for soul relationships
+                const baseWidth = d.type === 'soul_relation' ? 3 : 2;
+                return Math.max(baseWidth, d.strength * 5);
             })
             .style('opacity', d => {
-                // Opacity dependent on relationship strength
-                return Math.max(0.4, d.strength);
+                // Higher opacity for soul relationships
+                const baseOpacity = d.type === 'soul_relation' ? 0.8 : 0.4;
+                return Math.max(baseOpacity, d.strength);
             })
             .style('stroke-dasharray', d => {
                 // Different line styles for different relationship types
+                if (d.relation_type === 'instantiates') return '8,3'; // Dash-dot for instantiation
                 if (d.relation_type === 'similar_content') return '5,5';
                 if (d.type === 'relation_being') return '3,3';
+                if (d.relation_type === 'similarity') return '2,2';
                 return 'none';
             })
             .on('mouseover', function(event, d) {
                 // Highlight line on hover
-                d3.select(this).style('stroke-width', Math.max(4, d.strength * 6));
+                const baseWidth = d.type === 'soul_relation' ? 3 : 2;
+                d3.select(this).style('stroke-width', Math.max(baseWidth + 2, d.strength * 6));
+                
+                // Show tooltip with relationship info
+                const tooltip = d3.select('body').append('div')
+                    .attr('class', 'tooltip')
+                    .style('position', 'absolute')
+                    .style('background', 'rgba(0,0,0,0.8)')
+                    .style('color', 'white')
+                    .style('padding', '5px')
+                    .style('border-radius', '3px')
+                    .style('font-size', '12px')
+                    .style('pointer-events', 'none')
+                    .style('z-index', '1000')
+                    .html(`
+                        <strong>${d.relation_type}</strong><br/>
+                        ${d.source_type || 'being'} → ${d.target_type || 'being'}<br/>
+                        Strength: ${d.strength}
+                    `)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 10) + 'px');
             })
             .on('mouseout', function(event, d) {
                 // Restore normal thickness
-                d3.select(this).style('stroke-width', Math.max(2, d.strength * 5));
+                const baseWidth = d.type === 'soul_relation' ? 3 : 2;
+                d3.select(this).style('stroke-width', Math.max(baseWidth, d.strength * 5));
+                
+                // Remove tooltip
+                d3.select('.tooltip').remove();
             });
 
         // Create nodes with type-specific styling

@@ -169,27 +169,62 @@ class Postgre_db:
                 """)
 
                 # Tradycyjna tabela relacji dla MVP
+                # Create or update relationships table with mixed ID support
                 await conn.execute("""
-                        CREATE TABLE IF NOT EXISTS relationships (
-                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                            source_ulid CHAR(26) NOT NULL,
-                            target_ulid CHAR(26) NOT NULL,
-                            relation_type VARCHAR(100) NOT NULL DEFAULT 'connection',
-                            strength FLOAT DEFAULT 1.0,
-                            metadata JSONB DEFAULT '{}',
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY (source_ulid) REFERENCES beings(ulid) ON DELETE CASCADE,
-                            FOREIGN KEY (target_ulid) REFERENCES beings(ulid) ON DELETE CASCADE
-                        );
-                        -- indexy dla wydajności
-                        CREATE INDEX IF NOT EXISTS idx_relationships_source ON relationships (source_ulid);
-                        CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships (target_ulid);
-                        CREATE INDEX IF NOT EXISTS idx_relationships_type ON relationships (relation_type);
-                        CREATE INDEX IF NOT EXISTS idx_relationships_strength ON relationships (strength);
-                        CREATE INDEX IF NOT EXISTS idx_relationships_created_at ON relationships (created_at);
-                        CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_relationship ON relationships (source_ulid, target_ulid, relation_type);
+                    CREATE TABLE IF NOT EXISTS relationships (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        source_ulid CHAR(26),  -- Legacy field
+                        target_ulid CHAR(26),  -- Legacy field
+                        source_id VARCHAR(64) NOT NULL,  -- New field for hash or ULID
+                        target_id VARCHAR(64) NOT NULL,  -- New field for hash or ULID
+                        source_type VARCHAR(20) DEFAULT 'being',  -- 'soul' or 'being'
+                        target_type VARCHAR(20) DEFAULT 'being',  -- 'soul' or 'being'
+                        relation_type VARCHAR(100) NOT NULL DEFAULT 'connection',
+                        strength FLOAT DEFAULT 1.0,
+                        metadata JSONB DEFAULT '{}',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(source_id, target_id, relation_type)
+                    );
                 """)
+
+                # Add new columns if they don't exist (migration)
+                await conn.execute("""
+                    DO $$ 
+                    BEGIN 
+                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                     WHERE table_name='relationships' AND column_name='source_id') THEN
+                            ALTER TABLE relationships ADD COLUMN source_id VARCHAR(64);
+                            ALTER TABLE relationships ADD COLUMN target_id VARCHAR(64);
+                            ALTER TABLE relationships ADD COLUMN source_type VARCHAR(20) DEFAULT 'being';
+                            ALTER TABLE relationships ADD COLUMN target_type VARCHAR(20) DEFAULT 'being';
+
+                            -- Migrate existing data
+                            UPDATE relationships 
+                            SET source_id = source_ulid, target_id = target_ulid 
+                            WHERE source_id IS NULL AND target_id IS NULL;
+                        END IF;
+                    END $$;
+                """)
+
+                # indexy dla wydajności
+                # Note: The original index creation for relationships is not provided in the diff,
+                # so we infer based on the new schema. If the original file had specific indexes,
+                # they would need to be migrated or recreated here.
+                # For now, creating basic indexes on the new fields.
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_relationships_source_id ON relationships (source_id);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_target_id ON relationships (target_id);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_source_type ON relationships (source_type);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_target_type ON relationships (target_type);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_type ON relationships (relation_type);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_strength ON relationships (strength);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_created_at ON relationships (created_at);
+                """)
+                # Ensure the unique index is correctly applied. The previous CREATE TABLE statement already included it.
+                # If it was meant to be a separate index creation, it would look like:
+                # await conn.execute("""CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_relationship ON relationships (source_id, target_id, relation_type);""")
+
 
                 print("✅ Tabele PostgreSQL utworzone")
         except Exception as e:

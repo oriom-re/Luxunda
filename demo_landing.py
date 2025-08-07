@@ -69,7 +69,7 @@ async def startup_event():
             # Count beings that look like demo entities
             if hasattr(being, 'alias') and being.alias == "sample_entity":
                 demo_beings_count += 1
-        
+
         # If no souls exist or we have very few demo beings, create some sample data
         if len(souls) == 0 or demo_beings_count < 5:
             print("📝 Creating limited sample data...")
@@ -80,18 +80,13 @@ async def startup_event():
                 if soul.alias == "sample_entity":
                     sample_soul = soul
                     break
-            
+
             if not sample_soul:
                 sample_genotype = {
                     "genesis": {
                         "name": "sample_entity",
                         "type": "entity",
                         "doc": "Sample entity for demo"
-                    },
-                    "attributes": {
-                        "name": {"py_type": "str", "table_name": "_text"},
-                        "energy": {"py_type": "float", "table_name": "_numeric"},
-                        "active": {"py_type": "bool", "table_name": "_boolean"}
                     }
                 }
 
@@ -286,7 +281,7 @@ async def request_graph_data(sid):
 
         # Pobierz dane z bazy - dodaj souls do grafu
         souls = await Soul.load_all()
-        
+
         # Try to load beings with better error handling
         beings_result = await Being.load_all()
         if isinstance(beings_result, dict) and not beings_result.get("success", False):
@@ -297,7 +292,7 @@ async def request_graph_data(sid):
         else:
             # beings_result is a list directly
             beings = beings_result if beings_result else []
-            
+
         relationships = await Relationship.get_all()  # Stara tabela relationships
 
         # Pobierz nowe dedykowane relacje
@@ -584,7 +579,7 @@ async def database_status():
         async with db.pool.acquire() as conn:
             relations = await conn.fetch("SELECT COUNT(*) as count FROM relationships")
             relations_count = relations[0]['count'] if relations else 0
-            
+
             # Dodaj licznik dla nowych relacji
             from database.models.relation import Relation
             new_relations = await conn.fetch("SELECT COUNT(*) as count FROM relations")
@@ -622,10 +617,10 @@ async def cleanup_demo_beings():
     try:
         beings = await Being.load_all()
         demo_beings = [b for b in beings if hasattr(b, 'alias') and b.alias == "sample_entity"]
-        
+
         if len(demo_beings) <= 5:
             return {"message": f"Only {len(demo_beings)} demo beings found, no cleanup needed"}
-        
+
         # Tu można dodać logikę usuwania nadmiaru beings
         # Na razie tylko informujemy o ilości
         return {
