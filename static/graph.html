@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -340,51 +339,51 @@
         document.addEventListener('DOMContentLoaded', function() {
             try {
                 console.log('🚀 Inicjalizacja LuxDB Graf...');
-                
+
                 // Sprawdź czy klasy są dostępne
                 if (typeof LuxOSGraph === 'undefined') {
                     console.error('❌ LuxOSGraph class not loaded');
                     throw new Error('LuxOSGraph class not available');
                 }
-                
+
                 if (typeof IntentionComponent === 'undefined') {
                     console.error('❌ IntentionComponent class not loaded');
                     throw new Error('IntentionComponent class not available');
                 }
-                
+
                 if (typeof LuxChatComponent === 'undefined') {
                     console.error('❌ LuxChatComponent class not loaded');
                     throw new Error('LuxChatComponent class not available');
                 }
-                
+
                 // Inicjalizuj komponenty
                 const graphManager = new LuxOSGraph();
                 const intentionComponent = new IntentionComponent(graphManager);
                 const luxChatComponent = new LuxChatComponent(graphManager);
-                
+
                 // Zapisz globalne referencje dla debugowania
                 window.luxOSUniverse = graphManager;
                 window.intentionComponent = intentionComponent;
                 window.luxChatComponent = luxChatComponent;
-                
+
                 // Dodaj obsługę kontrolek zoom
                 document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
                 document.getElementById('zoomOut').addEventListener('click', () => graphManager.zoomOut());
                 document.getElementById('zoomReset').addEventListener('click', () => graphManager.resetZoom());
                 document.getElementById('luxChat').addEventListener('click', () => luxChatComponent.toggle());
-                
+
                 // Obsługa zmiany rozmiaru okna
                 window.addEventListener('resize', () => {
                     if (graphManager.resizeGraph) {
                         graphManager.resizeGraph();
                     }
                 });
-                
+
                 console.log('✅ LuxDB Graf zainicjalizowany pomyślnie');
-                
+
             } catch (error) {
                 console.error('❌ Błąd inicjalizacji aplikacji:', error);
-                
+
                 // Pokaż błąd w UI
                 const errorDiv = document.createElement('div');
                 errorDiv.style.cssText = `

@@ -12,6 +12,7 @@ import asyncio
 import json
 from fastapi import Request
 from fastapi.responses import HTMLResponse
+import engineio
 
 # Import simplified system
 from luxdb.simple_api import SimpleLuxDB, SimpleEntity
@@ -36,7 +37,8 @@ sio = socketio.AsyncServer(
     ping_timeout=60,  # Increase ping timeout
     ping_interval=25,  # Ping every 25 seconds
     max_http_buffer_size=1000000,  # 1MB buffer
-    transports=['websocket', 'polling']  # Allow fallback to polling
+    transports=['websocket', 'polling'],  # Allow fallback to polling
+    async_mode='asgi'
 )
 
 # Initialize Simplified LuxDB
@@ -99,7 +101,7 @@ async def startup_event():
 
 # Configure static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
-socket_app = socketio.ASGIApp(sio, app)
+socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 # Socket.IO Events with improved error handling
 @sio.event
@@ -197,6 +199,27 @@ async def health_check():
         "version": "3.0.0",
         "entities": len(await luxdb.query_entities()) if luxdb else 0
     }
+
+@app.get("/test")
+async def test():
+    return {"message": "Hello from LuxDB Demo!"}
+
+@app.get("/test-data")
+async def test_data():
+    """Endpoint testowy z przykładowymi danymi"""
+    test_data = {
+        "nodes": [
+            {"id": "test1", "label": "Test Node 1", "type": "test", "data": {"value": 1}},
+            {"id": "test2", "label": "Test Node 2", "type": "test", "data": {"value": 2}},
+            {"id": "test3", "label": "Test Node 3", "type": "test", "data": {"value": 3}}
+        ],
+        "links": [
+            {"source": "test1", "target": "test2", "type": "test_relation"},
+            {"source": "test2", "target": "test3", "type": "test_relation"}
+        ]
+    }
+    await sio.emit('graph_data', test_data)
+    return test_data
 
 if __name__ == "__main__":
     print("🚀 Starting Simplified LuxDB Demo...")

@@ -81,39 +81,51 @@ class LuxOSGraph {
             // Setup socket listeners
             this.socket.on('graph_data', (data) => {
                 console.log('📊 Otrzymano dane grafu:', data);
-                console.log('📊 Beings count:', data.beings ? data.beings.length : 'no beings');
-                console.log('📊 Relationships count:', data.relationships ? data.relationships.length : 'no relationships');
-                console.log('📊 Relations count:', data.relations ? data.relations.length : 'no relations');
 
-                if (data && (data.beings || data.souls || data.relations)) {
-                    console.log('✅ Validating data:', {
-                        beings: data.beings ? data.beings.length : 0,
-                        souls: data.souls ? data.souls.length : 0,
-                        relations: data.relations ? data.relations.length : 0
-                    });
-
-                    // Store relationships first
-                    if (data.relationships && Array.isArray(data.relationships)) {
-                        this.relationships = data.relationships.map(rel => ({
-                            source_uid: rel.source_uid || rel.source_soul,
-                            target_uid: rel.target_uid || rel.target_soul,
-                            relation_type: rel.relation_type || rel.type || 'connection',
-                            strength: rel.strength || rel.metadata?.strength || 0.5,
-                            metadata: rel.metadata || {}
-                        }));
-                        console.log('🔗 Processed relationships:', this.relationships);
-                    } else {
-                        this.relationships = [];
-                    }
-
-                    // Store beings and render with complete data structure
-                    this.beings = data.beings || [];
-                    this.lastData = data; // Store complete data for resize operations
-                    console.log(`🚀 Calling renderUniverse with ${data.beings ? data.beings.length : 0} beings`);
-                    this.renderUniverse(data.beings || []); // Pass beings array as expected by function
-                } else {
-                    console.log('❌ No valid data received:', data);
+                // Sprawdź czy mamy jakiekolwiek dane
+                if (!data || typeof data !== 'object') {
+                    console.log('❌ Nieprawidłowe dane:', data);
+                    return;
                 }
+
+                const beings = data.beings || [];
+                const relationships = data.relationships || [];
+                const relations = data.relations || [];
+                const nodes = data.nodes || [];
+                const links = data.links || [];
+
+                console.log('📊 Beings count:', beings.length);
+                console.log('📊 Relationships count:', relationships.length);
+                console.log('📊 Relations count:', relations.length);
+                console.log('📊 Nodes count:', nodes.length);
+                console.log('📊 Links count:', links.length);
+
+                // Jeśli mamy bezpośrednio nodes i links, użyj ich
+                if (nodes.length > 0) {
+                    console.log('✅ Używam gotowych nodes i links');
+                    // Assuming updateGraph can handle nodes and links directly
+                    // If not, a conversion function would be needed here
+                    if (typeof updateGraph === 'function') {
+                        updateGraph({ nodes, links });
+                    } else {
+                        console.error("updateGraph function is not defined!");
+                    }
+                    return;
+                }
+
+                // Jeśli mamy beings/relationships, skonwertuj je
+                if (beings.length > 0 || relationships.length > 0) {
+                    console.log('✅ Konwertuję beings i relationships');
+                    // Assuming updateGraph can handle beings and relationships
+                    if (typeof updateGraph === 'function') {
+                        updateGraph(data);
+                    } else {
+                        console.error("updateGraph function is not defined!");
+                    }
+                    return;
+                }
+
+                console.log('❌ Brak danych do wyświetlenia');
             });
 
         } catch (error) {
@@ -777,3 +789,22 @@ class LuxOSGraph {
 
 console.log('✅ LuxOSGraph class defined and available globally');
 window.LuxOSGraph = LuxOSGraph;
+
+function clearGraph() {
+        console.log('🗑️ Czyszczenie grafu...');
+        if (window.graph) {
+            window.graph.clear();
+        }
+    }
+
+    function testData() {
+        console.log('🧪 Ładowanie danych testowych...');
+        fetch('/test-data')
+            .then(response => response.json())
+            .then(data => {
+                console.log('✅ Otrzymano dane testowe:', data);
+            })
+            .catch(error => {
+                console.error('❌ Błąd podczas ładowania danych testowych:', error);
+            });
+    }
