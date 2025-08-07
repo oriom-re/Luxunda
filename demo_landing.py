@@ -28,12 +28,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Socket.IO server
+# Socket.IO Configuration with better stability settings
 sio = socketio.AsyncServer(
-    async_mode='asgi',
     cors_allowed_origins="*",
-    logger=False,
-    engineio_logger=False
+    logger=False,  # Disable verbose logging
+    engineio_logger=False,
+    ping_timeout=60,  # Increase ping timeout
+    ping_interval=25,  # Ping every 25 seconds
+    max_http_buffer_size=1000000,  # 1MB buffer
+    transports=['websocket', 'polling']  # Allow fallback to polling
 )
 
 # Initialize Simplified LuxDB
@@ -62,9 +65,9 @@ async def startup_event():
             entity_type="user"
         )
 
-        # Create AI agent entity  
+        # Create AI agent entity
         agent = await luxdb.create_entity(
-            name="AI Assistant", 
+            name="AI Assistant",
             data={
                 "model": "gpt-4",
                 "capabilities": ["analysis", "generation", "reasoning"],
@@ -98,32 +101,43 @@ async def startup_event():
 app.mount("/static", StaticFiles(directory="static"), name="static")
 socket_app = socketio.ASGIApp(sio, app)
 
+# Socket.IO Events with improved error handling
 @sio.event
 async def connect(sid, environ):
-    """Handle client connection"""
     print(f"🌟 CLIENT CONNECTED: {sid}")
-    await sio.emit('demo_data', {
-        'message': 'Connected to Simplified LuxDB',
-        'timestamp': datetime.now().isoformat(),
-        'version': '3.0.0'
-    })
+
+    try:
+        # Send welcome message
+        await sio.emit('demo_data', {
+            'message': 'Connected to Simplified LuxDB',
+            'timestamp': datetime.now().isoformat(),
+            'version': '3.0.0'
+        }, room=sid)
+
+        # Auto-send initial graph data
+        await request_graph_data(sid)
+    except Exception as e:
+        print(f"❌ Error in connect handler: {e}")
+
+@sio.event
+async def disconnect(sid):
+    print(f"💔 CLIENT DISCONNECTED: {sid}")
 
 @sio.event
 async def request_graph_data(sid):
-    """Send graph data using simple API"""
+    print("📡 Fetching graph data with simple API...")
     try:
-        print("📡 Fetching graph data with simple API...")
-
-        # Get all entities and connections using simple API
-        entities = await luxdb.query_entities()
-        graph_data = await luxdb.get_graph_data()
-
-        print(f"📤 Sending simplified graph data: {len(entities)} entities")
-        await sio.emit('graph_data', graph_data, room=sid)
-
+        data = await SimpleLuxDB.get_graph_data()
+        await sio.emit('graph_data', data, room=sid)
+        print(f"📤 Sending simplified graph data: {len(data.get('nodes', []))} entities")
     except Exception as e:
-        print(f"❌ Error getting graph data: {e}")
+        print(f"❌ Error fetching graph data: {e}")
         await sio.emit('error', {'message': str(e)}, room=sid)
+
+@sio.event
+async def ping(sid):
+    """Handle ping from client to keep connection alive"""
+    await sio.emit('pong', {'timestamp': datetime.now().isoformat()}, room=sid)
 
 @app.post("/api/create_entity")
 async def create_entity_endpoint(request: Request):
@@ -147,14 +161,14 @@ async def create_entity_endpoint(request: Request):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-@app.post("/api/connect_entities")  
+@app.post("/api/connect_entities")
 async def connect_entities_endpoint(request: Request):
     """Simple endpoint to connect entities"""
     try:
         data = await request.json()
         await luxdb.connect_entities(
             data.get('entity1_id'),
-            data.get('entity2_id'), 
+            data.get('entity2_id'),
             data.get('relation_type', 'connected')
         )
 
@@ -171,14 +185,14 @@ async def connect_entities_endpoint(request: Request):
 async def main_page():
     return FileResponse("static/index.html")
 
-@app.get("/graph")  
+@app.get("/graph")
 async def graph_page():
     return FileResponse('static/graph.html')
 
 @app.get("/health")
 async def health_check():
     return {
-        "status": "healthy", 
+        "status": "healthy",
         "service": "Simplified LuxDB",
         "version": "3.0.0",
         "entities": len(await luxdb.query_entities()) if luxdb else 0
@@ -188,7 +202,7 @@ if __name__ == "__main__":
     print("🚀 Starting Simplified LuxDB Demo...")
     print("=" * 50)
     print("✨ Now with intuitive API!")
-    print("📡 Much simpler entity management")  
+    print("📡 Much simpler entity management")
     print("🎯 Easy graph synchronization")
     print("=" * 50)
 

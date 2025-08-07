@@ -10,6 +10,9 @@ class LuxOSGraph {
         this.zoomBehavior = null;
         this.svg = null;
         this.lastData = null; // Store last data for resize operations
+        this.connectionStatus = 'disconnected';
+        this.reconnectAttempts = 0;
+        this.heartbeatInterval = null;
 
         console.log('🌀 LuxDB Graph initialized');
         this.initializeConnection();
@@ -17,22 +20,62 @@ class LuxOSGraph {
 
     initializeConnection() {
         try {
+            // Initialize Socket.IO with robust reconnection
             this.socket = io({
                 transports: ['websocket', 'polling'],
                 upgrade: true,
-                rememberUpgrade: true
+                rememberUpgrade: true,
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                maxReconnectionAttempts: 10,
+                timeout: 20000,
+                pingTimeout: 60000,
+                pingInterval: 25000
             });
 
             this.socket.on('connect', () => {
-                this.isConnected = true;
-                console.log('✅ Połączono z wszechświatem LuxOS');
+                console.log('✅ Połączono z LuxDB Gaming Server');
+                this.connectionStatus = 'connected';
+                this.reconnectAttempts = 0;
                 this.requestGraphData();
+                this.startHeartbeat();
             });
 
             this.socket.on('disconnect', (reason) => {
-                this.isConnected = false;
-                console.log('Rozłączono ze wszechświatem:', reason);
-                this.attemptReconnect();
+                console.log('💔 Rozłączono z LuxDB Gaming Server:', reason);
+                this.connectionStatus = 'disconnected';
+                this.stopHeartbeat();
+            });
+
+            this.socket.on('connect_error', (error) => {
+                console.log('❌ Błąd połączenia:', error);
+                this.connectionStatus = 'error';
+            });
+
+            this.socket.on('reconnect', (attemptNumber) => {
+                console.log(`🔄 Ponownie połączono po ${attemptNumber} próbach`);
+                this.connectionStatus = 'connected';
+                this.requestGraphData();
+            });
+
+            this.socket.on('reconnect_attempt', (attemptNumber) => {
+                console.log(`🔄 Próba ponownego połączenia: ${attemptNumber}`);
+                this.reconnectAttempts = attemptNumber;
+            });
+
+            this.socket.on('reconnect_error', (error) => {
+                console.log('❌ Błąd ponownego połączenia:', error);
+            });
+
+            this.socket.on('reconnect_failed', () => {
+                console.log('❌ Nie udało się ponownie połączyć');
+                this.connectionStatus = 'failed';
+            });
+
+            // Handle pong responses
+            this.socket.on('pong', (data) => {
+                // Silent ping-pong handling
             });
 
             // Setup socket listeners
@@ -79,9 +122,26 @@ class LuxOSGraph {
     }
 
     requestGraphData() {
-        if (this.socket && this.isConnected) {
-            console.log('📡 Żądanie danych grafu...');
-            this.socket.emit('request_graph_data');
+        console.log('📡 Żądanie danych grafu...');
+        this.socket.emit('request_graph_data');
+    }
+
+    startHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+        }
+
+        this.heartbeatInterval = setInterval(() => {
+            if (this.socket.connected) {
+                this.socket.emit('ping');
+            }
+        }, 30000); // Ping every 30 seconds
+    }
+
+    stopHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
         }
     }
 
@@ -123,7 +183,7 @@ class LuxOSGraph {
         // Use stored data for souls and relations
         const souls = this.lastData?.souls || [];
         const relations = this.lastData?.relations || [];
-        
+
         // Ensure beings is an array
         beings = beings || [];
 
@@ -208,19 +268,19 @@ class LuxOSGraph {
 
         // Create nodes from simplified entities
         const entityNodes = beings.map((entity, i) => {
-            const hasAlias = soul._soul?.alias;
-            const genesisType = soul._soul?.genesis?.type;
-            const hasAttributes = soul.attributes && Object.keys(soul.attributes).length > 0;
+            const hasAlias = entity._soul?.alias;
+            const genesisType = entity._soul?.genesis?.type;
+            const hasAttributes = entity.attributes && Object.keys(entity.attributes).length > 0;
 
             const isSoulTemplate = hasAlias && !hasAttributes &&
-                                  ['user_profile', 'ai_agent', 'basic_relation', 'sample_entity'].includes(soul._soul?.alias);
+                                  ['user_profile', 'ai_agent', 'basic_relation', 'sample_entity'].includes(entity._soul?.alias);
 
-            console.log(`🔍 Node analysis: ${soul.ulid}:`, {
-                alias: hasAlias ? soul._soul.alias : 'NO_ALIAS',
+            console.log(`🔍 Node analysis: ${entity.ulid}:`, {
+                alias: hasAlias ? entity._soul.alias : 'NO_ALIAS',
                 genesisType: genesisType || 'UNDEFINED',
                 hasAttributes,
                 isSoulTemplate,
-                attributesCount: soul.attributes ? Object.keys(soul.attributes).length : 0,
+                attributesCount: entity.attributes ? Object.keys(entity.attributes).length : 0,
             });
 
             return {
@@ -290,7 +350,7 @@ class LuxOSGraph {
 
         // Create a map of node IDs for easier lookup
         const nodeMap = new Map();
-        [...soulNodes, ...beingNodes, ...relationNodes].forEach(node => nodeMap.set(node.id, node));
+        [...entityNodes, ...beingNodes, ...relationNodes].forEach(node => nodeMap.set(node.id, node));
 
         const links = [];
 
@@ -324,8 +384,8 @@ class LuxOSGraph {
         // Add links from traditional relationships (now supports mixed ID types)
         this.relationships.forEach(rel => {
             // Handle both new and legacy relationship formats
-            const sourceId = rel.source_id || rel.source_ulid;
-            const targetId = rel.target_id || rel.target_ulid;
+            const sourceId = rel.source_uid || rel.source_ulid;
+            const targetId = rel.target_uid || rel.target_ulid;
             const sourceType = rel.source_type || 'being';
             const targetType = rel.target_type || 'being';
 
@@ -353,8 +413,8 @@ class LuxOSGraph {
         this.links = links;
 
         // POŁĄCZ wszystkie typy węzłów
-        const allNodes = [...soulNodes, ...beingNodes, ...relationNodes];
-        console.log(`📊 Total nodes: ${allNodes.length} (${soulNodes.length} souls + ${beingNodes.length} beings + ${relationNodes.length} relations)`);
+        const allNodes = [...entityNodes, ...beingNodes, ...relationNodes];
+        console.log(`📊 Total nodes: ${allNodes.length} (${entityNodes.length} entities + ${beingNodes.length} beings + ${relationNodes.length} relations)`);
 
         // Create force simulation
         const simulation = d3.forceSimulation(allNodes)
@@ -400,7 +460,7 @@ class LuxOSGraph {
                 // Highlight line on hover
                 const baseWidth = d.type === 'soul_relation' ? 3 : 2;
                 d3.select(this).style('stroke-width', Math.max(baseWidth + 2, d.strength * 6));
-                
+
                 // Show tooltip with relationship info
                 const tooltip = d3.select('body').append('div')
                     .attr('class', 'tooltip')
@@ -424,7 +484,7 @@ class LuxOSGraph {
                 // Restore normal thickness
                 const baseWidth = d.type === 'soul_relation' ? 3 : 2;
                 d3.select(this).style('stroke-width', Math.max(baseWidth, d.strength * 5));
-                
+
                 // Remove tooltip
                 d3.select('.tooltip').remove();
             });
