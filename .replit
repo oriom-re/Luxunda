@@ -63,6 +63,24 @@ mode = "sequential"
 task = "shell.exec"
 args = "python demo_landing.py"
 
+[[workflows.workflow]]
+name = "Lux AI Assistant Demo"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python demo_lux_assistant.py"
+
+[[workflows.workflow]]
+name = "Lux Web Interface"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -m luxdb.web_lux_interface"
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
