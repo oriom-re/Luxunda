@@ -458,36 +458,56 @@
         </div>
     </div>
 
+    <!-- Reactive System -->
+    <script src="/static/reactive-system.js"></script>
+    <script src="/static/lux-components.js"></script>
+    <script src="/static/lux-graph-reactive.js"></script>
+    <link rel="stylesheet" href="/static/lux-reactive-styles.css">
+    
+    <!-- Legacy components -->
     <script src="/static/graph.js"></script>
     <script src="/static/chat-component.js"></script>
     <script src="/static/intention-component.js"></script>
 
     <script>
-        // Initialize graph globally
+        // Initialize reactive graph system
         let graph = null;
 
         function initApp() {
-            console.log('🚀 Inicjalizacja LuxDB Graf...');
-
-            // Check if LuxOSGraph class is available
-            if (typeof LuxOSGraph === 'undefined') {
-                console.error('❌ LuxOSGraph class not loaded');
-                showError('Graf nie może być załadowany - brak klasy LuxOSGraph');
-                return;
-            }
+            console.log('🚀 Inicjalizacja LuxDB Reactive Graf...');
 
             try {
-                // Initialize graph if not already done
+                // Initialize reactive graph system
                 if (!graph) {
-                    graph = new LuxOSGraph('graph-container');
+                    graph = window.luxGraphReactive;
+                    graph.initialize('graph-container');
                     window.graph = graph; // Make it globally available
                 }
 
-                console.log('✅ Graf zainicjalizowany');
+                // Setup UI components
+                setupReactiveUI();
+
+                console.log('✅ Reactive Graf zainicjalizowany');
             } catch (error) {
                 console.error('❌ Błąd inicjalizacji aplikacji:', error);
                 showError('Błąd inicjalizacji: ' + error.message);
             }
+        }
+
+        function setupReactiveUI() {
+            // Connection status component
+            window.luxComponents.createConnectionComponent('connectionStatus');
+            
+            // Stats component
+            window.luxComponents.createStatsComponent('statsContainer');
+            
+            // Node list component
+            window.luxComponents.createListComponent('nodesList', 'graphNodes', (node) => `
+                <div class="node-item" onclick="luxComponents.selectNode('${node.id}')">
+                    <span class="node-name">${node.name}</span>
+                    <span class="node-type">${node.type}</span>
+                </div>
+            `);
         }
 
         // Inicjalizacja aplikacji

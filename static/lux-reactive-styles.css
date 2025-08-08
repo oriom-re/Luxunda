@@ -1,0 +1,210 @@
+
+/* ===== LUX REACTIVE STYLES ===== */
+
+.lux-node {
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+    background: rgba(26, 26, 26, 0.9);
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.lux-node.selected {
+    border-color: #00ff88;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+.lux-node .node-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.lux-node .node-content h4 {
+    margin: 0 0 8px 0;
+    color: #00ff88;
+}
+
+.lux-node .node-content pre {
+    font-size: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 4px;
+    border-radius: 4px;
+    max-height: 100px;
+    overflow: auto;
+}
+
+.lux-node .node-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+}
+
+.lux-node .node-actions button {
+    background: #00ff88;
+    color: #1a1a1a;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.lux-stats {
+    display: flex;
+    gap: 20px;
+    padding: 15px;
+    background: rgba(26, 26, 26, 0.9);
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+.stat-item {
+    text-align: center;
+    color: white;
+}
+
+.stat-value {
+    display: block;
+    font-size: 24px;
+    font-weight: bold;
+    color: #00ff88;
+}
+
+.stat-label {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.lux-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #333;
+    border-radius: 8px;
+    background: rgba(26, 26, 26, 0.9);
+}
+
+.node-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #333;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    transition: background 0.2s ease;
+}
+
+.node-item:hover {
+    background: rgba(0, 255, 136, 0.1);
+}
+
+.node-item:last-child {
+    border-bottom: none;
+}
+
+.node-name {
+    font-weight: bold;
+}
+
+.node-type {
+    font-size: 11px;
+    opacity: 0.7;
+    background: #333;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.connection-status.connected {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+}
+
+.connection-status.disconnected {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.empty-list {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+
+.node-missing {
+    padding: 12px;
+    text-align: center;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 6px;
+}
+
+/* Graph specific styles */
+.graph-node.selected circle {
+    stroke: #00ff88;
+    stroke-width: 3px;
+}
+
+.graph-link {
+    transition: opacity 0.3s ease;
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #00ff88;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .lux-stats {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .node-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+}
