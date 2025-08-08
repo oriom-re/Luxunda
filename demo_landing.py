@@ -22,6 +22,74 @@ from luxdb.simple_api import SimpleLuxDB, SimpleEntity
 from luxdb.core.deployment_manager import deployment_manager
 from luxdb.core.workspace_manager import workspace_manager
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("🌟 Simplified LuxDB Demo started!")
+
+    # Initialize database
+    print("🔄 Inicjalizacja puli połączeń do bazy PostgreSQL...")
+    try:
+        db_pool = await Postgre_db.get_db_pool()
+        if not db_pool:
+            print("❌ Startup error: Could not initialize database pool")
+        else:
+            print("✅ Database pool initialized successfully!")
+    except Exception as e:
+        print(f"❌ Startup error: {e}")
+        print("⚠️ Continuing without database connection...")
+
+    # Create some demo entities using simple API
+    print("📝 Creating demo entities with simple API...")
+
+    try:
+        # Create user entity
+        user = await luxdb.create_entity(
+            name="Demo User",
+            data={
+                "email": "demo@luxdb.com",
+                "age": 25,
+                "preferences": ["AI", "databases", "graphs"]
+            },
+            entity_type="user"
+        )
+
+        # Create AI agent entity
+        agent = await luxdb.create_entity(
+            name="AI Assistant",
+            data={
+                "model": "gpt-4",
+                "capabilities": ["analysis", "generation", "reasoning"],
+                "active": True
+            },
+            entity_type="ai_agent"
+        )
+
+        # Create project entity
+        project = await luxdb.create_entity(
+            name="LuxDB Project",
+            data={
+                "description": "Revolutionary genetic database",
+                "status": "active",
+                "version": "3.0.0"
+            },
+            entity_type="project"
+        )
+
+        # Create simple connections
+        await luxdb.connect_entities(user.id, agent.id, "interacts_with")
+        await luxdb.connect_entities(user.id, project.id, "owns")
+        await luxdb.connect_entities(agent.id, project.id, "assists_with")
+
+        print("✅ Demo entities created successfully!")
+    except Exception as e:
+        print(f"⚠️ Could not create demo entities: {e}")
+    
+    yield  # App is running
+    
+    # Shutdown
+    print("🛑 Shutting down LuxDB Demo...")
+
 # Session Management
 class SessionManager:
     def __init__(self):
@@ -119,76 +187,6 @@ sio = socketio.AsyncServer(
 
 # Initialize Simplified LuxDB
 luxdb = SimpleLuxDB()
-
-from contextlib import asynccontextmanager
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    print("🌟 Simplified LuxDB Demo started!")
-
-    # Initialize database
-    print("🔄 Inicjalizacja puli połączeń do bazy PostgreSQL...")
-    try:
-        db_pool = await Postgre_db.get_db_pool()
-        if not db_pool:
-            print("❌ Startup error: Could not initialize database pool")
-        else:
-            print("✅ Database pool initialized successfully!")
-    except Exception as e:
-        print(f"❌ Startup error: {e}")
-        print("⚠️ Continuing without database connection...")
-
-    # Create some demo entities using simple API
-    print("📝 Creating demo entities with simple API...")
-
-    try:
-        # Create user entity
-        user = await luxdb.create_entity(
-            name="Demo User",
-            data={
-                "email": "demo@luxdb.com",
-                "age": 25,
-                "preferences": ["AI", "databases", "graphs"]
-            },
-            entity_type="user"
-        )
-
-        # Create AI agent entity
-        agent = await luxdb.create_entity(
-            name="AI Assistant",
-            data={
-                "model": "gpt-4",
-                "capabilities": ["analysis", "generation", "reasoning"],
-                "active": True
-            },
-            entity_type="ai_agent"
-        )
-
-        # Create project entity
-        project = await luxdb.create_entity(
-            name="LuxDB Project",
-            data={
-                "description": "Revolutionary genetic database",
-                "status": "active",
-                "version": "3.0.0"
-            },
-            entity_type="project"
-        )
-
-        # Create simple connections
-        await luxdb.connect_entities(user.id, agent.id, "interacts_with")
-        await luxdb.connect_entities(user.id, project.id, "owns")
-        await luxdb.connect_entities(agent.id, project.id, "assists_with")
-
-        print("✅ Demo entities created successfully!")
-    except Exception as e:
-        print(f"⚠️ Could not create demo entities: {e}")
-    
-    yield  # App is running
-    
-    # Shutdown
-    print("🛑 Shutting down LuxDB Demo...")
 
 # Configure static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
