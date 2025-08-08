@@ -1,4 +1,3 @@
-
 // 🔥 REWOLUCYJNY SYSTEM INTENCJI LuxOS
 class RevolutionaryIntentionSystem {
     constructor() {
@@ -6,7 +5,7 @@ class RevolutionaryIntentionSystem {
         this.intentions = new Map();
         this.connections = new Map();
         this.inspirations = [];
-        
+
         this.setupUI();
         this.setupSocketListeners();
     }
@@ -18,7 +17,7 @@ class RevolutionaryIntentionSystem {
                 <h1>🧬 LuxOS: System Żywych Intencji</h1>
                 <p>Gdzie myśli stają się rzeczywistością</p>
             </div>
-            
+
             <div class="intention-input-zone">
                 <textarea id="user-intention" 
                          placeholder="Opisz swoją intencję... (np. 'Chcę system który automatycznie łączy podobne projekty')"
@@ -27,7 +26,7 @@ class RevolutionaryIntentionSystem {
                     🚀 Aktywuj Intencję
                 </button>
             </div>
-            
+
             <div class="live-system-state">
                 <div class="intention-stream" id="intention-stream">
                     <h3>🌊 Strumień Świadomości</h3>
@@ -56,7 +55,7 @@ class RevolutionaryIntentionSystem {
     processUserIntention() {
         const textarea = document.getElementById('user-intention');
         const intentionText = textarea.value.trim();
-        
+
         if (!intentionText) return;
 
         const intention = {
@@ -69,7 +68,7 @@ class RevolutionaryIntentionSystem {
         };
 
         this.intentions.set(intention.id, intention);
-        
+
         // Wyślij do systemu AI
         this.socket.emit('process_intention', {
             intention: intention,
@@ -78,14 +77,14 @@ class RevolutionaryIntentionSystem {
 
         this.visualizeIntention(intention);
         this.findConnections(intention);
-        
+
         textarea.value = '';
         this.animateSubmission();
     }
 
     classifyIntention(text) {
         const lower = text.toLowerCase();
-        
+
         if (lower.includes('połącz') || lower.includes('łączy') || lower.includes('relacja')) {
             return 'connection';
         } else if (lower.includes('stwórz') || lower.includes('zbuduj') || lower.includes('utwórz')) {
@@ -105,7 +104,7 @@ class RevolutionaryIntentionSystem {
         const stream = document.getElementById('intention-stream');
         const intentionElement = document.createElement('div');
         intentionElement.className = `intention-item ${intention.type}`;
-        
+
         intentionElement.innerHTML = `
             <div class="intention-header">
                 <span class="intention-type">${this.getTypeIcon(intention.type)} ${intention.type}</span>
@@ -117,7 +116,7 @@ class RevolutionaryIntentionSystem {
         `;
 
         stream.insertBefore(intentionElement, stream.firstChild.nextSibling);
-        
+
         // Animacja pojawiania się
         setTimeout(() => {
             intentionElement.classList.add('intention-appear');
@@ -126,10 +125,10 @@ class RevolutionaryIntentionSystem {
 
     findConnections(newIntention) {
         const connections = [];
-        
+
         for (const [id, intention] of this.intentions) {
             if (id === newIntention.id) continue;
-            
+
             const similarity = this.calculateSimilarity(newIntention.text, intention.text);
             if (similarity > 0.3) {
                 connections.push({
@@ -142,7 +141,7 @@ class RevolutionaryIntentionSystem {
 
         newIntention.connections = connections;
         this.visualizeConnections(newIntention, connections);
-        
+
         if (connections.length > 0) {
             this.generateInspiration(newIntention, connections);
         }
@@ -151,20 +150,20 @@ class RevolutionaryIntentionSystem {
     calculateSimilarity(text1, text2) {
         const words1 = text1.toLowerCase().split(/\s+/);
         const words2 = text2.toLowerCase().split(/\s+/);
-        
+
         const intersection = words1.filter(word => words2.includes(word));
         const union = [...new Set([...words1, ...words2])];
-        
+
         return intersection.length / union.length;
     }
 
     visualizeConnections(intention, connections) {
         const web = document.getElementById('connection-web');
-        
+
         connections.forEach(connection => {
             const connectionElement = document.createElement('div');
             connectionElement.className = 'connection-item';
-            
+
             connectionElement.innerHTML = `
                 <div class="connection-strength">
                     💫 Siła połączenia: ${Math.round(connection.strength * 100)}%
@@ -176,7 +175,7 @@ class RevolutionaryIntentionSystem {
                     🔗 Typ: ${connection.type}
                 </div>
             `;
-            
+
             web.appendChild(connectionElement);
         });
     }
@@ -209,7 +208,7 @@ class RevolutionaryIntentionSystem {
         const feed = document.getElementById('inspiration-feed');
         const inspirationElement = document.createElement('div');
         inspirationElement.className = 'inspiration-item';
-        
+
         inspirationElement.innerHTML = `
             <div class="inspiration-header">
                 💡 System Generuje Inspirację
@@ -222,7 +221,7 @@ class RevolutionaryIntentionSystem {
         `;
 
         feed.insertBefore(inspirationElement, feed.firstChild.nextSibling);
-        
+
         // Efekt DNA double helix
         inspirationElement.classList.add('dna-spiral');
     }
