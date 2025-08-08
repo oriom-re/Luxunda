@@ -1,669 +1,458 @@
 
-class IntentionAnalysisSystem {
-    constructor(graphManager) {
-        this.graphManager = graphManager;
-        this.intentionTypes = [
-            'question', 'idea', 'feedback', 'solution', 'problem', 
-            'support', 'innovation', 'connection', 'inspiration'
-        ];
-        this.activeConnections = new Map();
-        this.messageBeings = new Map();
+// 🔥 REWOLUCYJNY SYSTEM INTENCJI LuxOS
+class RevolutionaryIntentionSystem {
+    constructor() {
+        this.socket = io();
+        this.intentions = new Map();
+        this.connections = new Map();
+        this.inspirations = [];
         
         this.setupUI();
-        this.setupSocketHandlers();
+        this.setupSocketListeners();
     }
-    
+
     setupUI() {
-        const container = document.createElement('div');
-        container.id = 'intention-system';
-        container.className = 'intention-system-container';
+        const container = document.getElementById('intention-container');
         container.innerHTML = `
-            <div class="intention-header">
-                <h3>🧠 System Analizy Intencji</h3>
-                <div class="intention-stats">
-                    <span id="message-beings-count">0 bytów-wiadomości</span>
-                    <span id="connections-found">0 połączeń</span>
-                </div>
+            <div class="revolutionary-header">
+                <h1>🧬 LuxOS: System Żywych Intencji</h1>
+                <p>Gdzie myśli stają się rzeczywistością</p>
             </div>
             
-            <div class="message-input-section">
-                <div class="input-group">
-                    <textarea id="message-input" 
-                             placeholder="Napisz swoją wiadomość z intencją..." 
-                             rows="3"></textarea>
-                    <button id="send-message-btn">📤 Wyślij</button>
-                </div>
-                
-                <div class="intention-preview" id="intention-preview" style="display:none;">
-                    <div class="detected-intention">
-                        <strong>Wykryta intencja:</strong> <span id="intention-type"></span>
-                        <div class="confidence">Pewność: <span id="intention-confidence"></span>%</div>
-                    </div>
-                    <div class="potential-connections" id="potential-connections">
-                        <strong>Potencjalne połączenia:</strong>
-                        <div id="connections-list"></div>
-                    </div>
-                </div>
+            <div class="intention-input-zone">
+                <textarea id="user-intention" 
+                         placeholder="Opisz swoją intencję... (np. 'Chcę system który automatycznie łączy podobne projekty')"
+                         rows="3"></textarea>
+                <button id="submit-intention" class="quantum-btn">
+                    🚀 Aktywuj Intencję
+                </button>
             </div>
             
-            <div class="active-messages" id="active-messages">
-                <h4>🔗 Aktywne byty-wiadomości</h4>
-                <div id="messages-list"></div>
-            </div>
-            
-            <div class="connection-suggestions" id="connection-suggestions">
-                <h4>💡 Sugerowane połączenia</h4>
-                <div id="suggestions-list"></div>
+            <div class="live-system-state">
+                <div class="intention-stream" id="intention-stream">
+                    <h3>🌊 Strumień Świadomości</h3>
+                </div>
+                <div class="connection-web" id="connection-web">
+                    <h3>🕸️ Sieć Połączeń</h3>
+                </div>
+                <div class="inspiration-feed" id="inspiration-feed">
+                    <h3>💡 Żywe Inspiracje</h3>
+                </div>
             </div>
         `;
-        
-        document.body.appendChild(container);
-        this.bindEvents();
-    }
-    
-    bindEvents() {
-        const messageInput = document.getElementById('message-input');
-        const sendBtn = document.getElementById('send-message-btn');
-        
-        messageInput.addEventListener('input', (e) => {
-            this.analyzeInputIntention(e.target.value);
+
+        // Event listeners
+        document.getElementById('submit-intention').addEventListener('click', () => {
+            this.processUserIntention();
         });
-        
-        sendBtn.addEventListener('click', () => {
-            this.sendMessageBeing();
-        });
-        
-        messageInput.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
-                this.sendMessageBeing();
+
+        document.getElementById('user-intention').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                this.processUserIntention();
             }
         });
     }
-    
-    analyzeInputIntention(messageText) {
-        if (!messageText.trim()) {
-            document.getElementById('intention-preview').style.display = 'none';
-            return;
+
+    processUserIntention() {
+        const textarea = document.getElementById('user-intention');
+        const intentionText = textarea.value.trim();
+        
+        if (!intentionText) return;
+
+        const intention = {
+            id: this.generateId(),
+            text: intentionText,
+            timestamp: new Date(),
+            type: this.classifyIntention(intentionText),
+            energy: Math.random() * 100,
+            connections: []
+        };
+
+        this.intentions.set(intention.id, intention);
+        
+        // Wyślij do systemu AI
+        this.socket.emit('process_intention', {
+            intention: intention,
+            context: Array.from(this.intentions.values())
+        });
+
+        this.visualizeIntention(intention);
+        this.findConnections(intention);
+        
+        textarea.value = '';
+        this.animateSubmission();
+    }
+
+    classifyIntention(text) {
+        const lower = text.toLowerCase();
+        
+        if (lower.includes('połącz') || lower.includes('łączy') || lower.includes('relacja')) {
+            return 'connection';
+        } else if (lower.includes('stwórz') || lower.includes('zbuduj') || lower.includes('utwórz')) {
+            return 'creation';
+        } else if (lower.includes('analizuj') || lower.includes('sprawdź') || lower.includes('znajdź')) {
+            return 'analysis';
+        } else if (lower.includes('automatycznie') || lower.includes('auto') || lower.includes('samo')) {
+            return 'automation';
+        } else if (lower.includes('pomysł') || lower.includes('inspiracja') || lower.includes('idea')) {
+            return 'inspiration';
+        } else {
+            return 'exploration';
         }
-        
-        const analysis = this.performIntentionAnalysis(messageText);
-        this.showIntentionPreview(analysis);
-        
-        // Znajdź potencjalne połączenia
-        const connections = this.findPotentialConnections(analysis);
-        this.showPotentialConnections(connections);
     }
-    
-    performIntentionAnalysis(text) {
-        const lowerText = text.toLowerCase();
+
+    visualizeIntention(intention) {
+        const stream = document.getElementById('intention-stream');
+        const intentionElement = document.createElement('div');
+        intentionElement.className = `intention-item ${intention.type}`;
         
-        // Wzorce intencji
-        const patterns = {
-            question: /\?|jak|dlaczego|czy|kiedy|gdzie|co to|pomoż/,
-            idea: /pomysł|idea|może|co jeśli|innowacja|nowy/,
-            feedback: /feedback|opinia|uwaga|sądzę|myślę/,
-            solution: /rozwiązanie|sposób|można|zrobimy|naprawię/,
-            problem: /problem|błąd|nie działa|issue|bug/,
-            support: /wsparcie|pomoc|potrzebuję|proszę/,
-            innovation: /innowacja|przełom|rewolucja|nowość/,
-            connection: /połącz|razem|wspólnie|integracja/,
-            inspiration: /inspiracja|motywacja|wizja|marzenie/
-        };
+        intentionElement.innerHTML = `
+            <div class="intention-header">
+                <span class="intention-type">${this.getTypeIcon(intention.type)} ${intention.type}</span>
+                <span class="intention-energy">⚡ ${Math.round(intention.energy)}%</span>
+            </div>
+            <div class="intention-text">${intention.text}</div>
+            <div class="intention-status">🔄 Analizowanie wzorców...</div>
+            <div class="intention-timestamp">${intention.timestamp.toLocaleTimeString()}</div>
+        `;
+
+        stream.insertBefore(intentionElement, stream.firstChild.nextSibling);
         
-        let bestMatch = { type: 'general', confidence: 30 };
-        
-        for (const [type, pattern] of Object.entries(patterns)) {
-            if (pattern.test(lowerText)) {
-                const matches = lowerText.match(pattern);
-                const confidence = Math.min(95, 60 + (matches.length * 15));
-                if (confidence > bestMatch.confidence) {
-                    bestMatch = { type, confidence };
-                }
-            }
-        }
-        
-        return {
-            type: bestMatch.type,
-            confidence: bestMatch.confidence,
-            keywords: this.extractKeywords(text),
-            sentiment: this.analyzeSentiment(text),
-            text: text
-        };
+        // Animacja pojawiania się
+        setTimeout(() => {
+            intentionElement.classList.add('intention-appear');
+        }, 100);
     }
-    
-    extractKeywords(text) {
-        const stopWords = ['i', 'a', 'w', 'na', 'z', 'do', 'się', 'że', 'to', 'jest', 'by', 'być'];
-        const words = text.toLowerCase()
-            .replace(/[^\w\s]/g, ' ')
-            .split(/\s+/)
-            .filter(word => word.length > 2 && !stopWords.includes(word));
-        
-        // Zlicz częstotliwość
-        const freq = {};
-        words.forEach(word => freq[word] = (freq[word] || 0) + 1);
-        
-        // Zwróć najczęstsze
-        return Object.entries(freq)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, 5)
-            .map(([word]) => word);
-    }
-    
-    analyzeSentiment(text) {
-        const positiveWords = ['dobry', 'świetny', 'genialny', 'super', 'awesome', 'love', 'like'];
-        const negativeWords = ['zły', 'problem', 'błąd', 'nie', 'hate', 'bad', 'wrong'];
-        
-        const lowerText = text.toLowerCase();
-        const positive = positiveWords.reduce((count, word) => 
-            count + (lowerText.includes(word) ? 1 : 0), 0);
-        const negative = negativeWords.reduce((count, word) => 
-            count + (lowerText.includes(word) ? 1 : 0), 0);
-        
-        if (positive > negative) return 'positive';
-        if (negative > positive) return 'negative';
-        return 'neutral';
-    }
-    
-    showIntentionPreview(analysis) {
-        const preview = document.getElementById('intention-preview');
-        const typeSpan = document.getElementById('intention-type');
-        const confidenceSpan = document.getElementById('intention-confidence');
-        
-        typeSpan.textContent = this.getIntentionLabel(analysis.type);
-        typeSpan.className = `intention-${analysis.type}`;
-        confidenceSpan.textContent = analysis.confidence;
-        
-        preview.style.display = 'block';
-    }
-    
-    getIntentionLabel(type) {
-        const labels = {
-            question: '❓ Pytanie',
-            idea: '💡 Pomysł',
-            feedback: '📝 Feedback',
-            solution: '🔧 Rozwiązanie',
-            problem: '⚠️ Problem',
-            support: '🤝 Wsparcie',
-            innovation: '🚀 Innowacja',
-            connection: '🔗 Połączenie',
-            inspiration: '✨ Inspiracja',
-            general: '💬 Ogólne'
-        };
-        return labels[type] || labels.general;
-    }
-    
-    findPotentialConnections(analysis) {
+
+    findConnections(newIntention) {
         const connections = [];
-        const currentKeywords = new Set(analysis.keywords);
         
-        for (const [beingId, being] of this.messageBeings) {
-            const commonKeywords = being.keywords.filter(k => currentKeywords.has(k));
-            const keywordMatch = commonKeywords.length / Math.max(currentKeywords.size, being.keywords.length);
+        for (const [id, intention] of this.intentions) {
+            if (id === newIntention.id) continue;
             
-            const intentionMatch = analysis.type === being.intention.type ? 0.3 : 0;
-            const sentimentMatch = analysis.sentiment === being.sentiment ? 0.2 : 0;
-            
-            const totalScore = (keywordMatch * 0.5) + intentionMatch + sentimentMatch;
-            
-            if (totalScore > 0.3) {
+            const similarity = this.calculateSimilarity(newIntention.text, intention.text);
+            if (similarity > 0.3) {
                 connections.push({
-                    beingId,
-                    being,
-                    score: totalScore,
-                    commonKeywords,
-                    reason: this.getConnectionReason(analysis, being)
+                    target: intention,
+                    strength: similarity,
+                    type: this.getConnectionType(newIntention.type, intention.type)
                 });
             }
         }
+
+        newIntention.connections = connections;
+        this.visualizeConnections(newIntention, connections);
         
-        return connections.sort((a, b) => b.score - a.score).slice(0, 3);
-    }
-    
-    getConnectionReason(analysis1, analysis2) {
-        if (analysis1.type === analysis2.intention.type) {
-            return `Podobna intencja: ${this.getIntentionLabel(analysis1.type)}`;
+        if (connections.length > 0) {
+            this.generateInspiration(newIntention, connections);
         }
-        
-        // Komplementarne intencje
-        const complementary = {
-            'question': ['solution', 'support'],
-            'problem': ['solution', 'support'],
-            'idea': ['feedback', 'innovation'],
-            'support': ['problem', 'question']
-        };
-        
-        if (complementary[analysis1.type]?.includes(analysis2.intention.type)) {
-            return `Komplementarne intencje: ${this.getIntentionLabel(analysis1.type)} ↔ ${this.getIntentionLabel(analysis2.intention.type)}`;
-        }
-        
-        return 'Podobne słowa kluczowe';
     }
-    
-    showPotentialConnections(connections) {
-        const connectionsList = document.getElementById('connections-list');
+
+    calculateSimilarity(text1, text2) {
+        const words1 = text1.toLowerCase().split(/\s+/);
+        const words2 = text2.toLowerCase().split(/\s+/);
         
-        if (connections.length === 0) {
-            connectionsList.innerHTML = '<em>Brak potencjalnych połączeń</em>';
-            return;
-        }
+        const intersection = words1.filter(word => words2.includes(word));
+        const union = [...new Set([...words1, ...words2])];
         
-        connectionsList.innerHTML = connections.map(conn => `
-            <div class="potential-connection">
-                <div class="connection-score">${Math.round(conn.score * 100)}%</div>
-                <div class="connection-info">
-                    <div class="connection-text">${conn.being.text.substring(0, 50)}...</div>
-                    <div class="connection-reason">${conn.reason}</div>
-                </div>
-            </div>
-        `).join('');
+        return intersection.length / union.length;
     }
-    
-    async sendMessageBeing() {
-        const input = document.getElementById('message-input');
-        const messageText = input.value.trim();
+
+    visualizeConnections(intention, connections) {
+        const web = document.getElementById('connection-web');
         
-        if (!messageText) return;
-        
-        const analysis = this.performIntentionAnalysis(messageText);
-        
-        // Utwórz byt-wiadomość
-        const messageBeing = {
-            id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            text: messageText,
-            intention: analysis,
-            keywords: analysis.keywords,
-            sentiment: analysis.sentiment,
-            timestamp: new Date(),
-            author: 'user',
-            connections: []
-        };
-        
-        // Dodaj do systemu
-        this.messageBeings.set(messageBeing.id, messageBeing);
-        
-        // Znajdź i utwórz połączenia
-        const connections = this.findPotentialConnections(analysis);
-        await this.createConnections(messageBeing, connections);
-        
-        // Wyślij do serwera
-        if (this.graphManager?.socket) {
-            this.graphManager.socket.emit('message_being_created', {
-                being: messageBeing,
-                connections: connections
-            });
-        }
-        
-        // Aktualizuj UI
-        this.updateMessagesDisplay();
-        this.updateConnectionSuggestions();
-        this.updateStats();
-        
-        // Wyczyść input
-        input.value = '';
-        document.getElementById('intention-preview').style.display = 'none';
-        
-        // Pokaż sukces
-        this.showNotification(`✅ Utworzono byt-wiadomość z ${connections.length} połączeniami!`);
-    }
-    
-    async createConnections(messageBeing, potentialConnections) {
-        for (const conn of potentialConnections) {
-            const connectionId = `conn_${messageBeing.id}_${conn.beingId}`;
+        connections.forEach(connection => {
+            const connectionElement = document.createElement('div');
+            connectionElement.className = 'connection-item';
             
-            // Dodaj połączenie do obu bytów
-            messageBeing.connections.push({
-                id: connectionId,
-                targetId: conn.beingId,
-                type: 'semantic',
-                strength: conn.score,
-                reason: conn.reason,
-                keywords: conn.commonKeywords
-            });
+            connectionElement.innerHTML = `
+                <div class="connection-strength">
+                    💫 Siła połączenia: ${Math.round(connection.strength * 100)}%
+                </div>
+                <div class="connection-description">
+                    "${intention.text}" ↔️ "${connection.target.text}"
+                </div>
+                <div class="connection-type">
+                    🔗 Typ: ${connection.type}
+                </div>
+            `;
             
-            conn.being.connections.push({
-                id: connectionId,
-                targetId: messageBeing.id,
-                type: 'semantic', 
-                strength: conn.score,
-                reason: conn.reason,
-                keywords: conn.commonKeywords
-            });
-            
-            this.activeConnections.set(connectionId, {
-                sourceId: messageBeing.id,
-                targetId: conn.beingId,
-                strength: conn.score,
-                reason: conn.reason
-            });
-        }
-    }
-    
-    updateMessagesDisplay() {
-        const messagesList = document.getElementById('messages-list');
-        const recentMessages = Array.from(this.messageBeings.values())
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 10);
-        
-        messagesList.innerHTML = recentMessages.map(msg => `
-            <div class="message-being" data-id="${msg.id}">
-                <div class="message-header">
-                    <span class="intention-badge intention-${msg.intention.type}">
-                        ${this.getIntentionLabel(msg.intention.type)}
-                    </span>
-                    <span class="message-time">${this.formatTime(msg.timestamp)}</span>
-                </div>
-                <div class="message-text">${msg.text}</div>
-                <div class="message-stats">
-                    <span class="connections-count">${msg.connections.length} połączeń</span>
-                    <span class="keywords">${msg.keywords.join(', ')}</span>
-                </div>
-            </div>
-        `).join('');
-    }
-    
-    updateConnectionSuggestions() {
-        const suggestionsList = document.getElementById('suggestions-list');
-        const suggestions = this.generateConnectionSuggestions();
-        
-        suggestionsList.innerHTML = suggestions.map(sugg => `
-            <div class="connection-suggestion">
-                <div class="suggestion-strength">${Math.round(sugg.strength * 100)}%</div>
-                <div class="suggestion-content">
-                    <div class="suggestion-pair">
-                        "${sugg.message1.text.substring(0, 30)}..." 
-                        ↔ 
-                        "${sugg.message2.text.substring(0, 30)}..."
-                    </div>
-                    <div class="suggestion-reason">${sugg.reason}</div>
-                </div>
-                <button class="accept-suggestion" onclick="intentionSystem.acceptSuggestion('${sugg.id}')">
-                    ✅ Połącz
-                </button>
-            </div>
-        `).join('');
-    }
-    
-    generateConnectionSuggestions() {
-        const suggestions = [];
-        const messages = Array.from(this.messageBeings.values());
-        
-        for (let i = 0; i < messages.length; i++) {
-            for (let j = i + 1; j < messages.length; j++) {
-                const msg1 = messages[i];
-                const msg2 = messages[j];
-                
-                // Sprawdź czy już są połączone
-                if (msg1.connections.some(c => c.targetId === msg2.id)) continue;
-                
-                const analysis1 = { type: msg1.intention.type, keywords: msg1.keywords, sentiment: msg1.sentiment };
-                const analysis2 = { type: msg2.intention.type, keywords: msg2.keywords, sentiment: msg2.sentiment };
-                
-                const connections = this.findPotentialConnections(analysis1);
-                const relevant = connections.find(c => c.beingId === msg2.id);
-                
-                if (relevant && relevant.score > 0.4) {
-                    suggestions.push({
-                        id: `sugg_${msg1.id}_${msg2.id}`,
-                        message1: msg1,
-                        message2: msg2,
-                        strength: relevant.score,
-                        reason: relevant.reason
-                    });
-                }
-            }
-        }
-        
-        return suggestions.sort((a, b) => b.strength - a.strength).slice(0, 5);
-    }
-    
-    updateStats() {
-        document.getElementById('message-beings-count').textContent = 
-            `${this.messageBeings.size} bytów-wiadomości`;
-        document.getElementById('connections-found').textContent = 
-            `${this.activeConnections.size} połączeń`;
-    }
-    
-    formatTime(timestamp) {
-        return timestamp.toLocaleTimeString('pl-PL', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
+            web.appendChild(connectionElement);
         });
     }
-    
-    showNotification(message) {
-        const notification = document.createElement('div');
-        notification.className = 'intention-notification';
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => notification.remove(), 3000);
+
+    generateInspiration(intention, connections) {
+        const inspiration = {
+            id: this.generateId(),
+            source: intention,
+            connections: connections,
+            text: this.createInspirationText(intention, connections),
+            timestamp: new Date()
+        };
+
+        this.inspirations.push(inspiration);
+        this.visualizeInspiration(inspiration);
     }
-    
-    setupSocketHandlers() {
-        if (this.graphManager?.socket) {
-            this.graphManager.socket.on('message_being_response', (data) => {
-                console.log('Server processed message being:', data);
-            });
-            
-            this.graphManager.socket.on('new_connection_discovered', (data) => {
-                console.log('Server discovered new connection:', data);
-                this.showNotification(`🔗 Nowe połączenie: ${data.reason}`);
-            });
-        }
+
+    createInspirationText(intention, connections) {
+        const templates = [
+            `Co jeśli połączymy "${intention.text}" z istniejącymi wzorcami? Możemy stworzyć system który...`,
+            `Analizując relacje widzę potencjał: ${intention.text} może ewoluować w...`,
+            `System odkrył wzorzec! Twoja intencja rezonuje z ${connections.length} innymi myślami...`,
+            `🧬 Mutacja genetyczna: Łącząc "${intention.text}" z podobnymi intencjami powstaje nowy organizm...`
+        ];
+
+        return templates[Math.floor(Math.random() * templates.length)];
     }
-    
-    acceptSuggestion(suggestionId) {
-        const [, sourceId, targetId] = suggestionId.split('_');
-        const source = this.messageBeings.get(sourceId);
-        const target = this.messageBeings.get(targetId);
+
+    visualizeInspiration(inspiration) {
+        const feed = document.getElementById('inspiration-feed');
+        const inspirationElement = document.createElement('div');
+        inspirationElement.className = 'inspiration-item';
         
-        if (source && target) {
-            this.createConnections(source, [{
-                beingId: targetId,
-                being: target,
-                score: 0.8,
-                reason: 'Zaakceptowane przez użytkownika'
-            }]);
-            
-            this.updateConnectionSuggestions();
-            this.updateStats();
-            this.showNotification('✅ Połączenie utworzone!');
-        }
+        inspirationElement.innerHTML = `
+            <div class="inspiration-header">
+                💡 System Generuje Inspirację
+            </div>
+            <div class="inspiration-text">${inspiration.text}</div>
+            <div class="inspiration-connections">
+                🔗 Oparte na ${inspiration.connections.length} połączeniach
+            </div>
+            <div class="inspiration-timestamp">${inspiration.timestamp.toLocaleTimeString()}</div>
+        `;
+
+        feed.insertBefore(inspirationElement, feed.firstChild.nextSibling);
+        
+        // Efekt DNA double helix
+        inspirationElement.classList.add('dna-spiral');
+    }
+
+    getTypeIcon(type) {
+        const icons = {
+            'connection': '🔗',
+            'creation': '🧬',
+            'analysis': '🔍',
+            'automation': '🤖',
+            'inspiration': '💡',
+            'exploration': '🌌'
+        };
+        return icons[type] || '🧬';
+    }
+
+    getConnectionType(type1, type2) {
+        if (type1 === type2) return 'Synergia';
+        if ((type1 === 'creation' && type2 === 'inspiration') || 
+            (type1 === 'inspiration' && type2 === 'creation')) return 'Twórcza Fuzja';
+        if ((type1 === 'analysis' && type2 === 'automation') || 
+            (type1 === 'automation' && type2 === 'analysis')) return 'Inteligentna Automatyzacja';
+        return 'Krzyżowa Ewolucja';
+    }
+
+    setupSocketListeners() {
+        this.socket.on('intention_processed', (data) => {
+            // AI odpowiedziało - zaktualizuj status
+            const intention = this.intentions.get(data.intention_id);
+            if (intention) {
+                this.updateIntentionStatus(intention, data.ai_response);
+            }
+        });
+
+        this.socket.on('system_evolution', (data) => {
+            // System ewoluował na podstawie intencji
+            this.showSystemEvolution(data);
+        });
+    }
+
+    updateIntentionStatus(intention, aiResponse) {
+        // Znajdź element w DOM i zaktualizuj status
+        const elements = document.querySelectorAll('.intention-item');
+        elements.forEach(element => {
+            if (element.textContent.includes(intention.text)) {
+                const statusElement = element.querySelector('.intention-status');
+                statusElement.innerHTML = `✅ ${aiResponse.action || 'Zintegrowano z systemem'}`;
+                statusElement.classList.add('status-complete');
+            }
+        });
+    }
+
+    animateSubmission() {
+        const button = document.getElementById('submit-intention');
+        button.classList.add('quantum-pulse');
+        setTimeout(() => {
+            button.classList.remove('quantum-pulse');
+        }, 1000);
+    }
+
+    generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 }
 
-// Style CSS
-const intentionStyles = `
-<style>
-.intention-system-container {
-    position: fixed;
-    right: 20px;
-    top: 80px;
-    width: 400px;
-    max-height: 80vh;
-    overflow-y: auto;
-    background: rgba(0, 0, 0, 0.9);
-    border: 1px solid #333;
-    border-radius: 10px;
-    color: white;
-    font-family: 'Courier New', monospace;
-    z-index: 1000;
-    padding: 15px;
+// Style CSS w duchu rewolucji
+const style = document.createElement('style');
+style.textContent = `
+.revolutionary-header {
+    text-align: center;
+    background: linear-gradient(45deg, #ff00cc, #0099ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 30px;
 }
+
+.revolutionary-header h1 {
+    font-size: 2.5rem;
+    margin: 0;
+    text-shadow: 0 0 30px rgba(255, 0, 204, 0.5);
+}
+
+.intention-input-zone {
+    background: rgba(0, 255, 136, 0.1);
+    border: 2px solid rgba(0, 255, 136, 0.3);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+#user-intention {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(0, 255, 136, 0.5);
+    border-radius: 10px;
+    padding: 15px;
+    color: #00ff88;
+    font-size: 16px;
+    resize: vertical;
+}
+
+.quantum-btn {
+    background: linear-gradient(45deg, #00ff88, #0099ff);
+    border: none;
+    border-radius: 25px;
+    padding: 15px 30px;
+    color: #000;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.3s ease;
+}
+
+.quantum-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+}
+
+.quantum-pulse {
+    animation: quantum-pulse 1s ease-in-out;
+}
+
+@keyframes quantum-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); box-shadow: 0 0 30px rgba(0, 255, 136, 0.8); }
+}
+
+.live-system-state {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.intention-stream, .connection-web, .inspiration-feed {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.intention-item {
+    background: rgba(0, 255, 136, 0.1);
+    border-left: 4px solid #00ff88;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: all 0.3s ease;
+}
+
+.intention-appear {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.intention-item.creation { border-left-color: #ff00cc; }
+.intention-item.analysis { border-left-color: #0099ff; }
+.intention-item.automation { border-left-color: #ffaa00; }
 
 .intention-header {
-    border-bottom: 1px solid #333;
-    padding-bottom: 10px;
-    margin-bottom: 15px;
-}
-
-.intention-header h3 {
-    margin: 0 0 10px 0;
-    color: #00ff88;
-}
-
-.intention-stats {
     display: flex;
-    gap: 15px;
-    font-size: 12px;
-    color: #999;
-}
-
-.message-input-section {
-    margin-bottom: 20px;
-}
-
-.input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-#message-input {
-    background: #111;
-    border: 1px solid #333;
-    border-radius: 5px;
-    padding: 10px;
-    color: white;
-    resize: vertical;
-    font-family: inherit;
-}
-
-#send-message-btn {
-    background: #00ff88;
-    color: black;
-    border: none;
-    padding: 10px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-#send-message-btn:hover {
-    background: #00cc66;
-}
-
-.intention-preview {
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 5px;
-    padding: 10px;
-    margin-top: 10px;
-}
-
-.detected-intention {
+    justify-content: space-between;
     margin-bottom: 10px;
+    font-size: 14px;
 }
 
-.intention-badge {
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 11px;
+.intention-energy {
+    color: #ffaa00;
     font-weight: bold;
 }
 
-.intention-question { background: #ff6b6b; }
-.intention-idea { background: #ffd93d; color: black; }
-.intention-feedback { background: #6bcf7f; color: black; }
-.intention-solution { background: #4ecdc4; color: black; }
-.intention-problem { background: #ff6b6b; }
-.intention-support { background: #a8e6cf; color: black; }
-.intention-innovation { background: #ff8b94; }
-.intention-connection { background: #88d8c0; color: black; }
-.intention-inspiration { background: #ffd93d; color: black; }
-.intention-general { background: #666; }
-
-.potential-connection {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 5px;
-    border: 1px solid #333;
-    border-radius: 3px;
-    margin: 5px 0;
+.intention-text {
+    color: #ffffff;
+    margin-bottom: 10px;
+    font-weight: 500;
 }
 
-.connection-score {
-    background: #00ff88;
-    color: black;
-    padding: 2px 6px;
-    border-radius: 10px;
-    font-size: 10px;
-    font-weight: bold;
-}
-
-.message-being {
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 5px;
-    padding: 10px;
-    margin: 5px 0;
-}
-
-.message-header {
-    display: flex;
-    justify-content: between;
-    align-items: center;
+.intention-status {
+    color: #00ff88;
+    font-size: 12px;
     margin-bottom: 5px;
 }
 
-.message-text {
-    margin: 5px 0;
-    line-height: 1.4;
-}
-
-.message-stats {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    color: #999;
-    margin-top: 5px;
-}
-
-.connection-suggestion {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px;
-    border: 1px solid #333;
-    border-radius: 5px;
-    margin: 5px 0;
-}
-
-.accept-suggestion {
-    background: #00ff88;
-    color: black;
-    border: none;
-    padding: 4px 8px;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 10px;
-}
-
-.intention-notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: #00ff88;
-    color: black;
-    padding: 10px 15px;
-    border-radius: 5px;
+.status-complete {
+    color: #00ff88;
     font-weight: bold;
-    z-index: 2000;
-    animation: slideIn 0.3s ease;
 }
 
-@keyframes slideIn {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
+.connection-item {
+    background: rgba(0, 153, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-left: 3px solid #0099ff;
 }
-</style>
+
+.inspiration-item {
+    background: rgba(255, 0, 204, 0.1);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-left: 4px solid #ff00cc;
+    position: relative;
+    overflow: hidden;
+}
+
+.dna-spiral::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 0, 204, 0.3), transparent);
+    animation: dna-flow 2s linear infinite;
+}
+
+@keyframes dna-flow {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
 `;
+document.head.appendChild(style);
 
-// Dodaj style do dokumentu
-document.head.insertAdjacentHTML('beforeend', intentionStyles);
-
-// Globalna instancja
-window.IntentionAnalysisSystem = IntentionAnalysisSystem;
-
-console.log('✅ System Analizy Intencji loaded');
+// Inicjalizacja systemu
+document.addEventListener('DOMContentLoaded', () => {
+    new RevolutionaryIntentionSystem();
+});
