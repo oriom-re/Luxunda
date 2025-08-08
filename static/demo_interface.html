@@ -67,24 +67,23 @@
         }
 
         .demo-container {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
+            display: flex;
+            flex-direction: row;
             height: calc(100vh - 140px);
             gap: 20px;
             padding: 20px;
+            overflow: hidden;
         }
 
         @media (max-width: 768px) {
             .demo-container {
-                margin: 5px;
-                padding: 10px;
-                border-radius: 15px;
-                margin-top: 10px;
-                grid-template-columns: 1fr; /* Stack columns on mobile */
-                height: auto; /* Adjust height for stacked layout */
+                flex-direction: column;
+                height: auto;
+                min-height: calc(100vh - 140px);
                 gap: 15px;
-                width: calc(100vw - 10px);
-                max-width: 100%;
+                padding: 10px;
+                margin: 0;
+                width: 100vw;
                 box-sizing: border-box;
             }
         }
@@ -95,14 +94,18 @@
             padding: 20px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.2);
+            flex: 0 0 350px;
+            min-width: 300px;
+            overflow-y: auto;
         }
 
         @media (max-width: 768px) {
             .input-panel {
-                padding: 10px;
+                flex: 0 0 auto;
+                min-width: unset;
+                width: 100%;
+                padding: 15px;
                 border-radius: 10px;
-                width: calc(100% - 20px);
-                max-width: 100%;
                 box-sizing: border-box;
             }
         }
@@ -114,16 +117,21 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.2);
             position: relative;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         @media (max-width: 768px) {
             .graph-panel {
-                padding: 10px;
+                flex: 1;
+                min-height: 400px;
+                padding: 15px;
                 border-radius: 10px;
-                width: calc(100% - 20px);
-                max-width: 100%;
+                width: 100%;
                 box-sizing: border-box;
-                overflow: hidden;
             }
         }
 
@@ -156,12 +164,26 @@
         @media (max-width: 768px) {
             .form-group input,
             .form-group textarea {
-                padding: 10px;
-                font-size: 13px;
+                padding: 12px;
+                font-size: 16px; /* Prevents zoom on iOS */
+                border-radius: 8px;
             }
 
             .form-group textarea {
-                height: 100px;
+                height: 80px;
+                resize: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .form-group input,
+            .form-group textarea {
+                padding: 10px;
+                font-size: 16px;
+            }
+
+            .form-group textarea {
+                height: 70px;
             }
         }
 
@@ -224,42 +246,40 @@
         .graph-container {
             background: rgba(0, 0, 0, 0.3);
             border-radius: 15px;
-            padding: 20px;
-            margin: 30px 0;
-            min-height: 400px;
+            padding: 15px;
+            margin: 20px 0;
+            flex: 1;
             position: relative;
             width: 100%;
             overflow: hidden;
+            box-sizing: border-box;
+            min-height: 0;
         }
 
         .messages-container {
             background: rgba(0, 0, 0, 0.3);
             border-radius: 15px;
-            padding: 20px;
-            margin: 30px 0;
-            max-height: 300px;
+            padding: 15px;
+            margin: 20px 0 0 0;
+            max-height: 200px;
             overflow-y: auto;
+            flex-shrink: 0;
         }
 
         @media (max-width: 768px) {
             .graph-container {
                 padding: 10px;
-                margin: 10px 0;
+                margin: 15px 0;
+                flex: 1;
                 min-height: 300px;
                 border-radius: 10px;
-                width: calc(100% - 20px);
-                max-width: 100%;
-                box-sizing: border-box;
             }
 
             .messages-container {
                 padding: 10px;
-                margin: 10px 0;
-                max-height: 250px;
+                margin: 15px 0 0 0;
+                max-height: 150px;
                 border-radius: 10px;
-                width: calc(100% - 20px);
-                max-width: 100%;
-                box-sizing: border-box;
             }
         }
 
@@ -613,10 +633,17 @@
         function updateGraph() {
             const svg = d3.select('#graph-svg');
             const container = document.querySelector('.graph-container');
-            const width = Math.max(container.clientWidth - 20, 280); // Minimum width with padding
-            const height = Math.max(container.clientHeight - 20, 250); // Minimum height with padding
+            
+            // Calculate proper dimensions based on container
+            const containerRect = container.getBoundingClientRect();
+            const width = Math.max(containerRect.width - 30, 250);
+            const height = Math.max(containerRect.height - 30, 200);
 
-            svg.attr('width', width).attr('height', height);
+            svg.attr('width', '100%')
+               .attr('height', '100%')
+               .attr('viewBox', `0 0 ${width} ${height}`)
+               .attr('preserveAspectRatio', 'xMidYMid meet');
+            
             svg.selectAll('*').remove();
 
             // Przygotuj dane dla D3
@@ -758,9 +785,24 @@
         window.addEventListener('load', () => {
             initWebSocket();
 
-            // Resize handler
+            // Resize handler with proper debouncing
+            let resizeTimeout;
             window.addEventListener('resize', () => {
-                setTimeout(updateGraph, 100);
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    if (graphData.messages.length > 0) {
+                        updateGraph();
+                    }
+                }, 150);
+            });
+
+            // Also handle orientation changes on mobile
+            window.addEventListener('orientationchange', () => {
+                setTimeout(() => {
+                    if (graphData.messages.length > 0) {
+                        updateGraph();
+                    }
+                }, 300);
             });
 
             // Enter key handler
