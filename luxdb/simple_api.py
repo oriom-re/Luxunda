@@ -131,6 +131,29 @@ class SimpleLuxDB:
         await self._ensure_initialized()
 
         try:
+            # Sprawdź czy podstawowe tabele istnieją
+            db_pool = await Postgre_db.get_db_pool()
+            if db_pool:
+                async with db_pool.acquire() as conn:
+                    # Sprawdź istnienie tabel souls i beings
+                    souls_exists = await conn.fetchval("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM information_schema.tables 
+                            WHERE table_schema = 'public' AND table_name = 'souls'
+                        )
+                    """)
+                    
+                    beings_exists = await conn.fetchval("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM information_schema.tables 
+                            WHERE table_schema = 'public' AND table_name = 'beings'
+                        )
+                    """)
+                    
+                    if not souls_exists or not beings_exists:
+                        print("⚠️ Core tables missing, ensuring database setup...")
+                        await Postgre_db.setup_tables()
+
             # Automatycznie generuj genotyp na podstawie danych
             genotype = self._generate_genotype_from_data(data, entity_type, name)
 
@@ -221,6 +244,8 @@ class SimpleLuxDB:
 
     async def connect_entities(self, entity1_id: str, entity2_id: str, relation_type: str = "connected"):
         """Łączy dwie encje prostą relacją"""
+        await self._ensure_initialized()
+        
         db_pool = await Postgre_db.get_db_pool()
         if not db_pool:
             print("❌ Database pool not available for connecting entities.")
@@ -229,17 +254,47 @@ class SimpleLuxDB:
         try:
             # Create relationship in database
             async with db_pool.acquire() as conn:
-                # First try to insert without ON CONFLICT, then handle duplicates manually
+                # Ensure relationships table exists first
+                relationships_exists = await conn.fetchval("""
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.tables 
+                        WHERE table_schema = 'public' AND table_name = 'relationships'
+                    )
+                """)
+                
+                if not relationships_exists:
+                    print("⚠️ Relationships table doesn't exist, ensuring database setup...")
+                    await Postgre_db.setup_tables()
+                
+                # Verify entities exist in beings table
+                entity1_exists = await conn.fetchval("""
+                    SELECT EXISTS (SELECT 1 FROM beings WHERE ulid = $1)
+                """, entity1_id)
+                
+                entity2_exists = await conn.fetchval("""
+                    SELECT EXISTS (SELECT 1 FROM beings WHERE ulid = $1)
+                """, entity2_id)
+                
+                if not entity1_exists:
+                    print(f"⚠️ Entity {entity1_id} not found in beings table")
+                    return False
+                    
+                if not entity2_exists:
+                    print(f"⚠️ Entity {entity2_id} not found in beings table")
+                    return False
+
+                # Insert relationship with proper error handling
                 try:
                     await conn.execute("""
                         INSERT INTO relationships (source_id, target_id, source_type, target_type, relation_type, strength, metadata)
                         VALUES ($1, $2, $3, $4, $5, $6, $7)
+                        ON CONFLICT (source_id, target_id, relation_type) DO NOTHING
                     """, entity1_id, entity2_id, "being", "being", relation_type, 1.0, json.dumps({"created_by": "simple_api"}))
+                    
+                    print(f"✅ Connected {entity1_id} -> {entity2_id} ({relation_type})")
                 except Exception as e:
-                    if "duplicate" in str(e).lower() or "unique" in str(e).lower():
-                        print(f"⚠️  Relationship already exists: {entity1_id} -> {entity2_id} ({relation_type})")
-                    else:
-                        raise e
+                    print(f"❌ Error inserting relationship: {e}")
+                    return False
 
             # Store connection details for get_graph_data_async
             self.connections.append({
@@ -247,8 +302,8 @@ class SimpleLuxDB:
                 'entity2_id': entity2_id,
                 'relation_type': relation_type
             })
-            print(f"✅ Connected {entity1_id} -> {entity2_id} ({relation_type})")
             return True
+            
         except Exception as e:
             print(f"❌ Error connecting entities: {e}")
             return False
