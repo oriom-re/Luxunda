@@ -573,10 +573,20 @@ if __name__ == "__main__":
         workspace_manager.add_sync_callback(workspace_sync_callback)
         print("📁 Workspace synchronization enabled")
 
-    uvicorn.run(
-        socket_app,
-        host=config['host'],
-        port=config['port'],
-        log_level=config['log_level'].lower(),
-        reload=config.get('hot_reload', False)
-    )
+    if config.get('hot_reload', False):
+        # For development with hot reload, use string import
+        uvicorn.run(
+            "demo_landing:socket_app",
+            host=config['host'],
+            port=config['port'],
+            log_level=config['log_level'].lower(),
+            reload=True
+        )
+    else:
+        # For production, use app object directly
+        uvicorn.run(
+            socket_app,
+            host=config['host'],
+            port=config['port'],
+            log_level=config['log_level'].lower()
+        )
