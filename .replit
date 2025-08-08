@@ -117,6 +117,15 @@ mode = "sequential"
 task = "shell.exec"
 args = "python demo_lux_onboarding.py"
 
+[[workflows.workflow]]
+name = "Luxunda Landing"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python demo_lux_onboarding.py"
+
 [[ports]]
 localPort = 3000
 externalPort = 3000

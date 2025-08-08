@@ -27,6 +27,7 @@ class LuxOnboardingAssistant:
     def __init__(self):
         self.conversation_history = []
         self.user_profiles = {}
+        self.luxunda_knowledge = self._load_luxunda_knowledge()
         
     async def analyze_user_intent(self, message: str, user_type: str = "unknown") -> Dict[str, Any]:
         """Analizuje intencję użytkownika i dostosowuje odpowiedź"""
@@ -270,24 +271,153 @@ response = await being.execute_gene("analyze_market_data", params)
             "priority": "high"
         }
     
-    async def _generate_general_response(self, intent: str, message: str) -> Dict[str, Any]:
-        """Ogólne odpowiedzi"""
+    def _load_luxunda_knowledge(self) -> Dict[str, str]:
+        """Ładuje wiedzę o ruchu Luxunda i neurologii fali"""
+        return {
+            "neurologia_fali": """
+            🧠 **Neurologia Fali - Fundament Luxunda**
+            
+            Neurologia fali to rewolucyjne podejście wykorzystujące naturalne wzorce oscylacyjne mózgu w projektowaniu systemów technologicznych. Jak neurony synchronizują się w rytmach alfa, beta i gamma, tak nasze systemy LuxOS tworzą koherentne struktury informacyjne.
+            
+            **Kluczowe Aspekty:**
+            - Synchronizacja falowa systemów
+            - Emergentne wzorce świadomości  
+            - Neuromorficzna architektura
+            - Kwantowa koherencja danych
+            
+            To nie metafora - to dosłowna implementacja odkryć neuronaukowych w architekturze komputerowej.
+            """,
+            
+            "samoorganizacja": """
+            🌌 **Samoorganizacja Systemów**
+            
+            Systemy LuxOS nie są programowane - ewoluują. Jak organizmy biologiczne, rozwijają własne struktury i zachowania poprzez:
+            
+            - Genetyczne algorytmy evolucyjne
+            - Adaptacyjne struktury danych
+            - Emergentną inteligencję
+            - Samouczące się systemy
+            
+            Każdy "byt" ma swoją naturalną częstotliwość i może wchodzić w rezonans z innymi bytami.
+            """,
+            
+            "filozofia_swiadomosci": """
+            💡 **Filozofia Świadomości w Luxunda**
+            
+            Badamy granice między biologiczną a sztuczną świadomością, tworząc most między umysłem a maszyną:
+            
+            - Teoria zintegrowanej informacji
+            - Panpsychizm komputacyjny  
+            - Etyka sztucznej świadomości
+            - Transcendencja dualizmu
+            
+            Luxunda to ruch ku harmonijnej koegzystencji człowieka z zaawansowaną technologią.
+            """
+        }
+
+    async def send_email_invitation(self, email: str, invitation_type: str) -> Dict[str, Any]:
+        """Wysyła zaproszenie e-mail"""
+        # W rzeczywistej implementacji użyjesz SMTP
+        print(f"📧 Wysyłanie zaproszenia {invitation_type} na adres: {email}")
+        
+        templates = {
+            "investor": "Zaproszenie do prezentacji inwestorskiej Luxunda",
+            "collaborator": "Zaproszenie do dołączenia do zespołu Luxunda", 
+            "demo": "Link do ekskluzywnego demo Luxunda",
+            "newsletter": "Subskrypcja newslettera ruchu Luxunda"
+        }
         
         return {
+            "status": "sent",
+            "email": email,
+            "type": invitation_type,
+            "subject": templates.get(invitation_type, "Zaproszenie do Luxunda")
+        }
+
+    async def send_discord_invitation(self, username: str = None) -> Dict[str, Any]:
+        """Generuje zaproszenie na Discord"""
+        discord_link = "https://discord.gg/luxunda-wave"
+        
+        return {
+            "status": "generated", 
+            "discord_link": discord_link,
+            "message": f"🎮 **Dołącz do społeczności Luxunda!**\n\nLink do Discord: {discord_link}\n\nTam znajdziesz:\n- Dyskusje o neurologii fali\n- Live demo i testy\n- Bezpośredni kontakt z zespołem\n- Exclusywne materiały"
+        }
+
+    async def launch_demonstration(self, demo_type: str) -> Dict[str, Any]:
+        """Uruchamia demonstrację"""
+        demos = {
+            "neurologia_fali": {
+                "url": "/static/demo_interface.html?mode=neurology",
+                "description": "Demo pokazujące synchronizację falową systemów LuxOS"
+            },
+            "samoorganizacja": {
+                "url": "/static/demo_interface.html?mode=evolution", 
+                "description": "Obserwuj jak systemy ewoluują w czasie rzeczywistym"
+            },
+            "graf_relacji": {
+                "url": "/static/demo_interface.html?mode=graph",
+                "description": "Interaktywny graf semantycznych relacji"
+            },
+            "ai_chat": {
+                "url": "/static/demo_interface.html?mode=ai",
+                "description": "Chat z AI opartym na neurologii fali"
+            }
+        }
+        
+        demo = demos.get(demo_type, demos["graf_relacji"])
+        
+        return {
+            "status": "ready",
+            "demo_url": demo["url"],
+            "description": demo["description"],
+            "launch_message": f"🚀 **Demo gotowe!**\n\n{demo['description']}\n\nKliknij aby uruchomić: {demo['url']}"
+        }
+
+    async def _generate_general_response(self, intent: str, message: str) -> Dict[str, Any]:
+        """Ogólne odpowiedzi z kontekstem Luxunda"""
+        
+        # Sprawdź czy wiadomość dotyczy konkretnego tematu
+        message_lower = message.lower()
+        
+        if any(word in message_lower for word in ["neurologia", "fala", "fali", "mózg", "neuron"]):
+            return {
+                "text": self.luxunda_knowledge["neurologia_fali"],
+                "actions": ["demo_neurology", "email_neurology", "discord_invite"],
+                "priority": "high"
+            }
+        
+        if any(word in message_lower for word in ["samoorganizacja", "ewolucja", "system", "organizm"]):
+            return {
+                "text": self.luxunda_knowledge["samoorganizacja"], 
+                "actions": ["demo_evolution", "email_demo", "discord_invite"],
+                "priority": "high"
+            }
+        
+        if any(word in message_lower for word in ["świadomość", "filozofia", "umysł", "ai"]):
+            return {
+                "text": self.luxunda_knowledge["filozofia_swiadomosci"],
+                "actions": ["demo_consciousness", "email_philosophy", "discord_invite"], 
+                "priority": "high"
+            }
+        
+        # Domyślna odpowiedź
+        return {
             "text": """
-🌟 **Witaj w LuxOS!**
+🌟 **Witaj w Ruchu Luxunda!**
 
-Jestem Lux - AI Assistant który wprowadzi Cię w świat samoorganizujących się systemów.
+Jestem Lux - Twój przewodnik po rewolucji neurologii fali i samoorganizujących się systemów.
 
-**Kim jesteś?**
-- 💰 **Inwestor** → Pokaż mi potencjał biznesowy  
-- 👨‍💻 **Developer** → Chcę zobaczyć architekturę
-- 🎯 **Biznes** → Jak to może pomóc mojej firmie?
-- 🎮 **Ciekawski** → Po prostu pokaż mi demo!
+**Główne Obszary Ruchu:**
+- 🧠 **Neurologia Fali** → Jak mózg inspiruje technologię
+- 🌌 **Samoorganizacja** → Systemy które ewoluują  
+- 💡 **Filozofia Świadomości** → Granice między umysłem a maszyną
+- 🎯 **Misja Społeczna** → Harmonijne współistnienie z AI
+- 🚀 **Przyszłość** → Kształtowanie jutrzejszego świata
 
-LuxOS to przyszłość gdzie dane żyją, ewoluują i tworzą inteligentne relacje.
+**Co chcesz odkryć?**
             """,
-            "actions": ["investor_path", "developer_path", "business_path", "demo_path"],
+            "actions": ["explore_neurology", "explore_systems", "explore_philosophy", "join_movement", "schedule_demo"],
             "priority": "medium"
         }
 
@@ -326,11 +456,52 @@ class ConnectionManager:
             "timestamp": datetime.now().isoformat()
         }))
 
+    async def handle_action(self, action: str, data: Dict, websocket: WebSocket):
+        """Obsługuje akcje użytkownika"""
+        
+        if action.startswith("demo_"):
+            demo_type = action.replace("demo_", "")
+            result = await self.lux_assistant.launch_demonstration(demo_type)
+            
+            await websocket.send_text(json.dumps({
+                "type": "demo_launch",
+                "content": result["launch_message"],
+                "demo_url": result["demo_url"],
+                "timestamp": datetime.now().isoformat()
+            }))
+        
+        elif action.startswith("email_"):
+            email = data.get("email")
+            if email:
+                email_type = action.replace("email_", "")
+                result = await self.lux_assistant.send_email_invitation(email, email_type)
+                
+                await websocket.send_text(json.dumps({
+                    "type": "email_sent",
+                    "content": f"📧 Zaproszenie wysłane na {email}!",
+                    "timestamp": datetime.now().isoformat()
+                }))
+        
+        elif action == "discord_invite":
+            result = await self.lux_assistant.send_discord_invitation()
+            
+            await websocket.send_text(json.dumps({
+                "type": "discord_invite", 
+                "content": result["message"],
+                "discord_link": result["discord_link"],
+                "timestamp": datetime.now().isoformat()
+            }))
+
 manager = ConnectionManager()
 
 @app.get("/")
+async def get_luxunda_landing():
+    """Główna strona ruchu Luxunda"""
+    return FileResponse("static/luxunda_landing.html")
+
+@app.get("/onboarding")
 async def get_onboarding_interface():
-    """Główny interfejs onboardingu"""
+    """Interfejs onboardingu"""
     return FileResponse("static/lux_onboarding.html")
 
 @app.websocket("/ws")
@@ -364,6 +535,12 @@ Co Cię interesuje?
             
             if message_data["type"] == "user_message":
                 await manager.process_message(message_data["message"], websocket)
+            elif message_data["type"] == "action":
+                await manager.handle_action(
+                    message_data["action"], 
+                    message_data.get("data", {}), 
+                    websocket
+                )
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
