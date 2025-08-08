@@ -1,0 +1,555 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxOS - AI Onboarding Assistant</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .lux-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(0, 204, 255, 0.3);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .logo {
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #00ccff, #ff00cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .user-type-selector {
+            margin-bottom: 30px;
+        }
+        
+        .user-type-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 204, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .user-type-btn:hover, .user-type-btn.active {
+            background: rgba(0, 204, 255, 0.2);
+            border-color: #00ccff;
+            transform: translateY(-2px);
+        }
+        
+        .quick-actions {
+            margin-top: auto;
+        }
+        
+        .action-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #00ff88, #00ccff);
+            border: none;
+            border-radius: 6px;
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+        
+        .action-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .main-chat {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .chat-header {
+            padding: 20px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(0, 204, 255, 0.3);
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: calc(100vh - 200px);
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 12px;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        .message.system {
+            background: rgba(0, 204, 255, 0.1);
+            border-left: 4px solid #00ccff;
+        }
+        
+        .message.user {
+            background: rgba(0, 255, 136, 0.1);
+            border-left: 4px solid #00ff88;
+            margin-left: 40px;
+        }
+        
+        .message.lux {
+            background: rgba(255, 0, 204, 0.1);
+            border-left: 4px solid #ff00cc;
+        }
+        
+        .message-actions {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .message-action-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .message-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+        
+        .chat-input-container {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid rgba(0, 204, 255, 0.3);
+        }
+        
+        .chat-input {
+            width: 100%;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 204, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+        }
+        
+        .chat-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .typing-indicator {
+            padding: 15px;
+            font-style: italic;
+            color: rgba(255, 255, 255, 0.7);
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .lux-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                display: none;
+            }
+        }
+        
+        .demo-embed {
+            margin: 20px 0;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid rgba(0, 204, 255, 0.3);
+        }
+        
+        .demo-embed iframe {
+            width: 100%;
+            height: 400px;
+            border: none;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .metric-card {
+            background: rgba(0, 204, 255, 0.1);
+            border: 1px solid rgba(0, 204, 255, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #00ff88;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="lux-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="logo">🌟 Lux AI</div>
+            
+            <div class="user-type-selector">
+                <h3 style="margin-bottom: 15px; font-size: 1.1rem;">Kim jesteś?</h3>
+                <button class="user-type-btn" data-type="investor">
+                    💰 Inwestor
+                </button>
+                <button class="user-type-btn" data-type="collaborator">
+                    👨‍💻 Współpracownik
+                </button>
+                <button class="user-type-btn" data-type="business">
+                    🎯 Biznes
+                </button>
+                <button class="user-type-btn" data-type="curious">
+                    🎮 Ciekawy
+                </button>
+            </div>
+            
+            <div class="quick-actions">
+                <h3 style="margin-bottom: 15px; font-size: 1.1rem;">Szybkie akcje</h3>
+                <button class="action-btn" onclick="showLiveDemo()">
+                    🚀 Live Demo
+                </button>
+                <button class="action-btn" onclick="showMetrics()">
+                    📊 Metryki
+                </button>
+                <button class="action-btn" onclick="showTeamInfo()">
+                    👥 Zespół
+                </button>
+                <button class="action-btn" onclick="scheduleCall()">
+                    📞 Umów rozmowę
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div class="main-chat">
+            <div class="chat-header">
+                <h1>🌟 Lux AI Assistant</h1>
+                <p>Twój przewodnik po przyszłości samoorganizujących się systemów</p>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <!-- Messages will appear here -->
+            </div>
+
+            <div class="chat-input-container">
+                <input type="text" 
+                       class="chat-input" 
+                       id="messageInput"
+                       placeholder="Napisz wiadomość do Lux..."
+                       onkeypress="handleKeyPress(event)">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let currentUserType = 'unknown';
+        
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            ws = new WebSocket(`ws://${window.location.host}/ws`);
+            
+            ws.onopen = function(event) {
+                console.log('🌐 Połączono z Lux Assistant');
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                displayMessage(data);
+            };
+            
+            ws.onclose = function(event) {
+                console.log('🔌 Połączenie zamknięte');
+                setTimeout(initWebSocket, 3000); // Reconnect after 3 seconds
+            };
+        }
+        
+        // Display message in chat
+        function displayMessage(data) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            
+            let messageClass = 'message ';
+            if (data.type === 'system') messageClass += 'system';
+            else if (data.type === 'user_message') messageClass += 'user';
+            else if (data.type === 'lux_response') messageClass += 'lux';
+            
+            messageDiv.className = messageClass;
+            
+            let content = `<div class="message-content">${formatMessage(data.content)}</div>`;
+            
+            // Add action buttons if available
+            if (data.actions && data.actions.length > 0) {
+                content += '<div class="message-actions">';
+                data.actions.forEach(action => {
+                    content += `<button class="message-action-btn" onclick="handleAction('${action}')">${getActionLabel(action)}</button>`;
+                });
+                content += '</div>';
+            }
+            
+            messageDiv.innerHTML = content;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Format message content
+        function formatMessage(content) {
+            // Convert markdown-style formatting
+            return content
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/```(.*?)```/gs, '<pre><code>$1</code></pre>')
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
+        }
+        
+        // Get action button labels
+        function getActionLabel(action) {
+            const labels = {
+                'show_metrics': '📊 Pokaż metryki',
+                'show_demo': '🚀 Uruchom demo',
+                'schedule_meeting': '📞 Umów spotkanie',
+                'download_deck': '📄 Pobierz prezentację',
+                'launch_demo': '🎮 Uruchom demo',
+                'join_team': '👥 Dołącz do zespołu',
+                'view_codebase': '💻 Zobacz kod',
+                'submit_portfolio': '📂 Wyślij portfolio',
+                'investor_path': '💰 Ścieżka inwestora',
+                'developer_path': '👨‍💻 Ścieżka developera',
+                'business_path': '🎯 Ścieżka biznesowa',
+                'demo_path': '🎮 Po prostu demo'
+            };
+            return labels[action] || action;
+        }
+        
+        // Handle action button clicks
+        function handleAction(action) {
+            switch(action) {
+                case 'show_demo':
+                case 'launch_demo':
+                    showLiveDemo();
+                    break;
+                case 'show_metrics':
+                    showMetrics();
+                    break;
+                case 'join_team':
+                    showTeamInfo();
+                    break;
+                case 'schedule_meeting':
+                    scheduleCall();
+                    break;
+                default:
+                    sendMessage(`Wykonuję akcję: ${action}`);
+            }
+        }
+        
+        // Send message to Lux
+        function sendMessage(message) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'user_message',
+                    message: message,
+                    user_type: currentUserType
+                }));
+                
+                // Display user message
+                displayMessage({
+                    type: 'user_message',
+                    content: message
+                });
+                
+                // Show typing indicator
+                showTypingIndicator();
+            }
+        }
+        
+        // Show typing indicator
+        function showTypingIndicator() {
+            const messagesContainer = document.getElementById('chatMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'typing-indicator';
+            typingDiv.innerHTML = '🤖 Lux pisze odpowiedź...';
+            typingDiv.id = 'typing-indicator';
+            
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Remove after response or timeout
+            setTimeout(() => {
+                const indicator = document.getElementById('typing-indicator');
+                if (indicator) indicator.remove();
+            }, 5000);
+        }
+        
+        // Handle key press in input
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                const input = document.getElementById('messageInput');
+                const message = input.value.trim();
+                if (message) {
+                    sendMessage(message);
+                    input.value = '';
+                }
+            }
+        }
+        
+        // User type selection
+        document.querySelectorAll('.user-type-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.user-type-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentUserType = this.dataset.type;
+                
+                const messages = {
+                    'investor': 'Jestem inwestorem zainteresowanym możliwościami LuxOS',
+                    'collaborator': 'Chciałbym dołączyć do zespołu LuxOS jako developer',
+                    'business': 'Reprezentuję firmę szukającą innowacyjnych rozwiązań AI',
+                    'curious': 'Jestem ciekawy jak działa LuxOS i chcę zobaczyć demo'
+                };
+                
+                sendMessage(messages[currentUserType]);
+            });
+        });
+        
+        // Quick action functions
+        function showLiveDemo() {
+            const demoHTML = `
+                <div class="demo-embed">
+                    <iframe src="/static/demo_interface.html" frameborder="0"></iframe>
+                </div>
+            `;
+            
+            displayMessage({
+                type: 'lux_response',
+                content: '🎮 **Live Demo LuxOS**<br><br>Oto działający system w czasie rzeczywistym:' + demoHTML
+            });
+        }
+        
+        function showMetrics() {
+            fetch('/api/metrics/business')
+                .then(response => response.json())
+                .then(data => {
+                    const metricsHTML = `
+                        <div class="metrics-grid">
+                            <div class="metric-card">
+                                <div class="metric-value">${data.market_size}</div>
+                                <div class="metric-label">Market Size</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value">${data.projected_roi}</div>
+                                <div class="metric-label">Projected ROI</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value">${data.cost_reduction}</div>
+                                <div class="metric-label">Cost Reduction</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-value">${data.deployment_speed}</div>
+                                <div class="metric-label">Deployment Speed</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    displayMessage({
+                        type: 'lux_response',
+                        content: '📊 **Metryki Biznesowe LuxOS**' + metricsHTML
+                    });
+                });
+        }
+        
+        function showTeamInfo() {
+            fetch('/api/team/positions')
+                .then(response => response.json())
+                .then(data => {
+                    let positionsHTML = '<br>';
+                    data.positions.forEach(pos => {
+                        positionsHTML += `
+                            <div style="margin-bottom: 15px; padding: 15px; background: rgba(0,255,136,0.1); border-radius: 8px;">
+                                <strong>${pos.title}</strong><br>
+                                <em>${pos.tech}</em><br>
+                                ${pos.description}
+                            </div>
+                        `;
+                    });
+                    
+                    displayMessage({
+                        type: 'lux_response',
+                        content: '👥 **Otwarte Pozycje w Zespole**' + positionsHTML,
+                        actions: ['submit_portfolio', 'book_interview']
+                    });
+                });
+        }
+        
+        function scheduleCall() {
+            displayMessage({
+                type: 'lux_response',
+                content: '📞 **Umówmy rozmowę!**<br><br>Skontaktuj się z nami:<br>📧 team@luxos.ai<br>💬 Discord: LuxOS Community<br>📅 Calendly: /luxos-meeting'
+            });
+        }
+        
+        // Initialize
+        initWebSocket();
+    </script>
+</body>
+</html>
