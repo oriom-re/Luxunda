@@ -84,9 +84,9 @@ async def lifespan(app: FastAPI):
         print("✅ Demo entities created successfully!")
     except Exception as e:
         print(f"⚠️ Could not create demo entities: {e}")
-    
+
     yield  # App is running
-    
+
     # Shutdown
     print("🛑 Shutting down LuxDB Demo...")
 
@@ -95,7 +95,7 @@ class SessionManager:
     def __init__(self):
         self.sessions: Dict[str, dict] = {}
         self.socket_sessions: Dict[str, str] = {}  # socket_id -> session_id
-    
+
     def create_session(self, replit_user_id: str = None, replit_user_name: str = None) -> str:
         session_id = str(uuid.uuid4())
         self.sessions[session_id] = {
@@ -111,31 +111,31 @@ class SessionManager:
         }
         print(f"🆕 Utworzono nową sesję: {session_id} dla użytkownika: {replit_user_name or 'Guest'}")
         return session_id
-    
+
     def get_session(self, session_id: str) -> Optional[dict]:
         if session_id in self.sessions:
             self.sessions[session_id]['last_active'] = datetime.now().isoformat()
             return self.sessions[session_id]
         return None
-    
+
     def update_session_socket(self, session_id: str, socket_id: str):
         if session_id in self.sessions:
             # Usuń poprzednie mapowanie socket -> session
             old_socket = self.sessions[session_id].get('socket_id')
             if old_socket and old_socket in self.socket_sessions:
                 del self.socket_sessions[old_socket]
-            
+
             # Ustaw nowe mapowanie
             self.sessions[session_id]['socket_id'] = socket_id
             self.socket_sessions[socket_id] = session_id
             print(f"🔄 Zaktualizowano socket sesji {session_id[:8]}: {socket_id}")
-    
+
     def get_session_by_socket(self, socket_id: str) -> Optional[dict]:
         session_id = self.socket_sessions.get(socket_id)
         if session_id:
             return self.get_session(session_id)
         return None
-    
+
     def disconnect_socket(self, socket_id: str):
         session_id = self.socket_sessions.get(socket_id)
         if session_id and session_id in self.sessions:
@@ -196,20 +196,20 @@ socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 @sio.event
 async def connect(sid, environ, auth=None):
     print(f"🌟 CLIENT CONNECTED: {sid}")
-    
+
     try:
         # Wyciągnij session_id z auth lub headers
         session_id = None
         replit_user_id = None
         replit_user_name = None
-        
+
         # Sprawdź Replit Auth headers
         headers = dict(environ.get('headers', []))
         if b'x-replit-user-id' in [h[0] for h in headers]:
             replit_user_id = next(h[1].decode() for h in headers if h[0] == b'x-replit-user-id')
             replit_user_name = next((h[1].decode() for h in headers if h[0] == b'x-replit-user-name'), None)
             print(f"🔐 Replit Auth: {replit_user_name} ({replit_user_id})")
-        
+
         # Sprawdź czy auth zawiera session_id
         if auth and isinstance(auth, dict) and 'session_id' in auth:
             session_id = auth['session_id']
@@ -219,15 +219,15 @@ async def connect(sid, environ, auth=None):
             else:
                 print(f"⚠️ Nieważna sesja: {session_id[:8]}, tworzę nową")
                 session_id = None
-        
+
         # Utwórz nową sesję jeśli potrzeba
         if not session_id:
             session_id = session_manager.create_session(replit_user_id, replit_user_name)
-        
+
         # Przypisz socket do sesji
         session_manager.update_session_socket(session_id, sid)
         session = session_manager.get_session(session_id)
-        
+
         # Send session info and welcome message
         await sio.emit('session_established', {
             'session_id': session_id,
@@ -235,7 +235,7 @@ async def connect(sid, environ, auth=None):
             'is_admin': session['is_admin'],
             'timestamp': datetime.now().isoformat()
         }, room=sid)
-        
+
         await sio.emit('demo_data', {
             'message': f'Connected as {session["replit_user_name"]}',
             'timestamp': datetime.now().isoformat(),
@@ -245,7 +245,7 @@ async def connect(sid, environ, auth=None):
 
         # Auto-send initial graph data
         await request_graph_data(sid)
-        
+
     except Exception as e:
         print(f"❌ Error in connect handler: {e}")
         # Fallback - utwórz sesję gościa
@@ -265,7 +265,7 @@ async def disconnect(sid):
         print(f"💔 CLIENT DISCONNECTED: {sid} (Sesja: {session['session_id'][:8]}, User: {session['replit_user_name']})")
     else:
         print(f"💔 CLIENT DISCONNECTED: {sid} (Brak sesji)")
-    
+
     # Odłącz socket ale zachowaj sesję
     session_manager.disconnect_socket(sid)
 
@@ -275,7 +275,7 @@ async def request_graph_data(sid):
     try:
         # Pobierz dane z Simple API - używaj globalnej instancji
         graph_data = await luxdb.get_graph_data_async()
-        
+
         # Jeśli nie ma danych, wyślij testowe
         if not graph_data.get('beings') and not graph_data.get('relationships'):
             print("📝 Sending test data as fallback...")
@@ -333,7 +333,7 @@ async def request_graph_data(sid):
                 'beings': graph_data.get('beings', []),
                 'relationships': graph_data.get('relationships', [])
             }, room=sid)
-            
+
         print(f"📤 Graph data sent successfully")
     except Exception as e:
         print(f"❌ Error fetching graph data: {e}")
@@ -407,7 +407,7 @@ async def main_page(request: Request, session_id: str = Cookie(None)):
     # Sprawdź Replit Auth
     replit_user_id = request.headers.get('x-replit-user-id')
     replit_user_name = request.headers.get('x-replit-user-name')
-    
+
     # Sprawdź czy sesja z cookie jest ważna
     if session_id:
         session = session_manager.get_session(session_id)
@@ -416,13 +416,13 @@ async def main_page(request: Request, session_id: str = Cookie(None)):
         else:
             # Cookie nieważne, usuń
             session_id = None
-    
+
     # Utwórz nową sesję jeśli potrzeba
     if not session_id:
         session_id = session_manager.create_session(replit_user_id, replit_user_name)
         session = session_manager.get_session(session_id)
         print(f"🆕 Nowa sesja HTTP: {session_id[:8]} dla {session['replit_user_name']}")
-    
+
     # Zwróć HTML z ustawionym cookie
     response = FileResponse("static/graph.html")  # Używamy graph.html jako główną stronę
     response.set_cookie(
@@ -455,7 +455,7 @@ async def get_workspace_changes(limit: int = 50):
     """Get recent workspace changes"""
     if not deployment_manager.should_enable_feature('workspace'):
         return {"error": "Workspace disabled in production"}
-    
+
     return {
         "changes": workspace_manager.get_changes(limit),
         "total": len(workspace_manager.changes_log)
@@ -466,7 +466,7 @@ async def get_being_workspace(being_ulid: str):
     """Get files created by specific being"""
     if not deployment_manager.should_enable_feature('workspace'):
         return {"error": "Workspace disabled in production"}
-    
+
     return {
         "being_ulid": being_ulid,
         "files": workspace_manager.get_being_files(being_ulid)
@@ -477,7 +477,7 @@ async def create_workspace_file(request: Request):
     """Create file in workspace"""
     if not deployment_manager.should_enable_feature('workspace'):
         return {"error": "Workspace disabled in production"}
-    
+
     data = await request.json()
     file_path = await workspace_manager.create_file(
         being_ulid=data.get('being_ulid'),
@@ -485,14 +485,14 @@ async def create_workspace_file(request: Request):
         content=data.get('content'),
         file_type=data.get('file_type', 'py')
     )
-    
+
     # Notify via socket
     await sio.emit('workspace_change', {
         'action': 'file_created',
         'being_ulid': data.get('being_ulid'),
         'file_path': file_path
     })
-    
+
     return {
         "success": True,
         "file_path": file_path,
@@ -508,11 +508,11 @@ async def get_session_info(session_id: str = Cookie(None)):
     """Get current session info"""
     if not session_id:
         return {"error": "No session cookie"}
-    
+
     session = session_manager.get_session(session_id)
     if not session:
         return {"error": "Invalid session"}
-    
+
     return {
         "session_id": session_id,
         "user_name": session['replit_user_name'],
@@ -556,7 +556,7 @@ async def test_data():
 
 if __name__ == "__main__":
     config = deployment_manager.get_config()
-    
+
     print(f"🚀 Starting LuxDB {deployment_manager.mode.value.title()} Mode...")
     print("=" * 60)
     print(f"🌍 Host: {config['host']}:{config['port']}")
@@ -569,7 +569,7 @@ if __name__ == "__main__":
     if deployment_manager.should_enable_feature('workspace'):
         async def workspace_sync_callback(change):
             await sio.emit('workspace_sync', change)
-        
+
         workspace_manager.add_sync_callback(workspace_sync_callback)
         print("📁 Workspace synchronization enabled")
 

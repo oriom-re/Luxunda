@@ -40,8 +40,7 @@ class Postgre_db:
                     'plan_cache_mode': 'force_custom_plan',
                     'application_name': 'luxdb_mvp'
                 },
-                command_timeout=30,
-                keepalive=True
+                command_timeout=30
             )
             await Postgre_db.setup_tables()  # Upewnij się, że tabele są utworzone
             print("✅ Pula połączeń do bazy PostgreSQL zainicjalizowana")
