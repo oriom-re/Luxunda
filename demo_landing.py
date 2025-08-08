@@ -88,6 +88,85 @@ async def lifespan(app: FastAPI):
 # Create socket.io server
 sio = socketio.AsyncServer(cors_allowed_origins="*")
 
+@sio.event
+async def connect(sid, environ):
+    print(f"🔌 Klient połączony: {sid}")
+    
+    # Wyślij dane grafu natychmiast po połączeniu
+    if app_state.get('luxdb'):
+        from luxdb.models.being import Being
+        beings_list = await Being.load_all()
+        
+        graph_data = {
+            "beings": [
+                {
+                    "id": being.ulid,
+                    "name": f"Entity_{being.ulid[:8]}",
+                    "type": "entity",
+                    "data": {},
+                    "x": 100 + (len(beings_list) * 50) % 800,
+                    "y": 150 + ((len(beings_list) // 16) * 120) % 600
+                }
+                for being in beings_list if being
+            ],
+            "relationships": []
+        }
+        
+        await sio.emit('graph_data', graph_data, room=sid)
+
+@sio.event
+async def disconnect(sid):
+    print(f"💔 Klient rozłączony: {sid}")
+
+@sio.event
+async def create_being(sid, data):
+    """Tworzy nowy being i powiadamia wszystkich klientów"""
+    try:
+        print(f"🧬 Tworzenie nowego bytu: {data}")
+        
+        if not app_state.get('luxdb'):
+            await sio.emit('error', {'message': 'LuxDB not initialized'}, room=sid)
+            return
+            
+        from luxdb.models.soul import Soul
+        from luxdb.models.being import Being
+        
+        # Tworzymy prosty genotyp
+        genotype = {
+            "genesis": {
+                "name": data.get("name", "new_entity"),
+                "version": "1.0"
+            },
+            "attributes": {
+                "created_via": {"py_type": "str", "default": "web_interface"},
+                "energy": {"py_type": "float", "default": 100.0}
+            }
+        }
+        
+        # Tworzymy Soul i Being
+        soul = await Soul.create(genotype, alias=f"soul_{data.get('name', 'entity')}")
+        being = await Being.create(soul, {
+            "created_via": "web_interface", 
+            "energy": 100.0
+        })
+        
+        # Powiadamiamy wszystkich o nowym bycie
+        new_being_data = {
+            "id": being.ulid,
+            "name": data.get("name", f"Entity_{being.ulid[:8]}"),
+            "type": "entity",
+            "data": {"energy": 100.0},
+            "x": data.get("x", 100),
+            "y": data.get("y", 150)
+        }
+        
+        await sio.emit('being_created', new_being_data)
+        print(f"✅ Nowy byt utworzony: {being.ulid}")
+        
+    except Exception as e:
+        print(f"❌ Błąd tworzenia bytu: {e}")
+        await sio.emit('error', {'message': str(e)}, room=sid)
+
 # Create FastAPI app with lifespan
 app = FastAPI(
     title="LuxDB Development Server",

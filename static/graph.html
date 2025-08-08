@@ -402,7 +402,7 @@
                 z-index: -1;
                 opacity: 0.3;
             "></canvas>
-            
+
             <div id="loading-indicator" style="
                 position: absolute;
                 top: 50%;
@@ -473,7 +473,7 @@
     <script src="/static/lux-components.js"></script>
     <script src="/static/lux-graph-reactive.js"></script>
     <link rel="stylesheet" href="/static/lux-reactive-styles.css">
-    
+
     <!-- Legacy components -->
     <script src="/static/graph.js"></script>
     <script src="/static/chat-component.js"></script>
@@ -492,10 +492,10 @@
                 function setupReactiveUI() {
                     // Connection status component
                     luxComponents.createConnectionComponent('connectionStatus');
-                    
+
                     // Stats component
                     luxComponents.createStatsComponent('statsContainer');
-                    
+
                     // Node list component
                     luxComponents.createListComponent('nodesList', 'graphNodes', (node) => `
                         <div class="node-item" onclick="luxComponents.selectNode('${node.id}')">
@@ -507,18 +507,18 @@
 
                 // Initialize socket connection
                 const socket = io();
-                
+
                 // Connect reactive systems
                 luxComponents.init(socket);
                 luxGraphReactive.init(socket, luxComponents);
-                
+
                 setupReactiveUI();
-                
+
                 // Initialize legacy graph if needed
                 if (typeof LuxOSGraph !== 'undefined') {
                     const graphManager = new LuxOSGraph();
                     window.luxGraph = graphManager;
-                    
+
                     // Connect reactive system to legacy graph
                     luxGraphReactive.subscribe('graph_updated', (data) => {
                         if (graphManager.updateGraph) {
@@ -557,17 +557,17 @@
                 }, 500);
 
                 console.log('✅ Graph reactive system ready');
-                
+
                 // Export references for debugging
                 window.luxReactiveGraph = {
                     components: luxComponents,
                     graphReactive: luxGraphReactive,
                     socket: socket
                 };
-                
+
                 // Initialize beautiful neural background
                 initNeuralBackground();
-                
+
                 console.log('✅ Reactive Graf zainicjalizowany');
 
             } catch (error) {
@@ -579,20 +579,20 @@
         function initNeuralBackground() {
             const canvas = document.getElementById('neuralBackground');
             const ctx = canvas.getContext('2d');
-            
+
             function resizeCanvas() {
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
             }
-            
+
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
-            
+
             // Neural network particles
             const particles = [];
             const particleCount = 50;
             const connectionDistance = 150;
-            
+
             class Particle {
                 constructor() {
                     this.x = Math.random() * canvas.width;
@@ -601,15 +601,15 @@
                     this.vy = (Math.random() - 0.5) * 0.5;
                     this.radius = Math.random() * 2 + 1;
                 }
-                
+
                 update() {
                     this.x += this.vx;
                     this.y += this.vy;
-                    
+
                     if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
                     if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
                 }
-                
+
                 draw() {
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -617,28 +617,28 @@
                     ctx.fill();
                 }
             }
-            
+
             // Initialize particles
             for (let i = 0; i < particleCount; i++) {
                 particles.push(new Particle());
             }
-            
+
             function animate() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
+
                 // Update and draw particles
                 particles.forEach(particle => {
                     particle.update();
                     particle.draw();
                 });
-                
+
                 // Draw connections
                 for (let i = 0; i < particles.length; i++) {
                     for (let j = i + 1; j < particles.length; j++) {
                         const dx = particles[i].x - particles[j].x;
                         const dy = particles[i].y - particles[j].y;
                         const distance = Math.sqrt(dx * dx + dy * dy);
-                        
+
                         if (distance < connectionDistance) {
                             const opacity = 1 - (distance / connectionDistance);
                             ctx.beginPath();
@@ -650,10 +650,10 @@
                         }
                     }
                 }
-                
+
                 requestAnimationFrame(animate);
             }
-            
+
             animate();
         }
 
@@ -745,12 +745,8 @@
         });
 
         socket.on('error', (error) => {
-            console.error('❌ Błąd Socket.IO:', error);
-            showError(error.message || 'Nieznany błąd połączenia');
-
-            // Ukryj loading indicator
-            const loading = document.getElementById('loading-indicator');
-            loading.style.display = 'none';
+            console.error('❌ Błąd:', error);
+            showNotification(`❌ Błąd: ${error.message}`, 'error');
         });
 
         // Obsługa danych sesji WebSocket
