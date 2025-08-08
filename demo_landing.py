@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
+import socketio
 import uvicorn
 
 from luxdb import LuxDB
@@ -55,9 +56,15 @@ async def lifespan(app: FastAPI):
     print("=" * 60)
     
     try:
-        # Initialize LuxDB
-        luxdb = LuxDB()
-        await luxdb.connect()
+        # Initialize LuxDB with required parameters
+        luxdb = LuxDB(
+            host="localhost",
+            port=5432,
+            user="postgres",
+            password="password",
+            database="luxdb"
+        )
+        await luxdb.initialize()
         app_state['luxdb'] = luxdb
         
         # Load initial data
@@ -75,8 +82,11 @@ async def lifespan(app: FastAPI):
         # Cleanup
         print("🔄 Shutting down LuxDB System...")
         if app_state['luxdb']:
-            await app_state['luxdb'].disconnect()
+            await app_state['luxdb'].close()
         print("✅ Shutdown complete")
+
+# Create socket.io server
+sio = socketio.AsyncServer(cors_allowed_origins="*")
 
 # Create FastAPI app with lifespan
 app = FastAPI(
@@ -85,6 +95,9 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+# Mount socket.io
+socket_app = socketio.ASGIApp(sio, app)
 
 # CORS configuration
 app.add_middleware(
@@ -428,7 +441,7 @@ async def generate_test_data():
 if __name__ == "__main__":
     print("📁 Workspace synchronization enabled")
     uvicorn.run(
-        "demo_landing:app",
+        "demo_landing:socket_app",
         host="0.0.0.0",
         port=3001,
         reload=False,  # Disable reload for better lifespan handling
