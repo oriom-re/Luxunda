@@ -340,6 +340,196 @@
             from { transform: translateX(0); opacity: 1; }
             to { transform: translateX(100%); opacity: 0; }
         }
+
+        /* Side Panels */
+        .side-panel {
+            position: fixed;
+            top: 60px;
+            bottom: 120px;
+            width: 280px;
+            background: rgba(26, 26, 26, 0.95);
+            border: 1px solid #333;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            z-index: 500;
+            backdrop-filter: blur(10px);
+        }
+
+        .side-panel.left {
+            left: 0;
+            border-right: 2px solid #00ff88;
+        }
+
+        .side-panel.right {
+            right: 0;
+            border-left: 2px solid #00ff88;
+        }
+
+        .side-panel.collapsed.left {
+            transform: translateX(-100%);
+        }
+
+        .side-panel.collapsed.right {
+            transform: translateX(100%);
+        }
+
+        .panel-header {
+            background: #00ff88;
+            color: #1a1a1a;
+            padding: 15px;
+            font-weight: bold;
+            font-size: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .nav-section, .data-section {
+            padding: 15px;
+            border-bottom: 1px solid #333;
+        }
+
+        .nav-section h3, .data-section h3 {
+            color: #00ff88;
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+        }
+
+        .nav-item:hover {
+            background: rgba(0, 255, 136, 0.2);
+            transform: translateX(5px);
+        }
+
+        .nav-icon {
+            margin-right: 10px;
+            font-size: 16px;
+        }
+
+        .count {
+            margin-left: auto;
+            background: #00ff88;
+            color: #1a1a1a;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .beings-list, .relations-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .being-item, .relation-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            border-left: 3px solid #00ff88;
+        }
+
+        .being-name, .relation-type {
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .being-status, .relation-desc {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #ccc;
+        }
+
+        .panel-toggle {
+            position: fixed;
+            top: 50%;
+            width: 30px;
+            height: 60px;
+            background: rgba(0, 255, 136, 0.8);
+            color: #1a1a1a;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 600;
+            transition: all 0.3s ease;
+            transform: translateY(-50%);
+        }
+
+        .panel-toggle.left {
+            left: 280px;
+            border-radius: 0 10px 10px 0;
+        }
+
+        .panel-toggle.right {
+            right: 280px;
+            border-radius: 10px 0 0 10px;
+        }
+
+        .panel-toggle:hover {
+            background: #00ff88;
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #333;
+            border-top: 2px solid #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -359,7 +549,60 @@
             </div>
         </div>
 
-        <div id="graph-container" style="position: relative;">
+        <!-- Left Panel - Navigation -->
+        <div class="side-panel left" id="leftPanel">
+            <div class="panel-header">🌀 LuxDB Navigator</div>
+            <div class="nav-section">
+                <h3>📊 System Overview</h3>
+                <div class="nav-item" onclick="showSection('dashboard')">
+                    <span class="nav-icon">🏠</span>Dashboard
+                </div>
+                <div class="nav-item" onclick="showSection('beings')">
+                    <span class="nav-icon">👥</span>Active Beings
+                    <span class="count" id="beingsCount">0</span>
+                </div>
+                <div class="nav-item" onclick="showSection('souls')">
+                    <span class="nav-icon">💎</span>Soul Templates
+                    <span class="count" id="soulsCount">0</span>
+                </div>
+                <div class="nav-item" onclick="showSection('relations')">
+                    <span class="nav-icon">🔗</span>Relations
+                    <span class="count" id="relationsCount">0</span>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <h3>🛠️ Tools</h3>
+                <div class="nav-item" onclick="showCreationModal()">
+                    <span class="nav-icon">➕</span>Create Being
+                </div>
+                <div class="nav-item" onclick="showDatabaseAdmin()">
+                    <span class="nav-icon">🗄️</span>Database Admin
+                </div>
+                <div class="nav-item" onclick="exportData()">
+                    <span class="nav-icon">💾</span>Export Data
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <h3>🎯 View Controls</h3>
+                <div class="nav-item" onclick="filterByType('all')">
+                    <span class="nav-icon">🌐</span>Show All
+                </div>
+                <div class="nav-item" onclick="filterByType('beings')">
+                    <span class="nav-icon">👤</span>Beings Only
+                </div>
+                <div class="nav-item" onclick="filterByType('souls')">
+                    <span class="nav-icon">💎</span>Souls Only
+                </div>
+                <div class="nav-item" onclick="centerGraph()">
+                    <span class="nav-icon">🎯</span>Center View
+                </div>
+            </div>
+        </div>
+
+        <!-- Central Graph Container -->
+        <div id="graph-container" style="position: relative; margin-left: 280px; margin-right: 280px;">
             <div id="loading-indicator" style="
                 position: absolute;
                 top: 50%;
@@ -391,6 +634,53 @@
             </div>
             <svg id="graph-svg"></svg>
         </div>
+
+        <!-- Right Panel - Live Data -->
+        <div class="side-panel right" id="rightPanel">
+            <div class="panel-header">📈 Live Data</div>
+            
+            <div class="data-section">
+                <h3>🔴 Online Beings</h3>
+                <div class="beings-list" id="beingsList">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Ładowanie...
+                    </div>
+                </div>
+            </div>
+
+            <div class="data-section">
+                <h3>🔗 Recent Relations</h3>
+                <div class="relations-list" id="relationsList">
+                    <div class="relation-item">
+                        <div class="relation-type">instantiates</div>
+                        <div class="relation-desc">Soul → Being</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="data-section">
+                <h3>📊 System Stats</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalNodes">0</div>
+                        <div class="stat-label">Total Nodes</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalLinks">0</div>
+                        <div class="stat-label">Connections</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="systemLoad">0%</div>
+                        <div class="stat-label">System Load</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel Toggle Buttons -->
+        <div class="panel-toggle left" id="leftToggle" onclick="togglePanel('left')">◀</div>
+        <div class="panel-toggle right" id="rightToggle" onclick="togglePanel('right')">▶</div>
 
         <div class="stats-overlay">
             <div class="stat-item">
@@ -586,6 +876,11 @@
             if (window.graph) { // Use the globally available graph instance
                 window.graph.updateGraph(data);
                 console.log('✅ Graf zaktualizowany pomyślnie');
+                
+                // Update side panels with new data
+                updateNavigationCounts(data);
+                updateBeingsList(data.beings);
+                updateStats(data);
             } else {
                 console.error('❌ LuxGraph nie jest zainicjalizowany');
                 showError('Graf nie został zainicjalizowany');
@@ -661,11 +956,130 @@ Status: ${sessionData.connected ? 'Połączony' : 'Rozłączony'}
             }
         }
 
+        // Panel toggle functionality
+        function togglePanel(side) {
+            const panel = document.getElementById(side + 'Panel');
+            const toggle = document.getElementById(side + 'Toggle');
+            const container = document.getElementById('graph-container');
+            
+            panel.classList.toggle('collapsed');
+            
+            if (panel.classList.contains('collapsed')) {
+                toggle.textContent = side === 'left' ? '▶' : '◀';
+                if (side === 'left') {
+                    container.style.marginLeft = '0';
+                } else {
+                    container.style.marginRight = '0';
+                }
+            } else {
+                toggle.textContent = side === 'left' ? '◀' : '▶';
+                if (side === 'left') {
+                    container.style.marginLeft = '280px';
+                } else {
+                    container.style.marginRight = '280px';
+                }
+            }
+        }
+
+        // Navigation functions
+        function showSection(section) {
+            console.log('🔍 Showing section:', section);
+            // Filter graph based on section
+            if (window.graph && window.graph.filterBySection) {
+                window.graph.filterBySection(section);
+            }
+        }
+
+        function filterByType(type) {
+            console.log('🎯 Filtering by type:', type);
+            if (window.graph && window.graph.filterByType) {
+                window.graph.filterByType(type);
+            }
+        }
+
+        function centerGraph() {
+            console.log('🎯 Centering graph');
+            if (window.graph && window.graph.resetZoom) {
+                window.graph.resetZoom();
+            }
+        }
+
+        function showCreationModal() {
+            console.log('➕ Opening creation modal');
+            alert('Funkcja tworzenia bytów będzie dostępna wkrótce!');
+        }
+
+        function showDatabaseAdmin() {
+            console.log('🗄️ Opening database admin');
+            window.open('/database-admin', '_blank');
+        }
+
+        function exportData() {
+            console.log('💾 Exporting data');
+            alert('Eksport danych będzie dostępny wkrótce!');
+        }
+
+        // Update counts in navigation
+        function updateNavigationCounts(data) {
+            if (data.beings) {
+                const beingsCount = document.getElementById('beingsCount');
+                if (beingsCount) beingsCount.textContent = data.beings.length;
+            }
+            
+            if (data.relationships) {
+                const relationsCount = document.getElementById('relationsCount');
+                if (relationsCount) relationsCount.textContent = data.relationships.length;
+            }
+        }
+
+        // Update beings list in right panel
+        function updateBeingsList(beings) {
+            const beingsList = document.getElementById('beingsList');
+            if (!beingsList || !beings) return;
+
+            if (beings.length === 0) {
+                beingsList.innerHTML = '<div class="loading">Brak aktywnych bytów</div>';
+                return;
+            }
+
+            beingsList.innerHTML = beings.slice(0, 5).map(being => `
+                <div class="being-item">
+                    <div class="being-name">${being.name || 'Unnamed'}</div>
+                    <div class="being-status">${being.type || 'entity'} • ${being.id ? being.id.substring(0, 8) + '...' : 'Unknown'}</div>
+                </div>
+            `).join('');
+        }
+
+        // Update stats in right panel
+        function updateStats(data) {
+            const totalNodes = document.getElementById('totalNodes');
+            const totalLinks = document.getElementById('totalLinks');
+            const systemLoad = document.getElementById('systemLoad');
+
+            if (totalNodes && data.beings) {
+                totalNodes.textContent = data.beings.length;
+            }
+
+            if (totalLinks && data.relationships) {
+                totalLinks.textContent = data.relationships.length;
+            }
+
+            if (systemLoad) {
+                // Simulate system load based on data size
+                const load = Math.min(100, Math.round((data.beings?.length || 0) / 10));
+                systemLoad.textContent = load + '%';
+            }
+        }
+
         // Placeholder functions that might be defined in the removed JS files
         function clearGraph() {
-            console.log("Placeholder: clearGraph() called");
+            console.log("🗑️ Clearing graph");
             if (window.graph) {
-                window.graph.clearGraph();
+                if (window.graph.clearGraph) {
+                    window.graph.clearGraph();
+                } else if (window.graph.clear) {
+                    window.graph.clear();
+                }
             }
         }
     </script>
