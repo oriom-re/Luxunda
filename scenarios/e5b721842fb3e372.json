@@ -1,0 +1,16 @@
+{
+  "alias": "kernel_core",
+  "soul_alias": "kernel_soul",
+  "genotype": {
+    "genesis": {
+      "name": "kernel",
+      "type": "system_core",
+      "doc": "G\u0142\u00f3wny byt systemu"
+    }
+  },
+  "attributes": {
+    "system_role": "kernel",
+    "priority": 100
+  },
+  "load_order": 0
+}

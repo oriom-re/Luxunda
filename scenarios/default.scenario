@@ -1,0 +1,26 @@
+{
+  "name": "default",
+  "created_at": "2025-08-08T10:21:43.049751",
+  "beings": [
+    {
+      "hash": "e5b721842fb3e372",
+      "load_order": 0,
+      "dependencies": []
+    },
+    {
+      "hash": "ece1b5139dec3854",
+      "load_order": 1,
+      "dependencies": [
+        "kernel_core"
+      ]
+    },
+    {
+      "hash": "90375978297a2c32",
+      "load_order": 2,
+      "dependencies": [
+        "kernel_core",
+        "communication_hub"
+      ]
+    }
+  ]
+}
