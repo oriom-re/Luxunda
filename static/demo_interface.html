@@ -1,11 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LuxOS Demo - Prezentacja Systemu</title>
+    <title>LuxOS Demo - System Intencji</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -15,1007 +15,488 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             overflow-x: hidden;
         }
 
-        .demo-container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-
-        .top-bar {
-            height: 60px;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px;
-            border-bottom: 2px solid #00ff88;
-            z-index: 1000;
-            position: relative;
-        }
-
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: #00ff88;
-        }
-
-        .demo-title {
-            font-size: 18px;
-            color: white;
-        }
-
-        .connection-status {
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .connection-status.connected {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4CAF50;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-
-        .connection-status.disconnected {
-            background: rgba(244, 67, 54, 0.2);
-            color: #f44336;
-            border: 1px solid rgba(244, 67, 54, 0.3);
-        }
-
-        .menu-toggle {
-            position: absolute;
-            left: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: 1px solid #00ff88;
-            color: #00ff88;
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            transition: all 0.3s;
-            z-index: 1001;
-        }
-
-        .menu-toggle:hover {
-            background: rgba(0, 255, 136, 0.2);
-        }
-
-        .main-content {
-            display: flex;
-            flex: 1;
-            position: relative;
-        }
-
-        .left-menu {
-            width: 320px;
-            background: rgba(0, 0, 0, 0.95);
-            border-right: 2px solid #00ff88;
-            transform: translateX(-100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            z-index: 999;
-            backdrop-filter: blur(20px);
-            overflow-y: auto;
-            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
-        }
-
-        .left-menu.open {
-            transform: translateX(0);
-        }
-
-        .menu-header {
+        .header {
+            background: rgba(0,0,0,0.2);
             padding: 20px;
-            border-bottom: 1px solid rgba(0, 255, 136, 0.3);
-        }
-
-        .menu-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #00ff88;
-            margin-bottom: 10px;
-        }
-
-        .menu-subtitle {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        .menu-section {
-            padding: 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .section-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: #00ff88;
-            margin-bottom: 15px;
-        }
-
-        .menu-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .stat-box {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid rgba(0, 255, 136, 0.3);
-            border-radius: 8px;
-            padding: 12px;
             text-align: center;
+            backdrop-filter: blur(10px);
         }
 
-        .stat-box .value {
-            font-size: 20px;
-            font-weight: bold;
-            color: #00ff88;
-        }
-
-        .stat-box .label {
-            font-size: 10px;
-            color: rgba(255, 255, 255, 0.7);
-            margin-top: 4px;
-        }
-
-        .menu-controls {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .menu-btn {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid #00ff88;
-            color: #00ff88;
-            padding: 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .menu-btn:hover {
-            background: rgba(0, 255, 136, 0.2);
-        }
-
-        .intent-section .intent-input {
-            width: 100%;
-            height: 80px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 8px;
-            color: white;
-            padding: 12px;
-            font-family: inherit;
-            font-size: 12px;
-            resize: vertical;
+        .header h1 {
+            font-size: 2.5em;
             margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
-        .intent-section .intent-input:focus {
-            outline: none;
-            border-color: #00ff88;
-            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
         }
 
-        .intent-section .intent-input::placeholder {
-            color: rgba(255, 255, 255, 0.5);
+        .demo-container {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            height: calc(100vh - 140px);
+            gap: 20px;
+            padding: 20px;
         }
 
-        .graph-container {
-            flex: 1;
+        .input-panel {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .graph-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
             position: relative;
-            background: radial-gradient(circle at center, rgba(0,255,136,0.05) 0%, transparent 70%);
-            transition: margin-left 0.3s ease;
         }
 
-        .graph-container.menu-open {
-            margin-left: 320px;
+        .form-group {
+            margin-bottom: 20px;
         }
 
-        .graph-controls {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            display: flex;
-            gap: 8px;
-            z-index: 50;
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
         }
 
-        .control-btn {
-            width: 40px;
-            height: 40px;
-            background: rgba(0,0,0,0.8);
-            border: 1px solid #00ff88;
-            color: #00ff88;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 16px;
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            font-size: 14px;
         }
 
-        .control-btn:hover {
-            background: rgba(0,255,136,0.2);
-            transform: scale(1.1);
+        .form-group textarea {
+            height: 120px;
+            resize: vertical;
         }
 
         .btn {
-            background: #00ff88;
-            color: #1a1a1a;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
+            padding: 12px 24px;
+            border-radius: 25px;
             cursor: pointer;
-            font-weight: bold;
-            font-size: 12px;
-            transition: all 0.3s;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 10px;
         }
 
         .btn:hover {
-            background: #00cc66;
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
 
-        .btn:disabled {
-            background: #666;
-            cursor: not-allowed;
-            transform: none;
+        .stats-panel {
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
         }
 
-        #graph-svg {
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+        }
+
+        .graph-container {
             width: 100%;
             height: 100%;
+            position: relative;
         }
 
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            border-radius: 8px;
-            z-index: 1000;
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
-            font-weight: 500;
+        .node {
+            cursor: pointer;
+            stroke-width: 2px;
         }
 
-        .notification.show {
-            transform: translateX(0);
+        .node.message {
+            fill: #4CAF50;
+            stroke: #2E7D32;
         }
 
-        .notification-success {
-            background: #4CAF50;
-            color: white;
+        .node.interaction {
+            fill: #FF9800;
+            stroke: #E65100;
         }
 
-        .notification-error {
-            background: #f44336;
-            color: white;
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
         }
 
-        .notification-info {
-            background: #2196F3;
-            color: white;
+        .node-label {
+            fill: white;
+            font-size: 10px;
+            text-anchor: middle;
+            pointer-events: none;
         }
 
-        @media (max-width: 768px) {
-            .left-menu {
-                width: 280px;
-            }
-
-            .graph-container.menu-open {
-                margin-left: 280px;
-            }
-
-            .top-bar {
-                padding: 0 60px 0 10px;
-            }
-
-            .logo {
-                font-size: 18px;
-            }
-
-            .demo-title {
-                display: none;
-            }
-
-            .menu-toggle {
-                left: 10px;
-                width: 35px;
-                height: 35px;
-                font-size: 16px;
-            }
+        .connection-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 250px;
+            font-size: 12px;
         }
 
-        .menu-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 998;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
+        .intention-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin: 2px;
+            display: inline-block;
         }
 
-        .menu-overlay.active {
-            opacity: 1;
-            visibility: visible;
+        .status-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 8px 16px;
+            background: rgba(76, 175, 80, 0.8);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
         }
 
-        @media (max-width: 480px) {
-            .left-menu {
-                width: 100%;
-            }
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
 
-            .graph-container.menu-open {
-                margin-left: 0;
-                display: none;
-            }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .processing {
+            animation: pulse 1.5s infinite;
         }
     </style>
 </head>
 <body>
+    <div class="header">
+        <h1>🌟 LuxOS Demo System</h1>
+        <p>Inteligentny System Analizy Intencji i Tworzenia Połączeń</p>
+    </div>
+
     <div class="demo-container">
-        <div class="top-bar">
-            <button class="menu-toggle" onclick="toggleMenu()" id="menuToggle">☰</button>
-            <div class="logo">🧬 LuxOS Demo</div>
-            <div class="demo-title">System Prezentacyjny - Tradycyjna Baza + Symulacja Bytów</div>
-            <div class="connection-status disconnected" id="connectionStatus">disconnected</div>
-        </div>
-
-        <div class="main-content">
-            <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
-            <div class="left-menu" id="leftMenu">
-                <div class="menu-header">
-                    <div class="menu-title">🧬 Panel Kontrolny</div>
-                    <div class="menu-subtitle">System zarządzania bytami i relacjami</div>
-                </div>
-
-                <div class="menu-section">
-                    <div class="section-title">📊 Statystyki Systemu</div>
-                    <div class="menu-stats">
-                        <div class="stat-box">
-                            <div class="value" id="menuNodesCount">0</div>
-                            <div class="label">Byty</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="value" id="menuLinksCount">0</div>
-                            <div class="label">Relacje</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="value" id="menuUsersCount">1</div>
-                            <div class="label">Użytkownicy</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="value" id="menuOperationsCount">0</div>
-                            <div class="label">Operacje</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="menu-section">
-                    <div class="section-title">🎮 Kontrola Grafu</div>
-                    <div class="menu-controls">
-                        <button class="menu-btn" onclick="zoomIn()">
-                            🔍 Powiększ Graf
-                        </button>
-                        <button class="menu-btn" onclick="zoomOut()">
-                            🔍 Pomniejsz Graf
-                        </button>
-                        <button class="menu-btn" onclick="resetZoom()">
-                            ⌂ Reset Widoku
-                        </button>
-                        <button class="menu-btn" onclick="loadTestData()">
-                            🧪 Załaduj Dane Testowe
-                        </button>
-                        <button class="menu-btn" onclick="clearGraph()">
-                            🗑️ Wyczyść Graf
-                        </button>
-                    </div>
-                </div>
-
-                <div class="menu-section intent-section">
-                    <div class="section-title">💭 Analiza Intencji</div>
-                    <textarea 
-                        class="intent-input" 
-                        id="intentionInput" 
-                        placeholder="Opisz swoją intencję... System AI przeanalizuje ją i stworzy odpowiednie byty w grafie."
-                        maxlength="500"
-                    ></textarea>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span style="font-size: 10px; color: rgba(255,255,255,0.5);">
-                            <span id="charCounter">0</span>/500
-                        </span>
-                    </div>
-                    <button class="btn" onclick="processIntention()" style="width: 100%;">
-                        🌀 Analizuj i Utwórz
-                    </button>
-                </div>
-
-                <div class="menu-section">
-                    <div class="section-title">🚀 Działania Szybkie</div>
-                    <div class="menu-controls">
-                        <button class="menu-btn" onclick="createRandomBeing()">
-                            🎲 Losowy Byt
-                        </button>
-                        <button class="menu-btn" onclick="exportData()">
-                            💾 Eksportuj Dane
-                        </button>
-                        <button class="menu-btn" onclick="showSystemInfo()">
-                            ℹ️ Info o Systemie
-                        </button>
-                    </div>
-                </div>
+        <!-- Panel wejściowy -->
+        <div class="input-panel">
+            <h3>💬 Nowa Wiadomość</h3>
+            
+            <div class="form-group">
+                <label>Autor:</label>
+                <input type="text" id="author" placeholder="Twoje imię" value="Demo User">
             </div>
 
-            <div class="graph-container" id="graphContainer">
-                <div class="graph-controls">
-                    <button class="control-btn" onclick="toggleMenu()" title="Menu">☰</button>
-                    <button class="control-btn" onclick="fullscreenGraph()" title="Pełny ekran">⛶</button>
-                </div>
+            <div class="form-group">
+                <label>Treść wiadomości:</label>
+                <textarea id="message-text" placeholder="Opisz swoją intencję, pomysł lub problem..."></textarea>
+            </div>
 
+            <button class="btn" onclick="sendMessage()">🚀 Wyślij i Analizuj</button>
+            
+            <div class="form-group">
+                <h4>🎯 Przykładowe wiadomości:</h4>
+                <button class="btn" onclick="loadExample('Mam pomysł na rewolucyjny system AI')">Pomysł</button>
+                <button class="btn" onclick="loadExample('Jak można zoptymalizować wydajność systemu?')">Pytanie</button>
+                <button class="btn" onclick="loadExample('Chciałbym współpracować przy tym projekcie')">Współpraca</button>
+                <button class="btn" onclick="loadExample('System nie działa poprawnie, potrzebuję pomocy')">Problem</button>
+            </div>
+
+            <!-- Panel statystyk -->
+            <div class="stats-panel">
+                <h4>📊 Statystyki Systemu</h4>
+                <div class="stat-item">
+                    <span>Wiadomości:</span>
+                    <span id="stat-messages">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Połączenia:</span>
+                    <span id="stat-connections">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Średnia siła:</span>
+                    <span id="stat-strength">0.0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel grafu -->
+        <div class="graph-panel">
+            <div class="status-indicator" id="status">🟢 Połączono</div>
+            <div class="graph-container">
                 <svg id="graph-svg"></svg>
+            </div>
+            <div class="connection-info" id="connection-info" style="display: none;">
+                <h4>🔗 Informacje o połączeniu</h4>
+                <div id="connection-details"></div>
             </div>
         </div>
     </div>
-    <script>
-        // ===== GLOBAL STATE =====
-        let ws;
-        let graphData = { nodes: [], links: [] };
-        let simulation;
-        let isConnected = false;
 
+    <script>
         // ===== WEBSOCKET KOMUNIKACJA =====
+        let ws;
+        let graphData = { messages: [], connections: [] };
+        let simulation;
+
         function initWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-
+            
             ws.onopen = () => {
-                isConnected = true;
-                document.getElementById('connectionStatus').className = 'connection-status connected';
-                document.getElementById('connectionStatus').textContent = 'Połączono';
+                document.getElementById('status').innerHTML = '🟢 Połączono';
                 console.log('🌐 Połączono z serwerem');
-                // Request initial data after connection
-                ws.send(JSON.stringify({ type: 'get_initial_data' }));
             };
-
+            
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 handleServerMessage(data);
             };
-
+            
             ws.onclose = () => {
-                isConnected = false;
-                document.getElementById('connectionStatus').className = 'connection-status disconnected';
-                document.getElementById('connectionStatus').textContent = 'Rozłączono';
-                console.log('❌ Rozłączono z serwerem');
+                document.getElementById('status').innerHTML = '🔴 Rozłączono';
                 setTimeout(initWebSocket, 3000); // Reconnect
             };
-
+            
             ws.onerror = (error) => {
                 console.error('❌ WebSocket error:', error);
-                document.getElementById('connectionStatus').className = 'connection-status disconnected';
-                document.getElementById('connectionStatus').textContent = 'Błąd';
+                document.getElementById('status').innerHTML = '⚠️ Błąd połączenia';
             };
         }
 
         function handleServerMessage(data) {
             switch(data.type) {
                 case 'initial_data':
-                    graphData.nodes = data.nodes || [];
-                    graphData.links = data.links || [];
+                    graphData.messages = data.messages;
+                    graphData.connections = data.connections;
                     updateGraph();
-                    updateStats(graphData.nodes.length, graphData.links.length);
+                    updateStats();
                     break;
-
-                case 'new_node':
-                    graphData.nodes.push(data.node);
+                    
+                case 'new_message_processed':
+                    graphData.messages.push(data.message);
+                    graphData.connections.push(...data.new_connections);
                     updateGraph();
-                    updateStats(graphData.nodes.length, graphData.links.length);
-                    showNotification(`Utworzono byt: ${data.node.label}`, 'success');
+                    updateStats();
+                    showNotification(`📨 Dodano wiadomość z ${data.connections_count} połączeniami`);
+                    document.getElementById('message-text').value = '';
                     break;
-
-                case 'new_link':
-                    graphData.links.push(data.link);
-                    updateGraph();
-                    updateStats(graphData.nodes.length, graphData.links.length);
-                    showNotification(`Utworzono relację: ${data.link.type}`, 'info');
-                    break;
-                
-                case 'update_node':
-                    const nodeIndex = graphData.nodes.findIndex(n => n.id === data.node.id);
-                    if (nodeIndex !== -1) {
-                        graphData.nodes[nodeIndex] = { ...graphData.nodes[nodeIndex], ...data.node };
-                        updateGraph();
-                    }
-                    break;
-
-                case 'remove_node':
-                    graphData.nodes = graphData.nodes.filter(n => n.id !== data.id);
-                    graphData.links = graphData.links.filter(l => l.source !== data.id && l.target !== data.id);
-                    updateGraph();
-                    updateStats(graphData.nodes.length, graphData.links.length);
-                    showNotification(`Usunięto byt: ${data.id}`, 'warning');
-                    break;
-
-                case 'remove_link':
-                    graphData.links = graphData.links.filter(l => l.id !== data.id);
-                    updateGraph();
-                    updateStats(graphData.nodes.length, graphData.links.length);
-                    showNotification(`Usunięto relację: ${data.id}`, 'warning');
-                    break;
-
-                case 'clear_graph':
-                    graphData.nodes = [];
-                    graphData.links = [];
-                    updateGraph();
-                    updateStats(0, 0);
-                    showNotification('Graf został wyczyszczony przez serwer', 'info');
-                    break;
-
-                case 'intention_processed':
-                    // Potencjalnie można dodać logikę do aktualizacji widoku na podstawie odpowiedzi serwera
-                    showNotification('Intencja przetworzona pomyślnie', 'success');
-                    break;
-                
-                case 'error':
-                    showNotification(`Błąd serwera: ${data.message}`, 'error');
+                    
+                case 'new_interaction':
+                    showNotification('👍 Zarejestrowano interakcję');
                     break;
             }
         }
 
         // ===== INTERFEJS UŻYTKOWNIKA =====
-
-        // Process intention from input
-        function processIntention() {
-            const intentionInput = document.getElementById('intentionInput');
-            const intentionText = intentionInput.value.trim();
-
-            if (!intentionText) {
-                alert('Proszę wpisać intencję przed wysłaniem.');
+        
+        function sendMessage() {
+            const author = document.getElementById('author').value.trim();
+            const text = document.getElementById('message-text').value.trim();
+            
+            if (!author || !text) {
+                alert('Proszę wypełnić wszystkie pola');
                 return;
             }
-
+            
             const messageData = {
-                type: 'process_intention',
-                intention: intentionText
+                type: 'new_message',
+                content: { author, text }
             };
-
+            
             ws.send(JSON.stringify(messageData));
-            showNotification('Przetwarzam intencję...', 'info');
-            intentionInput.value = ''; // Clear input after sending
-            document.getElementById('charCounter').textContent = '0'; // Reset counter
+            showNotification('🔄 Analizuję wiadomość...');
         }
 
-        // Update stats in menu and top bar
-        function updateStats(nodesCount, linksCount) {
-            document.getElementById('nodesCount').textContent = nodesCount;
-            document.getElementById('linksCount').textContent = linksCount;
-            document.getElementById('menuNodesCount').textContent = nodesCount;
-            document.getElementById('menuLinksCount').textContent = linksCount;
-            // document.getElementById('menuUsersCount').textContent = ...; // If user count is available
-            // document.getElementById('menuOperationsCount').textContent = ...; // If operations count is available
+        function loadExample(text) {
+            document.getElementById('message-text').value = text;
         }
 
-        // Show notification
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.className = `notification show notification-${type}`;
-            notification.textContent = message;
-            document.body.appendChild(notification);
-
+        function showNotification(message) {
+            // Simple notification - można rozbudować
+            const status = document.getElementById('status');
+            const originalText = status.innerHTML;
+            status.innerHTML = message;
+            status.classList.add('processing');
+            
             setTimeout(() => {
-                notification.remove();
+                status.innerHTML = originalText;
+                status.classList.remove('processing');
             }, 3000);
         }
 
-        // Initialize demo system
-        initializeDemo();
-        setupIntentionInput();
-
-        // Menu state
-        let menuOpen = false;
-
-        // Toggle menu
-        function toggleMenu() {
-            menuOpen = !menuOpen;
-            const leftMenu = document.getElementById('leftMenu');
-            const graphContainer = document.getElementById('graphContainer');
-            const menuToggle = document.getElementById('menuToggle');
-            const menuOverlay = document.getElementById('menuOverlay');
-
-            if (menuOpen) {
-                leftMenu.classList.add('open');
-                graphContainer.classList.add('menu-open');
-                menuOverlay.classList.add('active');
-                menuToggle.innerHTML = '✕';
-                menuToggle.title = 'Zamknij menu';
-                document.body.style.overflow = 'hidden'; // Prevent background scrolling
-            } else {
-                leftMenu.classList.remove('open');
-                graphContainer.classList.remove('menu-open');
-                menuOverlay.classList.remove('active');
-                menuToggle.innerHTML = '☰';
-                menuToggle.title = 'Otwórz menu';
-                document.body.style.overflow = ''; // Restore scrolling
-            }
-
-            // Trigger graph resize after animation
-            setTimeout(() => {
-                if (window.resizeGraph) {
-                    window.resizeGraph();
-                }
-            }, 300);
-        }
-
-        // Fullscreen graph
-        function fullscreenGraph() {
-            const graphContainer = document.getElementById('graphContainer');
-            if (graphContainer.requestFullscreen) {
-                graphContainer.requestFullscreen();
-            } else if (graphContainer.webkitRequestFullscreen) { /* Safari */
-                graphContainer.webkitRequestFullscreen();
-            } else if (graphContainer.msRequestFullscreen) { /* IE11 */
-                graphContainer.msRequestFullscreen();
-            }
-        }
-
-        // Clear graph
-        function clearGraph() {
-            if (confirm('Czy na pewno chcesz wyczyścić graf?')) {
-                ws.send(JSON.stringify({ type: 'clear_graph' }));
-                // Local update for immediate feedback
-                graphData.nodes = [];
-                graphData.links = [];
-                updateGraph();
-                updateStats(0, 0);
-                showNotification('Żądanie wyczyszczenia grafu wysłane', 'info');
-            }
-        }
-
-        // Create random being
-        function createRandomBeing() {
-            const names = ['Quantum Entity', 'Neural Node', 'Data Crystal', 'AI Spark', 'Cosmic Being', 'Logic Gate', 'Bio-Circuit'];
-            const types = ['entity', 'ai', 'system', 'storage', 'process', 'concept'];
-
-            const randomName = names[Math.floor(Math.random() * names.length)];
-            const randomType = types[Math.floor(Math.random() * types.length)];
-
-            const newNode = {
-                id: `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                label: randomName,
-                type: randomType,
-                level: Math.floor(Math.random() * 5) // Example property
-            };
+        function updateStats() {
+            document.getElementById('stat-messages').textContent = graphData.messages.length;
+            document.getElementById('stat-connections').textContent = graphData.connections.length;
             
-            ws.send(JSON.stringify({ type: 'add_node', node: newNode }));
-            showNotification(`Dodawanie bytu: ${randomName}`, 'info');
-        }
-
-        // Export data
-        function exportData() {
-            const dataToExport = {
-                nodes: graphData.nodes,
-                links: graphData.links
-            };
-
-            const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `luxos-demo-export-${Date.now()}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showNotification('Eksport danych zainicjowany', 'success');
-        }
-
-        // Show system info
-        function showSystemInfo() {
-            const info = `
-🧬 LuxOS Demo System
-━━━━━━━━━━━━━━━━━━━━━━
-
-📊 Statystyki:
-• Byty: ${graphData.nodes.length}
-• Relacje: ${graphData.links.length}
-• Status: ${isConnected ? 'Połączony' : 'Rozłączono'}
-
-🔧 Technologie:
-• D3.js - Wizualizacja
-• Socket.IO - Real-time komunikacja
-• (Backend Technology - e.g., FastAPI)
-• (Database Technology - e.g., PostgreSQL)
-
-💡 Funkcje:
-• Analiza intencji AI
-• Zarządzanie bytami i relacjami
-• Eksport/Import danych
-• Responsywny interfejs
-            `;
-
-            alert(info);
-        }
-
-        // Counter for intention input
-        function setupIntentionInput() {
-            const input = document.getElementById('intentionInput');
-            const counter = document.getElementById('charCounter');
-
-            input.addEventListener('input', function() {
-                counter.textContent = this.value.length;
-            });
-        }
-
-        // Handle window resize
-        window.addEventListener('resize', function() {
-            if (window.resizeGraph) {
-                window.resizeGraph();
-            }
-        });
-
-        // Auto-close menu on mobile when clicking outside
-        document.addEventListener('click', function(e) {
-            if (window.innerWidth <= 768 && menuOpen) {
-                const leftMenu = document.getElementById('leftMenu');
-                const menuToggle = document.getElementById('menuToggle');
-
-                if (!leftMenu.contains(e.target) && !menuToggle.contains(e.target)) {
-                    toggleMenu();
-                }
-            }
-        });
-
-        // Close menu with Escape key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && menuOpen) {
-                toggleMenu();
-            }
-        });
-
-        // Initialize demo system
-        function initializeDemo() {
-            initWebSocket();
+            const avgStrength = graphData.connections.length > 0 
+                ? (graphData.connections.reduce((sum, conn) => sum + conn.strength, 0) / graphData.connections.length).toFixed(2)
+                : '0.00';
+            document.getElementById('stat-strength').textContent = avgStrength;
         }
 
         // ===== GRAF D3.JS =====
         
-        // Placeholder functions for graph operations - actual implementation would be in a separate script or inline
-        function zoomIn() { console.log('Zoom In'); /* Implement zoom logic */ }
-        function zoomOut() { console.log('Zoom Out'); /* Implement zoom logic */ }
-        function resetZoom() { console.log('Reset Zoom'); /* Implement reset logic */ }
-        function loadTestData() { console.log('Load Test Data'); /* Implement test data loading */ }
-        
-        // Resize graph function (called on window resize)
-        window.resizeGraph = function() {
-            const svg = d3.select('#graph-svg');
-            const container = document.querySelector('.graph-container');
-            const width = container.clientWidth;
-            const height = container.clientHeight;
-
-            svg.attr('width', width).attr('height', height);
-
-            if (simulation) {
-                simulation.force('center', d3.forceCenter(width / 2, height / 2));
-                simulation.alpha(0.5).restart(); // Reheat simulation
-            }
-        }
-
-        // Function to clear graph data and redraw
-        window.clearGraphData = function() {
-            graphData.nodes = [];
-            graphData.links = [];
-            updateGraph();
-        }
-
         function updateGraph() {
             const svg = d3.select('#graph-svg');
             const container = document.querySelector('.graph-container');
             const width = container.clientWidth;
             const height = container.clientHeight;
-
+            
             svg.attr('width', width).attr('height', height);
-            svg.selectAll('*').remove(); // Clear previous elements
-
-            // Ensure we have data before proceeding
-            if (graphData.nodes.length === 0) {
-                svg.append('text')
-                   .attr('x', width / 2)
-                   .attr('y', height / 2)
-                   .attr('text-anchor', 'middle')
-                   .attr('fill', '#888')
-                   .text('Brak danych do wyświetlenia');
-                return;
-            }
-
-            // D3 force simulation setup
-            simulation = d3.forceSimulation(graphData.nodes)
-                .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(100).strength(0.5))
-                .force('charge', d3.forceManyBody().strength(-200)) // Adjusted strength for better separation
+            svg.selectAll('*').remove();
+            
+            // Przygotuj dane dla D3
+            const nodes = graphData.messages.map(msg => ({
+                id: msg.id,
+                type: 'message',
+                label: msg.author,
+                intention: msg.intention_type,
+                text: msg.text.substring(0, 50) + '...',
+                confidence: msg.intention_confidence,
+                sentiment: msg.sentiment
+            }));
+            
+            const links = graphData.connections.map(conn => ({
+                source: conn.source_id,
+                target: conn.target_id,
+                strength: conn.strength,
+                reason: conn.reason,
+                type: conn.connection_type
+            }));
+            
+            // Filtruj linki aby pokazać tylko istniejące węzły
+            const nodeIds = new Set(nodes.map(n => n.id));
+            const validLinks = links.filter(link => 
+                nodeIds.has(link.source) && nodeIds.has(link.target)
+            );
+            
+            if (nodes.length === 0) return;
+            
+            // Symulacja fizyczna
+            simulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(validLinks).id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
                 .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(d => (d.radius || 20) + 1)); // Added collision force
-
-            // Draw links
+                .force('collision', d3.forceCollide().radius(25));
+            
+            // Rysuj linki
             const link = svg.append('g')
-                .attr('class', 'links')
                 .selectAll('line')
-                .data(graphData.links)
+                .data(validLinks)
                 .enter().append('line')
                 .attr('class', 'link')
-                .style('stroke', '#999')
-                .style('stroke-opacity', 0.6)
-                .style('stroke-width', d => Math.max(1, d.strength * 3 || 1)); // Use strength if available
-
-            // Draw nodes
+                .style('stroke-width', d => Math.max(1, d.strength * 5))
+                .style('stroke-opacity', d => d.strength);
+            
+            // Rysuj węzły
             const node = svg.append('g')
-                .attr('class', 'nodes')
                 .selectAll('circle')
-                .data(graphData.nodes)
+                .data(nodes)
                 .enter().append('circle')
-                .attr('class', d => `node ${d.type || 'default'}`)
-                .attr('r', d => d.radius || 20) // Default radius if not specified
-                .style('fill', d => getNodeColor(d.type))
-                .style('stroke', d => getNodeStrokeColor(d.type))
-                .style('stroke-width', 2)
+                .attr('class', d => `node ${d.type}`)
+                .attr('r', d => 15 + (d.confidence || 0) * 10)
+                .style('fill', d => getIntentionColor(d.intention))
                 .call(d3.drag()
                     .on('start', dragstarted)
                     .on('drag', dragged)
                     .on('end', dragended))
-                .on('mouseover', (event, d) => {
-                    d3.select(event.currentTarget).style('stroke', '#00ff88').style('stroke-width', 4);
-                    showNodeTooltip(event, d);
-                })
-                .on('mouseout', (event, d) => {
-                    d3.select(event.currentTarget).style('stroke', d => getNodeStrokeColor(d.type)).style('stroke-width', 2);
-                    hideNodeTooltip();
-                });
+                .on('mouseover', showNodeInfo)
+                .on('mouseout', hideNodeInfo);
             
-            // Add node labels
-            const label = svg.append('g')
-                .attr('class', 'labels')
+            // Etykiety węzłów
+            const labels = svg.append('g')
                 .selectAll('text')
-                .data(graphData.nodes)
+                .data(nodes)
                 .enter().append('text')
                 .attr('class', 'node-label')
-                .text(d => d.label.substring(0, 10) + (d.label.length > 10 ? '...' : '')) // Truncate long labels
-                .attr('dy', -25); // Position above the node
-
-            // Update positions during simulation ticks
+                .text(d => d.label)
+                .attr('dy', -20);
+            
+            // Aktualizacja pozycji w symulacji
             simulation.on('tick', () => {
                 link
                     .attr('x1', d => d.source.x)
                     .attr('y1', d => d.source.y)
                     .attr('x2', d => d.target.x)
                     .attr('y2', d => d.target.y);
-
+                
                 node
                     .attr('cx', d => d.x)
                     .attr('cy', d => d.y);
-
-                label
+                
+                labels
                     .attr('x', d => d.x)
                     .attr('y', d => d.y);
             });
         }
 
-        function getNodeColor(type) {
+        function getIntentionColor(intention) {
             const colors = {
-                'entity': '#00bcd4', // Cyan
-                'ai': '#ff9800',     // Orange
-                'system': '#4caf50', // Green
-                'storage': '#e91e63', // Pink
-                'process': '#f44336', // Red
-                'concept': '#673ab7', // Deep Purple
-                'default': '#9e9e9e'  // Grey
+                'question': '#2196F3',
+                'suggestion': '#4CAF50', 
+                'problem': '#F44336',
+                'idea': '#FF9800',
+                'collaboration': '#9C27B0',
+                'general': '#607D8B'
             };
-            return colors[type] || colors['default'];
+            return colors[intention] || '#607D8B';
         }
 
-        function getNodeStrokeColor(type) {
-            const colors = {
-                'entity': '#0097a9',
-                'ai': '#f57c00',
-                'system': '#388e3c',
-                'storage': '#c2185b',
-                'process': '#d32f2f',
-                'concept': '#512da8',
-                'default': '#616161'
-            };
-            return colors[type] || colors['default'];
-        }
-        
-        function showNodeTooltip(event, d) {
-            const tooltip = d3.select('#graph-svg').append('g')
-                .attr('class', 'node-tooltip')
-                .style('opacity', 0);
-
-            const tooltipRect = tooltip.append('rect')
-                .attr('fill', 'rgba(0,0,0,0.8)')
-                .attr('stroke', '#00ff88')
-                .attr('stroke-width', 1)
-                .attr('rx', 5)
-                .attr('ry', 5);
-
-            const tooltipText = tooltip.append('text')
-                .attr('dy', 15)
-                .style('fill', 'white')
-                .style('font-size', '12px');
-
-            let textLines = [];
-            textLines.push(`ID: ${d.id.substring(0, 10)}...`);
-            textLines.push(`Label: ${d.label}`);
-            if (d.type) textLines.push(`Type: ${d.type}`);
-            // Add more properties if available in node data
-            for (const prop in d) {
-                if (d.hasOwnProperty(prop) && !['id', 'label', 'type', 'x', 'y', 'vx', 'vy', 'index', 'radius'].includes(prop)) {
-                    textLines.push(`${prop.charAt(0).toUpperCase() + prop.slice(1)}: ${d[prop]}`);
-                }
-            }
-
-            const tspans = textLines.map(line => `<tspan x="5" dy="1.2em">${line}</tspan>`);
-            tooltipText.html(tspans.join(''));
-
-            const bbox = tooltipText.node().getBBox();
-            tooltipRect.attr('width', bbox.width + 10).attr('height', bbox.height + 10).attr('x', -5).attr('y', -5);
-
-            // Position tooltip near the node, adjusting for screen bounds
-            let x = d.x + 30;
-            let y = d.y - 15;
-
-            const svgWidth = parseFloat(d3.select('#graph-svg').attr('width'));
-            const svgHeight = parseFloat(d3.select('#graph-svg').attr('height'));
-            const tooltipWidth = bbox.width + 10;
-            const tooltipHeight = bbox.height + 10;
-
-            if (x + tooltipWidth > svgWidth) {
-                x = d.x - tooltipWidth - 30; // Position to the left if too far right
-            }
-            if (y + tooltipHeight > svgHeight) {
-                y = d.y - tooltipHeight; // Position above if too far down
-            }
-             if (x < 0) {
-                x = 5; // Prevent going off the left edge
-            }
-            if (y < 0) {
-                y = 5; // Prevent going off the top edge
-            }
-
-            tooltip.attr('transform', `translate(${x}, ${y})`).style('opacity', 1);
+        function showNodeInfo(event, d) {
+            const info = document.getElementById('connection-info');
+            const details = document.getElementById('connection-details');
+            
+            details.innerHTML = `
+                <strong>${d.label}</strong><br>
+                <span class="intention-badge">${d.intention}</span><br>
+                <small>Pewność: ${(d.confidence * 100).toFixed(1)}%</small><br>
+                <small>Sentyment: ${d.sentiment}</small><br>
+                <em>"${d.text}"</em>
+            `;
+            
+            info.style.display = 'block';
         }
 
-        function hideNodeTooltip() {
-            d3.select('.node-tooltip').remove();
+        function hideNodeInfo() {
+            document.getElementById('connection-info').style.display = 'none';
         }
 
-        // Drag functions for nodes
+        // Funkcje drag and drop
         function dragstarted(event, d) {
             if (!event.active) simulation.alphaTarget(0.3).restart();
             d.fx = d.x;
@@ -1029,13 +510,26 @@
 
         function dragended(event, d) {
             if (!event.active) simulation.alphaTarget(0);
-            d.fx = null; // Let the simulation take over again
+            d.fx = null;
             d.fy = null;
         }
 
-        // Initialize WebSocket connection on page load
+        // ===== INICJALIZACJA =====
+        
         window.addEventListener('load', () => {
-            initializeDemo();
+            initWebSocket();
+            
+            // Resize handler
+            window.addEventListener('resize', () => {
+                setTimeout(updateGraph, 100);
+            });
+            
+            // Enter key handler
+            document.getElementById('message-text').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    sendMessage();
+                }
+            });
         });
     </script>
 </body>
