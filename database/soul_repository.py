@@ -60,7 +60,49 @@ class SoulRepository:
                     return {"success": False}
                 print(f"✅ Soul saved with hash: {soul.soul_hash[:8]}... and alias: {soul.alias}")
                 soul.created_at = row['created_at']
+                
+                # Automatycznie twórz indeksy na podstawie genotypu
+                await SoulRepository.create_soul_indexes(conn, soul.soul_hash, soul.genotype)
+                
             return {"success": True}
+
+    @staticmethod
+    async def create_soul_indexes(conn, soul_hash: str, genotype: Dict):
+        """Tworzy indeksy specyficzne dla duszy na podstawie genotypu"""
+        try:
+            attributes = genotype.get("attributes", {})
+            
+            for attr_name, attr_meta in attributes.items():
+                if attr_meta.get("indexed", False):
+                    index_type = attr_meta.get("index_type", "gin")
+                    index_name = f"idx_{soul_hash[:12]}_{attr_name}"
+                    
+                    if index_type == "gin":
+                        await conn.execute(f"""
+                            CREATE INDEX IF NOT EXISTS {index_name} 
+                            ON beings USING gin ((data->>'{attr_name}')) 
+                            WHERE soul_hash = '{soul_hash}'
+                        """)
+                    elif index_type == "btree":
+                        await conn.execute(f"""
+                            CREATE INDEX IF NOT EXISTS {index_name} 
+                            ON beings USING btree ((data->>'{attr_name}'))
+                            WHERE soul_hash = '{soul_hash}'
+                        """)
+                    elif index_type == "composite":
+                        # Złożony indeks na kilka pól
+                        fields = attr_meta.get("composite_fields", [attr_name])
+                        field_expressions = [f"(data->>'{field}')" for field in fields]
+                        await conn.execute(f"""
+                            CREATE INDEX IF NOT EXISTS {index_name} 
+                            ON beings ({', '.join(field_expressions)})
+                            WHERE soul_hash = '{soul_hash}'
+                        """)
+                    
+                    print(f"✅ Created index {index_name} for soul {soul_hash[:8]}...")
+                        
+        except Exception as e:
+            print(f"❌ Error creating indexes for soul {soul_hash[:8]}: {e}")
 
     @staticmethod
     async def load(soul: 'Soul') -> dict:
