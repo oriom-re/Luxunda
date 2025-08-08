@@ -268,18 +268,39 @@
 
         @media (max-width: 768px) {
             .graph-container {
-                padding: 10px;
-                margin: 15px 0;
+                padding: 8px;
+                margin: 10px 0;
                 flex: 1;
                 min-height: 300px;
+                max-height: 350px;
                 border-radius: 10px;
+                width: calc(100% - 16px);
+                position: relative;
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
 
             .messages-container {
-                padding: 10px;
-                margin: 15px 0 0 0;
-                max-height: 150px;
+                padding: 8px;
+                margin: 10px 0 0 0;
+                max-height: 120px;
                 border-radius: 10px;
+                width: calc(100% - 16px);
+                flex-shrink: 0;
+            }
+            
+            .connection-info {
+                position: fixed !important;
+                bottom: 10px !important;
+                left: 10px !important;
+                right: 10px !important;
+                top: auto !important;
+                max-width: calc(100vw - 20px) !important;
+                font-size: 11px !important;
+                z-index: 1000 !important;
+                border-radius: 8px !important;
             }
         }
 
@@ -634,30 +655,45 @@
             const svg = d3.select('#graph-svg');
             const container = document.querySelector('.graph-container');
             
-            // Calculate proper dimensions based on container
+            if (!container || !graphData.messages) return;
+            
+            // Mobile-first responsive dimensions
             const containerRect = container.getBoundingClientRect();
-            const width = Math.max(containerRect.width - 30, 250);
-            const height = Math.max(containerRect.height - 30, 200);
+            const isMobile = window.innerWidth <= 768;
+            
+            let width, height;
+            if (isMobile) {
+                width = Math.min(containerRect.width - 20, window.innerWidth - 40);
+                height = Math.min(containerRect.height - 20, 280);
+            } else {
+                width = containerRect.width - 30;
+                height = containerRect.height - 30;
+            }
+            
+            width = Math.max(width, 250);
+            height = Math.max(height, 200);
 
-            svg.attr('width', '100%')
-               .attr('height', '100%')
+            // Responsive SVG setup
+            svg.attr('width', width)
+               .attr('height', height)
                .attr('viewBox', `0 0 ${width} ${height}`)
-               .attr('preserveAspectRatio', 'xMidYMid meet');
+               .style('max-width', '100%')
+               .style('height', 'auto');
             
             svg.selectAll('*').remove();
 
-            // Przygotuj dane dla D3
-            const nodes = graphData.messages.map(msg => ({
+            // Simplified data for mobile
+            const nodes = graphData.messages.slice(0, isMobile ? 8 : 20).map(msg => ({
                 id: msg.id,
                 type: 'message',
-                label: msg.author,
+                label: isMobile ? msg.author.substring(0, 8) : msg.author,
                 intention: msg.intention_type,
-                text: msg.text.substring(0, 50) + '...',
+                text: msg.text.substring(0, isMobile ? 30 : 50) + '...',
                 confidence: msg.intention_confidence,
                 sentiment: msg.sentiment
             }));
 
-            const links = graphData.connections.map(conn => ({
+            const links = graphData.connections.slice(0, isMobile ? 10 : 30).map(conn => ({
                 source: conn.source_id,
                 target: conn.target_id,
                 strength: conn.strength,
@@ -665,7 +701,7 @@
                 type: conn.connection_type
             }));
 
-            // Filtruj linki aby pokazać tylko istniejące węzły
+            // Filter valid links
             const nodeIds = new Set(nodes.map(n => n.id));
             const validLinks = links.filter(link => 
                 nodeIds.has(link.source) && nodeIds.has(link.target)
@@ -673,62 +709,100 @@
 
             if (nodes.length === 0) return;
 
-            // Symulacja fizyczna
-            simulation = d3.forceSimulation(nodes)
-                .force('link', d3.forceLink(validLinks).id(d => d.id).distance(100))
-                .force('charge', d3.forceManyBody().strength(-300))
-                .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(25));
+            // Mobile-optimized force simulation
+            const linkDistance = isMobile ? 60 : 100;
+            const chargeStrength = isMobile ? -150 : -300;
+            const nodeRadius = isMobile ? 20 : 25;
 
-            // Rysuj linki
+            simulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(validLinks).id(d => d.id).distance(linkDistance))
+                .force('charge', d3.forceManyBody().strength(chargeStrength))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(nodeRadius))
+                .force('boundary', () => {
+                    nodes.forEach(d => {
+                        d.x = Math.max(nodeRadius, Math.min(width - nodeRadius, d.x || width/2));
+                        d.y = Math.max(nodeRadius, Math.min(height - nodeRadius, d.y || height/2));
+                    });
+                });
+
+            // Draw links with mobile optimization
             const link = svg.append('g')
                 .selectAll('line')
                 .data(validLinks)
                 .enter().append('line')
                 .attr('class', 'link')
-                .style('stroke-width', d => Math.max(1, d.strength * 5))
-                .style('stroke-opacity', d => d.strength);
+                .style('stroke-width', d => Math.max(1, d.strength * (isMobile ? 3 : 5)))
+                .style('stroke-opacity', d => d.strength * 0.8);
 
-            // Rysuj węzły
+            // Draw nodes with mobile sizing
             const node = svg.append('g')
                 .selectAll('circle')
                 .data(nodes)
                 .enter().append('circle')
                 .attr('class', d => `node ${d.type}`)
-                .attr('r', d => 15 + (d.confidence || 0) * 10)
+                .attr('r', d => {
+                    const baseRadius = isMobile ? 12 : 15;
+                    return baseRadius + (d.confidence || 0) * (isMobile ? 5 : 10);
+                })
                 .style('fill', d => getIntentionColor(d.intention))
+                .style('stroke-width', isMobile ? 1 : 2)
                 .call(d3.drag()
                     .on('start', dragstarted)
                     .on('drag', dragged)
                     .on('end', dragended))
-                .on('mouseover', showNodeInfo)
-                .on('mouseout', hideNodeInfo);
+                .on('click', isMobile ? showNodeInfo : null)
+                .on('mouseover', !isMobile ? showNodeInfo : null)
+                .on('mouseout', !isMobile ? hideNodeInfo : null);
 
-            // Etykiety węzłów
-            const labels = svg.append('g')
-                .selectAll('text')
-                .data(nodes)
-                .enter().append('text')
-                .attr('class', 'node-label')
-                .text(d => d.label)
-                .attr('dy', -20);
+            // Mobile-optimized labels
+            if (!isMobile || nodes.length <= 5) {
+                const labels = svg.append('g')
+                    .selectAll('text')
+                    .data(nodes)
+                    .enter().append('text')
+                    .attr('class', 'node-label')
+                    .style('font-size', isMobile ? '10px' : '12px')
+                    .text(d => d.label)
+                    .attr('dy', isMobile ? -15 : -20);
 
-            // Aktualizacja pozycji w symulacji
-            simulation.on('tick', () => {
-                link
-                    .attr('x1', d => d.source.x)
-                    .attr('y1', d => d.source.y)
-                    .attr('x2', d => d.target.x)
-                    .attr('y2', d => d.target.y);
+                // Update labels in simulation
+                simulation.on('tick', () => {
+                    link
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
 
-                node
-                    .attr('cx', d => d.x)
-                    .attr('cy', d => d.y);
+                    node
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y);
 
-                labels
-                    .attr('x', d => d.x)
-                    .attr('y', d => d.y);
-            });
+                    labels
+                        .attr('x', d => d.x)
+                        .attr('y', d => d.y);
+                });
+            } else {
+                // No labels on mobile for crowded graphs
+                simulation.on('tick', () => {
+                    link
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+
+                    node
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y);
+                });
+            }
+
+            // Auto-stop simulation on mobile to save battery
+            if (isMobile) {
+                setTimeout(() => {
+                    if (simulation) simulation.stop();
+                }, 3000);
+            }
         }
 
         function getIntentionColor(intention) {
@@ -746,6 +820,7 @@
         function showNodeInfo(event, d) {
             const info = document.getElementById('connection-info');
             const details = document.getElementById('connection-details');
+            const isMobile = window.innerWidth <= 768;
 
             details.innerHTML = `
                 <strong>${d.label}</strong><br>
@@ -756,10 +831,35 @@
             `;
 
             info.style.display = 'block';
+            
+            // Mobile-specific positioning
+            if (isMobile) {
+                info.style.position = 'fixed';
+                info.style.bottom = '10px';
+                info.style.left = '10px';
+                info.style.right = '10px';
+                info.style.top = 'auto';
+                info.style.maxWidth = 'calc(100vw - 20px)';
+                info.style.zIndex = '1000';
+                
+                // Auto-hide on mobile after 3 seconds
+                setTimeout(() => {
+                    info.style.display = 'none';
+                }, 3000);
+            } else {
+                info.style.position = 'absolute';
+                info.style.top = '10px';
+                info.style.right = '10px';
+                info.style.bottom = 'auto';
+                info.style.left = 'auto';
+                info.style.maxWidth = '250px';
+            }
         }
 
         function hideNodeInfo() {
-            document.getElementById('connection-info').style.display = 'none';
+            if (window.innerWidth > 768) {
+                document.getElementById('connection-info').style.display = 'none';
+            }
         }
 
         // Funkcje drag and drop
