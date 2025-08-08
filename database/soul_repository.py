@@ -496,7 +496,7 @@ class DynamicRepository:
 
                     # Sprawdź, czy tabela istnieje i zbuduj ją, jeśli nie
                     result = await Postgre_db.ensure_table(
-                        conn, table_name, column_def, index, foreign_key=foreign_key, unique=unique
+                        conn, table_name, table_name, column_def, index, foreign_key, unique
                     )
 
                     import ulid

@@ -167,40 +167,28 @@ class SimpleLuxDB:
             return entity
 
     def _generate_genotype_from_data(self, data: dict, entity_type: str, name: str) -> dict:
-        """Automatycznie generuje genotyp na podstawie danych"""
-        attributes = {}
-
-        # Dodaj standardowe pola
-        attributes["name"] = {"py_type": "str"}
-
-        # Analizuj dane i dodaj odpowiednie typy
-        for key, value in data.items():
-            if isinstance(value, str):
-                attributes[key] = {"py_type": "str"}
-            elif isinstance(value, int):
-                attributes[key] = {"py_type": "int"}
-            elif isinstance(value, float):
-                attributes[key] = {"py_type": "float"}
-            elif isinstance(value, bool):
-                attributes[key] = {"py_type": "bool"}
-            elif isinstance(value, list):
-                if value and isinstance(value[0], str):
-                    attributes[key] = {"py_type": "List[str]"}
-                elif value and isinstance(value[0], (int, float)):
-                    attributes[key] = {"py_type": "List[float]"}
-                else:
-                    attributes[key] = {"py_type": "dict"}  # Fallback to JSONB
-            else:
-                attributes[key] = {"py_type": "dict"}  # Store as JSONB
-
-        return {
-            "genesis": {
-                "name": entity_type,
-                "version": "1.0",
-                "description": f"Auto-generated genotype for {name}"
-            },
-            "attributes": attributes
-        }
+        """Automatycznie generuje genotyp na podstawie danych - używa cache dla podobnych typów"""
+        # Używaj prostszego genotypu dla podobnych typów danych
+        genotype_key = f"{entity_type}_standard"
+        
+        if genotype_key not in getattr(self, '_genotype_cache', {}):
+            if not hasattr(self, '_genotype_cache'):
+                self._genotype_cache = {}
+                
+            # Utwórz standardowy genotyp dla danego typu encji
+            self._genotype_cache[genotype_key] = {
+                "genesis": {
+                    "name": entity_type,
+                    "version": "1.0",
+                    "description": f"Standard genotype for {entity_type}"
+                },
+                "attributes": {
+                    "name": {"py_type": "str"},
+                    "data": {"py_type": "dict"}  # Wszystkie inne dane jako JSONB
+                }
+            }
+            
+        return self._genotype_cache[genotype_key]
 
     async def get_entity(self, entity_id: str):
         """Pobiera encję po ID"""
