@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -27,280 +26,54 @@
             height: 100vh;
         }
 
-        .top-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background: rgba(0, 0, 0, 0.8);
+        .header {
+            background: rgba(26, 26, 26, 0.95);
+            padding: 15px 20px;
+            border-bottom: 2px solid #00ff88;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0 20px;
-            z-index: 1000;
             backdrop-filter: blur(10px);
         }
 
-        .session-info {
-            display: flex;
-            gap: 15px;
-            color: white;
-            font-size: 14px;
-        }
-
-        .user-info {
-            padding: 4px 12px;
-            background: rgba(76, 175, 80, 0.2);
-            border-radius: 12px;
-            border: 1px solid rgba(76, 175, 80, 0.3);
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff88;
         }
 
         .connection-status {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .connection-status.connected {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4CAF50;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-
-        .connection-status.disconnected {
-            background: rgba(244, 67, 54, 0.2);
-            color: #f44336;
-            border: 1px solid rgba(244, 67, 54, 0.3);
-        }
-
-        .connection-status.error {
-            background: rgba(255, 152, 0, 0.2);
-            color: #ff9800;
-            border: 1px solid rgba(255, 152, 0, 0.3);
-        }
-
-        .controls {
-            display: flex;
-            gap: 10px;
-        }
-
-        .control-btn {
-            padding: 8px 12px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-            cursor: pointer;
             font-size: 14px;
-            transition: all 0.2s ease;
-        }
-
-        .control-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        /* Side Panels */
-        .side-panel {
-            position: fixed;
-            top: 60px;
-            bottom: 120px;
-            width: 280px;
-            background: rgba(26, 26, 26, 0.95);
-            border: 1px solid #333;
-            overflow-y: auto;
-            transition: transform 0.3s ease;
-            z-index: 500;
-            backdrop-filter: blur(10px);
-        }
-
-        .side-panel.left {
-            left: 0;
-            border-right: 2px solid #00ff88;
-        }
-
-        .side-panel.right {
-            right: 0;
-            border-left: 2px solid #00ff88;
-        }
-
-        .side-panel.collapsed.left {
-            transform: translateX(-100%);
-        }
-
-        .side-panel.collapsed.right {
-            transform: translateX(100%);
-        }
-
-        .panel-header {
-            background: #00ff88;
-            color: #1a1a1a;
-            padding: 15px;
-            font-weight: bold;
-            font-size: 16px;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-
-        .nav-section, .data-section {
-            padding: 15px;
-            border-bottom: 1px solid #333;
-        }
-
-        .nav-section h3, .data-section h3 {
-            color: #00ff88;
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            font-weight: bold;
-        }
-
-        .nav-item {
             display: flex;
             align-items: center;
-            padding: 10px;
-            margin: 5px 0;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: white;
+            gap: 8px;
         }
 
-        .nav-item:hover {
-            background: rgba(0, 255, 136, 0.2);
-            transform: translateX(5px);
-        }
-
-        .nav-icon {
-            margin-right: 10px;
-            font-size: 16px;
-        }
-
-        .count {
-            margin-left: auto;
-            background: #00ff88;
-            color: #1a1a1a;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .beings-list, .relations-list {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .being-item, .relation-item {
-            padding: 8px;
-            margin: 5px 0;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
-            border-left: 3px solid #00ff88;
-        }
-
-        .being-name, .relation-type {
-            font-weight: bold;
-            color: #00ff88;
-        }
-
-        .being-status, .relation-desc {
-            font-size: 12px;
-            color: #ccc;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .stat-item {
-            text-align: center;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 5px;
-        }
-
-        .stat-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: #00ff88;
-        }
-
-        .stat-label {
-            font-size: 11px;
-            color: #ccc;
-        }
-
-        .panel-toggle {
-            position: fixed;
-            top: 50%;
-            width: 30px;
-            height: 60px;
-            background: rgba(0, 255, 136, 0.8);
-            color: #1a1a1a;
-            border: none;
-            cursor: pointer;
-            font-size: 18px;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 600;
-            transition: all 0.3s ease;
-            transform: translateY(-50%);
-        }
-
-        .panel-toggle.left {
-            left: 280px;
-            border-radius: 0 10px 10px 0;
-        }
-
-        .panel-toggle.right {
-            right: 280px;
-            border-radius: 10px 0 0 10px;
-        }
-
-        .panel-toggle:hover {
-            background: #00ff88;
-            transform: translateY(-50%) scale(1.1);
-        }
-
-        .loading {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: #888;
-            font-size: 12px;
-        }
-
-        .spinner {
-            width: 12px;
-            height: 12px;
-            border: 2px solid #333;
-            border-top: 2px solid #00ff88;
+        .status-dot {
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            background: #ff4444;
+            animation: pulse 2s infinite;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .status-dot.connected {
+            background: #00ff88;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
         #graph {
             width: 100%;
             height: calc(100vh - 70px - 120px);
-            margin-left: 280px;
-            margin-right: 280px;
+            margin-left: 0;
             background: radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
             transition: all 0.3s ease;
             position: relative;
-            margin-top: 60px;
         }
 
         .node {
@@ -423,6 +196,182 @@
             cursor: not-allowed;
             transform: none;
         }
+
+        .status-connected {
+            color: #00ff88;
+        }
+
+        .status-disconnected {
+            color: #ff4444;
+        }
+
+        .stats-overlay {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            background: rgba(26, 26, 26, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #555;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-item {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .feedback-message {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: #00ff88;
+            color: #1a1a1a;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            z-index: 1001;
+            transform: translateY(-100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .feedback-message.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .zoom-controls {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(26, 26, 26, 0.9);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .zoom-btn:hover {
+            background: #00ff88;
+            color: #1a1a1a;
+            transform: scale(1.1);
+        }
+
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .session-info {
+            display: flex;
+            gap: 15px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .user-info {
+            padding: 4px 12px;
+            background: rgba(76, 175, 80, 0.2);
+            border-radius: 12px;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .connection-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .connection-status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+
+        .connection-status.error {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        #graph {
+            margin-top: 60px; /* Make room for top bar */
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -433,109 +382,16 @@
                 <span class="connection-status disconnected">disconnected</span>
             </div>
             <div class="controls">
+                <button onclick="window.graph.zoomIn()" class="control-btn">🔍+</button>
+                <button onclick="window.graph.zoomOut()" class="control-btn">🔍-</button>
+                <button onclick="window.graph.resetZoom()" class="control-btn">⌂</button>
                 <button onclick="clearGraph()" class="control-btn">🗑️</button>
                 <button onclick="testData()" class="control-btn">🧪</button>
                 <button onclick="showSessionInfo()" class="control-btn">👤</button>
             </div>
         </div>
 
-        <!-- Left Navigation Panel -->
-        <div id="leftPanel" class="side-panel left">
-            <div class="panel-header">🧭 Nawigacja</div>
-
-            <div class="nav-section">
-                <h3>Typy Bytów</h3>
-                <div class="nav-item" onclick="showSection('beings')">
-                    <span class="nav-icon">🧬</span>
-                    <span>Wszystkie Byty</span>
-                    <span class="count" id="beingsCount">0</span>
-                </div>
-                <div class="nav-item" onclick="filterByType('soul')">
-                    <span class="nav-icon">♦</span>
-                    <span>Dusze (Genotypy)</span>
-                    <span class="count" id="soulsCount">0</span>
-                </div>
-                <div class="nav-item" onclick="filterByType('relation')">
-                    <span class="nav-icon">⟷</span>
-                    <span>Relacje</span>
-                    <span class="count" id="relationsCount">0</span>
-                </div>
-            </div>
-
-            <div class="nav-section">
-                <h3>Akcje</h3>
-                <div class="nav-item" onclick="centerGraph()">
-                    <span class="nav-icon">🎯</span>
-                    <span>Wycentruj Graf</span>
-                </div>
-                <div class="nav-item" onclick="showCreationModal()">
-                    <span class="nav-icon">➕</span>
-                    <span>Utwórz Byt</span>
-                </div>
-                <div class="nav-item" onclick="showDatabaseAdmin()">
-                    <span class="nav-icon">🗄️</span>
-                    <span>Admin Bazy</span>
-                </div>
-                <div class="nav-item" onclick="exportData()">
-                    <span class="nav-icon">💾</span>
-                    <span>Eksportuj</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right Data Panel -->
-        <div id="rightPanel" class="side-panel right">
-            <div class="panel-header">📊 Dane Systemu</div>
-
-            <div class="data-section">
-                <h3>Aktywne Byty</h3>
-                <div id="beingsList" class="beings-list">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        Ładowanie...
-                    </div>
-                </div>
-            </div>
-
-            <div class="data-section">
-                <h3>Relacje</h3>
-                <div id="relationsList" class="relations-list">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        Ładowanie...
-                    </div>
-                </div>
-            </div>
-
-            <div class="data-section">
-                <h3>Statystyki</h3>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-value" id="totalNodes">0</div>
-                        <div class="stat-label">Węzły</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="totalLinks">0</div>
-                        <div class="stat-label">Połączenia</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="systemLoad">0%</div>
-                        <div class="stat-label">Obciążenie</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="memoryUsage">0MB</div>
-                        <div class="stat-label">Pamięć</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Panel Toggles -->
-        <button id="leftToggle" class="panel-toggle left" onclick="togglePanel('left')">◀</button>
-        <button id="rightToggle" class="panel-toggle right" onclick="togglePanel('right')">▶</button>
-
-        <!-- Graph Container -->
-        <div id="graph">
+        <div id="graph-container" style="position: relative;">
             <div id="loading-indicator" style="
                 position: absolute;
                 top: 50%;
@@ -565,12 +421,31 @@
                 <strong>⚠️ Problem z ładowaniem</strong>
                 <div id="error-message"></div>
             </div>
+            <svg id="graph-svg"></svg>
+        </div>
+
+        <div class="stats-overlay">
+            <div class="stat-item">
+                <div class="stat-value" id="nodesCount">0</div>
+                <div class="stat-label">Byty</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="linksCount">0</div>
+                <div class="stat-label">Relacje</div>
+            </div>
+        </div>
+
+        <div class="zoom-controls">
+            <button class="zoom-btn" id="zoomIn">+</button>
+            <button class="zoom-btn" id="zoomOut">-</button>
+            <button class="zoom-btn" id="zoomReset">⌂</button>
+            <button class="zoom-btn" id="luxChat" title="Chat z Lux">💬</button>
         </div>
 
         <div class="intention-system">
-            <textarea
-                class="intention-input"
-                id="intentionInput"
+            <textarea 
+                class="intention-input" 
+                id="intentionInput" 
                 placeholder="🌀 Wyraź swoją intencję w uniwersum LuxDB... (Dane są reprezentacją intencji)"
                 maxlength="500"
             ></textarea>
@@ -583,61 +458,100 @@
         </div>
     </div>
 
-    <!-- Original LuxOSGraph System -->
-    <script src="/static/graph.js"></script>
-    <script src="/static/chat-component.js"></script>
-    <script src="/static/intention-component.js"></script>
-
+    <script src="graph.js"></script>
+    <script src="intention-component.js"></script>
+    <script src="chat-component.js"></script>
     <script>
-        // Initialize original LuxOSGraph system
-        let graph = null;
-
-        function initApp() {
-            console.log('🚀 Inicjalizacja LuxDB Graf...');
-
-            try {
-                // Initialize original LuxOSGraph
-                if (typeof LuxOSGraph !== 'undefined') {
-                    graph = new LuxOSGraph();
-                    window.graph = graph; // Make it globally available
-                    console.log('✅ LuxOSGraph zainicjalizowany');
-                } else {
-                    console.error('❌ LuxOSGraph class not found');
-                    showError('LuxOSGraph class nie został załadowany');
-                }
-            } catch (error) {
-                console.error('❌ Błąd inicjalizacji aplikacji:', error);
-                showError('Błąd inicjalizacji: ' + error.message);
-            }
-        }
-
         // Inicjalizacja aplikacji
         document.addEventListener('DOMContentLoaded', function() {
-            initApp();
+            try {
+                console.log('🚀 Inicjalizacja LuxDB Graf...');
 
-            // Initialize components and add event listeners
-            if (typeof LuxOSGraph !== 'undefined' && typeof IntentionComponent !== 'undefined' && typeof LuxChatComponent !== 'undefined') {
-                const graphManager = window.graph;
+                // Sprawdź czy klasy są dostępne
+                if (typeof LuxOSGraph === 'undefined') {
+                    console.error('❌ LuxOSGraph class not loaded');
+                    throw new Error('LuxOSGraph class not available');
+                }
+
+                if (typeof IntentionComponent === 'undefined') {
+                    console.error('❌ IntentionComponent class not loaded');
+                    throw new Error('IntentionComponent class not available');
+                }
+
+                if (typeof LuxChatComponent === 'undefined') {
+                    console.error('❌ LuxChatComponent class not loaded');
+                    throw new Error('LuxChatComponent class not available');
+                }
+
+                // Inicjalizuj komponenty
+                const graphManager = new LuxOSGraph();
                 const intentionComponent = new IntentionComponent(graphManager);
                 const luxChatComponent = new LuxChatComponent(graphManager);
 
-                // Save global references for debugging
+                // Zapisz globalne referencje dla debugowania
+                window.luxOSUniverse = graphManager;
                 window.intentionComponent = intentionComponent;
                 window.luxChatComponent = luxChatComponent;
 
-                // Handle window resize
+                // Dodaj obsługę kontrolek zoom
+                document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
+                document.getElementById('zoomOut').addEventListener('click', () => graphManager.zoomOut());
+                document.getElementById('zoomReset').addEventListener('click', () => graphManager.resetZoom());
+                document.getElementById('luxChat').addEventListener('click', () => luxChatComponent.toggle());
+
+                // Obsługa zmiany rozmiaru okna
                 window.addEventListener('resize', () => {
                     if (graphManager.resizeGraph) {
                         graphManager.resizeGraph();
                     }
                 });
-            } else {
-                console.error('❌ One or more components failed to load.');
-                if (typeof showError === 'function') {
-                    showError('Krytyczny błąd ładowania komponentów aplikacji.');
-                }
+
+                console.log('✅ LuxDB Graf zainicjalizowany pomyślnie');
+
+            } catch (error) {
+                console.error('❌ Błąd inicjalizacji aplikacji:', error);
+
+                // Pokaż błąd w UI
+                const errorDiv = document.createElement('div');
+                errorDiv.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: #ff4444;
+                    color: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    z-index: 9999;
+                    text-align: center;
+                    font-weight: bold;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                `;
+                errorDiv.innerHTML = `
+                    <h3>❌ Błąd ładowania grafu</h3>
+                    <p>${error.message}</p>
+                    <button onclick="location.reload()" style="
+                        background: white;
+                        color: #ff4444;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        margin-top: 10px;
+                        font-weight: bold;
+                    ">🔄 Odśwież stronę</button>
+                `;
+                document.body.appendChild(errorDiv);
             }
         });
+
+        // Połączenie z Socket.IO
+        const socket = io();
+        const statusDot = document.getElementById('connectionDot');
+        const connectionStatusText = document.getElementById('connectionStatus');
+        const sessionInfoDiv = document.getElementById('sessionInfo');
+        const userInfoSpan = sessionInfoDiv.querySelector('.user-info');
+        const sessionConnectionStatusSpan = sessionInfoDiv.querySelector('.connection-status');
 
         // Funkcja do obsługi błędów
         function showError(message) {
@@ -646,78 +560,108 @@
             errorMessage.textContent = message;
             errorDiv.style.display = 'block';
 
-            const sessionConnectionStatusSpan = document.querySelector('.connection-status');
+            // Aktualizacja statusu sesji na błąd
             if (sessionConnectionStatusSpan) {
                 sessionConnectionStatusSpan.textContent = 'error';
                 sessionConnectionStatusSpan.className = 'connection-status error';
             }
 
+            // Automatycznie ukryj po 5 sekundach
             setTimeout(() => {
                 errorDiv.style.display = 'none';
             }, 5000);
         }
 
-        // Panel toggle functionality
-        function togglePanel(side) {
-            const panel = document.getElementById(side + 'Panel');
-            const toggle = document.getElementById(side + 'Toggle');
-            const graphContainer = document.getElementById('graph');
+        // Socket.IO event handling
+        socket.on('connect', () => {
+            console.log('✅ Połączono z serverem');
+            connectionStatusText.textContent = '🟢 Połączony';
+            statusDot.classList.add('connected');
 
-            panel.classList.toggle('collapsed');
+            // Aktualizacja statusu sesji na połączony
+            if (sessionConnectionStatusSpan) {
+                sessionConnectionStatusSpan.textContent = 'connected';
+                sessionConnectionStatusSpan.className = 'connection-status connected';
+            }
 
-            if (panel.classList.contains('collapsed')) {
-                toggle.textContent = side === 'left' ? '▶' : '◀';
-                if (side === 'left') {
-                    graphContainer.style.marginLeft = '0';
-                } else {
-                    graphContainer.style.marginRight = '0';
+            // Pokaż loading indicator
+            const loading = document.getElementById('loading-indicator');
+            loading.style.display = 'block';
+
+            // Automatycznie żądaj danych grafu
+            setTimeout(() => {
+                console.log('📡 Żądanie danych grafu...');
+                socket.emit('request_graph_data');
+            }, 500);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ Rozłączono z serverem');
+            connectionStatusText.textContent = '🔴 Rozłączony';
+            statusDot.classList.remove('connected');
+
+            // Aktualizacja statusu sesji na rozłączony
+            if (sessionConnectionStatusSpan) {
+                sessionConnectionStatusSpan.textContent = 'disconnected';
+                sessionConnectionStatusSpan.className = 'connection-status disconnected';
+            }
+            if (userInfoSpan) {
+                userInfoSpan.textContent = '👤 N/A';
+            }
+
+            showError('Połączenie z serwerem zostało utracone.');
+        });
+
+        socket.on('graph_data', (data) => {
+            console.log('📊 Otrzymano dane grafu:', data);
+
+            // Ukryj loading indicator
+            const loading = document.getElementById('loading-indicator');
+            loading.style.display = 'none';
+
+            // Ukryj błędy
+            const errorDiv = document.getElementById('error-indicator');
+            errorDiv.style.display = 'none';
+
+            if (luxGraph) {
+                luxGraph.updateGraph(data);
+                console.log('✅ Graf zaktualizowany pomyślnie');
+            } else {
+                console.error('❌ LuxGraph nie jest zainicjalizowany');
+                showError('Graf nie został zainicjalizowany');
+            }
+        });
+
+        socket.on('error', (error) => {
+            console.error('❌ Błąd Socket.IO:', error);
+            showError(error.message || 'Nieznany błąd połączenia');
+
+            // Ukryj loading indicator
+            const loading = document.getElementById('loading-indicator');
+            loading.style.display = 'none';
+        });
+
+        // Obsługa danych sesji WebSocket
+        socket.on('session_update', (sessionData) => {
+            console.log('🔄 Aktualizacja danych sesji:', sessionData);
+            if (sessionData.session_id) {
+                if (userInfoSpan) {
+                    userInfoSpan.textContent = `👤 ${sessionData.user_name || 'Niezalogowany'}`;
+                }
+                if (sessionConnectionStatusSpan) {
+                    sessionConnectionStatusSpan.textContent = sessionData.connected ? 'connected' : 'disconnected';
+                    sessionConnectionStatusSpan.className = `connection-status ${sessionData.connected ? 'connected' : 'disconnected'}`;
                 }
             } else {
-                toggle.textContent = side === 'left' ? '◀' : '▶';
-                if (side === 'left') {
-                    graphContainer.style.marginLeft = '280px';
-                } else {
-                    graphContainer.style.marginRight = '280px';
+                 if (userInfoSpan) {
+                    userInfoSpan.textContent = '👤 N/A';
+                }
+                if (sessionConnectionStatusSpan) {
+                    sessionConnectionStatusSpan.textContent = 'disconnected';
+                    sessionConnectionStatusSpan.className = 'connection-status disconnected';
                 }
             }
-        }
-
-        // Navigation functions
-        function showSection(section) {
-            console.log('🔍 Showing section:', section);
-            if (window.graph && window.graph.filterBySection) {
-                window.graph.filterBySection(section);
-            }
-        }
-
-        function filterByType(type) {
-            console.log('🎯 Filtering by type:', type);
-            if (window.graph && window.graph.filterByType) {
-                window.graph.filterByType(type);
-            }
-        }
-
-        function centerGraph() {
-            console.log('🎯 Centering graph');
-            if (window.graph && window.graph.resetZoom) {
-                window.graph.resetZoom();
-            }
-        }
-
-        function showCreationModal() {
-            console.log('➕ Opening creation modal');
-            alert('Funkcja tworzenia bytów będzie dostępna wkrótce!');
-        }
-
-        function showDatabaseAdmin() {
-            console.log('🗄️ Opening database admin');
-            window.open('/database-admin', '_blank');
-        }
-
-        function exportData() {
-            console.log('💾 Exporting data');
-            alert('Eksport danych będzie dostępny wkrótce!');
-        }
+        });
 
         function testData() {
             console.log('🧪 Ładowanie danych testowych...');
@@ -754,68 +698,6 @@ Status: ${sessionData.connected ? 'Połączony' : 'Rozłączony'}
             } catch (error) {
                 console.error('❌ Błąd pobierania informacji o sesji:', error);
                 alert('Błąd pobierania informacji o sesji');
-            }
-        }
-
-        // Update counts in navigation
-        function updateNavigationCounts(data) {
-            if (data.beings) {
-                const beingsCount = document.getElementById('beingsCount');
-                if (beingsCount) beingsCount.textContent = data.beings.length;
-            }
-
-            if (data.relationships) {
-                const relationsCount = document.getElementById('relationsCount');
-                if (relationsCount) relationsCount.textContent = data.relationships.length;
-            }
-        }
-
-        // Update beings list in right panel
-        function updateBeingsList(beings) {
-            const beingsList = document.getElementById('beingsList');
-            if (!beingsList || !beings) return;
-
-            if (beings.length === 0) {
-                beingsList.innerHTML = '<div class="loading">Brak aktywnych bytów</div>';
-                return;
-            }
-
-            beingsList.innerHTML = beings.slice(0, 5).map(being => `
-                <div class="being-item">
-                    <div class="being-name">${being.name || 'Unnamed'}</div>
-                    <div class="being-status">${being.type || 'entity'} • ${being.id ? being.id.substring(0, 8) + '...' : 'Unknown'}</div>
-                </div>
-            `).join('');
-        }
-
-        // Update stats in right panel
-        function updateStats(data) {
-            const totalNodes = document.getElementById('totalNodes');
-            const totalLinks = document.getElementById('totalLinks');
-            const systemLoad = document.getElementById('systemLoad');
-
-            if (totalNodes && data.beings) {
-                totalNodes.textContent = data.beings.length;
-            }
-
-            if (totalLinks && data.relationships) {
-                totalLinks.textContent = data.relationships.length;
-            }
-
-            if (systemLoad) {
-                const load = Math.min(100, Math.round((data.beings?.length || 0) / 10));
-                systemLoad.textContent = load + '%';
-            }
-        }
-
-        function clearGraph() {
-            console.log("🗑️ Clearing graph");
-            if (window.graph) {
-                if (window.graph.clearGraph) {
-                    window.graph.clearGraph();
-                } else if (window.graph.clear) {
-                    window.graph.clear();
-                }
             }
         }
     </script>

@@ -131,29 +131,6 @@ class SimpleLuxDB:
         await self._ensure_initialized()
 
         try:
-            # Sprawdź czy podstawowe tabele istnieją
-            db_pool = await Postgre_db.get_db_pool()
-            if db_pool:
-                async with db_pool.acquire() as conn:
-                    # Sprawdź istnienie tabel souls i beings
-                    souls_exists = await conn.fetchval("""
-                        SELECT EXISTS (
-                            SELECT 1 FROM information_schema.tables 
-                            WHERE table_schema = 'public' AND table_name = 'souls'
-                        )
-                    """)
-                    
-                    beings_exists = await conn.fetchval("""
-                        SELECT EXISTS (
-                            SELECT 1 FROM information_schema.tables 
-                            WHERE table_schema = 'public' AND table_name = 'beings'
-                        )
-                    """)
-                    
-                    if not souls_exists or not beings_exists:
-                        print("⚠️ Core tables missing, ensuring database setup...")
-                        await Postgre_db.setup_tables()
-
             # Automatycznie generuj genotyp na podstawie danych
             genotype = self._generate_genotype_from_data(data, entity_type, name)
 
@@ -190,28 +167,40 @@ class SimpleLuxDB:
             return entity
 
     def _generate_genotype_from_data(self, data: dict, entity_type: str, name: str) -> dict:
-        """Automatycznie generuje genotyp na podstawie danych - używa cache dla podobnych typów"""
-        # Używaj prostszego genotypu dla podobnych typów danych
-        genotype_key = f"{entity_type}_standard"
-        
-        if genotype_key not in getattr(self, '_genotype_cache', {}):
-            if not hasattr(self, '_genotype_cache'):
-                self._genotype_cache = {}
-                
-            # Utwórz standardowy genotyp dla danego typu encji
-            self._genotype_cache[genotype_key] = {
-                "genesis": {
-                    "name": entity_type,
-                    "version": "1.0",
-                    "description": f"Standard genotype for {entity_type}"
-                },
-                "attributes": {
-                    "name": {"py_type": "str"},
-                    "data": {"py_type": "dict"}  # Wszystkie inne dane jako JSONB
-                }
-            }
-            
-        return self._genotype_cache[genotype_key]
+        """Automatycznie generuje genotyp na podstawie danych"""
+        attributes = {}
+
+        # Dodaj standardowe pola
+        attributes["name"] = {"py_type": "str"}
+
+        # Analizuj dane i dodaj odpowiednie typy
+        for key, value in data.items():
+            if isinstance(value, str):
+                attributes[key] = {"py_type": "str"}
+            elif isinstance(value, int):
+                attributes[key] = {"py_type": "int"}
+            elif isinstance(value, float):
+                attributes[key] = {"py_type": "float"}
+            elif isinstance(value, bool):
+                attributes[key] = {"py_type": "bool"}
+            elif isinstance(value, list):
+                if value and isinstance(value[0], str):
+                    attributes[key] = {"py_type": "List[str]"}
+                elif value and isinstance(value[0], (int, float)):
+                    attributes[key] = {"py_type": "List[float]"}
+                else:
+                    attributes[key] = {"py_type": "dict"}  # Fallback to JSONB
+            else:
+                attributes[key] = {"py_type": "dict"}  # Store as JSONB
+
+        return {
+            "genesis": {
+                "name": entity_type,
+                "version": "1.0",
+                "description": f"Auto-generated genotype for {name}"
+            },
+            "attributes": attributes
+        }
 
     async def get_entity(self, entity_id: str):
         """Pobiera encję po ID"""
@@ -244,66 +233,22 @@ class SimpleLuxDB:
 
     async def connect_entities(self, entity1_id: str, entity2_id: str, relation_type: str = "connected"):
         """Łączy dwie encje prostą relacją"""
-        await self._ensure_initialized()
-        
-        db_pool = await Postgre_db.get_db_pool()
-        if not db_pool:
-            print("❌ Database pool not available for connecting entities.")
-            return False
-
         try:
-            # Create relationship in database
-            async with db_pool.acquire() as conn:
-                # Ensure relationships table exists first
-                relationships_exists = await conn.fetchval("""
-                    SELECT EXISTS (
-                        SELECT 1 FROM information_schema.tables 
-                        WHERE table_schema = 'public' AND table_name = 'relationships'
-                    )
-                """)
-                
-                if not relationships_exists:
-                    print("⚠️ Relationships table doesn't exist, ensuring database setup...")
-                    await Postgre_db.setup_tables()
-                
-                # Verify entities exist in beings table
-                entity1_exists = await conn.fetchval("""
-                    SELECT EXISTS (SELECT 1 FROM beings WHERE ulid = $1)
-                """, entity1_id)
-                
-                entity2_exists = await conn.fetchval("""
-                    SELECT EXISTS (SELECT 1 FROM beings WHERE ulid = $1)
-                """, entity2_id)
-                
-                if not entity1_exists:
-                    print(f"⚠️ Entity {entity1_id} not found in beings table")
-                    return False
-                    
-                if not entity2_exists:
-                    print(f"⚠️ Entity {entity2_id} not found in beings table")
-                    return False
-
-                # Insert relationship with proper error handling
-                try:
-                    await conn.execute("""
-                        INSERT INTO relationships (source_id, target_id, source_type, target_type, relation_type, strength, metadata)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7)
-                        ON CONFLICT (source_id, target_id, relation_type) DO NOTHING
-                    """, entity1_id, entity2_id, "being", "being", relation_type, 1.0, json.dumps({"created_by": "simple_api"}))
-                    
-                    print(f"✅ Connected {entity1_id} -> {entity2_id} ({relation_type})")
-                except Exception as e:
-                    print(f"❌ Error inserting relationship: {e}")
-                    return False
-
+            await Relationship.create(
+                source_id=entity1_id,
+                target_id=entity2_id,
+                source_type="being",
+                target_type="being",
+                relation_type=relation_type
+            )
             # Store connection details for get_graph_data_async
             self.connections.append({
                 'entity1_id': entity1_id,
                 'entity2_id': entity2_id,
                 'relation_type': relation_type
             })
+            print(f"✅ Connected {entity1_id} -> {entity2_id} ({relation_type})")
             return True
-            
         except Exception as e:
             print(f"❌ Error connecting entities: {e}")
             return False

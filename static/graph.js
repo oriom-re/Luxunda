@@ -15,7 +15,7 @@ class LuxOSGraph {
         this.heartbeatInterval = null;
         this.width = window.innerWidth; // Initialize width
         this.height = window.innerHeight - 200; // Initialize height
-
+        
         // Session management
         this.sessionId = null;
         this.userName = 'Guest';
@@ -25,7 +25,7 @@ class LuxOSGraph {
         this.loadSessionFromCookie();
         this.initializeConnection();
     }
-
+    
     loadSessionFromCookie() {
         // Pobierz session_id z cookie
         const cookies = document.cookie.split(';');
@@ -38,7 +38,7 @@ class LuxOSGraph {
             }
         }
     }
-
+    
     updateSessionUI() {
         // Zaktualizuj UI z informacją o sesji
         const sessionInfo = document.getElementById('sessionInfo');
@@ -54,7 +54,7 @@ class LuxOSGraph {
         try {
             // Przygotuj auth object z session_id
             const auth = this.sessionId ? { session_id: this.sessionId } : {};
-
+            
             // Initialize Socket.IO with robust reconnection and session support
             this.socket = io({
                 auth: auth,
@@ -78,19 +78,19 @@ class LuxOSGraph {
                 this.startHeartbeat();
                 this.updateSessionUI();
             });
-
+            
             // Session events
             this.socket.on('session_established', (data) => {
                 console.log('🔐 Sesja nawiązana:', data);
                 this.sessionId = data.session_id;
                 this.userName = data.user_name;
                 this.isAdmin = data.is_admin;
-
+                
                 // Zapisz session_id do cookie jeśli jest nowe
                 if (data.session_id !== this.getCookieValue('session_id')) {
                     document.cookie = `session_id=${data.session_id}; max-age=${30*24*60*60}; path=/; samesite=lax`;
                 }
-
+                
                 this.updateSessionUI();
                 this.showNotification(`Zalogowano jako ${this.userName}`, 'success');
             });
@@ -153,20 +153,28 @@ class LuxOSGraph {
                 console.log('📊 Nodes count:', nodes.length);
                 console.log('📊 Links count:', links.length);
 
-                // Store last data for resize
-                this.lastData = data;
-
                 // Jeśli mamy bezpośrednio nodes i links, użyj ich
                 if (nodes.length > 0) {
                     console.log('✅ Używam gotowych nodes i links');
-                    this.updateGraphData({ beings: nodes, relationships: links });
+                    // Assuming updateGraph can handle nodes and links directly
+                    // If not, a conversion function would be needed here
+                    if (typeof updateGraph === 'function') {
+                        updateGraph({ nodes, links });
+                    } else {
+                        console.error("updateGraph function is not defined!");
+                    }
                     return;
                 }
 
                 // Jeśli mamy beings/relationships, skonwertuj je
                 if (beings.length > 0 || relationships.length > 0) {
                     console.log('✅ Konwertuję beings i relationships');
-                    this.updateGraphData(data);
+                    // Assuming updateGraph can handle beings and relationships
+                    if (typeof updateGraph === 'function') {
+                        updateGraph(data);
+                    } else {
+                        console.error("updateGraph function is not defined!");
+                    }
                     return;
                 }
 
@@ -188,7 +196,7 @@ class LuxOSGraph {
         }
         return null;
     }
-
+    
     showNotification(message, type = 'info') {
         // Prosty system notyfikacji
         const notification = document.createElement('div');
@@ -205,9 +213,9 @@ class LuxOSGraph {
             z-index: 1000;
             animation: slideIn 0.3s ease-out;
         `;
-
+        
         document.body.appendChild(notification);
-
+        
         setTimeout(() => {
             notification.style.animation = 'slideOut 0.3s ease-in';
             setTimeout(() => notification.remove(), 300);
@@ -250,6 +258,7 @@ class LuxOSGraph {
         // Refresh the graph with updated relationships
         this.renderUniverse(this.beings);
     }
+
 
     updateGraphData(data) {
         try {
@@ -381,6 +390,7 @@ class LuxOSGraph {
         filter.append('feMergeNode')
             .attr('in', 'SourceGraphic');
 
+
         // Debug entities structure (simplified)
         console.log('🔍 First entity structure:', beings[0]);
         console.log('🔍 Entity types found:', beings.map(e => e.type || 'unknown').filter((v, i, a) => a.indexOf(v) === i));
@@ -425,6 +435,7 @@ class LuxOSGraph {
             const isRelation = genesisType === 'relation' ||
                               (hasAttributes && (being.attributes.source_uid || being.attributes.relation_type));
 
+
             console.log(`🔍 Node analysis: ${being.ulid}:`, {
                 alias: hasAlias ? being._soul.alias : 'NO_ALIAS',
                 genesisType: genesisType || 'UNDEFINED',
@@ -459,6 +470,9 @@ class LuxOSGraph {
             isSoul: false,
             isRelation: true
         }));
+
+        // Store the processed nodes for later use (e.g., updating relationships)
+        // this.nodes = nodes; // This is now handled by allNodes
 
         // Process relationships and relations for links
         console.log("🔗 Przetwarzam", relationBeings.length, "bytów relacji i", this.relationships.length, "tradycyjnych relacji");
@@ -789,7 +803,7 @@ class LuxOSGraph {
                     .style('stroke', '#666')
                     .style('stroke-width', 1);
             } else if (d.shape === 'hexagon') {
-                const hexagon = "M0,-8 L6.93,-4 L6.93,4 L0,20 L-6.93,4 L-6.93,-4 Z";
+                const hexagon = "M0,-8 L6.93,-4 L6.93,4 L0,8 L-6.93,4 L-6.93,-4 Z";
                 item.append('path')
                     .attr('d', hexagon)
                     .style('fill', d.color)
@@ -883,45 +897,77 @@ class LuxOSGraph {
         }
 
         // Re-render the universe with new dimensions using stored data
+        // If lastData is not available, we can't re-render accurately.
+        // It's better to ensure lastData is populated correctly or handle this case.
         if (this.lastData && this.lastData.beings) {
             this.renderUniverse(this.lastData.beings);
         } else {
             console.warn("Resize called but no beings data available to re-render.");
+            // Optionally, clear the graph or show a message if no data is present
             d3.select('#graph').selectAll('*').remove();
         }
     }
 
-    clear() {
-        console.log('🗑️ Czyszczenie grafu...');
-        d3.select('#graph').selectAll('*').remove();
-        this.beings = [];
-        this.relationships = [];
+    // Placeholder for updateGraph function if it's meant to be global
+    // If it's part of this class, it should be called as this.updateGraph
+    // Based on the usage in the socket listener, it seems to be a global function.
+    // For the sake of completeness and if it's intended to be internal:
+    updateGraph(data) {
+        console.log('📊 Aktualizacja grafu z danymi:', data);
+
+        if (!data) {
+            console.log('⚠️ Brak danych - używam danych testowych');
+            data = this.getTestData();
+        }
+
+        if (!data.beings && !data.nodes) {
+            console.log('⚠️ Brak nodes/beings - używam danych testowych');
+            data = this.getTestData();
+        }
+
+        // Assuming data.beings is the primary source for rendering
+        if (data.beings) {
+            this.lastData = data; // Store data for resize
+            this.renderUniverse(data.beings);
+        } else if (data.nodes) {
+            // If only nodes are provided, we need a way to convert them to the format expected by renderUniverse
+            // or modify renderUniverse to handle nodes directly.
+            // For now, let's assume renderUniverse expects beings.
+            console.warn("Received only nodes, but renderUniverse expects beings. Attempting to convert.");
+            // This conversion logic would be complex and depend on the structure of 'nodes'
+            // Example: Convert nodes to a beings-like structure if possible
+            const convertedBeings = data.nodes.map(node => ({
+                ulid: node.id, // Assuming node.id is the ULID
+                name: node.label || node.id, // Assuming node.label or id is the name
+                _soul: { genesis: { type: 'converted_node' } }, // Default type
+                // Add other properties if they exist in node and are needed for renderUniverse
+            }));
+            this.lastData = { beings: convertedBeings, relationships: data.links || [] };
+            this.renderUniverse(convertedBeings);
+        } else {
+            console.log('❌ Brak danych do przetworzenia w funkcji updateGraph');
+        }
     }
 }
 
-// Global functions
 console.log('✅ LuxOSGraph class defined and available globally');
 window.LuxOSGraph = LuxOSGraph;
 
 function clearGraph() {
-    console.log('🗑️ Czyszczenie grafu...');
-    if (window.graph) {
-        window.graph.clear();
+        console.log('🗑️ Czyszczenie grafu...');
+        if (window.graph) {
+            window.graph.clear();
+        }
     }
-}
 
-function testData() {
-    console.log('🧪 Ładowanie danych testowych...');
-    fetch('/test-data')
-        .then(response => response.json())
-        .then(data => {
-            console.log('✅ Otrzymano dane testowe:', data);
-        })
-        .catch(error => {
-            console.error('❌ Błąd podczas ładowania danych testowych:', error);
-        });
-}
-
-// Export for global use
-window.clearGraph = clearGraph;
-window.testData = testData;
+    function testData() {
+        console.log('🧪 Ładowanie danych testowych...');
+        fetch('/test-data')
+            .then(response => response.json())
+            .then(data => {
+                console.log('✅ Otrzymano dane testowe:', data);
+            })
+            .catch(error => {
+                console.error('❌ Błąd podczas ładowania danych testowych:', error);
+            });
+    }

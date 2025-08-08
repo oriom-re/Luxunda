@@ -40,7 +40,8 @@ class Postgre_db:
                     'plan_cache_mode': 'force_custom_plan',
                     'application_name': 'luxdb_mvp'
                 },
-                command_timeout=30
+                command_timeout=30,
+                keepalive=True
             )
             await Postgre_db.setup_tables()  # Upewnij się, że tabele są utworzone
             print("✅ Pula połączeń do bazy PostgreSQL zainicjalizowana")
@@ -204,12 +205,6 @@ class Postgre_db:
                             UPDATE relationships 
                             SET source_id = source_ulid, target_id = target_ulid 
                             WHERE source_id IS NULL AND target_id IS NULL;
-                            
-                            -- Drop old unique constraint if exists and add new one
-                            DROP INDEX IF EXISTS idx_unique_relationship;
-                            CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_relationship_new 
-                            ON relationships (source_id, target_id, relation_type) 
-                            WHERE source_id IS NOT NULL AND target_id IS NOT NULL;
                         END IF;
                     END $$;
                 """)
