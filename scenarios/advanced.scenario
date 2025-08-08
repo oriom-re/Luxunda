@@ -1,0 +1,27 @@
+
+{
+  "name": "advanced",
+  "created_at": "2024-01-08T10:00:00",
+  "beings": [
+    {
+      "hash": "kernel_advanced_01",
+      "load_order": 0,
+      "dependencies": []
+    },
+    {
+      "hash": "comm_advanced_02", 
+      "load_order": 1,
+      "dependencies": ["kernel_advanced_01"]
+    },
+    {
+      "hash": "ai_agent_advanced",
+      "load_order": 2,
+      "dependencies": ["kernel_advanced_01", "comm_advanced_02"]
+    },
+    {
+      "hash": "presentation_web",
+      "load_order": 3,
+      "dependencies": ["comm_advanced_02"]
+    }
+  ]
+}

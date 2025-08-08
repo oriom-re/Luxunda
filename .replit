@@ -16,7 +16,7 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS Quick Start"
+runButton = "LuxOS Kernel System"
 
 [[workflows.workflow]]
 name = "Start LuxOS Server"
@@ -83,6 +83,15 @@ args = "python -m luxdb.web_lux_interface"
 
 [[workflows.workflow]]
 name = "LuxOS Quick Start"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python start.py"
+
+[[workflows.workflow]]
+name = "LuxOS Kernel System"
 author = 43346420
 mode = "sequential"
 

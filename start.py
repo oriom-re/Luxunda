@@ -1,22 +1,45 @@
 
 #!/usr/bin/env python3
 """
-🚀 LuxOS Quick Start
-Simple entry point that works
+🚀 LuxOS Kernel System Start
+Entry point z nowym systemem bytów i hashów
 """
 
 import asyncio
 import uvicorn
 from pathlib import Path
 
+async def initialize_kernel():
+    """Inicjalizuje Kernel System"""
+    try:
+        from luxdb.core.kernel_system import kernel_system
+        await kernel_system.initialize("default")
+        
+        status = await kernel_system.get_system_status()
+        print(f"📊 System Status:")
+        print(f"   Scenario: {status['active_scenario']}")
+        print(f"   Beings: {status['registered_beings']}")
+        print(f"   Hashes: {status['loaded_hashes']}")
+        
+        return True
+    except Exception as e:
+        print(f"❌ Kernel initialization error: {e}")
+        return False
+
 def main():
     """Start the LuxOS system"""
-    print("🚀 Starting LuxOS...")
-    print("=" * 50)
+    print("🚀 Starting LuxOS Kernel System...")
+    print("=" * 60)
+    
+    # Initialize Kernel System
+    kernel_ready = asyncio.run(initialize_kernel())
+    
+    if not kernel_ready:
+        print("⚠️ Kernel nie uruchomiony, kontynuuję bez...")
     
     # Check if demo_landing.py exists and try to run it
     if Path("demo_landing.py").exists():
-        print("📁 Found demo_landing.py - starting FastAPI server...")
+        print("📁 Found demo_landing.py - starting with Kernel integration...")
         try:
             # Import and run demo_landing
             uvicorn.run(
