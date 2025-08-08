@@ -971,3 +971,241 @@ function clearGraph() {
                 console.error('❌ Błąd podczas ładowania danych testowych:', error);
             });
     }
+// LuxDB Graph Visualization - Main JavaScript File
+class LuxOSGraph {
+    constructor(containerId = 'graph-container') {
+        this.containerId = containerId;
+        this.container = document.getElementById(containerId);
+        this.width = 800;
+        this.height = 600;
+        this.nodes = [];
+        this.links = [];
+        this.simulation = null;
+        this.svg = null;
+        this.zoom = null;
+        
+        console.log('🚀 LuxOSGraph initialized');
+        this.setupGraph();
+    }
+
+    setupGraph() {
+        // Remove any existing SVG
+        d3.select(`#${this.containerId} svg`).remove();
+        
+        // Create SVG
+        this.svg = d3.select(`#${this.containerId}`)
+            .append('svg')
+            .attr('width', this.width)
+            .attr('height', this.height)
+            .style('background', '#0a0a0a');
+
+        // Setup zoom
+        this.zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => {
+                this.svg.select('.graph-container').attr('transform', event.transform);
+            });
+
+        this.svg.call(this.zoom);
+
+        // Create main group for graph elements
+        this.graphGroup = this.svg.append('g').attr('class', 'graph-container');
+
+        // Setup simulation
+        this.simulation = d3.forceSimulation()
+            .force('link', d3.forceLink().id(d => d.id).distance(100))
+            .force('charge', d3.forceManyBody().strength(-300))
+            .force('center', d3.forceCenter(this.width / 2, this.height / 2))
+            .force('collision', d3.forceCollide().radius(30));
+
+        console.log('✅ Graph setup complete');
+    }
+
+    updateGraph(data) {
+        if (!data || (!data.beings && !data.nodes)) {
+            console.warn('⚠️ No valid data provided to updateGraph');
+            return;
+        }
+
+        console.log('📊 Updating graph with data:', data);
+
+        // Convert data format if needed
+        this.nodes = data.beings || data.nodes || [];
+        this.links = data.relationships || data.links || [];
+
+        // Ensure nodes have required properties
+        this.nodes = this.nodes.map((node, index) => ({
+            id: node.id || `node_${index}`,
+            name: node.name || node.label || 'Unknown',
+            type: node.type || 'entity',
+            x: node.x || Math.random() * this.width,
+            y: node.y || Math.random() * this.height,
+            data: node.data || {}
+        }));
+
+        // Ensure links reference valid nodes
+        this.links = this.links.filter(link => {
+            const sourceExists = this.nodes.find(n => n.id === link.source || n.id === link.source_id);
+            const targetExists = this.nodes.find(n => n.id === link.target || n.id === link.target_id);
+            return sourceExists && targetExists;
+        }).map(link => ({
+            source: link.source || link.source_id,
+            target: link.target || link.target_id,
+            type: link.type || link.relation_type || 'connection'
+        }));
+
+        this.renderGraph();
+        this.updateStats();
+    }
+
+    renderGraph() {
+        // Update links
+        const linkSelection = this.graphGroup.selectAll('.link')
+            .data(this.links, d => `${d.source}-${d.target}`);
+
+        linkSelection.exit().remove();
+
+        const linkEnter = linkSelection.enter()
+            .append('line')
+            .attr('class', 'link')
+            .style('stroke', '#666')
+            .style('stroke-width', 2)
+            .style('opacity', 0.6);
+
+        const linkUpdate = linkEnter.merge(linkSelection);
+
+        // Update nodes
+        const nodeSelection = this.graphGroup.selectAll('.node')
+            .data(this.nodes, d => d.id);
+
+        nodeSelection.exit().remove();
+
+        const nodeEnter = nodeSelection.enter()
+            .append('g')
+            .attr('class', 'node')
+            .call(d3.drag()
+                .on('start', (event, d) => this.dragStarted(event, d))
+                .on('drag', (event, d) => this.dragged(event, d))
+                .on('end', (event, d) => this.dragEnded(event, d)));
+
+        // Add circles
+        nodeEnter.append('circle')
+            .attr('r', 20)
+            .style('fill', d => this.getNodeColor(d.type))
+            .style('stroke', '#fff')
+            .style('stroke-width', 2);
+
+        // Add labels
+        nodeEnter.append('text')
+            .attr('dy', 5)
+            .style('text-anchor', 'middle')
+            .style('font-size', '12px')
+            .style('fill', '#fff')
+            .style('pointer-events', 'none')
+            .text(d => d.name.length > 10 ? d.name.substring(0, 10) + '...' : d.name);
+
+        const nodeUpdate = nodeEnter.merge(nodeSelection);
+
+        // Update simulation
+        this.simulation.nodes(this.nodes);
+        this.simulation.force('link').links(this.links);
+        this.simulation.alpha(1).restart();
+
+        this.simulation.on('tick', () => {
+            linkUpdate
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+
+            nodeUpdate
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+    }
+
+    getNodeColor(type) {
+        const colors = {
+            'user': '#4CAF50',
+            'ai_agent': '#2196F3',
+            'project': '#FF9800',
+            'entity': '#9C27B0',
+            'system': '#F44336',
+            'default': '#607D8B'
+        };
+        return colors[type] || colors.default;
+    }
+
+    updateStats() {
+        const nodesCountEl = document.getElementById('nodesCount');
+        const linksCountEl = document.getElementById('linksCount');
+        
+        if (nodesCountEl) nodesCountEl.textContent = this.nodes.length;
+        if (linksCountEl) linksCountEl.textContent = this.links.length;
+    }
+
+    dragStarted(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    dragEnded(event, d) {
+        if (!event.active) this.simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+
+    clear() {
+        this.nodes = [];
+        this.links = [];
+        this.graphGroup.selectAll('*').remove();
+        this.updateStats();
+        console.log('🗑️ Graph cleared');
+    }
+
+    centerGraph() {
+        const transform = d3.zoomIdentity.translate(this.width / 2, this.height / 2).scale(1);
+        this.svg.transition().duration(750).call(this.zoom.transform, transform);
+    }
+
+    renderUniverse(beings) {
+        // Legacy method for compatibility
+        console.log('🌌 Rendering universe with beings:', beings.length);
+        const data = {
+            beings: beings,
+            relationships: []
+        };
+        this.updateGraph(data);
+    }
+}
+
+// Global functions for compatibility
+function clearGraph() {
+    console.log('🗑️ Czyszczenie grafu...');
+    if (window.graph) {
+        window.graph.clear();
+    }
+}
+
+function testData() {
+    console.log('🧪 Ładowanie danych testowych...');
+    fetch('/test-data')
+        .then(response => response.json())
+        .then(data => {
+            if (window.graph) {
+                window.graph.updateGraph(data);
+            }
+        })
+        .catch(error => console.error('❌ Błąd ładowania danych testowych:', error));
+}
+
+// Export for global use
+console.log('✅ LuxOSGraph class defined and available globally');
+window.LuxOSGraph = LuxOSGraph;
+window.clearGraph = clearGraph;
+window.testData = testData;

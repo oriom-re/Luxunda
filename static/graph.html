@@ -458,90 +458,65 @@
         </div>
     </div>
 
-    <script src="graph.js"></script>
-    <script src="intention-component.js"></script>
-    <script src="chat-component.js"></script>
     <script>
+        // Initialize graph globally
+        let graph = null;
+
+        function initApp() {
+            console.log('🚀 Inicjalizacja LuxDB Graf...');
+
+            // Check if LuxOSGraph class is available
+            if (typeof LuxOSGraph === 'undefined') {
+                console.error('❌ LuxOSGraph class not loaded');
+                showError('Graf nie może być załadowany - brak klasy LuxOSGraph');
+                return;
+            }
+
+            try {
+                // Initialize graph if not already done
+                if (!graph) {
+                    graph = new LuxOSGraph('graph-container');
+                    window.graph = graph; // Make it globally available
+                }
+
+                console.log('✅ Graf zainicjalizowany');
+            } catch (error) {
+                console.error('❌ Błąd inicjalizacji aplikacji:', error);
+                showError('Błąd inicjalizacji: ' + error.message);
+            }
+        }
+
         // Inicjalizacja aplikacji
         document.addEventListener('DOMContentLoaded', function() {
-            try {
-                console.log('🚀 Inicjalizacja LuxDB Graf...');
+            initApp(); // Call the refactored initApp
 
-                // Sprawdź czy klasy są dostępne
-                if (typeof LuxOSGraph === 'undefined') {
-                    console.error('❌ LuxOSGraph class not loaded');
-                    throw new Error('LuxOSGraph class not available');
-                }
-
-                if (typeof IntentionComponent === 'undefined') {
-                    console.error('❌ IntentionComponent class not loaded');
-                    throw new Error('IntentionComponent class not available');
-                }
-
-                if (typeof LuxChatComponent === 'undefined') {
-                    console.error('❌ LuxChatComponent class not loaded');
-                    throw new Error('LuxChatComponent class not available');
-                }
-
-                // Inicjalizuj komponenty
-                const graphManager = new LuxOSGraph();
+            // Initialize components and add event listeners
+            if (typeof LuxOSGraph !== 'undefined' && typeof IntentionComponent !== 'undefined' && typeof LuxChatComponent !== 'undefined') {
+                const graphManager = window.graph; // Use the globally available graph instance
                 const intentionComponent = new IntentionComponent(graphManager);
                 const luxChatComponent = new LuxChatComponent(graphManager);
 
-                // Zapisz globalne referencje dla debugowania
-                window.luxOSUniverse = graphManager;
+                // Save global references for debugging
                 window.intentionComponent = intentionComponent;
                 window.luxChatComponent = luxChatComponent;
 
-                // Dodaj obsługę kontrolek zoom
+                // Add event listeners for zoom controls
                 document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
                 document.getElementById('zoomOut').addEventListener('click', () => graphManager.zoomOut());
                 document.getElementById('zoomReset').addEventListener('click', () => graphManager.resetZoom());
                 document.getElementById('luxChat').addEventListener('click', () => luxChatComponent.toggle());
 
-                // Obsługa zmiany rozmiaru okna
+                // Handle window resize
                 window.addEventListener('resize', () => {
                     if (graphManager.resizeGraph) {
                         graphManager.resizeGraph();
                     }
                 });
-
-                console.log('✅ LuxDB Graf zainicjalizowany pomyślnie');
-
-            } catch (error) {
-                console.error('❌ Błąd inicjalizacji aplikacji:', error);
-
-                // Pokaż błąd w UI
-                const errorDiv = document.createElement('div');
-                errorDiv.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: #ff4444;
-                    color: white;
-                    padding: 20px;
-                    border-radius: 10px;
-                    z-index: 9999;
-                    text-align: center;
-                    font-weight: bold;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-                `;
-                errorDiv.innerHTML = `
-                    <h3>❌ Błąd ładowania grafu</h3>
-                    <p>${error.message}</p>
-                    <button onclick="location.reload()" style="
-                        background: white;
-                        color: #ff4444;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 5px;
-                        cursor: pointer;
-                        margin-top: 10px;
-                        font-weight: bold;
-                    ">🔄 Odśwież stronę</button>
-                `;
-                document.body.appendChild(errorDiv);
+            } else {
+                console.error('❌ One or more components failed to load.');
+                if (typeof showError === 'function') {
+                    showError('Krytyczny błąd ładowania komponentów aplikacji.');
+                }
             }
         });
 
@@ -575,8 +550,8 @@
         // Socket.IO event handling
         socket.on('connect', () => {
             console.log('✅ Połączono z serverem');
-            connectionStatusText.textContent = '🟢 Połączony';
-            statusDot.classList.add('connected');
+            // connectionStatusText.textContent = '🟢 Połączony'; // This element might not exist or is redundant with sessionConnectionStatusSpan
+            // statusDot.classList.add('connected'); // This element might not exist
 
             // Aktualizacja statusu sesji na połączony
             if (sessionConnectionStatusSpan) {
@@ -597,8 +572,8 @@
 
         socket.on('disconnect', () => {
             console.log('❌ Rozłączono z serverem');
-            connectionStatusText.textContent = '🔴 Rozłączony';
-            statusDot.classList.remove('connected');
+            // connectionStatusText.textContent = '🔴 Rozłączony'; // Redundant
+            // statusDot.classList.remove('connected'); // Element might not exist
 
             // Aktualizacja statusu sesji na rozłączony
             if (sessionConnectionStatusSpan) {
@@ -623,8 +598,8 @@
             const errorDiv = document.getElementById('error-indicator');
             errorDiv.style.display = 'none';
 
-            if (luxGraph) {
-                luxGraph.updateGraph(data);
+            if (window.graph) { // Use the globally available graph instance
+                window.graph.updateGraph(data);
                 console.log('✅ Graf zaktualizowany pomyślnie');
             } else {
                 console.error('❌ LuxGraph nie jest zainicjalizowany');
@@ -698,6 +673,14 @@ Status: ${sessionData.connected ? 'Połączony' : 'Rozłączony'}
             } catch (error) {
                 console.error('❌ Błąd pobierania informacji o sesji:', error);
                 alert('Błąd pobierania informacji o sesji');
+            }
+        }
+
+        // Placeholder functions that might be defined in the removed JS files
+        function clearGraph() {
+            console.log("Placeholder: clearGraph() called");
+            if (window.graph) {
+                window.graph.clearGraph();
             }
         }
     </script>

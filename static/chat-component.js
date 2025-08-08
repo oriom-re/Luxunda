@@ -179,3 +179,26 @@ class LuxChatComponent {
 
 console.log('✅ LuxChatComponent loaded');
 window.LuxChatComponent = LuxChatComponent;
+// Chat Component for LuxDB
+class ChatComponent {
+    constructor() {
+        this.initialized = false;
+        console.log('💬 Chat Component initialized');
+    }
+
+    init() {
+        this.initialized = true;
+        console.log('✅ Chat Component ready');
+    }
+
+    sendMessage(message) {
+        console.log('📤 Sending message:', message);
+    }
+
+    receiveMessage(message) {
+        console.log('📥 Received message:', message);
+    }
+}
+
+// Global instance
+window.chatComponent = new ChatComponent();
