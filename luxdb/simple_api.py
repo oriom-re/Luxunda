@@ -241,11 +241,17 @@ class SimpleLuxDB:
         try:
             # Create relationship in database
             async with db_pool.acquire() as conn:
-                await conn.execute("""
-                    INSERT INTO relationships (source_id, target_id, source_type, target_type, relation_type, strength, metadata)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    ON CONFLICT (source_id, target_id, relation_type) DO NOTHING
-                """, entity1_id, entity2_id, "being", "being", relation_type, 1.0, json.dumps({"created_by": "simple_api"}))
+                # First try to insert without ON CONFLICT, then handle duplicates manually
+                try:
+                    await conn.execute("""
+                        INSERT INTO relationships (source_id, target_id, source_type, target_type, relation_type, strength, metadata)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """, entity1_id, entity2_id, "being", "being", relation_type, 1.0, json.dumps({"created_by": "simple_api"}))
+                except Exception as e:
+                    if "duplicate" in str(e).lower() or "unique" in str(e).lower():
+                        print(f"⚠️  Relationship already exists: {entity1_id} -> {entity2_id} ({relation_type})")
+                    else:
+                        raise e
 
             # Store connection details for get_graph_data_async
             self.connections.append({
