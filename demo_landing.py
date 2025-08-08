@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
+import socketio
 import uvicorn
 
 # Globalne zmienne dla zarządzania aplikacją
@@ -67,6 +68,12 @@ async def lifespan(app: FastAPI):
         print("🔄 Shutting down LuxDB System...")
         print("✅ Shutdown complete")
 
+# Create Socket.IO server
+sio = socketio.AsyncServer(
+    cors_allowed_origins="*",
+    async_mode='asgi'
+)
+
 # Create FastAPI app with lifespan
 app = FastAPI(
     title="LuxDB Development Server",
@@ -74,6 +81,9 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+# Mount Socket.IO
+socket_app = socketio.ASGIApp(sio, app)
 
 # CORS configuration
 app.add_middleware(
@@ -154,6 +164,16 @@ async def graph_page(request: Request):
     """Serve the reactive graph page"""
     return templates.TemplateResponse("graph.html", {"request": request})
 
+@app.get("/landing", response_class=HTMLResponse)
+async def info_page(request: Request):
+    """Serve the info landing page"""
+    return templates.TemplateResponse("landing.html", {"request": request})
+
+@app.get("/funding", response_class=HTMLResponse)
+async def funding_page(request: Request):
+    """Serve the funding landing page"""
+    return templates.TemplateResponse("funding-landing.html", {"request": request})
+
 @app.get("/api/stats")
 async def get_stats():
     """Get current system statistics"""
@@ -217,68 +237,76 @@ async def create_being_endpoint(request: Request):
         print(f"❌ Error creating being: {e}")
         return JSONResponse({'success': False, 'error': str(e)})
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """Main WebSocket endpoint for reactive updates"""
-    await websocket.accept()
-    app_state['connections'].add(websocket)
+# Socket.IO event handlers
+@sio.event
+async def connect(sid, environ):
+    """Handle client connection"""
+    print(f"🔌 Client {sid} connected")
     app_state['active_users'] += 1
-    app_state['stats']['connections'] = len(app_state['connections'])
+    
+    # Send initial state
+    await sio.emit('initial_state', {
+        'stats': app_state['stats'],
+        'page_state': app_state['page_state'],
+        'reactive_components': app_state['reactive_components']
+    }, to=sid)
+    
+    # Broadcast user count update
+    await sio.emit('user_count_update', {
+        'active_users': app_state['active_users']
+    })
 
-    print(f"👤 New connection. Active users: {app_state['active_users']}")
+@sio.event
+async def disconnect(sid):
+    """Handle client disconnection"""
+    print(f"🔌 Client {sid} disconnected")
+    app_state['active_users'] = max(0, app_state['active_users'] - 1)
+    
+    # Broadcast user count update
+    await sio.emit('user_count_update', {
+        'active_users': app_state['active_users']
+    })
 
-    try:
-        # Send initial state
-        await websocket.send_text(json.dumps({
-            'type': 'initial_state',
-            'stats': app_state['stats'],
-            'page_state': app_state['page_state'],
-            'reactive_components': app_state['reactive_components']
-        }))
+@sio.event
+async def request_graph_data(sid):
+    """Send graph data to client"""
+    await sio.emit('graph_data', {
+        'beings': app_state['page_state']['graph_data']['beings'],
+        'relationships': app_state['page_state']['graph_data']['relationships']
+    }, to=sid)
 
-        # Broadcast user count update
-        await broadcast_state_update({
-            'type': 'user_count_update',
-            'active_users': app_state['active_users'],
-            'connections': len(app_state['connections'])
-        })
+@sio.event
+async def create_being(sid, data):
+    """Create a new being via Socket.IO"""
+    name = data.get('name', f'Being_{datetime.now().strftime("%H%M%S")}')
+    
+    new_being_data = {
+        'id': f'sio_being_{datetime.now().timestamp()}',
+        'name': name,
+        'type': 'entity',
+        'data': {
+            'created_via': 'socketio',
+            'created_at': datetime.now().isoformat()
+        },
+        'x': 100 + len(app_state['page_state']['current_beings']) * 50,
+        'y': 150 + (len(app_state['page_state']['current_beings']) // 5) * 120
+    }
 
-        while True:
-            # Handle incoming messages
-            data = await websocket.receive_text()
-            message = json.loads(data)
+    app_state['page_state']['graph_data']['beings'].append(new_being_data)
+    app_state['page_state']['current_beings'].append(new_being_data)
+    app_state['stats']['beings'] += 1
+    app_state['stats']['commands'] += 1
 
-            if message['type'] == 'request_graph_data':
-                await websocket.send_text(json.dumps({
-                    'type': 'graph_data',
-                    'beings': app_state['page_state']['graph_data']['beings'],
-                    'relationships': app_state['page_state']['graph_data']['relationships']
-                }))
+    # Broadcast to all clients
+    await sio.emit('being_created', {
+        'being': new_being_data,
+        'stats': app_state['stats']
+    })
 
-            elif message['type'] == 'create_being':
-                # Handle being creation via WebSocket
-                name = message.get('name', f'Being_{datetime.now().strftime("%H%M%S")}')
-                await create_being_via_websocket(name, websocket)
-
-            elif message['type'] == 'ping':
-                await websocket.send_text(json.dumps({'type': 'pong'}))
-
-    except WebSocketDisconnect:
-        print("👤 User disconnected")
-    except Exception as e:
-        print(f"❌ WebSocket error: {e}")
-    finally:
-        app_state['connections'].discard(websocket)
-        app_state['active_users'] = max(0, app_state['active_users'] - 1)
-        app_state['stats']['connections'] = len(app_state['connections'])
-
-        # Broadcast user count update
-        if app_state['connections']:
-            await broadcast_state_update({
-                'type': 'user_count_update',
-                'active_users': app_state['active_users'],
-                'connections': len(app_state['connections'])
-            })
+@sio.event
+async def ping(sid):
+    """Handle ping requests"""
+    await sio.emit('pong', to=sid)
 
 async def create_being_via_websocket(name: str, websocket: WebSocket):
     """Create being via WebSocket and broadcast update"""
@@ -368,7 +396,7 @@ async def get_session_info():
 if __name__ == "__main__":
     print("📁 Workspace synchronization enabled")
     uvicorn.run(
-        "demo_landing:app",
+        socket_app,
         host="0.0.0.0",
         port=3001,
         reload=False,  # Disable reload for better lifespan handling
