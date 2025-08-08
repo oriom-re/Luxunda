@@ -549,60 +549,8 @@
             </div>
         </div>
 
-        <!-- Left Panel - Navigation -->
-        <div class="side-panel left" id="leftPanel">
-            <div class="panel-header">🌀 LuxDB Navigator</div>
-            <div class="nav-section">
-                <h3>📊 System Overview</h3>
-                <div class="nav-item" onclick="showSection('dashboard')">
-                    <span class="nav-icon">🏠</span>Dashboard
-                </div>
-                <div class="nav-item" onclick="showSection('beings')">
-                    <span class="nav-icon">👥</span>Active Beings
-                    <span class="count" id="beingsCount">0</span>
-                </div>
-                <div class="nav-item" onclick="showSection('souls')">
-                    <span class="nav-icon">💎</span>Soul Templates
-                    <span class="count" id="soulsCount">0</span>
-                </div>
-                <div class="nav-item" onclick="showSection('relations')">
-                    <span class="nav-icon">🔗</span>Relations
-                    <span class="count" id="relationsCount">0</span>
-                </div>
-            </div>
-            
-            <div class="nav-section">
-                <h3>🛠️ Tools</h3>
-                <div class="nav-item" onclick="showCreationModal()">
-                    <span class="nav-icon">➕</span>Create Being
-                </div>
-                <div class="nav-item" onclick="showDatabaseAdmin()">
-                    <span class="nav-icon">🗄️</span>Database Admin
-                </div>
-                <div class="nav-item" onclick="exportData()">
-                    <span class="nav-icon">💾</span>Export Data
-                </div>
-            </div>
-
-            <div class="nav-section">
-                <h3>🎯 View Controls</h3>
-                <div class="nav-item" onclick="filterByType('all')">
-                    <span class="nav-icon">🌐</span>Show All
-                </div>
-                <div class="nav-item" onclick="filterByType('beings')">
-                    <span class="nav-icon">👤</span>Beings Only
-                </div>
-                <div class="nav-item" onclick="filterByType('souls')">
-                    <span class="nav-icon">💎</span>Souls Only
-                </div>
-                <div class="nav-item" onclick="centerGraph()">
-                    <span class="nav-icon">🎯</span>Center View
-                </div>
-            </div>
-        </div>
-
         <!-- Central Graph Container -->
-        <div id="graph-container" style="position: relative; margin-left: 280px; margin-right: 280px;">
+        <div id="graph-container" style="position: relative; margin-left: 0; margin-right: 0;">
             <div id="loading-indicator" style="
                 position: absolute;
                 top: 50%;
@@ -633,64 +581,6 @@
                 <div id="error-message"></div>
             </div>
             <svg id="graph-svg"></svg>
-        </div>
-
-        <!-- Right Panel - Live Data -->
-        <div class="side-panel right" id="rightPanel">
-            <div class="panel-header">📈 Live Data</div>
-            
-            <div class="data-section">
-                <h3>🔴 Online Beings</h3>
-                <div class="beings-list" id="beingsList">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        Ładowanie...
-                    </div>
-                </div>
-            </div>
-
-            <div class="data-section">
-                <h3>🔗 Recent Relations</h3>
-                <div class="relations-list" id="relationsList">
-                    <div class="relation-item">
-                        <div class="relation-type">instantiates</div>
-                        <div class="relation-desc">Soul → Being</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="data-section">
-                <h3>📊 System Stats</h3>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-value" id="totalNodes">0</div>
-                        <div class="stat-label">Total Nodes</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="totalLinks">0</div>
-                        <div class="stat-label">Connections</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="systemLoad">0%</div>
-                        <div class="stat-label">System Load</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Panel Toggle Buttons -->
-        <div class="panel-toggle left" id="leftToggle" onclick="togglePanel('left')">◀</div>
-        <div class="panel-toggle right" id="rightToggle" onclick="togglePanel('right')">▶</div>
-
-        <div class="stats-overlay">
-            <div class="stat-item">
-                <div class="stat-value" id="nodesCount">0</div>
-                <div class="stat-label">Byty</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value" id="linksCount">0</div>
-                <div class="stat-label">Relacje</div>
-            </div>
         </div>
 
         <div class="intention-system">
@@ -876,7 +766,7 @@
             if (window.graph) { // Use the globally available graph instance
                 window.graph.updateGraph(data);
                 console.log('✅ Graf zaktualizowany pomyślnie');
-                
+
                 // Update side panels with new data
                 updateNavigationCounts(data);
                 updateBeingsList(data.beings);
@@ -961,9 +851,9 @@ Status: ${sessionData.connected ? 'Połączony' : 'Rozłączony'}
             const panel = document.getElementById(side + 'Panel');
             const toggle = document.getElementById(side + 'Toggle');
             const container = document.getElementById('graph-container');
-            
+
             panel.classList.toggle('collapsed');
-            
+
             if (panel.classList.contains('collapsed')) {
                 toggle.textContent = side === 'left' ? '▶' : '◀';
                 if (side === 'left') {
@@ -1025,7 +915,7 @@ Status: ${sessionData.connected ? 'Połączony' : 'Rozłączony'}
                 const beingsCount = document.getElementById('beingsCount');
                 if (beingsCount) beingsCount.textContent = data.beings.length;
             }
-            
+
             if (data.relationships) {
                 const relationsCount = document.getElementById('relationsCount');
                 if (relationsCount) relationsCount.textContent = data.relationships.length;
