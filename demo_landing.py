@@ -12,13 +12,29 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.templating import Jinja2Templates
-import socketio
-import uvicorn
+try:
+    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+    from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.templating import Jinja2Templates
+    import socketio
+    import uvicorn
+except ImportError as e:
+    print(f"❌ Missing dependency: {e}")
+    print("📦 Installing required packages...")
+    import subprocess
+    import sys
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "fastapi", "uvicorn", "python-socketio", "jinja2"])
+    
+    # Try importing again
+    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+    from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.templating import Jinja2Templates
+    import socketio
+    import uvicorn
 
 # Globalne zmienne dla zarządzania aplikacją
 app_state = {
@@ -157,7 +173,11 @@ async def update_reactive_component(component_id: str, data: Any):
 @app.get("/", response_class=HTMLResponse)
 async def landing_page(request: Request):
     """Serve the main landing page"""
-    return templates.TemplateResponse("funding-landing.html", {"request": request})
+    try:
+        return templates.TemplateResponse("funding-landing.html", {"request": request})
+    except:
+        # Fallback to simple landing page
+        return FileResponse("static/simple-landing.html")
 
 @app.get("/graph", response_class=HTMLResponse)
 async def graph_page(request: Request):

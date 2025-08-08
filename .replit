@@ -16,7 +16,7 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "Demo Landing FastAPI"
+runButton = "LuxOS Quick Start"
 
 [[workflows.workflow]]
 name = "Start LuxOS Server"
@@ -80,6 +80,15 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python -m luxdb.web_lux_interface"
+
+[[workflows.workflow]]
+name = "LuxOS Quick Start"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python start.py"
 
 [[ports]]
 localPort = 3000
