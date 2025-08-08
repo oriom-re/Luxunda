@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LuxOS Demo - System Intencji</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🌟 LuxOS Demo Interface</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         * {
@@ -16,8 +15,15 @@
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            min-height: 100vh;
             overflow-x: hidden;
+        }
+
+        /* Mobile-first responsive design */
+        @media (max-width: 768px) {
+            body {
+                font-size: 14px;
+            }
         }
 
         .header {
@@ -38,12 +44,45 @@
             opacity: 0.9;
         }
 
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2.5rem;
+                margin-bottom: 15px;
+            }
+
+            .header p {
+                font-size: 1.1em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 2rem;
+                margin-bottom: 10px;
+            }
+
+            .header p {
+                font-size: 1em;
+            }
+        }
+
         .demo-container {
             display: grid;
             grid-template-columns: 1fr 2fr;
             height: calc(100vh - 140px);
             gap: 20px;
             padding: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .demo-container {
+                margin: 10px;
+                padding: 15px;
+                border-radius: 15px;
+                margin-top: 10px;
+                grid-template-columns: 1fr; /* Stack columns on mobile */
+                height: auto; /* Adjust height for stacked layout */
+            }
         }
 
         .input-panel {
@@ -54,6 +93,13 @@
             border: 1px solid rgba(255,255,255,0.2);
         }
 
+        @media (max-width: 768px) {
+            .input-panel {
+                padding: 15px;
+                border-radius: 10px;
+            }
+        }
+
         .graph-panel {
             background: rgba(255,255,255,0.05);
             border-radius: 15px;
@@ -61,6 +107,13 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.2);
             position: relative;
+        }
+
+        @media (max-width: 768px) {
+            .graph-panel {
+                padding: 15px;
+                border-radius: 10px;
+            }
         }
 
         .form-group {
@@ -89,6 +142,18 @@
             resize: vertical;
         }
 
+        @media (max-width: 768px) {
+            .form-group input,
+            .form-group textarea {
+                padding: 10px;
+                font-size: 13px;
+            }
+
+            .form-group textarea {
+                height: 100px;
+            }
+        }
+
         .btn {
             background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
@@ -108,11 +173,25 @@
             box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
 
+        @media (max-width: 768px) {
+            .btn {
+                padding: 10px 20px;
+                font-size: 15px;
+            }
+        }
+
         .stats-panel {
             background: rgba(0,0,0,0.1);
             border-radius: 10px;
             padding: 15px;
             margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .stats-panel {
+                padding: 12px;
+                margin-top: 15px;
+            }
         }
 
         .stat-item {
@@ -124,10 +203,59 @@
             border-radius: 5px;
         }
 
+        @media (max-width: 768px) {
+            .stat-item {
+                padding: 6px;
+                font-size: 13px;
+            }
+        }
+
         .graph-container {
-            width: 100%;
-            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 30px 0;
+            min-height: 400px;
             position: relative;
+        }
+
+        .messages-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 30px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        @media (max-width: 768px) {
+            .graph-container {
+                padding: 15px;
+                margin: 20px 0;
+                min-height: 300px;
+                border-radius: 10px;
+            }
+
+            .messages-container {
+                padding: 15px;
+                margin: 20px 0;
+                max-height: 250px;
+                border-radius: 10px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .graph-container {
+                padding: 10px;
+                margin: 15px 0;
+                min-height: 250px;
+            }
+
+            .messages-container {
+                padding: 10px;
+                margin: 15px 0;
+                max-height: 200px;
+            }
         }
 
         .node {
@@ -169,6 +297,16 @@
             font-size: 12px;
         }
 
+        @media (max-width: 768px) {
+            .connection-info {
+                top: 5px;
+                right: 5px;
+                padding: 8px;
+                font-size: 11px;
+                max-width: 200px;
+            }
+        }
+
         .intention-badge {
             background: rgba(255,255,255,0.2);
             padding: 4px 8px;
@@ -189,6 +327,15 @@
             font-weight: 600;
         }
 
+        @media (max-width: 768px) {
+            .status-indicator {
+                top: 5px;
+                left: 5px;
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+        }
+
         .loading {
             opacity: 0.5;
             pointer-events: none;
@@ -203,6 +350,79 @@
         .processing {
             animation: pulse 1.5s infinite;
         }
+
+        .message-input-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            color: white;
+            font-size: 16px;
+            outline: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .send-btn {
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            border: none;
+            border-radius: 25px;
+            color: #1a1a1a;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .message-input-container {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .message-input {
+                padding: 12px;
+                font-size: 16px; /* Zapobiega zoom na iOS */
+            }
+
+            .send-btn {
+                padding: 12px 20px;
+                border-radius: 20px;
+                width: 100%;
+            }
+        }
+
+        .message {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid #00ff88;
+            animation: fadeInUp 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .message {
+                padding: 12px;
+                border-radius: 8px;
+                font-size: 14px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .message {
+                padding: 10px;
+                border-radius: 6px;
+                font-size: 13px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -215,7 +435,7 @@
         <!-- Panel wejściowy -->
         <div class="input-panel">
             <h3>💬 Nowa Wiadomość</h3>
-            
+
             <div class="form-group">
                 <label>Autor:</label>
                 <input type="text" id="author" placeholder="Twoje imię" value="Demo User">
@@ -227,7 +447,7 @@
             </div>
 
             <button class="btn" onclick="sendMessage()">🚀 Wyślij i Analizuj</button>
-            
+
             <div class="form-group">
                 <h4>🎯 Przykładowe wiadomości:</h4>
                 <button class="btn" onclick="loadExample('Mam pomysł na rewolucyjny system AI')">Pomysł</button>
@@ -276,22 +496,22 @@
         function initWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-            
+
             ws.onopen = () => {
                 document.getElementById('status').innerHTML = '🟢 Połączono';
                 console.log('🌐 Połączono z serwerem');
             };
-            
+
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 handleServerMessage(data);
             };
-            
+
             ws.onclose = () => {
                 document.getElementById('status').innerHTML = '🔴 Rozłączono';
                 setTimeout(initWebSocket, 3000); // Reconnect
             };
-            
+
             ws.onerror = (error) => {
                 console.error('❌ WebSocket error:', error);
                 document.getElementById('status').innerHTML = '⚠️ Błąd połączenia';
@@ -306,7 +526,7 @@
                     updateGraph();
                     updateStats();
                     break;
-                    
+
                 case 'new_message_processed':
                     graphData.messages.push(data.message);
                     graphData.connections.push(...data.new_connections);
@@ -315,7 +535,7 @@
                     showNotification(`📨 Dodano wiadomość z ${data.connections_count} połączeniami`);
                     document.getElementById('message-text').value = '';
                     break;
-                    
+
                 case 'new_interaction':
                     showNotification('👍 Zarejestrowano interakcję');
                     break;
@@ -323,21 +543,21 @@
         }
 
         // ===== INTERFEJS UŻYTKOWNIKA =====
-        
+
         function sendMessage() {
             const author = document.getElementById('author').value.trim();
             const text = document.getElementById('message-text').value.trim();
-            
+
             if (!author || !text) {
                 alert('Proszę wypełnić wszystkie pola');
                 return;
             }
-            
+
             const messageData = {
                 type: 'new_message',
                 content: { author, text }
             };
-            
+
             ws.send(JSON.stringify(messageData));
             showNotification('🔄 Analizuję wiadomość...');
         }
@@ -352,7 +572,7 @@
             const originalText = status.innerHTML;
             status.innerHTML = message;
             status.classList.add('processing');
-            
+
             setTimeout(() => {
                 status.innerHTML = originalText;
                 status.classList.remove('processing');
@@ -362,7 +582,7 @@
         function updateStats() {
             document.getElementById('stat-messages').textContent = graphData.messages.length;
             document.getElementById('stat-connections').textContent = graphData.connections.length;
-            
+
             const avgStrength = graphData.connections.length > 0 
                 ? (graphData.connections.reduce((sum, conn) => sum + conn.strength, 0) / graphData.connections.length).toFixed(2)
                 : '0.00';
@@ -370,16 +590,16 @@
         }
 
         // ===== GRAF D3.JS =====
-        
+
         function updateGraph() {
             const svg = d3.select('#graph-svg');
             const container = document.querySelector('.graph-container');
             const width = container.clientWidth;
             const height = container.clientHeight;
-            
+
             svg.attr('width', width).attr('height', height);
             svg.selectAll('*').remove();
-            
+
             // Przygotuj dane dla D3
             const nodes = graphData.messages.map(msg => ({
                 id: msg.id,
@@ -390,7 +610,7 @@
                 confidence: msg.intention_confidence,
                 sentiment: msg.sentiment
             }));
-            
+
             const links = graphData.connections.map(conn => ({
                 source: conn.source_id,
                 target: conn.target_id,
@@ -398,22 +618,22 @@
                 reason: conn.reason,
                 type: conn.connection_type
             }));
-            
+
             // Filtruj linki aby pokazać tylko istniejące węzły
             const nodeIds = new Set(nodes.map(n => n.id));
             const validLinks = links.filter(link => 
                 nodeIds.has(link.source) && nodeIds.has(link.target)
             );
-            
+
             if (nodes.length === 0) return;
-            
+
             // Symulacja fizyczna
             simulation = d3.forceSimulation(nodes)
                 .force('link', d3.forceLink(validLinks).id(d => d.id).distance(100))
                 .force('charge', d3.forceManyBody().strength(-300))
                 .force('center', d3.forceCenter(width / 2, height / 2))
                 .force('collision', d3.forceCollide().radius(25));
-            
+
             // Rysuj linki
             const link = svg.append('g')
                 .selectAll('line')
@@ -422,7 +642,7 @@
                 .attr('class', 'link')
                 .style('stroke-width', d => Math.max(1, d.strength * 5))
                 .style('stroke-opacity', d => d.strength);
-            
+
             // Rysuj węzły
             const node = svg.append('g')
                 .selectAll('circle')
@@ -437,7 +657,7 @@
                     .on('end', dragended))
                 .on('mouseover', showNodeInfo)
                 .on('mouseout', hideNodeInfo);
-            
+
             // Etykiety węzłów
             const labels = svg.append('g')
                 .selectAll('text')
@@ -446,7 +666,7 @@
                 .attr('class', 'node-label')
                 .text(d => d.label)
                 .attr('dy', -20);
-            
+
             // Aktualizacja pozycji w symulacji
             simulation.on('tick', () => {
                 link
@@ -454,11 +674,11 @@
                     .attr('y1', d => d.source.y)
                     .attr('x2', d => d.target.x)
                     .attr('y2', d => d.target.y);
-                
+
                 node
                     .attr('cx', d => d.x)
                     .attr('cy', d => d.y);
-                
+
                 labels
                     .attr('x', d => d.x)
                     .attr('y', d => d.y);
@@ -480,7 +700,7 @@
         function showNodeInfo(event, d) {
             const info = document.getElementById('connection-info');
             const details = document.getElementById('connection-details');
-            
+
             details.innerHTML = `
                 <strong>${d.label}</strong><br>
                 <span class="intention-badge">${d.intention}</span><br>
@@ -488,7 +708,7 @@
                 <small>Sentyment: ${d.sentiment}</small><br>
                 <em>"${d.text}"</em>
             `;
-            
+
             info.style.display = 'block';
         }
 
@@ -515,15 +735,15 @@
         }
 
         // ===== INICJALIZACJA =====
-        
+
         window.addEventListener('load', () => {
             initWebSocket();
-            
+
             // Resize handler
             window.addEventListener('resize', () => {
                 setTimeout(updateGraph, 100);
             });
-            
+
             // Enter key handler
             document.getElementById('message-text').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && e.ctrlKey) {
