@@ -1,29 +1,40 @@
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>🌟 LuxOS Demo Interface</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
+        :root {
+            --header-height: 120px;
+            --mobile-header-height: 100px;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            height: 100vh;
+            overflow: hidden;
+            position: fixed;
+            width: 100vw;
         }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* Mobile-first responsive design */
-        @media (max-width: 768px) {
-            body {
-                font-size: 14px;
-            }
+            color: white;
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         .header {
@@ -31,61 +42,38 @@
             padding: 20px;
             text-align: center;
             backdrop-filter: blur(10px);
+            height: var(--header-height);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
         }
 
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 2.2rem;
+            margin-bottom: 8px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
         .header p {
-            font-size: 1.2em;
+            font-size: 1.1rem;
             opacity: 0.9;
         }
 
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2.5rem;
-                margin-bottom: 15px;
-            }
-
-            .header p {
-                font-size: 1.1em;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 2rem;
-                margin-bottom: 10px;
-            }
-
-            .header p {
-                font-size: 1em;
-            }
-        }
-
         .demo-container {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            right: 0;
+            bottom: 0;
             display: flex;
-            flex-direction: row;
-            height: calc(100vh - 140px);
-            gap: 20px;
-            padding: 20px;
+            gap: 15px;
+            padding: 15px;
             overflow: hidden;
-        }
-
-        @media (max-width: 768px) {
-            .demo-container {
-                flex-direction: column;
-                height: auto;
-                min-height: calc(100vh - 140px);
-                gap: 15px;
-                padding: 10px;
-                margin: 0;
-                width: 100vw;
-                box-sizing: border-box;
-            }
         }
 
         .input-panel {
@@ -94,20 +82,10 @@
             padding: 20px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.2);
-            flex: 0 0 350px;
+            width: 350px;
             min-width: 300px;
             overflow-y: auto;
-        }
-
-        @media (max-width: 768px) {
-            .input-panel {
-                flex: 0 0 auto;
-                min-width: unset;
-                width: 100%;
-                padding: 15px;
-                border-radius: 10px;
-                box-sizing: border-box;
-            }
+            flex-shrink: 0;
         }
 
         .graph-panel {
@@ -118,21 +96,30 @@
             border: 1px solid rgba(255,255,255,0.2);
             position: relative;
             flex: 1;
-            min-width: 0;
-            overflow: hidden;
             display: flex;
             flex-direction: column;
+            min-width: 0;
+            overflow: hidden;
         }
 
-        @media (max-width: 768px) {
-            .graph-panel {
-                flex: 1;
-                min-height: 400px;
-                padding: 15px;
-                border-radius: 10px;
-                width: 100%;
-                box-sizing: border-box;
-            }
+        .graph-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 15px;
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+        }
+
+        .graph-container svg {
+            max-width: 100%;
+            max-height: 100%;
+            height: auto;
+            width: auto;
         }
 
         .form-group {
@@ -153,38 +140,13 @@
             border-radius: 10px;
             background: rgba(255,255,255,0.9);
             color: #333;
-            font-size: 14px;
+            font-size: 16px;
         }
 
         .form-group textarea {
-            height: 120px;
-            resize: vertical;
-        }
-
-        @media (max-width: 768px) {
-            .form-group input,
-            .form-group textarea {
-                padding: 12px;
-                font-size: 16px; /* Prevents zoom on iOS */
-                border-radius: 8px;
-            }
-
-            .form-group textarea {
-                height: 80px;
-                resize: none;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .form-group input,
-            .form-group textarea {
-                padding: 10px;
-                font-size: 16px;
-            }
-
-            .form-group textarea {
-                height: 70px;
-            }
+            height: 80px;
+            resize: none;
+            font-family: inherit;
         }
 
         .btn {
@@ -199,18 +161,13 @@
             transition: all 0.3s ease;
             width: 100%;
             margin-bottom: 10px;
+            touch-action: manipulation;
         }
 
-        .btn:hover {
+        .btn:hover, .btn:focus {
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-        }
-
-        @media (max-width: 768px) {
-            .btn {
-                padding: 10px 20px;
-                font-size: 15px;
-            }
+            outline: none;
         }
 
         .stats-panel {
@@ -218,13 +175,6 @@
             border-radius: 10px;
             padding: 15px;
             margin-top: 20px;
-        }
-
-        @media (max-width: 768px) {
-            .stats-panel {
-                padding: 12px;
-                margin-top: 15px;
-            }
         }
 
         .stat-item {
@@ -236,86 +186,38 @@
             border-radius: 5px;
         }
 
-        @media (max-width: 768px) {
-            .stat-item {
-                padding: 6px;
-                font-size: 13px;
-            }
+        .status-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 8px 16px;
+            background: rgba(76, 175, 80, 0.8);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 10;
         }
 
-        .graph-container {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 15px;
-            padding: 15px;
-            margin: 20px 0;
-            flex: 1;
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-            box-sizing: border-box;
-            min-height: 0;
+        .connection-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 250px;
+            font-size: 12px;
+            z-index: 10;
+            display: none;
         }
 
-        .messages-container {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 15px;
-            padding: 15px;
-            margin: 20px 0 0 0;
-            max-height: 200px;
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-
-        @media (max-width: 768px) {
-            .graph-container {
-                padding: 8px;
-                margin: 10px 0;
-                flex: 1;
-                min-height: 300px;
-                max-height: 350px;
-                border-radius: 10px;
-                width: calc(100% - 16px);
-                position: relative;
-                overflow: hidden;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-
-            .messages-container {
-                padding: 8px;
-                margin: 10px 0 0 0;
-                max-height: 120px;
-                border-radius: 10px;
-                width: calc(100% - 16px);
-                flex-shrink: 0;
-            }
-
-            .connection-info {
-                position: fixed !important;
-                bottom: 10px !important;
-                left: 10px !important;
-                right: 10px !important;
-                top: auto !important;
-                max-width: calc(100vw - 20px) !important;
-                font-size: 11px !important;
-                z-index: 1000 !important;
-                border-radius: 8px !important;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .graph-container {
-                padding: 10px;
-                margin: 15px 0;
-                min-height: 250px;
-            }
-
-            .messages-container {
-                padding: 10px;
-                margin: 15px 0;
-                max-height: 200px;
-            }
+        .intention-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin: 2px;
+            display: inline-block;
         }
 
         .node {
@@ -346,56 +248,6 @@
             pointer-events: none;
         }
 
-        .connection-info {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 10px;
-            max-width: 250px;
-            font-size: 12px;
-        }
-
-        @media (max-width: 768px) {
-            .connection-info {
-                top: 5px;
-                right: 5px;
-                padding: 8px;
-                font-size: 11px;
-                max-width: 200px;
-            }
-        }
-
-        .intention-badge {
-            background: rgba(255,255,255,0.2);
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            margin: 2px;
-            display: inline-block;
-        }
-
-        .status-indicator {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            padding: 8px 16px;
-            background: rgba(76, 175, 80, 0.8);
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        @media (max-width: 768px) {
-            .status-indicator {
-                top: 5px;
-                left: 5px;
-                padding: 6px 12px;
-                font-size: 11px;
-            }
-        }
-
         .loading {
             opacity: 0.5;
             pointer-events: none;
@@ -411,76 +263,192 @@
             animation: pulse 1.5s infinite;
         }
 
-        .message-input-container {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
+        /* MOBILE STYLES - Prioritet mobilny */
+        @media screen and (max-width: 768px) {
+            :root {
+                --header-height: var(--mobile-header-height);
+            }
 
-        .message-input {
-            flex: 1;
-            padding: 15px;
-            border: none;
-            border-radius: 25px;
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
-            color: white;
-            font-size: 16px;
-            outline: none;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
+            body {
+                font-size: 14px;
+            }
 
-        .send-btn {
-            padding: 15px 30px;
-            background: linear-gradient(45deg, #00ff88, #00cc66);
-            border: none;
-            border-radius: 25px;
-            color: #1a1a1a;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
+            .header {
+                height: var(--mobile-header-height);
+                padding: 15px 10px;
+            }
 
-        @media (max-width: 768px) {
-            .message-input-container {
+            .header h1 {
+                font-size: 1.8rem;
+                margin-bottom: 5px;
+            }
+
+            .header p {
+                font-size: 0.95rem;
+            }
+
+            .demo-container {
                 flex-direction: column;
-                gap: 15px;
+                gap: 10px;
+                padding: 10px;
+                top: var(--mobile-header-height);
             }
 
-            .message-input {
-                padding: 12px;
-                font-size: 16px; /* Zapobiega zoom na iOS */
-            }
-
-            .send-btn {
-                padding: 12px 20px;
-                border-radius: 20px;
+            .input-panel {
                 width: 100%;
+                min-width: unset;
+                height: auto;
+                max-height: 40vh;
+                padding: 15px;
+                order: 2;
+                flex-shrink: 0;
+            }
+
+            .graph-panel {
+                width: 100%;
+                height: 55vh;
+                padding: 15px;
+                order: 1;
+                min-height: 300px;
+            }
+
+            .graph-container {
+                padding: 10px;
+                min-height: 250px;
+                height: calc(55vh - 60px);
+            }
+
+            .form-group {
+                margin-bottom: 15px;
+            }
+
+            .form-group input,
+            .form-group textarea {
+                padding: 10px;
+                font-size: 16px; /* Zapobiega zoom na iOS */
+                border-radius: 8px;
+            }
+
+            .form-group textarea {
+                height: 60px;
+            }
+
+            .btn {
+                padding: 10px 20px;
+                font-size: 15px;
+            }
+
+            .stats-panel {
+                padding: 12px;
+                margin-top: 15px;
+            }
+
+            .stat-item {
+                padding: 6px;
+                font-size: 13px;
+            }
+
+            .status-indicator {
+                top: 5px;
+                left: 5px;
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+
+            .connection-info {
+                top: 5px;
+                right: 5px;
+                left: 5px;
+                max-width: none;
+                font-size: 11px;
+                position: fixed;
+                z-index: 1000;
+            }
+
+            .node-label {
+                font-size: 9px;
             }
         }
 
-        .message {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-left: 4px solid #00ff88;
-            animation: fadeInUp 0.3s ease;
-        }
+        /* BARDZO MAŁE EKRANY */
+        @media screen and (max-width: 480px) {
+            .header h1 {
+                font-size: 1.6rem;
+            }
 
-        @media (max-width: 768px) {
-            .message {
+            .header p {
+                font-size: 0.9rem;
+            }
+
+            .demo-container {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .input-panel {
                 padding: 12px;
-                border-radius: 8px;
+                max-height: 35vh;
+            }
+
+            .graph-panel {
+                padding: 12px;
+                height: 60vh;
+            }
+
+            .graph-container {
+                padding: 8px;
+                min-height: 220px;
+                height: calc(60vh - 50px);
+            }
+
+            .form-group textarea {
+                height: 50px;
+            }
+
+            .btn {
+                padding: 8px 16px;
                 font-size: 14px;
             }
         }
 
-        @media (max-width: 480px) {
-            .message {
-                padding: 10px;
-                border-radius: 6px;
-                font-size: 13px;
+        /* LANDSCAPE MODE NA MOBILE */
+        @media screen and (max-width: 768px) and (orientation: landscape) {
+            .demo-container {
+                flex-direction: row;
+            }
+
+            .input-panel {
+                width: 40%;
+                max-height: none;
+                height: 100%;
+                order: 1;
+            }
+
+            .graph-panel {
+                width: 60%;
+                height: 100%;
+                order: 2;
+            }
+
+            .graph-container {
+                height: calc(100% - 40px);
+            }
+        }
+
+        /* TABLET STYLES */
+        @media screen and (min-width: 769px) and (max-width: 1024px) {
+            .input-panel {
+                width: 320px;
+                min-width: 280px;
+            }
+
+            .header h1 {
+                font-size: 2.0rem;
+            }
+
+            .demo-container {
+                gap: 12px;
+                padding: 12px;
             }
         }
     </style>
@@ -492,7 +460,6 @@
     </div>
 
     <div class="demo-container">
-        <!-- Panel wejściowy -->
         <div class="input-panel">
             <h3>💬 Nowa Wiadomość</h3>
 
@@ -516,7 +483,6 @@
                 <button class="btn" onclick="loadExample('System nie działa poprawnie, potrzebuję pomocy')">Problem</button>
             </div>
 
-            <!-- Panel statystyk -->
             <div class="stats-panel">
                 <h4>📊 Statystyki Systemu</h4>
                 <div class="stat-item">
@@ -532,27 +498,26 @@
                     <span id="stat-strength">0.0</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Skuteczność AI:</span>
-                    <span class="stat-value" id="aiAccuracy">94.2%</span>
+                    <span>Skuteczność AI:</span>
+                    <span id="aiAccuracy">94.2%</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Czas odpowiedzi:</span>
-                    <span class="stat-value" id="responseTime">247ms</span>
+                    <span>Czas odpowiedzi:</span>
+                    <span id="responseTime">247ms</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Relacje wykryte:</span>
-                    <span class="stat-value" id="relationsFound">156</span>
+                    <span>Relacje wykryte:</span>
+                    <span id="relationsFound">156</span>
                 </div>
             </div>
         </div>
 
-        <!-- Panel grafu -->
         <div class="graph-panel">
             <div class="status-indicator" id="status">🟢 Połączono</div>
             <div class="graph-container">
                 <svg id="graph-svg"></svg>
             </div>
-            <div class="connection-info" id="connection-info" style="display: none;">
+            <div class="connection-info" id="connection-info">
                 <h4>🔗 Informacje o połączeniu</h4>
                 <div id="connection-details"></div>
             </div>
@@ -564,6 +529,7 @@
         let ws;
         let graphData = { messages: [], connections: [] };
         let simulation;
+        let currentContainer = null;
 
         function initWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -581,7 +547,7 @@
 
             ws.onclose = () => {
                 document.getElementById('status').innerHTML = '🔴 Rozłączono';
-                setTimeout(initWebSocket, 3000); // Reconnect
+                setTimeout(initWebSocket, 3000);
             };
 
             ws.onerror = (error) => {
@@ -639,7 +605,6 @@
         }
 
         function showNotification(message) {
-            // Simple notification - można rozbudować
             const status = document.getElementById('status');
             const originalText = status.innerHTML;
             status.innerHTML = message;
@@ -666,46 +631,52 @@
         function updateGraph() {
             const svg = d3.select('#graph-svg');
             const container = document.querySelector('.graph-container');
-
+            
             if (!container || !graphData.messages) return;
 
-            // Mobile-first responsive dimensions
+            // Sprawdź czy kontener się zmienił (orientacja, resize)
             const containerRect = container.getBoundingClientRect();
-            const isMobile = window.innerWidth <= 768;
-
-            let width, height;
-            if (isMobile) {
-                width = Math.min(containerRect.width - 20, window.innerWidth - 40);
-                height = Math.min(containerRect.height - 20, 280);
-            } else {
-                width = containerRect.width - 30;
-                height = containerRect.height - 30;
+            if (currentContainer && 
+                currentContainer.width === containerRect.width && 
+                currentContainer.height === containerRect.height) {
+                return; // Nie ma zmian w wymiarach
             }
+            
+            currentContainer = containerRect;
 
-            width = Math.max(width, 250);
-            height = Math.max(height, 200);
+            // Wykryj typ urządzenia
+            const isMobile = window.innerWidth <= 768;
+            const isTablet = window.innerWidth > 768 && window.innerWidth <= 1024;
+            
+            // Oblicz wymiary z bezpiecznymi marginami
+            const margin = isMobile ? 10 : 20;
+            let width = Math.max(containerRect.width - (margin * 2), 200);
+            let height = Math.max(containerRect.height - (margin * 2), 150);
 
-            // Responsive SVG setup
-            svg.attr('width', width)
-               .attr('height', height)
-               .attr('viewBox', `0 0 ${width} ${height}`)
+            // Ustaw responsive SVG
+            svg.attr('viewBox', `0 0 ${width} ${height}`)
+               .style('width', '100%')
+               .style('height', '100%')
                .style('max-width', '100%')
-               .style('height', 'auto');
+               .style('max-height', '100%');
 
             svg.selectAll('*').remove();
 
-            // Simplified data for mobile
-            const nodes = graphData.messages.slice(0, isMobile ? 8 : 20).map(msg => ({
+            // Limit danych dla performance
+            const maxNodes = isMobile ? 8 : isTablet ? 12 : 20;
+            const maxLinks = isMobile ? 10 : isTablet ? 15 : 30;
+
+            const nodes = graphData.messages.slice(0, maxNodes).map(msg => ({
                 id: msg.id,
                 type: 'message',
-                label: isMobile ? msg.author.substring(0, 8) : msg.author,
+                label: isMobile ? msg.author.substring(0, 6) : msg.author.substring(0, 10),
                 intention: msg.intention_type,
-                text: msg.text.substring(0, isMobile ? 30 : 50) + '...',
+                text: msg.text.substring(0, isMobile ? 25 : 40) + '...',
                 confidence: msg.intention_confidence,
                 sentiment: msg.sentiment
             }));
 
-            const links = graphData.connections.slice(0, isMobile ? 10 : 30).map(conn => ({
+            const links = graphData.connections.slice(0, maxLinks).map(conn => ({
                 source: conn.source_id,
                 target: conn.target_id,
                 strength: conn.strength,
@@ -713,7 +684,7 @@
                 type: conn.connection_type
             }));
 
-            // Filter valid links
+            // Filtruj prawidłowe linki
             const nodeIds = new Set(nodes.map(n => n.id));
             const validLinks = links.filter(link =>
                 nodeIds.has(link.source) && nodeIds.has(link.target)
@@ -721,16 +692,17 @@
 
             if (nodes.length === 0) return;
 
-            // Mobile-optimized force simulation
-            const linkDistance = isMobile ? 60 : 100;
-            const chargeStrength = isMobile ? -150 : -300;
-            const nodeRadius = isMobile ? 20 : 25;
+            // Responsive parametry
+            const linkDistance = isMobile ? 50 : isTablet ? 70 : 100;
+            const chargeStrength = isMobile ? -100 : isTablet ? -200 : -300;
+            const nodeRadius = isMobile ? 15 : isTablet ? 18 : 25;
 
+            // Force simulation
             simulation = d3.forceSimulation(nodes)
                 .force('link', d3.forceLink(validLinks).id(d => d.id).distance(linkDistance))
                 .force('charge', d3.forceManyBody().strength(chargeStrength))
                 .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(nodeRadius))
+                .force('collision', d3.forceCollide().radius(nodeRadius + 5))
                 .force('boundary', () => {
                     nodes.forEach(d => {
                         d.x = Math.max(nodeRadius, Math.min(width - nodeRadius, d.x || width/2));
@@ -738,24 +710,24 @@
                     });
                 });
 
-            // Draw links with mobile optimization
+            // Rysuj linki
             const link = svg.append('g')
                 .selectAll('line')
                 .data(validLinks)
                 .enter().append('line')
                 .attr('class', 'link')
-                .style('stroke-width', d => Math.max(1, d.strength * (isMobile ? 3 : 5)))
+                .style('stroke-width', d => Math.max(1, d.strength * (isMobile ? 2 : 3)))
                 .style('stroke-opacity', d => d.strength * 0.8);
 
-            // Draw nodes with mobile sizing
+            // Rysuj węzły
             const node = svg.append('g')
                 .selectAll('circle')
                 .data(nodes)
                 .enter().append('circle')
                 .attr('class', d => `node ${d.type}`)
                 .attr('r', d => {
-                    const baseRadius = isMobile ? 12 : 15;
-                    return baseRadius + (d.confidence || 0) * (isMobile ? 5 : 10);
+                    const baseRadius = isMobile ? 12 : isTablet ? 15 : 18;
+                    return baseRadius + (d.confidence || 0) * (isMobile ? 3 : 8);
                 })
                 .style('fill', d => getIntentionColor(d.intention))
                 .style('stroke-width', isMobile ? 1 : 2)
@@ -763,22 +735,20 @@
                     .on('start', dragstarted)
                     .on('drag', dragged)
                     .on('end', dragended))
-                .on('click', isMobile ? showNodeInfo : null)
-                .on('mouseover', !isMobile ? showNodeInfo : null)
-                .on('mouseout', !isMobile ? hideNodeInfo : null);
+                .on('click', showNodeInfo)
+                .on('touchend', showNodeInfo);
 
-            // Mobile-optimized labels
+            // Labels tylko jeśli mało węzłów lub większy ekran
             if (!isMobile || nodes.length <= 5) {
                 const labels = svg.append('g')
                     .selectAll('text')
                     .data(nodes)
                     .enter().append('text')
                     .attr('class', 'node-label')
-                    .style('font-size', isMobile ? '10px' : '12px')
+                    .style('font-size', isMobile ? '8px' : '10px')
                     .text(d => d.label)
-                    .attr('dy', isMobile ? -15 : -20);
+                    .attr('dy', isMobile ? -12 : -15);
 
-                // Update labels in simulation
                 simulation.on('tick', () => {
                     link
                         .attr('x1', d => d.source.x)
@@ -795,7 +765,6 @@
                         .attr('y', d => d.y);
                 });
             } else {
-                // No labels on mobile for crowded graphs
                 simulation.on('tick', () => {
                     link
                         .attr('x1', d => d.source.x)
@@ -809,11 +778,11 @@
                 });
             }
 
-            // Auto-stop simulation on mobile to save battery
+            // Auto-stop simulation na mobile (battery saving)
             if (isMobile) {
                 setTimeout(() => {
                     if (simulation) simulation.stop();
-                }, 3000);
+                }, 2000);
             }
         }
 
@@ -832,8 +801,7 @@
         function showNodeInfo(event, d) {
             const info = document.getElementById('connection-info');
             const details = document.getElementById('connection-details');
-            const isMobile = window.innerWidth <= 768;
-
+            
             details.innerHTML = `
                 <strong>${d.label}</strong><br>
                 <span class="intention-badge">${d.intention}</span><br>
@@ -844,27 +812,11 @@
 
             info.style.display = 'block';
 
-            // Mobile-specific positioning
-            if (isMobile) {
-                info.style.position = 'fixed';
-                info.style.bottom = '10px';
-                info.style.left = '10px';
-                info.style.right = '10px';
-                info.style.top = 'auto';
-                info.style.maxWidth = 'calc(100vw - 20px)';
-                info.style.zIndex = '1000';
-
-                // Auto-hide on mobile after 3 seconds
+            // Auto-hide na mobile
+            if (window.innerWidth <= 768) {
                 setTimeout(() => {
                     info.style.display = 'none';
-                }, 3000);
-            } else {
-                info.style.position = 'absolute';
-                info.style.top = '10px';
-                info.style.right = '10px';
-                info.style.bottom = 'auto';
-                info.style.left = 'auto';
-                info.style.maxWidth = '250px';
+                }, 4000);
             }
         }
 
@@ -874,7 +826,7 @@
             }
         }
 
-        // Funkcje drag and drop
+        // Drag functions
         function dragstarted(event, d) {
             if (!event.active) simulation.alphaTarget(0.3).restart();
             d.fx = d.x;
@@ -892,35 +844,58 @@
             d.fy = null;
         }
 
-        // ===== INICJALIZACJA =====
+        // ===== INICJALIZACJA I EVENT HANDLERS =====
 
         window.addEventListener('load', () => {
             initWebSocket();
-
-            // Resize handler with proper debouncing
+            
+            // Optimized resize handler
             let resizeTimeout;
-            window.addEventListener('resize', () => {
+            const handleResize = () => {
                 clearTimeout(resizeTimeout);
                 resizeTimeout = setTimeout(() => {
+                    currentContainer = null; // Force recalculation
                     if (graphData.messages.length > 0) {
                         updateGraph();
                     }
-                }, 150);
-            });
+                }, 100);
+            };
 
-            // Also handle orientation changes on mobile
+            window.addEventListener('resize', handleResize);
             window.addEventListener('orientationchange', () => {
-                setTimeout(() => {
-                    if (graphData.messages.length > 0) {
-                        updateGraph();
-                    }
-                }, 300);
+                setTimeout(handleResize, 300);
             });
 
             // Enter key handler
             document.getElementById('message-text').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && e.ctrlKey) {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                     sendMessage();
+                }
+            });
+
+            // Prevent zoom on input focus (iOS)
+            document.querySelectorAll('input, textarea').forEach(input => {
+                input.addEventListener('focus', () => {
+                    if (window.innerWidth <= 768) {
+                        document.querySelector('meta[name=viewport]')
+                            .setAttribute('content', 
+                                'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+                    }
+                });
+
+                input.addEventListener('blur', () => {
+                    if (window.innerWidth <= 768) {
+                        document.querySelector('meta[name=viewport]')
+                            .setAttribute('content', 
+                                'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+                    }
+                });
+            });
+
+            // Touch gestures dla info panel
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.connection-info') && !e.target.closest('.node')) {
+                    hideNodeInfo();
                 }
             });
         });
