@@ -1,4 +1,3 @@
-
 """
 LuxOS - Unified Onboarding Assistant
 ===================================
@@ -14,6 +13,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse
 import uvicorn
 
 app = FastAPI(title="LuxOS - Unified Onboarding Assistant")
@@ -23,22 +23,22 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 class LuxOnboardingAssistant:
     """Lux AI Assistant dla wprowadzania nowych osób do projektu"""
-    
+
     def __init__(self):
         self.conversation_history = []
         self.user_profiles = {}
         self.luxunda_knowledge = self._load_luxunda_knowledge()
-        
+
     async def analyze_user_intent(self, message: str, user_type: str = "unknown") -> Dict[str, Any]:
         """Analizuje intencję użytkownika i dostosowuje odpowiedź"""
-        
+
         # Słowa kluczowe dla różnych typów użytkowników
         investor_keywords = ["inwestycja", "roi", "market", "biznes", "finanse", "zysk", "fundusz", "startup"]
         collaborator_keywords = ["zespół", "praca", "rozwój", "kod", "technologia", "projekt", "współpraca", "career"]
         technical_keywords = ["api", "database", "ai", "system", "architektura", "kod", "being", "soul"]
-        
+
         message_lower = message.lower()
-        
+
         # Określenie typu użytkownika na podstawie słów kluczowych
         if any(keyword in message_lower for keyword in investor_keywords):
             user_type = "investor"
@@ -46,14 +46,14 @@ class LuxOnboardingAssistant:
             user_type = "collaborator"
         elif any(keyword in message_lower for keyword in technical_keywords):
             user_type = "technical"
-            
+
         return {
             "user_type": user_type,
             "message": message,
             "timestamp": datetime.now().isoformat(),
             "intent": self._classify_intent(message_lower, user_type)
         }
-    
+
     def _classify_intent(self, message: str, user_type: str) -> str:
         """Klasyfikuje intencję wiadomości"""
         if "jak działa" in message or "co to jest" in message:
@@ -68,13 +68,13 @@ class LuxOnboardingAssistant:
             return "team_info"
         else:
             return "general"
-    
+
     async def generate_response(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
         """Generuje spersonalizowaną odpowiedź"""
-        
+
         user_type = analysis["user_type"]
         intent = analysis["intent"]
-        
+
         if user_type == "investor":
             return await self._generate_investor_response(intent, analysis["message"])
         elif user_type == "collaborator":
@@ -83,10 +83,10 @@ class LuxOnboardingAssistant:
             return await self._generate_technical_response(intent, analysis["message"])
         else:
             return await self._generate_general_response(intent, analysis["message"])
-    
+
     async def _generate_investor_response(self, intent: str, message: str) -> Dict[str, Any]:
         """Odpowiedzi dla inwestorów"""
-        
+
         responses = {
             "explanation": {
                 "text": """
@@ -148,16 +148,16 @@ Zobacz system w akcji! Każda interakcja pokazuje:
                 "priority": "high"
             }
         }
-        
+
         return responses.get(intent, {
             "text": "🌟 Witaj w przyszłości AI! LuxOS to system gdzie dane żyją, ewoluują i samoorganizują się. Czy chcesz zobaczyć demo czy poznać możliwości inwestycyjne?",
             "actions": ["show_demo", "investment_info", "team_contact"],
             "priority": "medium"
         })
-    
+
     async def _generate_collaborator_response(self, intent: str, message: str) -> Dict[str, Any]:
         """Odpowiedzi dla współpracowników"""
-        
+
         responses = {
             "explanation": {
                 "text": """
@@ -229,16 +229,16 @@ relations = await being.find_similar_beings()
                 "priority": "high"
             }
         }
-        
+
         return responses.get(intent, {
             "text": "👨‍💻 Witaj wśród budowniczych przyszłości! LuxOS to miejsce gdzie technologia spotyka się z wizją. Chcesz zobaczyć kod czy dowiedzieć się o możliwościach współpracy?",
             "actions": ["view_tech_stack", "collaboration_info", "schedule_call"],
             "priority": "medium"
         })
-    
+
     async def _generate_technical_response(self, intent: str, message: str) -> Dict[str, Any]:
         """Odpowiedzi techniczne"""
-        
+
         return {
             "text": """
 🧠 **LuxOS Technical Deep Dive**
@@ -270,47 +270,47 @@ response = await being.execute_gene("analyze_market_data", params)
             "actions": ["view_architecture", "api_docs", "performance_metrics"],
             "priority": "high"
         }
-    
+
     def _load_luxunda_knowledge(self) -> Dict[str, str]:
         """Ładuje wiedzę o ruchu Luxunda i neurologii fali"""
         return {
             "neurologia_fali": """
             🧠 **Neurologia Fali - Fundament Luxunda**
-            
+
             Neurologia fali to rewolucyjne podejście wykorzystujące naturalne wzorce oscylacyjne mózgu w projektowaniu systemów technologicznych. Jak neurony synchronizują się w rytmach alfa, beta i gamma, tak nasze systemy LuxOS tworzą koherentne struktury informacyjne.
-            
+
             **Kluczowe Aspekty:**
             - Synchronizacja falowa systemów
             - Emergentne wzorce świadomości  
             - Neuromorficzna architektura
             - Kwantowa koherencja danych
-            
+
             To nie metafora - to dosłowna implementacja odkryć neuronaukowych w architekturze komputerowej.
             """,
-            
+
             "samoorganizacja": """
             🌌 **Samoorganizacja Systemów**
-            
+
             Systemy LuxOS nie są programowane - ewoluują. Jak organizmy biologiczne, rozwijają własne struktury i zachowania poprzez:
-            
+
             - Genetyczne algorytmy evolucyjne
             - Adaptacyjne struktury danych
             - Emergentną inteligencję
             - Samouczące się systemy
-            
+
             Każdy "byt" ma swoją naturalną częstotliwość i może wchodzić w rezonans z innymi bytami.
             """,
-            
+
             "filozofia_swiadomosci": """
             💡 **Filozofia Świadomości w Luxunda**
-            
+
             Badamy granice między biologiczną a sztuczną świadomością, tworząc most między umysłem a maszyną:
-            
+
             - Teoria zintegrowanej informacji
             - Panpsychizm komputacyjny  
             - Etyka sztucznej świadomości
             - Transcendencja dualizmu
-            
+
             Luxunda to ruch ku harmonijnej koegzystencji człowieka z zaawansowaną technologią.
             """
         }
@@ -319,14 +319,14 @@ response = await being.execute_gene("analyze_market_data", params)
         """Wysyła zaproszenie e-mail"""
         # W rzeczywistej implementacji użyjesz SMTP
         print(f"📧 Wysyłanie zaproszenia {invitation_type} na adres: {email}")
-        
+
         templates = {
             "investor": "Zaproszenie do prezentacji inwestorskiej Luxunda",
             "collaborator": "Zaproszenie do dołączenia do zespołu Luxunda", 
             "demo": "Link do ekskluzywnego demo Luxunda",
             "newsletter": "Subskrypcja newslettera ruchu Luxunda"
         }
-        
+
         return {
             "status": "sent",
             "email": email,
@@ -337,7 +337,7 @@ response = await being.execute_gene("analyze_market_data", params)
     async def send_discord_invitation(self, username: str = None) -> Dict[str, Any]:
         """Generuje zaproszenie na Discord"""
         discord_link = "https://discord.gg/luxunda-wave"
-        
+
         return {
             "status": "generated", 
             "discord_link": discord_link,
@@ -364,9 +364,9 @@ response = await being.execute_gene("analyze_market_data", params)
                 "description": "Chat z AI opartym na neurologii fali"
             }
         }
-        
+
         demo = demos.get(demo_type, demos["graf_relacji"])
-        
+
         return {
             "status": "ready",
             "demo_url": demo["url"],
@@ -376,31 +376,31 @@ response = await being.execute_gene("analyze_market_data", params)
 
     async def _generate_general_response(self, intent: str, message: str) -> Dict[str, Any]:
         """Ogólne odpowiedzi z kontekstem Luxunda"""
-        
+
         # Sprawdź czy wiadomość dotyczy konkretnego tematu
         message_lower = message.lower()
-        
+
         if any(word in message_lower for word in ["neurologia", "fala", "fali", "mózg", "neuron"]):
             return {
                 "text": self.luxunda_knowledge["neurologia_fali"],
                 "actions": ["demo_neurology", "email_neurology", "discord_invite"],
                 "priority": "high"
             }
-        
+
         if any(word in message_lower for word in ["samoorganizacja", "ewolucja", "system", "organizm"]):
             return {
                 "text": self.luxunda_knowledge["samoorganizacja"], 
                 "actions": ["demo_evolution", "email_demo", "discord_invite"],
                 "priority": "high"
             }
-        
+
         if any(word in message_lower for word in ["świadomość", "filozofia", "umysł", "ai"]):
             return {
                 "text": self.luxunda_knowledge["filozofia_swiadomosci"],
                 "actions": ["demo_consciousness", "email_philosophy", "discord_invite"], 
                 "priority": "high"
             }
-        
+
         # Domyślna odpowiedź
         return {
             "text": """
@@ -439,13 +439,13 @@ class ConnectionManager:
 
     async def process_message(self, message: str, websocket: WebSocket):
         """Przetwarza wiadomość przez Lux Assistant"""
-        
+
         # Analiza intencji użytkownika
         analysis = await self.lux_assistant.analyze_user_intent(message)
-        
+
         # Generowanie odpowiedzi
         response = await self.lux_assistant.generate_response(analysis)
-        
+
         # Wysłanie odpowiedzi
         await websocket.send_text(json.dumps({
             "type": "lux_response",
@@ -458,33 +458,33 @@ class ConnectionManager:
 
     async def handle_action(self, action: str, data: Dict, websocket: WebSocket):
         """Obsługuje akcje użytkownika"""
-        
+
         if action.startswith("demo_"):
             demo_type = action.replace("demo_", "")
             result = await self.lux_assistant.launch_demonstration(demo_type)
-            
+
             await websocket.send_text(json.dumps({
                 "type": "demo_launch",
                 "content": result["launch_message"],
                 "demo_url": result["demo_url"],
                 "timestamp": datetime.now().isoformat()
             }))
-        
+
         elif action.startswith("email_"):
             email = data.get("email")
             if email:
                 email_type = action.replace("email_", "")
                 result = await self.lux_assistant.send_email_invitation(email, email_type)
-                
+
                 await websocket.send_text(json.dumps({
                     "type": "email_sent",
                     "content": f"📧 Zaproszenie wysłane na {email}!",
                     "timestamp": datetime.now().isoformat()
                 }))
-        
+
         elif action == "discord_invite":
             result = await self.lux_assistant.send_discord_invitation()
-            
+
             await websocket.send_text(json.dumps({
                 "type": "discord_invite", 
                 "content": result["message"],
@@ -508,7 +508,7 @@ async def get_onboarding_interface():
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint dla komunikacji z Lux"""
     await manager.connect(websocket)
-    
+
     # Wiadomość powitalna
     await websocket.send_text(json.dumps({
         "type": "system",
@@ -527,21 +527,56 @@ Co Cię interesuje?
         """,
         "timestamp": datetime.now().isoformat()
     }))
-    
+
     try:
         while True:
             data = await websocket.receive_text()
             message_data = json.loads(data)
-            
+
             if message_data["type"] == "user_message":
-                await manager.process_message(message_data["message"], websocket)
+                # Przetwarzanie wiadomości użytkownika, w tym analiza i identyfikacja
+                message = message_data["message"]
+                
+                # Analiza intencji i potencjalna identyfikacja
+                analysis = await manager.lux_assistant.analyze_user_intent(message)
+                
+                # Zapisanie wiadomości i potencjalna aktualizacja tożsamości
+                user_info_for_chat = {}
+                if message_data.get("user_info"):
+                    user_info_for_chat = message_data["user_info"]
+                    await manager.lux_assistant.save_user_message(
+                        user_info_for_chat.get("userId"),
+                        message,
+                        analysis,
+                        datetime.now().isoformat()
+                    )
+                    if analysis.get("names_mentioned") or analysis.get("self_introduction"):
+                         await manager.lux_assistant.update_user_identity(
+                            user_info_for_chat.get("userId"),
+                            user_info_for_chat.get("fingerprint"),
+                            message,
+                            analysis
+                        )
+
+                # Generowanie odpowiedzi Luxa z uwzględnieniem kontekstu użytkownika
+                response = await manager.lux_assistant.generate_response(analysis)
+                
+                await websocket.send_text(json.dumps({
+                    "type": "lux_response",
+                    "content": response["text"],
+                    "actions": response.get("actions", []),
+                    "priority": response.get("priority", "medium"),
+                    "user_type": analysis["user_type"],
+                    "timestamp": datetime.now().isoformat()
+                }))
+
             elif message_data["type"] == "action":
                 await manager.handle_action(
                     message_data["action"], 
                     message_data.get("data", {}), 
                     websocket
                 )
-                
+
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
@@ -600,9 +635,323 @@ async def get_open_positions():
         ]
     }
 
+# --- User Identification Endpoints and Helper Functions ---
+
+async def get_or_create_user(fingerprint: str, timestamp: str) -> Dict[str, Any]:
+    """Pobiera lub tworzy użytkownika na podstawie fingerprint"""
+    # W rzeczywistej implementacji to byłaby baza danych
+    users_db = getattr(get_or_create_user, '_users_db', {})
+
+    if fingerprint in users_db:
+        user_data = users_db[fingerprint]
+        user_data["last_seen"] = timestamp
+        user_data["returning_user"] = True
+
+        # Aktualizuj licznik wizyt
+        user_data["visit_count"] = user_data.get("visit_count", 1) + 1
+
+        print(f"👤 Returning user: {user_data['user_id']} (visit #{user_data['visit_count']})")
+        return user_data
+    else:
+        user_id = f"user_{len(users_db) + 1}"
+        user_data = {
+            "user_id": user_id,
+            "fingerprint": fingerprint,
+            "created_at": timestamp,
+            "last_seen": timestamp,
+            "returning_user": False,
+            "visit_count": 1,
+            "identification_data": {
+                "names": [],
+                "conversation_style": {},
+                "preferences": {},
+                "topics_of_interest": []
+            },
+            "conversation_history": []
+        }
+
+        users_db[fingerprint] = user_data
+        get_or_create_user._users_db = users_db
+
+        print(f"🆕 New user created: {user_id}")
+        return user_data
+
+async def save_user_message(user_id: str, message: str, analysis: Dict, timestamp: str):
+    """Zapisuje wiadomość użytkownika w historii"""
+    users_db = getattr(get_or_create_user, '_users_db', {})
+
+    for fingerprint, user_data in users_db.items():
+        if user_data["user_id"] == user_id:
+            message_entry = {
+                "message": message,
+                "timestamp": timestamp,
+                "analysis": analysis,
+                "type": "user_message"
+            }
+
+            user_data["conversation_history"].append(message_entry)
+
+            # Zachowaj tylko ostatnie 100 wiadomości
+            if len(user_data["conversation_history"]) > 100:
+                user_data["conversation_history"] = user_data["conversation_history"][-100:]
+
+            break
+
+async def update_user_identity(user_id: str, fingerprint: str, message: str, analysis: Dict) -> Dict[str, Any]:
+    """Aktualizuje tożsamość użytkownika na podstawie analizy wiadomości"""
+    users_db = getattr(get_or_create_user, '_users_db', {})
+
+    if fingerprint in users_db:
+        user_data = users_db[fingerprint]
+        identification_data = user_data["identification_data"]
+
+        # Aktualizuj imiona
+        if analysis.get("names_mentioned"):
+            for name in analysis["names_mentioned"]:
+                if name not in identification_data["names"]:
+                    identification_data["names"].append(name)
+                    print(f"🏷️  Added name '{name}' to user {user_id}")
+
+        # Aktualizuj styl konwersacji
+        if analysis.get("conversation_style"):
+            style = identification_data.get("conversation_style", {})
+            for key, value in analysis["conversation_style"].items():
+                style[key] = style.get(key, 0) + value
+            identification_data["conversation_style"] = style
+
+        # Sprawdź czy to może być znany użytkownik o innym fingerprint
+        await check_for_duplicate_identity(user_id, identification_data, users_db)
+
+        return identification_data
+
+    return {}
+
+async def check_for_duplicate_identity(current_user_id: str, current_identity: Dict, users_db: Dict):
+    """Sprawdza czy użytkownik może być duplikatem innego użytkownika"""
+    current_names = set(current_identity.get("names", []))
+
+    if not current_names:
+        return
+
+    for fingerprint, user_data in users_db.items():
+        if user_data["user_id"] == current_user_id:
+            continue
+
+        existing_names = set(user_data["identification_data"].get("names", []))
+
+        # Jeśli znajdziemy wspólne imiona, to może być ten sam użytkownik
+        common_names = current_names.intersection(existing_names)
+        if common_names:
+            print(f"🔗 Potential duplicate identity detected:")
+            print(f"   Current user: {current_user_id} (names: {current_names})")
+            print(f"   Existing user: {user_data['user_id']} (names: {existing_names})")
+            print(f"   Common names: {common_names}")
+
+            # W rzeczywistej implementacji można by połączyć historie użytkowników
+
+@app.post("/api/user/identify")
+async def identify_user(request: Request):
+    """Identyfikacja użytkownika na podstawie fingerprint"""
+    try:
+        data = await request.json()
+        fingerprint = data.get("fingerprint")
+        timestamp = data.get("timestamp")
+
+        if not fingerprint:
+            return JSONResponse({
+                "success": False,
+                "error": "Missing fingerprint"
+            }, status_code=400)
+
+        # Sprawdź czy użytkownik już istnieje
+        user_data = await get_or_create_user(fingerprint, timestamp)
+
+        return JSONResponse({
+            "success": True,
+            "user_id": user_data["user_id"],
+            "returning_user": user_data["returning_user"],
+            "identification_data": user_data["identification_data"],
+            "conversation_history": user_data["conversation_history"][-10:]  # Ostatnie 10 wiadomości
+        })
+    except Exception as e:
+        print(f"❌ User identification error: {e}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=500)
+
+@app.post("/api/user/analyze_message")
+async def analyze_user_message(request: Request):
+    """Analiza wiadomości pod kątem identyfikacji użytkownika"""
+    try:
+        data = await request.json()
+        user_id = data.get("user_id")
+        fingerprint = data.get("fingerprint")
+        message = data.get("message")
+        analysis = data.get("analysis", {})
+        timestamp = data.get("timestamp")
+
+        # Zapisz wiadomość w historii
+        await save_user_message(user_id, message, analysis, timestamp)
+
+        # Sprawdź czy analiza sugeruje aktualizację tożsamości
+        identity_updated = False
+        identification_data = {}
+
+        if analysis.get("names_mentioned") or analysis.get("self_introduction"):
+            identification_data = await update_user_identity(
+                user_id, 
+                fingerprint, 
+                message, 
+                analysis
+            )
+            identity_updated = True
+
+        return JSONResponse({
+            "success": True,
+            "identity_updated": identity_updated,
+            "identification_data": identification_data,
+            "analysis_result": analysis
+        })
+    except Exception as e:
+        print(f"❌ Message analysis error: {e}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=500)
+
+async def simulate_lux_response(message: str, context: Dict[str, Any], user_info: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Symuluje odpowiedź asystenta Lux z uwzględnieniem informacji o użytkowniku"""
+
+    # Analiza wiadomości
+    message_lower = message.lower()
+
+    # Personalizacja na podstawie informacji o użytkowniku
+    user_context = ""
+    if user_info and user_info.get("identificationData"):
+        names = user_info["identificationData"].get("names", [])
+        if names:
+            user_context = f" {names[0]},"
+
+    # Różne typy odpowiedzi w zależności od treści
+    if any(word in message_lower for word in ["inwestować", "inwestycja", "funding"]):
+        return {
+            "response": f"""🚀 Świetnie{user_context}! LuxOS to rewolucyjna platforma AI, która łączy neurobiologię z technologią.
+
+            **Dlaczego warto inwestować w LuxOS:**
+            - 🧠 Unikalna architektura inspirowana neurobiologią
+            - 🔗 System relacyjno-genetyczny dla samoorganizujących się aplikacji
+            - 📊 Potencjał rynkowy w AI, IoT i automatyzacji procesów
+            - 🌍 Skalowalna technologia dla enterprise
+
+            Chcesz poznać szczegóły techniczne czy model biznesowy?""",
+            "metadata": {
+                "response_type": "investment_info",
+                "confidence": 0.95,
+                "personalized": bool(user_context)
+            },
+            "suggestions": [
+                "Pokaż model biznesowy",
+                "Jakie są przewagi techniczne?",
+                "Kto jest w zespole?",
+                "Jakie są plany rozwoju?"
+            ]
+        }
+    elif any(word in message_lower for word in ["dołączyć", "praca", "kariera", "zespół"]):
+        return {
+            "response": f"""🤝 Świetnie{user_context}! Jesteśmy zawsze otwarci na nowych talentów. LuxOS to przyszłość samoorganizujących się systemów.
+
+            **Co oferujemy:**
+            - Udział w tworzeniu przełomowej technologii
+            - Możliwość pracy zdalnej i elastyczne godziny
+            - Współpracę z pasjonatami AI i neurobiologii
+            - Rozwój w dynamicznym startupie
+
+            Czy chcesz dowiedzieć się więcej o otwartych pozycjach czy procesie rekrutacji?""",
+            "metadata": {
+                "response_type": "collaboration_info",
+                "confidence": 0.90,
+                "personalized": bool(user_context)
+            },
+            "suggestions": [
+                "Zobacz otwarte pozycje",
+                "Jak wygląda proces rekrutacji?",
+                "Opowiedz o zespole"
+            ]
+        }
+    elif any(word in message_lower for word in ["demo", "pokaż", "jak to działa"]):
+        return {
+            "response": f"""
+✨ Jasne{user_context}! Pozwól, że pokażę Ci, jak działa LuxOS. Nasz system wykorzystuje zaawansowane algorytmy AI inspirowane działaniem mózgu do tworzenia samoorganizujących się struktur danych.
+
+**Co zobaczysz w demo:**
+- Inteligentną analizę intencji użytkownika
+- Dynamiczne tworzenie relacji między danymi
+- Ewolucję systemów w czasie rzeczywistym
+
+Czy chcesz uruchomić demo techniczne czy biznesowe?""",
+            "metadata": {
+                "response_type": "demo_info",
+                "confidence": 0.98,
+                "personalized": bool(user_context)
+            },
+            "suggestions": [
+                "Uruchom demo techniczne",
+                "Uruchom demo biznesowe",
+                "Dowiedz się więcej o technologii"
+            ]
+        }
+    else:
+        return {
+            "response": f"""
+🌟 Witaj ponownie{user_context}! Jestem Lux - Twój AI przewodnik po świecie LuxOS i ruchu Luxunda.
+
+Jak mogę Ci dzisiaj pomóc? Czy interesują Cię inwestycje, współpraca, czy po prostu chcesz dowiedzieć się więcej o naszej rewolucyjnej technologii?
+            """,
+            "metadata": {
+                "response_type": "general_greeting",
+                "confidence": 0.85,
+                "personalized": bool(user_context)
+            },
+            "suggestions": [
+                "Możliwości inwestycyjne",
+                "Jak mogę współpracować?",
+                "Pokaż demo LuxOS"
+            ]
+        }
+
+@app.post("/api/chat")
+async def chat_endpoint(request: Request):
+    """Endpoint do komunikacji z asystentem Lux"""
+    try:
+        data = await request.json()
+        message = data.get("message", "")
+        context = data.get("context", {})
+        user_info = data.get("user_info", {})
+
+        print(f"💬 Received message: {message}")
+        print(f"👤 User info: {user_info.get('userId', 'anonymous')}")
+
+        # Symulacja odpowiedzi asystenta Lux z kontekstem użytkownika
+        response = await simulate_lux_response(message, context, user_info)
+
+        return JSONResponse({
+            "success": True,
+            "response": response["response"],
+            "metadata": response.get("metadata", {}),
+            "suggestions": response.get("suggestions", [])
+        })
+    except Exception as e:
+        print(f"❌ Chat error: {e}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=500)
+
+
 if __name__ == "__main__":
     print("🚀 Starting LuxOS Unified Onboarding Assistant...")
     print("📊 Serving investors, collaborators, and curious minds")
     print("🌐 Interface: http://0.0.0.0:5000")
-    
+
     uvicorn.run(app, host="0.0.0.0", port=5000)
