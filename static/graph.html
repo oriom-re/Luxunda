@@ -549,8 +549,8 @@
             </div>
         </div>
 
-        <!-- Central Graph Container -->
-        <div id="graph-container" style="position: relative; margin-left: 0; margin-right: 0;">
+        <!-- Original Graph Container -->
+        <div id="graph">
             <div id="loading-indicator" style="
                 position: absolute;
                 top: 50%;
@@ -580,7 +580,6 @@
                 <strong>⚠️ Problem z ładowaniem</strong>
                 <div id="error-message"></div>
             </div>
-            <svg id="graph-svg"></svg>
         </div>
 
         <div class="intention-system">
@@ -599,56 +598,32 @@
         </div>
     </div>
 
-    <!-- Reactive System -->
-    <script src="/static/reactive-system.js"></script>
-    <script src="/static/lux-components.js"></script>
-    <script src="/static/lux-graph-reactive.js"></script>
-    <link rel="stylesheet" href="/static/lux-reactive-styles.css">
-
-    <!-- Legacy components -->
+    <!-- Original LuxOSGraph System -->
     <script src="/static/graph.js"></script>
     <script src="/static/chat-component.js"></script>
     <script src="/static/intention-component.js"></script>
 
     <script>
-        // Initialize reactive graph system
+        // Initialize original LuxOSGraph system
         let graph = null;
 
         function initApp() {
-            console.log('🚀 Inicjalizacja LuxDB Reactive Graf...');
+            console.log('🚀 Inicjalizacja LuxDB Graf...');
 
             try {
-                // Initialize reactive graph system
-                if (!graph) {
-                    graph = window.luxGraphReactive;
-                    graph.initialize('graph-container');
+                // Initialize original LuxOSGraph
+                if (typeof LuxOSGraph !== 'undefined') {
+                    graph = new LuxOSGraph();
                     window.graph = graph; // Make it globally available
+                    console.log('✅ LuxOSGraph zainicjalizowany');
+                } else {
+                    console.error('❌ LuxOSGraph class not found');
+                    showError('LuxOSGraph class nie został załadowany');
                 }
-
-                // Setup UI components
-                setupReactiveUI();
-
-                console.log('✅ Reactive Graf zainicjalizowany');
             } catch (error) {
                 console.error('❌ Błąd inicjalizacji aplikacji:', error);
                 showError('Błąd inicjalizacji: ' + error.message);
             }
-        }
-
-        function setupReactiveUI() {
-            // Connection status component
-            window.luxComponents.createConnectionComponent('connectionStatus');
-
-            // Stats component
-            window.luxComponents.createStatsComponent('statsContainer');
-
-            // Node list component
-            window.luxComponents.createListComponent('nodesList', 'graphNodes', (node) => `
-                <div class="node-item" onclick="luxComponents.selectNode('${node.id}')">
-                    <span class="node-name">${node.name}</span>
-                    <span class="node-type">${node.type}</span>
-                </div>
-            `);
         }
 
         // Inicjalizacja aplikacji
