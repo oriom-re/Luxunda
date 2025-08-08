@@ -26,7 +26,7 @@ except ImportError as e:
     import subprocess
     import sys
     subprocess.check_call([sys.executable, "-m", "pip", "install", "fastapi", "uvicorn", "python-socketio", "jinja2"])
-    
+
     # Try importing again
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
     from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -35,6 +35,68 @@ except ImportError as e:
     from fastapi.templating import Jinja2Templates
     import socketio
     import uvicorn
+
+# Placeholder for AI Brain and Soul/Being/MessageSimilarityService - these need actual implementation
+class AIAssistant:
+    async def process_user_intent(self, intention_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        print(f"AI Brain processing: '{intention_text}' with context: {context}")
+        # Simulate AI analysis
+        await asyncio.sleep(0.1) 
+        return {
+            "status": "analyzed",
+            "original_intention": intention_text,
+            "keywords": intention_text.split(),
+            "sentiment": "neutral",
+            "confidence": 0.8,
+            "related_concepts": ["connection", "entity", "communication"]
+        }
+
+class Soul:
+    @staticmethod
+    async def load_by_alias(alias: str):
+        print(f"Soul.load_by_alias({alias}) called")
+        # Simulate loading
+        await asyncio.sleep(0.01)
+        # Return a mock object with a soul_hash attribute
+        return type('MockSoul', (object,), {'soul_hash': f'hash_for_{alias}', 'alias': alias})()
+
+    @staticmethod
+    async def create(genotype: Dict[str, Any], alias: str):
+        print(f"Soul.create({genotype}, {alias}) called")
+        # Simulate creation
+        await asyncio.sleep(0.01)
+        return type('MockSoul', (object,), {'soul_hash': f'hash_for_{alias}', 'alias': alias})()
+
+class Being:
+    def __init__(self, soul, attributes: Dict[str, Any], alias: Optional[str] = None):
+        self.soul = soul
+        self.attributes = attributes
+        self.ulid = f"being_{datetime.now().timestamp()}" # Mock ULID
+
+    @classmethod
+    async def create(cls, soul, attributes: Dict[str, Any], alias: Optional[str] = None):
+        print(f"Being.create called for alias: {alias}")
+        # Simulate creation
+        await asyncio.sleep(0.01)
+        return cls(soul, attributes, alias)
+
+class MessageSimilarityService:
+    def __init__(self, similarity_threshold: float):
+        self.similarity_threshold = similarity_threshold
+        print(f"MessageSimilarityService initialized with threshold: {similarity_threshold}")
+
+    async def compare_messages_and_create_relations(self, message_soul_hash: str) -> Dict[str, Any]:
+        print(f"Comparing messages for hash: {message_soul_hash}")
+        # Simulate comparison and relation creation
+        await asyncio.sleep(0.1)
+        created_relations = 0
+        if "message_being" in message_soul_hash: # Simple simulation
+            created_relations = 2
+        return {'created_relations': created_relations}
+
+# Initialize AI Brain
+ai_brain = AIAssistant()
+
 
 # Globalne zmienne dla zarządzania aplikacją
 app_state = {
@@ -263,14 +325,14 @@ async def connect(sid, environ):
     """Handle client connection"""
     print(f"🔌 Client {sid} connected")
     app_state['active_users'] += 1
-    
+
     # Send initial state
     await sio.emit('initial_state', {
         'stats': app_state['stats'],
         'page_state': app_state['page_state'],
         'reactive_components': app_state['reactive_components']
     }, to=sid)
-    
+
     # Broadcast user count update
     await sio.emit('user_count_update', {
         'active_users': app_state['active_users']
@@ -281,7 +343,7 @@ async def disconnect(sid):
     """Handle client disconnection"""
     print(f"🔌 Client {sid} disconnected")
     app_state['active_users'] = max(0, app_state['active_users'] - 1)
-    
+
     # Broadcast user count update
     await sio.emit('user_count_update', {
         'active_users': app_state['active_users']
@@ -299,7 +361,7 @@ async def request_graph_data(sid):
 async def create_being(sid, data):
     """Create a new being via Socket.IO"""
     name = data.get('name', f'Being_{datetime.now().strftime("%H%M%S")}')
-    
+
     new_being_data = {
         'id': f'sio_being_{datetime.now().timestamp()}',
         'name': name,
@@ -327,6 +389,106 @@ async def create_being(sid, data):
 async def ping(sid):
     """Handle ping requests"""
     await sio.emit('pong', to=sid)
+
+@sio.event
+async def intention_created(sid, data):
+    """Obsługa nowych intencji od użytkowników"""
+    print(f"📥 Received intention: {data}")
+
+    try:
+        # Analizuj intencję przez AI Brain
+        analysis = await ai_brain.process_user_intent(
+            data.get('intention_text', ''),
+            context=data.get('context', {})
+        )
+
+        # Emit wynik
+        await sio.emit('intention_response', {
+            'status': 'processed',
+            'analysis': analysis,
+            'original_data': data
+        }, to=sid)
+
+    except Exception as e:
+        print(f"❌ Error processing intention: {e}")
+        await sio.emit('intention_response', {
+            'status': 'error',
+            'error': str(e)
+        }, to=sid)
+
+@sio.event
+async def message_being_created(sid, data):
+    """Obsługa nowych bytów-wiadomości z intencjami"""
+    print(f"📥 Received message being: {data['being']['intention']['type']}")
+
+    try:
+        being_data = data['being']
+        connections = data.get('connections', [])
+
+        # Zapisz byt-wiadomość do bazy
+        message_soul = await Soul.load_by_alias("message_being") 
+        if not message_soul:
+            # Utwórz genotyp dla bytów-wiadomości
+            message_genotype = {
+                "genesis": {
+                    "name": "message_being",
+                    "type": "communication",
+                    "doc": "Byt reprezentujący wiadomość z intencją"
+                },
+                "attributes": {
+                    "text": {"py_type": "str", "table_name": "_text"},
+                    "intention_type": {"py_type": "str", "table_name": "_text"},
+                    "intention_confidence": {"py_type": "float", "table_name": "_numeric"},
+                    "keywords": {"py_type": "list", "table_name": "_jsonb"},
+                    "sentiment": {"py_type": "str", "table_name": "_text"},
+                    "author": {"py_type": "str", "table_name": "_text"},
+                    "metadata": {"py_type": "dict", "table_name": "_jsonb"}
+                }
+            }
+            message_soul = await Soul.create(message_genotype, "message_being")
+
+        # Utwórz Being
+        message_being = await Being.create(message_soul, {
+            "text": being_data['text'],
+            "intention_type": being_data['intention']['type'],
+            "intention_confidence": being_data['intention']['confidence'],
+            "keywords": being_data['keywords'],
+            "sentiment": being_data['sentiment'],
+            "author": being_data['author'],
+            "metadata": {
+                "connections": connections,
+                "timestamp": being_data['timestamp']
+            }
+        }, alias=being_data['id'])
+
+        # Analizuj połączenia i utwórz relacje
+        similarity_service = MessageSimilarityService(similarity_threshold=0.5)
+        relations_result = await similarity_service.compare_messages_and_create_relations(message_soul.soul_hash)
+
+        # Emit potwierdzenie
+        await sio.emit('message_being_response', {
+            'status': 'created',
+            'being_id': message_being.ulid,
+            'connections_created': len(connections),
+            'semantic_relations': relations_result.get('created_relations', 0)
+        }, to=sid)
+
+        # Jeśli znaleziono nowe połączenia, powiadom
+        if relations_result.get('created_relations', 0) > 0:
+            await sio.emit('new_connection_discovered', {
+                'reason': f"Znaleziono {relations_result['created_relations']} semantycznych połączeń",
+                'being_id': message_being.ulid
+            })
+
+        print(f"✅ Created message being with {len(connections)} connections")
+
+    except Exception as e:
+        print(f"❌ Error processing message being: {e}")
+        await sio.emit('message_being_response', {
+            'status': 'error', 
+            'error': str(e)
+        }, to=sid)
+
 
 async def create_being_via_websocket(name: str, websocket: WebSocket):
     """Create being via WebSocket and broadcast update"""
