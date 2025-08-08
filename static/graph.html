@@ -458,90 +458,106 @@
         </div>
     </div>
 
-    <script src="graph.js"></script>
-    <script src="intention-component.js"></script>
-    <script src="chat-component.js"></script>
+    <script src="/static/reactive-system.js"></script>
+    <script src="/static/lux-components.js"></script>
+    <script src="/static/lux-graph-reactive.js"></script>
+    <link rel="stylesheet" href="/static/lux-reactive-styles.css">
+    
+    <!-- Legacy components -->
+    <script src="/static/graph.js"></script>
+    <script src="/static/chat-component.js"></script>
     <script>
-        // Inicjalizacja aplikacji
+        // Inicjalizacja reaktywnego systemu
         document.addEventListener('DOMContentLoaded', function() {
             try {
-                console.log('🚀 Inicjalizacja LuxDB Graf...');
+                console.log('🚀 Inicjalizacja LuxDB Reactive Graf...');
 
-                // Sprawdź czy klasy są dostępne
-                if (typeof LuxOSGraph === 'undefined') {
-                    console.error('❌ LuxOSGraph class not loaded');
-                    throw new Error('LuxOSGraph class not available');
+                // Initialize reactive system
+                const reactiveSystem = window.luxReactiveSystem;
+                const luxComponents = window.luxComponents;
+                const luxGraphReactive = window.luxGraphReactive;
+
+                // Setup reactive UI components
+                function setupReactiveUI() {
+                    // Connection status component
+                    luxComponents.createConnectionComponent('connectionStatus');
+                    
+                    // Stats component
+                    luxComponents.createStatsComponent('statsContainer');
+                    
+                    // Node list component
+                    luxComponents.createListComponent('nodesList', 'graphNodes', (node) => `
+                        <div class="node-item" onclick="luxComponents.selectNode('${node.id}')">
+                            <strong>${node.name || 'Unknown'}</strong>
+                            <span class="node-type">${node.type || 'entity'}</span>
+                        </div>
+                    `);
                 }
 
-                if (typeof IntentionComponent === 'undefined') {
-                    console.error('❌ IntentionComponent class not loaded');
-                    throw new Error('IntentionComponent class not available');
+                // Initialize socket connection
+                const socket = io();
+                
+                // Connect reactive systems
+                luxComponents.init(socket);
+                luxGraphReactive.init(socket, luxComponents);
+                
+                setupReactiveUI();
+                
+                // Initialize legacy graph if needed
+                if (typeof LuxOSGraph !== 'undefined') {
+                    const graphManager = new LuxOSGraph();
+                    window.luxGraph = graphManager;
+                    
+                    // Connect reactive system to legacy graph
+                    luxGraphReactive.subscribe('graph_updated', (data) => {
+                        if (graphManager.updateGraph) {
+                            graphManager.updateGraph(data);
+                        }
+                    });
                 }
 
-                if (typeof LuxChatComponent === 'undefined') {
-                    console.error('❌ LuxChatComponent class not loaded');
-                    throw new Error('LuxChatComponent class not available');
+                // Initialize chat component
+                if (typeof LuxChatComponent !== 'undefined') {
+                    const luxChatComponent = new LuxChatComponent();
+                    window.luxChatComponent = luxChatComponent;
+                    document.getElementById('luxChat')?.addEventListener('click', () => luxChatComponent.toggle());
                 }
 
-                // Inicjalizuj komponenty
-                const graphManager = new LuxOSGraph();
-                const intentionComponent = new IntentionComponent(graphManager);
-                const luxChatComponent = new LuxChatComponent(graphManager);
-
-                // Zapisz globalne referencje dla debugowania
-                window.luxOSUniverse = graphManager;
-                window.intentionComponent = intentionComponent;
-                window.luxChatComponent = luxChatComponent;
-
-                // Dodaj obsługę kontrolek zoom
-                document.getElementById('zoomIn').addEventListener('click', () => graphManager.zoomIn());
-                document.getElementById('zoomOut').addEventListener('click', () => graphManager.zoomOut());
-                document.getElementById('zoomReset').addEventListener('click', () => graphManager.resetZoom());
-                document.getElementById('luxChat').addEventListener('click', () => luxChatComponent.toggle());
-
-                // Obsługa zmiany rozmiaru okna
-                window.addEventListener('resize', () => {
-                    if (graphManager.resizeGraph) {
-                        graphManager.resizeGraph();
+                // Setup zoom controls
+                document.getElementById('zoomIn')?.addEventListener('click', () => {
+                    if (window.luxGraph && window.luxGraph.zoomIn) {
+                        window.luxGraph.zoomIn();
+                    }
+                });
+                document.getElementById('zoomOut')?.addEventListener('click', () => {
+                    if (window.luxGraph && window.luxGraph.zoomOut) {
+                        window.luxGraph.zoomOut();
+                    }
+                });
+                document.getElementById('zoomReset')?.addEventListener('click', () => {
+                    if (window.luxGraph && window.luxGraph.resetZoom) {
+                        window.luxGraph.resetZoom();
                     }
                 });
 
-                console.log('✅ LuxDB Graf zainicjalizowany pomyślnie');
+                // Request initial data
+                setTimeout(() => {
+                    luxGraphReactive.requestGraphData();
+                }, 500);
+
+                console.log('✅ Graph reactive system ready');
+                
+                // Export references for debugging
+                window.luxReactiveGraph = {
+                    components: luxComponents,
+                    graphReactive: luxGraphReactive,
+                    socket: socket
+                };
+                
+                console.log('✅ Reactive Graf zainicjalizowany');
 
             } catch (error) {
-                console.error('❌ Błąd inicjalizacji aplikacji:', error);
-
-                // Pokaż błąd w UI
-                const errorDiv = document.createElement('div');
-                errorDiv.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: #ff4444;
-                    color: white;
-                    padding: 20px;
-                    border-radius: 10px;
-                    z-index: 9999;
-                    text-align: center;
-                    font-weight: bold;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-                `;
-                errorDiv.innerHTML = `
-                    <h3>❌ Błąd ładowania grafu</h3>
-                    <p>${error.message}</p>
-                    <button onclick="location.reload()" style="
-                        background: white;
-                        color: #ff4444;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 5px;
-                        cursor: pointer;
-                        margin-top: 10px;
-                        font-weight: bold;
-                    ">🔄 Odśwież stronę</button>
-                `;
-                document.body.appendChild(errorDiv);
+                console.error('❌ Błąd inicjalizacji reaktywnego grafu:', error);
             }
         });
 
