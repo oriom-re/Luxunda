@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -5,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LuxDB MVP - Genotypowy System Danych</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <style>
         * {
             margin: 0;
@@ -26,14 +26,20 @@
             height: 100vh;
         }
 
-        .header {
-            background: rgba(26, 26, 26, 0.95);
-            padding: 15px 20px;
-            border-bottom: 2px solid #00ff88;
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding: 0 20px;
+            z-index: 1000;
             backdrop-filter: blur(10px);
+            border-bottom: 2px solid #00ff88;
         }
 
         .logo {
@@ -42,38 +48,81 @@
             color: #00ff88;
         }
 
-        .connection-status {
-            font-size: 14px;
+        .session-info {
             display: flex;
-            align-items: center;
-            gap: 8px;
+            gap: 15px;
+            color: white;
+            font-size: 14px;
         }
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #ff4444;
-            animation: pulse 2s infinite;
+        .user-info {
+            padding: 4px 12px;
+            background: rgba(76, 175, 80, 0.2);
+            border-radius: 12px;
+            border: 1px solid rgba(76, 175, 80, 0.3);
         }
 
-        .status-dot.connected {
-            background: #00ff88;
+        .connection-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
         }
 
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+        .connection-status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            border: 1px solid rgba(76, 175, 80, 0.3);
         }
 
-        #graph {
-            width: 100%;
-            height: calc(100vh - 70px - 120px);
-            margin-left: 0;
-            background: radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%);
-            transition: all 0.3s ease;
+        .connection-status.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        #graph-container {
             position: relative;
+            margin-top: 60px;
+            height: calc(100vh - 60px - 120px);
+        }
+
+        /* Animated Neural Background */
+        #neuralBackground {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.3;
+        }
+
+        #graph-svg {
+            width: 100%;
+            height: 100%;
         }
 
         .node {
@@ -113,43 +162,92 @@
             font-weight: bold;
         }
 
-        .intention-system {
-            position: fixed !important;
-            bottom: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            background: rgba(26, 26, 26, 0.95) !important;
-            border-top: 2px solid #00ff88 !important;
-            padding: 15px !important;
+        .stats-overlay {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            background: rgba(26, 26, 26, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #555;
             backdrop-filter: blur(10px);
-            z-index: 1000 !important;
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            height: auto !important;
-            min-height: 120px !important;
+        }
+
+        .stat-item {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .zoom-controls {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(26, 26, 26, 0.9);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .zoom-btn:hover {
+            background: #00ff88;
+            color: #1a1a1a;
+            transform: scale(1.1);
+        }
+
+        .intention-system {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 26, 0.95);
+            border-top: 2px solid #00ff88;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            min-height: 120px;
         }
 
         .intention-input {
-            width: 100% !important;
-            min-height: 40px !important;
+            width: 100%;
+            min-height: 40px;
             max-height: 200px;
-            background: #333 !important;
-            border: 1px solid #555 !important;
+            background: #333;
+            border: 1px solid #555;
             border-radius: 8px;
-            color: white !important;
-            padding: 12px !important;
+            color: white;
+            padding: 12px;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 14px !important;
+            font-size: 14px;
             resize: none;
             overflow-y: auto;
             line-height: 1.4;
-            box-sizing: border-box;
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            position: relative !important;
-            z-index: 100 !important;
         }
 
         .intention-input:focus {
@@ -197,241 +295,69 @@
             transform: none;
         }
 
-        .status-connected {
-            color: #00ff88;
-        }
-
-        .status-disconnected {
-            color: #ff4444;
-        }
-
-        .stats-overlay {
+        .notification {
             position: fixed;
-            top: 80px;
-            left: 20px;
-            background: rgba(26, 26, 26, 0.8);
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #555;
-            backdrop-filter: blur(10px);
-        }
-
-        .stat-item {
-            margin-bottom: 10px;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: #00ff88;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #ccc;
-        }
-
-        .feedback-message {
-            position: fixed;
-            top: 80px;
+            top: 20px;
             right: 20px;
-            background: #00ff88;
-            color: #1a1a1a;
-            padding: 10px 15px;
-            border-radius: 5px;
-            font-weight: bold;
-            z-index: 1001;
-            transform: translateY(-100px);
-            opacity: 0;
-            transition: all 0.3s ease;
-        }
-
-        .feedback-message.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .zoom-controls {
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .zoom-btn {
-            width: 40px;
-            height: 40px;
-            background: rgba(26, 26, 26, 0.9);
-            border: 1px solid #00ff88;
-            color: #00ff88;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 18px;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-        }
-
-        .zoom-btn:hover {
-            background: #00ff88;
-            color: #1a1a1a;
-            transform: scale(1.1);
-        }
-
-        .top-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
             z-index: 1000;
-            backdrop-filter: blur(10px);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            font-weight: 500;
         }
 
-        .session-info {
-            display: flex;
-            gap: 15px;
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification-success {
+            background: #4CAF50;
             color: white;
-            font-size: 14px;
         }
 
-        .user-info {
-            padding: 4px 12px;
-            background: rgba(76, 175, 80, 0.2);
-            border-radius: 12px;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-
-        .connection-status {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .connection-status.connected {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4CAF50;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-
-        .connection-status.disconnected {
-            background: rgba(244, 67, 54, 0.2);
-            color: #f44336;
-            border: 1px solid rgba(244, 67, 54, 0.3);
-        }
-
-        .connection-status.error {
-            background: rgba(255, 152, 0, 0.2);
-            color: #ff9800;
-            border: 1px solid rgba(255, 152, 0, 0.3);
-        }
-
-        .controls {
-            display: flex;
-            gap: 10px;
-        }
-
-        .control-btn {
-            padding: 8px 12px;
-            background: rgba(255, 255, 255, 0.1);
+        .notification-error {
+            background: #f44336;
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s ease;
         }
 
-        .control-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.3);
+        .notification-info {
+            background: #2196F3;
+            color: white;
         }
 
-        #graph {
-            margin-top: 60px; /* Make room for top bar */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        @keyframes slideOut {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
+        .loading {
+            animation: pulse 2s infinite;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="top-bar">
+            <div class="logo">🧬 LuxDB - Genotypowy System Danych</div>
             <div id="sessionInfo" class="session-info">
-                <span class="user-info">👤 Connecting...</span>
-                <span class="connection-status disconnected">disconnected</span>
+                <span class="user-info">👤 LuxDB Developer</span>
+                <span class="connection-status connected">connected</span>
             </div>
             <div class="controls">
-                <button onclick="window.graph.zoomIn()" class="control-btn">🔍+</button>
-                <button onclick="window.graph.zoomOut()" class="control-btn">🔍-</button>
-                <button onclick="window.graph.resetZoom()" class="control-btn">⌂</button>
+                <button onclick="zoomIn()" class="control-btn">🔍+</button>
+                <button onclick="zoomOut()" class="control-btn">🔍-</button>
+                <button onclick="resetZoom()" class="control-btn">⌂</button>
                 <button onclick="clearGraph()" class="control-btn">🗑️</button>
-                <button onclick="testData()" class="control-btn">🧪</button>
+                <button onclick="loadTestData()" class="control-btn">🧪</button>
                 <button onclick="showSessionInfo()" class="control-btn">👤</button>
             </div>
         </div>
 
-        <div id="graph-container" style="position: relative;">
+        <div id="graph-container">
             <!-- Animated Neural Background -->
-            <canvas id="neuralBackground" style="
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                z-index: -1;
-                opacity: 0.3;
-            "></canvas>
-
-            <div id="loading-indicator" style="
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: rgba(0,0,0,0.8);
-                color: white;
-                padding: 20px;
-                border-radius: 10px;
-                display: none;
-                z-index: 1000;
-            ">
-                🌀 Ładowanie grafu LuxDB...
-            </div>
-            <div id="error-indicator" style="
-                position: absolute;
-                top: 20px;
-                right: 20px;
-                background: rgba(255,68,68,0.9);
-                color: white;
-                padding: 15px;
-                border-radius: 8px;
-                display: none;
-                max-width: 300px;
-                z-index: 1000;
-            ">
-                <strong>⚠️ Problem z ładowaniem</strong>
-                <div id="error-message"></div>
-            </div>
+            <canvas id="neuralBackground"></canvas>
             <svg id="graph-svg"></svg>
         </div>
 
@@ -447,10 +373,10 @@
         </div>
 
         <div class="zoom-controls">
-            <button class="zoom-btn" id="zoomIn">+</button>
-            <button class="zoom-btn" id="zoomOut">-</button>
-            <button class="zoom-btn" id="zoomReset">⌂</button>
-            <button class="zoom-btn" id="luxChat" title="Chat z Lux">💬</button>
+            <button class="zoom-btn" onclick="zoomIn()">+</button>
+            <button class="zoom-btn" onclick="zoomOut()">-</button>
+            <button class="zoom-btn" onclick="resetZoom()">⌂</button>
+            <button class="zoom-btn" onclick="exportData()" title="Export">💾</button>
         </div>
 
         <div class="intention-system">
@@ -464,119 +390,482 @@
                 <div class="intention-counter">
                     <span id="charCounter">0</span>/500
                 </div>
-                <button class="btn" id="sendIntention">🌀 Manifestuj w LuxDB</button>
+                <button class="btn" onclick="processIntention()">🌀 Manifestuj w LuxDB</button>
+                <button class="btn" onclick="createRandomBeing()">🎲 Losowy Byt</button>
             </div>
         </div>
     </div>
 
-    <script src="/static/reactive-system.js"></script>
-    <script src="/static/lux-components.js"></script>
-    <script src="/static/lux-graph-reactive.js"></script>
-    <link rel="stylesheet" href="/static/lux-reactive-styles.css">
-
-    <!-- Legacy components -->
-    <script src="/static/graph.js"></script>
-    <script src="/static/chat-component.js"></script>
     <script>
-        // Inicjalizacja reaktywnego systemu
+        // Global variables
+        let graphData = { beings: [], relationships: [] };
+        let simulation;
+        let svg, g, zoom;
+        let isConnected = false;
+        let websocket = null;
+
+        // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
-            try {
-                console.log('🚀 Inicjalizacja LuxDB Reactive Graf...');
-
-                // Initialize reactive system
-                const reactiveSystem = window.luxReactiveSystem;
-                const luxComponents = window.luxComponents;
-                const luxGraphReactive = window.luxGraphReactive;
-
-                // Setup reactive UI components
-                function setupReactiveUI() {
-                    // Connection status component
-                    luxComponents.createConnectionComponent('connectionStatus');
-
-                    // Stats component
-                    luxComponents.createStatsComponent('statsContainer');
-
-                    // Node list component
-                    luxComponents.createListComponent('nodesList', 'graphNodes', (node) => `
-                        <div class="node-item" onclick="luxComponents.selectNode('${node.id}')">
-                            <strong>${node.name || 'Unknown'}</strong>
-                            <span class="node-type">${node.type || 'entity'}</span>
-                        </div>
-                    `);
-                }
-
-                // Initialize socket connection
-                const socket = io();
-
-                // Connect reactive systems
-                luxComponents.init(socket);
-                luxGraphReactive.init(socket, luxComponents);
-
-                setupReactiveUI();
-
-                // Initialize legacy graph if needed
-                if (typeof LuxOSGraph !== 'undefined') {
-                    const graphManager = new LuxOSGraph();
-                    window.luxGraph = graphManager;
-
-                    // Connect reactive system to legacy graph
-                    luxGraphReactive.subscribe('graph_updated', (data) => {
-                        if (graphManager.updateGraph) {
-                            graphManager.updateGraph(data);
-                        }
-                    });
-                }
-
-                // Initialize chat component
-                if (typeof LuxChatComponent !== 'undefined') {
-                    const luxChatComponent = new LuxChatComponent();
-                    window.luxChatComponent = luxChatComponent;
-                    document.getElementById('luxChat')?.addEventListener('click', () => luxChatComponent.toggle());
-                }
-
-                // Setup zoom controls
-                document.getElementById('zoomIn')?.addEventListener('click', () => {
-                    if (window.luxGraph && window.luxGraph.zoomIn) {
-                        window.luxGraph.zoomIn();
-                    }
-                });
-                document.getElementById('zoomOut')?.addEventListener('click', () => {
-                    if (window.luxGraph && window.luxGraph.zoomOut) {
-                        window.luxGraph.zoomOut();
-                    }
-                });
-                document.getElementById('zoomReset')?.addEventListener('click', () => {
-                    if (window.luxGraph && window.luxGraph.resetZoom) {
-                        window.luxGraph.resetZoom();
-                    }
-                });
-
-                // Request initial data
-                setTimeout(() => {
-                    luxGraphReactive.requestGraphData();
-                }, 500);
-
-                console.log('✅ Graph reactive system ready');
-
-                // Export references for debugging
-                window.luxReactiveGraph = {
-                    components: luxComponents,
-                    graphReactive: luxGraphReactive,
-                    socket: socket
-                };
-
-                // Initialize beautiful neural background
-                initNeuralBackground();
-
-                console.log('✅ Reactive Graf zainicjalizowany');
-
-            } catch (error) {
-                console.error('❌ Błąd inicjalizacji reaktywnego grafu:', error);
-            }
+            console.log('🚀 Inicjalizacja LuxDB Graf...');
+            initializeGraph();
+            initializeWebSocket();
+            initializeNeuralBackground();
+            loadInitialData();
+            setupIntentionInput();
         });
 
-        // Beautiful Neural Network Background Animation
-        function initNeuralBackground() {
+        // Initialize D3 graph
+        function initializeGraph() {
+            const container = document.getElementById('graph-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            svg = d3.select('#graph-svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            // Add arrow marker
+            svg.append('defs').append('marker')
+                .attr('id', 'arrowhead')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 15)
+                .attr('refY', 0)
+                .attr('markerWidth', 6)
+                .attr('markerHeight', 6)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M0,-5L10,0L0,5')
+                .attr('fill', '#555');
+
+            // Create zoom behavior
+            zoom = d3.zoom()
+                .scaleExtent([0.1, 4])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+
+            svg.call(zoom);
+
+            // Create main group
+            g = svg.append('g');
+
+            // Create force simulation
+            simulation = d3.forceSimulation()
+                .force('link', d3.forceLink().id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(30));
+        }
+
+        // Initialize WebSocket connection
+        function initializeWebSocket() {
+            try {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
+                
+                websocket = new WebSocket(wsUrl);
+
+                websocket.onopen = function() {
+                    console.log('✅ WebSocket połączony');
+                    isConnected = true;
+                    updateConnectionStatus(true);
+                    
+                    // Request initial data
+                    websocket.send(JSON.stringify({
+                        type: 'request_graph_data'
+                    }));
+                };
+
+                websocket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (error) {
+                        console.error('❌ Error parsing WebSocket message:', error);
+                    }
+                };
+
+                websocket.onclose = function() {
+                    console.log('❌ WebSocket rozłączony');
+                    isConnected = false;
+                    updateConnectionStatus(false);
+                    
+                    // Try to reconnect after 3 seconds
+                    setTimeout(initializeWebSocket, 3000);
+                };
+
+                websocket.onerror = function(error) {
+                    console.error('❌ WebSocket error:', error);
+                };
+
+            } catch (error) {
+                console.error('❌ Failed to initialize WebSocket:', error);
+                // Fallback to HTTP polling
+                setTimeout(loadInitialData, 1000);
+            }
+        }
+
+        // Handle WebSocket messages
+        function handleWebSocketMessage(data) {
+            switch (data.type) {
+                case 'graph_data':
+                    console.log('📊 Otrzymano dane grafu:', data);
+                    updateGraphData(data);
+                    break;
+                case 'being_created':
+                    if (data.being) {
+                        graphData.beings.push(data.being);
+                        updateGraph();
+                        showNotification(`🆕 Nowy byt: ${data.being.name}`, 'success');
+                    }
+                    break;
+                case 'initial_state':
+                    if (data.page_state && data.page_state.graph_data) {
+                        updateGraphData(data.page_state.graph_data);
+                    }
+                    break;
+                default:
+                    console.log('📨 Otrzymano wiadomość:', data);
+            }
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const statusElement = document.querySelector('.connection-status');
+            if (statusElement) {
+                statusElement.textContent = connected ? 'connected' : 'disconnected';
+                statusElement.className = `connection-status ${connected ? 'connected' : 'disconnected'}`;
+            }
+        }
+
+        // Load initial data via HTTP
+        async function loadInitialData() {
+            try {
+                const response = await fetch('/api/graph-data');
+                const data = await response.json();
+                console.log('📊 Ładowanie danych HTTP:', data);
+                updateGraphData(data);
+            } catch (error) {
+                console.error('❌ Error loading initial data:', error);
+                // Create some demo data
+                createDemoData();
+            }
+        }
+
+        // Create demo data if no data available
+        function createDemoData() {
+            const demoData = {
+                beings: [
+                    {id: 'demo1', name: 'LuxDB Core', type: 'system', x: 300, y: 200, data: {}},
+                    {id: 'demo2', name: 'AI Assistant', type: 'ai', x: 500, y: 200, data: {}},
+                    {id: 'demo3', name: 'Data Store', type: 'storage', x: 400, y: 350, data: {}}
+                ],
+                relationships: [
+                    {id: 'rel1', source: 'demo1', target: 'demo2', type: 'communicates'},
+                    {id: 'rel2', source: 'demo1', target: 'demo3', type: 'stores'}
+                ]
+            };
+            updateGraphData(demoData);
+        }
+
+        // Update graph data and render
+        function updateGraphData(data) {
+            graphData = data;
+            updateGraph();
+            updateStats();
+        }
+
+        // Update graph visualization
+        function updateGraph() {
+            // Update links
+            const link = g.selectAll('.link')
+                .data(graphData.relationships || [], d => d.id);
+
+            link.exit().remove();
+
+            const linkEnter = link.enter().append('line')
+                .attr('class', 'link');
+
+            link.merge(linkEnter);
+
+            // Update nodes
+            const node = g.selectAll('.node')
+                .data(graphData.beings, d => d.id);
+
+            node.exit().remove();
+
+            const nodeEnter = node.enter().append('g')
+                .attr('class', 'node-group');
+
+            nodeEnter.append('circle')
+                .attr('class', 'node')
+                .attr('r', 20)
+                .attr('fill', d => getNodeColor(d.type))
+                .on('click', handleNodeClick)
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            nodeEnter.append('text')
+                .attr('class', 'node-label')
+                .attr('dy', 5)
+                .text(d => d.name || d.id);
+
+            // Restart simulation
+            simulation.nodes(graphData.beings);
+            simulation.force('link').links(graphData.relationships || []);
+            simulation.alpha(1).restart();
+
+            simulation.on('tick', () => {
+                g.selectAll('.link')
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                g.selectAll('.node-group')
+                    .attr('transform', d => `translate(${d.x},${d.y})`);
+            });
+        }
+
+        // Get node color based on type
+        function getNodeColor(type) {
+            const colors = {
+                'entity': '#00ff88',
+                'ai': '#ff6b35',
+                'system': '#4285f4',
+                'storage': '#9c27b0',
+                'test_entity': '#ffeb3b'
+            };
+            return colors[type] || '#00ff88';
+        }
+
+        // Handle node click
+        function handleNodeClick(event, d) {
+            console.log('🖱️ Clicked node:', d);
+            
+            // Toggle selection
+            d3.select(this).classed('selected', !d3.select(this).classed('selected'));
+            
+            showNotification(`Wybrano: ${d.name || d.id}`, 'info');
+        }
+
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        // Update statistics
+        function updateStats() {
+            document.getElementById('nodesCount').textContent = graphData.beings.length;
+            document.getElementById('linksCount').textContent = (graphData.relationships || []).length;
+        }
+
+        // Control functions
+        function zoomIn() {
+            svg.transition().duration(300).call(
+                zoom.scaleBy, 1.5
+            );
+        }
+
+        function zoomOut() {
+            svg.transition().duration(300).call(
+                zoom.scaleBy, 1 / 1.5
+            );
+        }
+
+        function resetZoom() {
+            svg.transition().duration(500).call(
+                zoom.transform,
+                d3.zoomIdentity
+            );
+        }
+
+        function clearGraph() {
+            if (confirm('Czy na pewno chcesz wyczyścić graf?')) {
+                graphData = { beings: [], relationships: [] };
+                updateGraph();
+                updateStats();
+                showNotification('Graf wyczyszczony', 'info');
+            }
+        }
+
+        async function loadTestData() {
+            try {
+                const response = await fetch('/test-data');
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Dodano ${data.beings.length} bytów testowych`, 'success');
+                    // Reload graph data
+                    loadInitialData();
+                } else {
+                    showNotification('Błąd ładowania danych testowych', 'error');
+                }
+            } catch (error) {
+                console.error('❌ Error loading test data:', error);
+                showNotification('Błąd ładowania danych testowych', 'error');
+            }
+        }
+
+        async function showSessionInfo() {
+            try {
+                const response = await fetch('/api/session');
+                const sessionData = await response.json();
+
+                const info = `
+Sesja: ${sessionData.session_id}
+Użytkownik: ${sessionData.user_name}
+Admin: ${sessionData.is_admin ? 'Tak' : 'Nie'}
+Status: ${sessionData.connected ? 'Połączony' : 'Rozłączony'}
+                `.trim();
+
+                alert(info);
+            } catch (error) {
+                console.error('❌ Error fetching session info:', error);
+                alert('Błąd pobierania informacji o sesji');
+            }
+        }
+
+        function exportData() {
+            const data = {
+                graphData: graphData,
+                timestamp: new Date().toISOString(),
+                stats: {
+                    beings: graphData.beings.length,
+                    relationships: (graphData.relationships || []).length
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `luxdb-graph-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showNotification('📁 Graf wyeksportowany', 'success');
+        }
+
+        // Intention system
+        function setupIntentionInput() {
+            const input = document.getElementById('intentionInput');
+            const counter = document.getElementById('charCounter');
+
+            input.addEventListener('input', function() {
+                counter.textContent = this.value.length;
+            });
+        }
+
+        async function processIntention() {
+            const intention = document.getElementById('intentionInput').value.trim();
+            
+            if (!intention) {
+                showNotification('Wprowadź swoją intencję', 'error');
+                return;
+            }
+
+            try {
+                // Create a new being based on intention
+                const response = await fetch('/api/create-being', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: `Intention: ${intention.substring(0, 30)}...`,
+                        type: 'intention'
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('🌀 Intencja zmanifestowana!', 'success');
+                    document.getElementById('intentionInput').value = '';
+                    document.getElementById('charCounter').textContent = '0';
+                    
+                    // Reload graph data
+                    loadInitialData();
+                } else {
+                    showNotification('Błąd manifestacji intencji', 'error');
+                }
+            } catch (error) {
+                console.error('❌ Error processing intention:', error);
+                showNotification('Błąd przetwarzania intencji', 'error');
+            }
+        }
+
+        async function createRandomBeing() {
+            const names = ['Quantum Entity', 'Neural Node', 'Data Crystal', 'AI Spark', 'Cosmic Being'];
+            const types = ['entity', 'ai', 'storage', 'system'];
+            
+            const randomName = names[Math.floor(Math.random() * names.length)];
+            const randomType = types[Math.floor(Math.random() * types.length)];
+
+            try {
+                const response = await fetch('/api/create-being', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: `${randomName} ${Math.floor(Math.random() * 1000)}`,
+                        type: randomType
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('🎲 Losowy byt utworzony!', 'success');
+                    loadInitialData();
+                } else {
+                    showNotification('Błąd tworzenia bytu', 'error');
+                }
+            } catch (error) {
+                console.error('❌ Error creating random being:', error);
+                showNotification('Błąd tworzenia bytu', 'error');
+            }
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.textContent = message;
+
+            document.body.appendChild(notification);
+
+            // Animate in
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+
+            // Auto remove
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // Neural background animation
+        function initializeNeuralBackground() {
             const canvas = document.getElementById('neuralBackground');
             const ctx = canvas.getContext('2d');
 
@@ -657,157 +946,17 @@
             animate();
         }
 
-        // Połączenie z Socket.IO
-        const socket = io();
-        const statusDot = document.getElementById('connectionDot');
-        const connectionStatusText = document.getElementById('connectionStatus');
-        const sessionInfoDiv = document.getElementById('sessionInfo');
-        const userInfoSpan = sessionInfoDiv.querySelector('.user-info');
-        const sessionConnectionStatusSpan = sessionInfoDiv.querySelector('.connection-status');
-
-        // Funkcja do obsługi błędów
-        function showError(message) {
-            const errorDiv = document.getElementById('error-indicator');
-            const errorMessage = document.getElementById('error-message');
-            errorMessage.textContent = message;
-            errorDiv.style.display = 'block';
-
-            // Aktualizacja statusu sesji na błąd
-            if (sessionConnectionStatusSpan) {
-                sessionConnectionStatusSpan.textContent = 'error';
-                sessionConnectionStatusSpan.className = 'connection-status error';
-            }
-
-            // Automatycznie ukryj po 5 sekundach
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
-        }
-
-        // Socket.IO event handling
-        socket.on('connect', () => {
-            console.log('✅ Połączono z serverem');
-            connectionStatusText.textContent = '🟢 Połączony';
-            statusDot.classList.add('connected');
-
-            // Aktualizacja statusu sesji na połączony
-            if (sessionConnectionStatusSpan) {
-                sessionConnectionStatusSpan.textContent = 'connected';
-                sessionConnectionStatusSpan.className = 'connection-status connected';
-            }
-
-            // Pokaż loading indicator
-            const loading = document.getElementById('loading-indicator');
-            loading.style.display = 'block';
-
-            // Automatycznie żądaj danych grafu
-            setTimeout(() => {
-                console.log('📡 Żądanie danych grafu...');
-                socket.emit('request_graph_data');
-            }, 500);
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            const container = document.getElementById('graph-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            svg.attr('width', width).attr('height', height);
+            
+            simulation.force('center', d3.forceCenter(width / 2, height / 2));
+            simulation.alpha(1).restart();
         });
-
-        socket.on('disconnect', () => {
-            console.log('❌ Rozłączono z serverem');
-            connectionStatusText.textContent = '🔴 Rozłączony';
-            statusDot.classList.remove('connected');
-
-            // Aktualizacja statusu sesji na rozłączony
-            if (sessionConnectionStatusSpan) {
-                sessionConnectionStatusSpan.textContent = 'disconnected';
-                sessionConnectionStatusSpan.className = 'connection-status disconnected';
-            }
-            if (userInfoSpan) {
-                userInfoSpan.textContent = '👤 N/A';
-            }
-
-            showError('Połączenie z serwerem zostało utracone.');
-        });
-
-        socket.on('graph_data', (data) => {
-            console.log('📊 Otrzymano dane grafu:', data);
-
-            // Ukryj loading indicator
-            const loading = document.getElementById('loading-indicator');
-            loading.style.display = 'none';
-
-            // Ukryj błędy
-            const errorDiv = document.getElementById('error-indicator');
-            errorDiv.style.display = 'none';
-
-            if (luxGraph) {
-                luxGraph.updateGraph(data);
-                console.log('✅ Graf zaktualizowany pomyślnie');
-            } else {
-                console.error('❌ LuxGraph nie jest zainicjalizowany');
-                showError('Graf nie został zainicjalizowany');
-            }
-        });
-
-        socket.on('error', (error) => {
-            console.error('❌ Błąd:', error);
-            showNotification(`❌ Błąd: ${error.message}`, 'error');
-        });
-
-        // Obsługa danych sesji WebSocket
-        socket.on('session_update', (sessionData) => {
-            console.log('🔄 Aktualizacja danych sesji:', sessionData);
-            if (sessionData.session_id) {
-                if (userInfoSpan) {
-                    userInfoSpan.textContent = `👤 ${sessionData.user_name || 'Niezalogowany'}`;
-                }
-                if (sessionConnectionStatusSpan) {
-                    sessionConnectionStatusSpan.textContent = sessionData.connected ? 'connected' : 'disconnected';
-                    sessionConnectionStatusSpan.className = `connection-status ${sessionData.connected ? 'connected' : 'disconnected'}`;
-                }
-            } else {
-                 if (userInfoSpan) {
-                    userInfoSpan.textContent = '👤 N/A';
-                }
-                if (sessionConnectionStatusSpan) {
-                    sessionConnectionStatusSpan.textContent = 'disconnected';
-                    sessionConnectionStatusSpan.className = 'connection-status disconnected';
-                }
-            }
-        });
-
-        function testData() {
-            console.log('🧪 Ładowanie danych testowych...');
-            fetch('/test-data')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('✅ Otrzymano dane testowe:', data);
-                })
-                .catch(error => {
-                    console.error('❌ Błąd podczas ładowania danych testowych:', error);
-                });
-        }
-
-        async function showSessionInfo() {
-            try {
-                const response = await fetch('/api/session');
-                const sessionData = await response.json();
-
-                if (sessionData.error) {
-                    alert('Błąd sesji: ' + sessionData.error);
-                    return;
-                }
-
-                const info = `
-Sesja: ${sessionData.session_id.substring(0, 8)}...
-Użytkownik: ${sessionData.user_name}
-Admin: ${sessionData.is_admin ? 'Tak' : 'Nie'}
-Utworzona: ${new Date(sessionData.created_at).toLocaleString()}
-Ostatnia aktywność: ${new Date(sessionData.last_active).toLocaleString()}
-Status: ${sessionData.connected ? 'Połączony' : 'Rozłączony'}
-                `.trim();
-
-                alert(info);
-            } catch (error) {
-                console.error('❌ Błąd pobierania informacji o sesji:', error);
-                alert('Błąd pobierania informacji o sesji');
-            }
-        }
     </script>
 </body>
 </html>

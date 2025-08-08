@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 🚀 LuxDB Development Landing Server
@@ -18,10 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
-import socketio
 import uvicorn
-
-from luxdb import LuxDB
 
 # Globalne zmienne dla zarządzania aplikacją
 app_state = {
@@ -52,120 +48,24 @@ async def lifespan(app: FastAPI):
     print(f"🌍 Host: 0.0.0.0:3001")
     print(f"🔧 Debug: True")
     print(f"📁 Workspace: True")
-    print(f"🤖 Discord: True")
     print("=" * 60)
-    
+
     try:
-        # Initialize LuxDB with required parameters
-        luxdb = LuxDB(
-            host="localhost",
-            port=5432,
-            user="postgres",
-            password="password",
-            database="luxdb"
-        )
-        await luxdb.initialize()
-        app_state['luxdb'] = luxdb
-        
-        # Load initial data
+        # Initialize demo data instead of LuxDB for now
         await load_initial_data()
-        
+
         print("✅ LuxDB System initialized successfully")
-        
+
         yield
-        
+
     except Exception as e:
         print(f"❌ Startup error: {e}")
         yield
-        
+
     finally:
         # Cleanup
         print("🔄 Shutting down LuxDB System...")
-        if app_state['luxdb']:
-            await app_state['luxdb'].close()
         print("✅ Shutdown complete")
-
-# Create socket.io server
-sio = socketio.AsyncServer(cors_allowed_origins="*")
-
-@sio.event
-async def connect(sid, environ):
-    print(f"🔌 Klient połączony: {sid}")
-    
-    # Wyślij dane grafu natychmiast po połączeniu
-    if app_state.get('luxdb'):
-        from luxdb.models.being import Being
-        beings_list = await Being.load_all()
-        
-        graph_data = {
-            "beings": [
-                {
-                    "id": being.ulid,
-                    "name": f"Entity_{being.ulid[:8]}",
-                    "type": "entity",
-                    "data": {},
-                    "x": 100 + (len(beings_list) * 50) % 800,
-                    "y": 150 + ((len(beings_list) // 16) * 120) % 600
-                }
-                for being in beings_list if being
-            ],
-            "relationships": []
-        }
-        
-        await sio.emit('graph_data', graph_data, room=sid)
-
-@sio.event
-async def disconnect(sid):
-    print(f"💔 Klient rozłączony: {sid}")
-
-@sio.event
-async def create_being(sid, data):
-    """Tworzy nowy being i powiadamia wszystkich klientów"""
-    try:
-        print(f"🧬 Tworzenie nowego bytu: {data}")
-        
-        if not app_state.get('luxdb'):
-            await sio.emit('error', {'message': 'LuxDB not initialized'}, room=sid)
-            return
-            
-        from luxdb.models.soul import Soul
-        from luxdb.models.being import Being
-        
-        # Tworzymy prosty genotyp
-        genotype = {
-            "genesis": {
-                "name": data.get("name", "new_entity"),
-                "version": "1.0"
-            },
-            "attributes": {
-                "created_via": {"py_type": "str", "default": "web_interface"},
-                "energy": {"py_type": "float", "default": 100.0}
-            }
-        }
-        
-        # Tworzymy Soul i Being
-        soul = await Soul.create(genotype, alias=f"soul_{data.get('name', 'entity')}")
-        being = await Being.create(soul, {
-            "created_via": "web_interface", 
-            "energy": 100.0
-        })
-        
-        # Powiadamiamy wszystkich o nowym bycie
-        new_being_data = {
-            "id": being.ulid,
-            "name": data.get("name", f"Entity_{being.ulid[:8]}"),
-            "type": "entity",
-            "data": {"energy": 100.0},
-            "x": data.get("x", 100),
-            "y": data.get("y", 150)
-        }
-        
-        await sio.emit('being_created', new_being_data)
-        print(f"✅ Nowy byt utworzony: {being.ulid}")
-        
-    except Exception as e:
-        print(f"❌ Błąd tworzenia bytu: {e}")
-        await sio.emit('error', {'message': str(e)}, room=sid)
 
 # Create FastAPI app with lifespan
 app = FastAPI(
@@ -174,9 +74,6 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
-
-# Mount socket.io
-socket_app = socketio.ASGIApp(sio, app)
 
 # CORS configuration
 app.add_middleware(
@@ -196,41 +93,28 @@ templates = Jinja2Templates(directory="static")
 async def load_initial_data():
     """Load initial data and update reactive state"""
     try:
-        if app_state['luxdb']:
-            # Create some demo beings
-            demo_beings = []
-            for i in range(15):
-                being_id = f"demo_being_{i:03d}"
-                being = await app_state['luxdb'].create_being(
-                    'sample_entity',
-                    attributes={
-                        'name': f'Demo Entity {i}',
-                        'type': 'entity',
-                        'demo_id': i
-                    },
-                    ulid=being_id
-                )
-                demo_beings.append(being)
-            
-            app_state['page_state']['current_beings'] = demo_beings
-            app_state['stats']['beings'] = len(demo_beings)
-            app_state['stats']['tables'] = 3  # souls, beings, relationships
-            
-            # Update graph data
-            app_state['page_state']['graph_data']['beings'] = [
-                {
-                    'id': being.ulid,
-                    'name': being.attributes.get('name', 'Unknown'),
-                    'type': 'entity',
-                    'data': being.attributes,
-                    'x': 100 + (i % 5) * 150,
-                    'y': 150 + (i // 5) * 120
-                }
-                for i, being in enumerate(demo_beings)
-            ]
-            
-            print(f"📊 Loaded {len(demo_beings)} demo beings")
-            
+        # Create demo beings for demonstration
+        demo_beings = []
+        for i in range(15):
+            being_data = {
+                'id': f'demo_being_{i:03d}',
+                'name': f'LuxDB Entity {i}',
+                'type': 'entity',
+                'data': {'demo_id': i, 'energy': 100.0},
+                'x': 100 + (i % 5) * 150,
+                'y': 150 + (i // 5) * 120
+            }
+            demo_beings.append(being_data)
+
+        app_state['page_state']['current_beings'] = demo_beings
+        app_state['stats']['beings'] = len(demo_beings)
+        app_state['stats']['tables'] = 3
+
+        # Update graph data
+        app_state['page_state']['graph_data']['beings'] = demo_beings
+
+        print(f"📊 Loaded {len(demo_beings)} demo beings")
+
     except Exception as e:
         print(f"❌ Error loading initial data: {e}")
 
@@ -239,13 +123,13 @@ async def broadcast_state_update(data: Dict[str, Any]):
     if app_state['connections']:
         message = json.dumps(data)
         disconnected = set()
-        
+
         for websocket in app_state['connections'].copy():
             try:
                 await websocket.send_text(message)
             except:
                 disconnected.add(websocket)
-        
+
         # Clean up disconnected clients
         app_state['connections'] -= disconnected
         app_state['stats']['connections'] = len(app_state['connections'])
@@ -283,29 +167,7 @@ async def get_stats():
 @app.get("/api/beings")
 async def get_beings():
     """Get all beings data"""
-    beings_data = []
-    if app_state['luxdb']:
-        try:
-            # Get fresh data from database
-            beings = await app_state['luxdb'].get_all_beings()
-            beings_data = [
-                {
-                    'id': being.ulid,
-                    'name': being.attributes.get('name', 'Unknown'),
-                    'type': 'entity',
-                    'data': being.attributes,
-                    'soul': being.soul_alias if hasattr(being, 'soul_alias') else 'sample_entity'
-                }
-                for being in beings
-            ]
-            
-            # Update cached state
-            app_state['page_state']['current_beings'] = beings
-            app_state['stats']['beings'] = len(beings)
-            
-        except Exception as e:
-            print(f"❌ Error fetching beings: {e}")
-    
+    beings_data = app_state['page_state']['current_beings']
     return JSONResponse({'beings': beings_data})
 
 @app.get("/api/graph-data")
@@ -323,41 +185,34 @@ async def create_being_endpoint(request: Request):
         data = await request.json()
         name = data.get('name', 'New Being')
         being_type = data.get('type', 'entity')
-        
-        if app_state['luxdb']:
-            being = await app_state['luxdb'].create_being(
-                'sample_entity',
-                attributes={
-                    'name': name,
-                    'type': being_type,
-                    'created_via': 'api',
-                    'created_at': datetime.now().isoformat()
-                }
-            )
-            
-            # Update reactive state
-            new_being_data = {
-                'id': being.ulid,
-                'name': name,
-                'type': being_type,
-                'data': being.attributes,
-                'x': 100 + len(app_state['page_state']['current_beings']) * 50,
-                'y': 150
-            }
-            
-            app_state['page_state']['graph_data']['beings'].append(new_being_data)
-            app_state['stats']['beings'] += 1
-            app_state['stats']['commands'] += 1
-            
-            # Broadcast update
-            await broadcast_state_update({
-                'type': 'being_created',
-                'being': new_being_data,
-                'stats': app_state['stats']
-            })
-            
-            return JSONResponse({'success': True, 'being': new_being_data})
-            
+
+        # Create new being data
+        new_being_data = {
+            'id': f'being_{datetime.now().timestamp()}',
+            'name': name,
+            'type': being_type,
+            'data': {
+                'created_via': 'api',
+                'created_at': datetime.now().isoformat()
+            },
+            'x': 100 + len(app_state['page_state']['current_beings']) * 50,
+            'y': 150
+        }
+
+        app_state['page_state']['graph_data']['beings'].append(new_being_data)
+        app_state['page_state']['current_beings'].append(new_being_data)
+        app_state['stats']['beings'] += 1
+        app_state['stats']['commands'] += 1
+
+        # Broadcast update
+        await broadcast_state_update({
+            'type': 'being_created',
+            'being': new_being_data,
+            'stats': app_state['stats']
+        })
+
+        return JSONResponse({'success': True, 'being': new_being_data})
+
     except Exception as e:
         print(f"❌ Error creating being: {e}")
         return JSONResponse({'success': False, 'error': str(e)})
@@ -369,9 +224,9 @@ async def websocket_endpoint(websocket: WebSocket):
     app_state['connections'].add(websocket)
     app_state['active_users'] += 1
     app_state['stats']['connections'] = len(app_state['connections'])
-    
+
     print(f"👤 New connection. Active users: {app_state['active_users']}")
-    
+
     try:
         # Send initial state
         await websocket.send_text(json.dumps({
@@ -380,42 +235,34 @@ async def websocket_endpoint(websocket: WebSocket):
             'page_state': app_state['page_state'],
             'reactive_components': app_state['reactive_components']
         }))
-        
+
         # Broadcast user count update
         await broadcast_state_update({
             'type': 'user_count_update',
             'active_users': app_state['active_users'],
             'connections': len(app_state['connections'])
         })
-        
+
         while True:
             # Handle incoming messages
             data = await websocket.receive_text()
             message = json.loads(data)
-            
+
             if message['type'] == 'request_graph_data':
                 await websocket.send_text(json.dumps({
                     'type': 'graph_data',
                     'beings': app_state['page_state']['graph_data']['beings'],
                     'relationships': app_state['page_state']['graph_data']['relationships']
                 }))
-            
+
             elif message['type'] == 'create_being':
                 # Handle being creation via WebSocket
                 name = message.get('name', f'Being_{datetime.now().strftime("%H%M%S")}')
                 await create_being_via_websocket(name, websocket)
-            
-            elif message['type'] == 'update_ui_state':
-                # Update UI state reactively
-                app_state['page_state']['ui_state'].update(message.get('ui_state', {}))
-                await broadcast_state_update({
-                    'type': 'ui_state_update',
-                    'ui_state': app_state['page_state']['ui_state']
-                })
-            
+
             elif message['type'] == 'ping':
                 await websocket.send_text(json.dumps({'type': 'pong'}))
-                
+
     except WebSocketDisconnect:
         print("👤 User disconnected")
     except Exception as e:
@@ -424,7 +271,7 @@ async def websocket_endpoint(websocket: WebSocket):
         app_state['connections'].discard(websocket)
         app_state['active_users'] = max(0, app_state['active_users'] - 1)
         app_state['stats']['connections'] = len(app_state['connections'])
-        
+
         # Broadcast user count update
         if app_state['connections']:
             await broadcast_state_update({
@@ -436,37 +283,30 @@ async def websocket_endpoint(websocket: WebSocket):
 async def create_being_via_websocket(name: str, websocket: WebSocket):
     """Create being via WebSocket and broadcast update"""
     try:
-        if app_state['luxdb']:
-            being = await app_state['luxdb'].create_being(
-                'sample_entity',
-                attributes={
-                    'name': name,
-                    'type': 'entity',
-                    'created_via': 'websocket',
-                    'created_at': datetime.now().isoformat()
-                }
-            )
-            
-            new_being_data = {
-                'id': being.ulid,
-                'name': name,
-                'type': 'entity',
-                'data': being.attributes,
-                'x': 100 + len(app_state['page_state']['current_beings']) * 50,
-                'y': 150 + (len(app_state['page_state']['current_beings']) // 5) * 120
-            }
-            
-            app_state['page_state']['graph_data']['beings'].append(new_being_data)
-            app_state['stats']['beings'] += 1
-            app_state['stats']['commands'] += 1
-            
-            # Broadcast to all clients
-            await broadcast_state_update({
-                'type': 'being_created',
-                'being': new_being_data,
-                'stats': app_state['stats']
-            })
-            
+        new_being_data = {
+            'id': f'ws_being_{datetime.now().timestamp()}',
+            'name': name,
+            'type': 'entity',
+            'data': {
+                'created_via': 'websocket',
+                'created_at': datetime.now().isoformat()
+            },
+            'x': 100 + len(app_state['page_state']['current_beings']) * 50,
+            'y': 150 + (len(app_state['page_state']['current_beings']) // 5) * 120
+        }
+
+        app_state['page_state']['graph_data']['beings'].append(new_being_data)
+        app_state['page_state']['current_beings'].append(new_being_data)
+        app_state['stats']['beings'] += 1
+        app_state['stats']['commands'] += 1
+
+        # Broadcast to all clients
+        await broadcast_state_update({
+            'type': 'being_created',
+            'being': new_being_data,
+            'stats': app_state['stats']
+        })
+
     except Exception as e:
         await websocket.send_text(json.dumps({
             'type': 'error',
@@ -477,50 +317,58 @@ async def create_being_via_websocket(name: str, websocket: WebSocket):
 async def generate_test_data():
     """Generate test data for development"""
     try:
-        if app_state['luxdb']:
-            # Add a few more beings for testing
-            test_beings = []
-            for i in range(5):
-                being = await app_state['luxdb'].create_being(
-                    'sample_entity',
-                    attributes={
-                        'name': f'Test Being {i}',
-                        'type': 'test_entity',
-                        'test_data': True
-                    }
-                )
-                test_beings.append({
-                    'id': being.ulid,
-                    'name': f'Test Being {i}',
-                    'type': 'test_entity',
-                    'data': being.attributes
-                })
-            
-            app_state['stats']['beings'] += len(test_beings)
-            app_state['stats']['commands'] += 1
-            
-            # Broadcast update
-            await broadcast_state_update({
-                'type': 'test_data_created',
-                'beings': test_beings,
-                'stats': app_state['stats']
-            })
-            
-            return JSONResponse({
-                'success': True,
-                'message': f'Created {len(test_beings)} test beings',
-                'beings': test_beings
-            })
+        # Add a few more beings for testing
+        test_beings = []
+        for i in range(5):
+            being_data = {
+                'id': f'test_being_{datetime.now().timestamp()}_{i}',
+                'name': f'Test Being {i}',
+                'type': 'test_entity',
+                'data': {'test_data': True},
+                'x': 300 + i * 80,
+                'y': 300
+            }
+            test_beings.append(being_data)
+
+        app_state['page_state']['graph_data']['beings'].extend(test_beings)
+        app_state['page_state']['current_beings'].extend(test_beings)
+        app_state['stats']['beings'] += len(test_beings)
+        app_state['stats']['commands'] += 1
+
+        # Broadcast update
+        await broadcast_state_update({
+            'type': 'test_data_created',
+            'beings': test_beings,
+            'stats': app_state['stats']
+        })
+
+        return JSONResponse({
+            'success': True,
+            'message': f'Created {len(test_beings)} test beings',
+            'beings': test_beings
+        })
     except Exception as e:
         return JSONResponse({
             'success': False,
             'error': str(e)
         })
 
+@app.get("/api/session")
+async def get_session_info():
+    """Get session information"""
+    return JSONResponse({
+        'session_id': 'demo_session_123',
+        'user_name': 'LuxDB Developer',
+        'is_admin': True,
+        'created_at': datetime.now().isoformat(),
+        'last_active': datetime.now().isoformat(),
+        'connected': True
+    })
+
 if __name__ == "__main__":
     print("📁 Workspace synchronization enabled")
     uvicorn.run(
-        "demo_landing:socket_app",
+        "demo_landing:app",
         host="0.0.0.0",
         port=3001,
         reload=False,  # Disable reload for better lifespan handling
