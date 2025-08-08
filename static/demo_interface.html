@@ -103,7 +103,7 @@
             background: rgba(0, 0, 0, 0.95);
             border-right: 2px solid #00ff88;
             transform: translateX(-100%);
-            transition: transform 0.3s ease;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             position: absolute;
             top: 0;
             left: 0;
@@ -111,6 +111,7 @@
             z-index: 999;
             backdrop-filter: blur(20px);
             overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
         }
 
         .left-menu.open {
@@ -349,6 +350,24 @@
             }
         }
 
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 998;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .menu-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
         @media (max-width: 480px) {
             .left-menu {
                 width: 100%;
@@ -371,6 +390,7 @@
         </div>
 
         <div class="main-content">
+            <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
             <div class="left-menu" id="leftMenu">
                 <div class="menu-header">
                     <div class="menu-title">🧬 Panel Kontrolny</div>
@@ -628,15 +648,22 @@
             const leftMenu = document.getElementById('leftMenu');
             const graphContainer = document.getElementById('graphContainer');
             const menuToggle = document.getElementById('menuToggle');
+            const menuOverlay = document.getElementById('menuOverlay');
 
             if (menuOpen) {
                 leftMenu.classList.add('open');
                 graphContainer.classList.add('menu-open');
+                menuOverlay.classList.add('active');
                 menuToggle.innerHTML = '✕';
+                menuToggle.title = 'Zamknij menu';
+                document.body.style.overflow = 'hidden'; // Prevent background scrolling
             } else {
                 leftMenu.classList.remove('open');
                 graphContainer.classList.remove('menu-open');
+                menuOverlay.classList.remove('active');
                 menuToggle.innerHTML = '☰';
+                menuToggle.title = 'Otwórz menu';
+                document.body.style.overflow = ''; // Restore scrolling
             }
 
             // Trigger graph resize after animation
@@ -764,6 +791,13 @@
                 if (!leftMenu.contains(e.target) && !menuToggle.contains(e.target)) {
                     toggleMenu();
                 }
+            }
+        });
+
+        // Close menu with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && menuOpen) {
+                toggleMenu();
             }
         });
 
