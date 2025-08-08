@@ -496,7 +496,7 @@ class DynamicRepository:
 
                     # Sprawdź, czy tabela istnieje i zbuduj ją, jeśli nie
                     result = await Postgre_db.ensure_table(
-                        conn, table_name, column_def, index, foreign_key=foreign_key
+                        conn, table_name, column_def, index, foreign_key=foreign_key, unique=unique
                     )
 
                     import ulid
@@ -537,6 +537,10 @@ class DynamicRepository:
                     #odszukaj nazwę tabeli na podstawie genotype attributes
                     parsed = parse_py_type(key, attributes.get(key, {}))
                     table_name, column_def, index, foreign_key, unique = build_table_name(parsed)
+                    # Ensure the table exists before querying
+                    await Postgre_db.ensure_table(
+                        conn, table_name=table_name, column_def=column_def, index=index, foreign_key=foreign_key, unique=unique
+                    )
                     # Pobiera dane z dynamicznej tabeli
                     query = f"""
                         SELECT value FROM {table_name}
@@ -566,6 +570,10 @@ class DynamicRepository:
                     #odszukaj nazwę tabeli na podstawie genotype attributes
                     parsed = parse_py_type(key, attributes.get(key, {}))
                     table_name, column_def, index, foreign_key, unique = build_table_name(parsed)
+                    # Ensure the table exists before querying
+                    await Postgre_db.ensure_table(
+                        conn, table_name=table_name, column_def=column_def, index=index, foreign_key=foreign_key, unique=unique
+                    )
                     # Pobiera dane z dynamicznej tabeli
                     query = f"""
                         SELECT * FROM {table_name}

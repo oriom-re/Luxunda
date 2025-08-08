@@ -233,14 +233,20 @@ class SimpleLuxDB:
 
     async def connect_entities(self, entity1_id: str, entity2_id: str, relation_type: str = "connected"):
         """Łączy dwie encje prostą relacją"""
+        db_pool = await Postgre_db.get_db_pool()
+        if not db_pool:
+            print("❌ Database pool not available for connecting entities.")
+            return False
+
         try:
-            await Relationship.create(
-                source_id=entity1_id,
-                target_id=entity2_id,
-                source_type="being",
-                target_type="being",
-                relation_type=relation_type
-            )
+            # Create relationship in database
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO relationships (source_id, target_id, source_type, target_type, relation_type, strength, metadata)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (source_id, target_id, relation_type) DO NOTHING
+                """, entity1_id, entity2_id, "being", "being", relation_type, 1.0, json.dumps({"created_by": "simple_api"}))
+
             # Store connection details for get_graph_data_async
             self.connections.append({
                 'entity1_id': entity1_id,
