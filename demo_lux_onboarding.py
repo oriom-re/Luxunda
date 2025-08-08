@@ -213,7 +213,7 @@ Budujemy przyszłość gdzie:
 - **Relations**: Inteligentne połączenia semantyczne
 - **Scenarios**: Snapshoty różnych uniwersów danych
 
-**Demo Code:**
+**Code Example:**
 ```python
 # Tworzenie nowego bytu
 soul = await Soul.create(genotype, alias="ai_helper")
@@ -421,6 +421,164 @@ Jestem Lux - Twój przewodnik po rewolucji neurologii fali i samoorganizujących
             "priority": "medium"
         }
 
+    async def save_user_message(self, user_id: str, message: str, analysis: Dict, timestamp: str):
+        """Zapisuje wiadomość użytkownika w historii"""
+        users_db = getattr(get_or_create_user, '_users_db', {})
+
+        for fingerprint, user_data in users_db.items():
+            if user_data["user_id"] == user_id:
+                message_entry = {
+                    "message": message,
+                    "timestamp": timestamp,
+                    "analysis": analysis,
+                    "type": "user_message"
+                }
+
+                user_data["conversation_history"].append(message_entry)
+
+                # Zachowaj tylko ostatnie 100 wiadomości
+                if len(user_data["conversation_history"]) > 100:
+                    user_data["conversation_history"] = user_data["conversation_history"][-100:]
+
+                break
+
+    async def update_user_identity(self, user_id: str, fingerprint: str, message: str, analysis: Dict) -> Dict[str, Any]:
+        """Aktualizuje tożsamość użytkownika na podstawie analizy wiadomości"""
+        users_db = getattr(get_or_create_user, '_users_db', {})
+
+        if fingerprint in users_db:
+            user_data = users_db[fingerprint]
+            identification_data = user_data["identification_data"]
+
+            # Aktualizuj imiona
+            if analysis.get("names_mentioned"):
+                for name in analysis["names_mentioned"]:
+                    if name not in identification_data["names"]:
+                        identification_data["names"].append(name)
+                        print(f"🏷️  Added name '{name}' to user {user_id}")
+
+            # Aktualizuj styl konwersacji
+            if analysis.get("conversation_style"):
+                style = identification_data.get("conversation_style", {})
+                for key, value in analysis["conversation_style"].items():
+                    style[key] = style.get(key, 0) + value
+                identification_data["conversation_style"] = style
+
+            # Sprawdź czy to może być znany użytkownik o innym fingerprint
+            await self.check_for_duplicate_identity(user_id, identification_data, users_db)
+
+            return identification_data
+
+        return {}
+
+    async def check_for_duplicate_identity(self, current_user_id: str, current_identity: Dict, users_db: Dict):
+        """Sprawdza czy użytkownik może być duplikatem innego użytkownika"""
+        current_names = set(current_identity.get("names", []))
+
+        if not current_names:
+            return
+
+        for fingerprint, user_data in users_db.items():
+            if user_data["user_id"] == current_user_id:
+                continue
+
+            existing_names = set(user_data["identification_data"].get("names", []))
+
+            # Jeśli znajdziemy wspólne imiona, to może być ten sam użytkownik
+            common_names = current_names.intersection(existing_names)
+            if common_names:
+                print(f"🔗 Potential duplicate identity detected:")
+                print(f"   Current user: {current_user_id} (names: {current_names})")
+                print(f"   Existing user: {user_data['user_id']} (names: {existing_names})")
+                print(f"   Common names: {common_names}")
+
+                # W rzeczywistej implementacji można by połączyć historie użytkowników
+
+    async def lux_assistant_response(self, message: str, user_id: str, fingerprint: str, conversation_history: List[Dict]) -> Dict[str, Any]:
+        """Generuje odpowiedź asystenta Lux używając Message Being system"""
+        from luxdb.models.message import Message
+
+        # Zapisz wiadomość użytkownika
+        user_message = await Message.create(
+            content=message,
+            role="user",
+            author_ulid=user_id if user_id != "anonymous" else None,
+            fingerprint=fingerprint,
+            metadata={
+                "source": "lux_onboarding",
+                "timestamp": datetime.now().isoformat()
+            }
+        )
+
+        # Pobierz historię rozmowy z Message Being
+        history = await Message.get_conversation_history(fingerprint, limit=5)
+
+        # Prosty system odpowiedzi (w przyszłości integracja z OpenAI)
+        responses = {
+            "hello": "Witaj! Jestem Lux, asystent projektu Luxunda. Jak mogę Ci pomóc?",
+            "project": "Luxunda to rewolucyjny system zarządzania danymi oparty na genetyce cyfrowej.",
+            "invest": "Świetnie! Prześlę Ci informacje o możliwościach inwestycji w Luxunda.",
+            "join": "Fantastycznie! Szukamy utalentowanych programistów. Jakie są Twoje specjalizacje?",
+            "team": "Obecnie zespół składa się z założyciela i szukamy: Backend Dev, Frontend Dev, AI/ML Expert, DevOps Engineer.",
+            "technology": "Używamy Python, PostgreSQL, React, Docker, AI/ML technologie.",
+            "continue": "Widzę że kontynuujemy rozmowę. Czy mogę Ci w czymś jeszcze pomóc?",
+            "default": "Rozumiem. Czy chciałbyś dowiedzieć się więcej o projekcie Luxunda, możliwościach inwestycji czy dołączenia do zespołu?"
+        }
+
+        # Prosta analiza intencji
+        message_lower = message.lower()
+        response_key = "default"
+
+        if any(word in message_lower for word in ["cześć", "hello", "hej", "witaj"]):
+            response_key = "hello"
+        elif any(word in message_lower for word in ["projekt", "luxunda", "co to"]):
+            response_key = "project"
+        elif any(word in message_lower for word in ["inwestycja", "invest", "pieniądze"]):
+            response_key = "invest"
+        elif any(word in message_lower for word in ["praca", "zespół", "dołączyć", "join"]):
+            response_key = "join"
+        elif any(word in message_lower for word in ["zespół", "team", "ludzie"]):
+            response_key = "team"
+        elif any(word in message_lower for word in ["technologia", "tech", "stack"]):
+            response_key = "technology"
+        elif len(history) > 1:  # Jeśli mamy historię, to kontynuacja
+            response_key = "continue"
+
+        response_text = responses[response_key]
+
+        # Dodaj kontekst z historii Message Being
+        if len(history) > 1:
+            last_messages_content = [getattr(msg, 'content', '') for msg in history[-3:]]
+            if any("invest" in content.lower() for content in last_messages_content):
+                response_text += "\n\nW związku z Twoim zainteresowaniem inwestycją, mogę przesłać szczegółowy business plan."
+
+        # Zapisz odpowiedź asystenta
+        assistant_message = await Message.create(
+            content=response_text,
+            role="assistant",
+            author_ulid="lux_assistant",  # Stały ULID dla asystenta
+            fingerprint=fingerprint,
+            metadata={
+                "intent": response_key,
+                "confidence": 0.8,
+                "responding_to": user_message.ulid
+            }
+        )
+
+        return {
+            "response": response_text,
+            "suggestions": [
+                "Opowiedz więcej o projekcie",
+                "Jak mogę inwestować?",
+                "Chcę dołączyć do zespołu",
+                "Jakie technologie używacie?"
+            ],
+            "intent": response_key,
+            "confidence": 0.8,
+            "message_ulid": assistant_message.ulid,
+            "conversation_history_count": len(history)
+        }
+
 # Connection Manager
 class ConnectionManager:
     def __init__(self):
@@ -536,37 +694,49 @@ Co Cię interesuje?
             if message_data["type"] == "user_message":
                 # Przetwarzanie wiadomości użytkownika, w tym analiza i identyfikacja
                 message = message_data["message"]
-                
+                user_id = message_data.get("user_info", {}).get("userId", "anonymous")
+                fingerprint = message_data.get("user_info", {}).get("fingerprint")
+
+                if not fingerprint:
+                    # Jeśli brak fingerprint, można wygenerować tymczasowy lub poprosić o niego
+                    fingerprint = f"temp_fp_{datetime.now().timestamp()}" 
+                    print(f"⚠️ No fingerprint provided, using temporary: {fingerprint}")
+
                 # Analiza intencji i potencjalna identyfikacja
                 analysis = await manager.lux_assistant.analyze_user_intent(message)
-                
+
                 # Zapisanie wiadomości i potencjalna aktualizacja tożsamości
-                user_info_for_chat = {}
-                if message_data.get("user_info"):
-                    user_info_for_chat = message_data["user_info"]
-                    await manager.lux_assistant.save_user_message(
-                        user_info_for_chat.get("userId"),
+                await manager.lux_assistant.save_user_message(
+                    user_id,
+                    message,
+                    analysis,
+                    datetime.now().isoformat()
+                )
+
+                if analysis.get("names_mentioned") or analysis.get("self_introduction"):
+                     await manager.lux_assistant.update_user_identity(
+                        user_id,
+                        fingerprint,
                         message,
-                        analysis,
-                        datetime.now().isoformat()
+                        analysis
                     )
-                    if analysis.get("names_mentioned") or analysis.get("self_introduction"):
-                         await manager.lux_assistant.update_user_identity(
-                            user_info_for_chat.get("userId"),
-                            user_info_for_chat.get("fingerprint"),
-                            message,
-                            analysis
-                        )
 
                 # Generowanie odpowiedzi Luxa z uwzględnieniem kontekstu użytkownika
-                response = await manager.lux_assistant.generate_response(analysis)
-                
+                response_data = await manager.lux_assistant.lux_assistant_response(
+                    message, 
+                    user_id, 
+                    fingerprint, 
+                    [] # Historia przekazywana jest teraz z Message Being
+                )
+
                 await websocket.send_text(json.dumps({
                     "type": "lux_response",
-                    "content": response["text"],
-                    "actions": response.get("actions", []),
-                    "priority": response.get("priority", "medium"),
-                    "user_type": analysis["user_type"],
+                    "content": response_data["response"],
+                    "suggestions": response_data.get("suggestions", []),
+                    "intent": response_data.get("intent", "default"),
+                    "confidence": response_data.get("confidence", 0.5),
+                    "message_ulid": response_data.get("message_ulid"),
+                    "conversation_history_count": response_data.get("conversation_history_count"),
                     "timestamp": datetime.now().isoformat()
                 }))
 
@@ -676,79 +846,6 @@ async def get_or_create_user(fingerprint: str, timestamp: str) -> Dict[str, Any]
         print(f"🆕 New user created: {user_id}")
         return user_data
 
-async def save_user_message(user_id: str, message: str, analysis: Dict, timestamp: str):
-    """Zapisuje wiadomość użytkownika w historii"""
-    users_db = getattr(get_or_create_user, '_users_db', {})
-
-    for fingerprint, user_data in users_db.items():
-        if user_data["user_id"] == user_id:
-            message_entry = {
-                "message": message,
-                "timestamp": timestamp,
-                "analysis": analysis,
-                "type": "user_message"
-            }
-
-            user_data["conversation_history"].append(message_entry)
-
-            # Zachowaj tylko ostatnie 100 wiadomości
-            if len(user_data["conversation_history"]) > 100:
-                user_data["conversation_history"] = user_data["conversation_history"][-100:]
-
-            break
-
-async def update_user_identity(user_id: str, fingerprint: str, message: str, analysis: Dict) -> Dict[str, Any]:
-    """Aktualizuje tożsamość użytkownika na podstawie analizy wiadomości"""
-    users_db = getattr(get_or_create_user, '_users_db', {})
-
-    if fingerprint in users_db:
-        user_data = users_db[fingerprint]
-        identification_data = user_data["identification_data"]
-
-        # Aktualizuj imiona
-        if analysis.get("names_mentioned"):
-            for name in analysis["names_mentioned"]:
-                if name not in identification_data["names"]:
-                    identification_data["names"].append(name)
-                    print(f"🏷️  Added name '{name}' to user {user_id}")
-
-        # Aktualizuj styl konwersacji
-        if analysis.get("conversation_style"):
-            style = identification_data.get("conversation_style", {})
-            for key, value in analysis["conversation_style"].items():
-                style[key] = style.get(key, 0) + value
-            identification_data["conversation_style"] = style
-
-        # Sprawdź czy to może być znany użytkownik o innym fingerprint
-        await check_for_duplicate_identity(user_id, identification_data, users_db)
-
-        return identification_data
-
-    return {}
-
-async def check_for_duplicate_identity(current_user_id: str, current_identity: Dict, users_db: Dict):
-    """Sprawdza czy użytkownik może być duplikatem innego użytkownika"""
-    current_names = set(current_identity.get("names", []))
-
-    if not current_names:
-        return
-
-    for fingerprint, user_data in users_db.items():
-        if user_data["user_id"] == current_user_id:
-            continue
-
-        existing_names = set(user_data["identification_data"].get("names", []))
-
-        # Jeśli znajdziemy wspólne imiona, to może być ten sam użytkownik
-        common_names = current_names.intersection(existing_names)
-        if common_names:
-            print(f"🔗 Potential duplicate identity detected:")
-            print(f"   Current user: {current_user_id} (names: {current_names})")
-            print(f"   Existing user: {user_data['user_id']} (names: {existing_names})")
-            print(f"   Common names: {common_names}")
-
-            # W rzeczywistej implementacji można by połączyć historie użytkowników
-
 @app.post("/api/user/identify")
 async def identify_user(request: Request):
     """Identyfikacja użytkownika na podstawie fingerprint"""
@@ -792,14 +889,14 @@ async def analyze_user_message(request: Request):
         timestamp = data.get("timestamp")
 
         # Zapisz wiadomość w historii
-        await save_user_message(user_id, message, analysis, timestamp)
+        await manager.lux_assistant.save_user_message(user_id, message, analysis, timestamp)
 
         # Sprawdź czy analiza sugeruje aktualizację tożsamości
         identity_updated = False
         identification_data = {}
 
         if analysis.get("names_mentioned") or analysis.get("self_introduction"):
-            identification_data = await update_user_identity(
+            identification_data = await manager.lux_assistant.update_user_identity(
                 user_id, 
                 fingerprint, 
                 message, 
@@ -810,8 +907,7 @@ async def analyze_user_message(request: Request):
         return JSONResponse({
             "success": True,
             "identity_updated": identity_updated,
-            "identification_data": identification_data,
-            "analysis_result": analysis
+            "identification_data": identification_data
         })
     except Exception as e:
         print(f"❌ Message analysis error: {e}")
@@ -820,105 +916,71 @@ async def analyze_user_message(request: Request):
             "error": str(e)
         }, status_code=500)
 
+@app.get("/api/conversation/history/{fingerprint}")
+async def get_conversation_history(fingerprint: str, limit: int = 10):
+    """Pobiera historię rozmowy dla danego fingerprint"""
+    try:
+        from luxdb.models.message import Message
+
+        messages = await Message.get_conversation_history(fingerprint, limit)
+
+        conversation = []
+        for message in messages:
+            conversation.append({
+                "ulid": message.ulid,
+                "content": getattr(message, 'content', ''),
+                "role": getattr(message, 'role', 'user'),
+                "author_ulid": getattr(message, 'author_ulid', None),
+                "timestamp": getattr(message, 'timestamp', ''),
+                "context": message.get_conversation_context()
+            })
+
+        return JSONResponse({
+            "success": True,
+            "conversation": conversation,
+            "total_messages": len(conversation),
+            "fingerprint": fingerprint
+        })
+
+    except Exception as e:
+        print(f"❌ Conversation history error: {e}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e),
+            "conversation": []
+        }, status_code=500)
+
 async def simulate_lux_response(message: str, context: Dict[str, Any], user_info: Dict[str, Any] = None) -> Dict[str, Any]:
     """Symuluje odpowiedź asystenta Lux z uwzględnieniem informacji o użytkowniku"""
 
     # Analiza wiadomości
     message_lower = message.lower()
+    user_id = user_info.get("userId", "anonymous")
+    fingerprint = user_info.get("fingerprint")
 
-    # Personalizacja na podstawie informacji o użytkowniku
-    user_context = ""
-    if user_info and user_info.get("identificationData"):
-        names = user_info["identificationData"].get("names", [])
-        if names:
-            user_context = f" {names[0]},"
+    if not fingerprint:
+        fingerprint = f"temp_fp_{datetime.now().timestamp()}"
+        print(f"⚠️ No fingerprint provided in simulate_lux_response, using temporary: {fingerprint}")
 
-    # Różne typy odpowiedzi w zależności od treści
-    if any(word in message_lower for word in ["inwestować", "inwestycja", "funding"]):
-        return {
-            "response": f"""🚀 Świetnie{user_context}! LuxOS to rewolucyjna platforma AI, która łączy neurobiologię z technologią.
+    # Wykorzystanie nowej funkcji do generowania odpowiedzi asystenta
+    response_data = await manager.lux_assistant.lux_assistant_response(
+        message, 
+        user_id, 
+        fingerprint, 
+        [] # Historia przekazywana jest teraz z Message Being
+    )
 
-            **Dlaczego warto inwestować w LuxOS:**
-            - 🧠 Unikalna architektura inspirowana neurobiologią
-            - 🔗 System relacyjno-genetyczny dla samoorganizujących się aplikacji
-            - 📊 Potencjał rynkowy w AI, IoT i automatyzacji procesów
-            - 🌍 Skalowalna technologia dla enterprise
-
-            Chcesz poznać szczegóły techniczne czy model biznesowy?""",
-            "metadata": {
-                "response_type": "investment_info",
-                "confidence": 0.95,
-                "personalized": bool(user_context)
-            },
-            "suggestions": [
-                "Pokaż model biznesowy",
-                "Jakie są przewagi techniczne?",
-                "Kto jest w zespole?",
-                "Jakie są plany rozwoju?"
-            ]
-        }
-    elif any(word in message_lower for word in ["dołączyć", "praca", "kariera", "zespół"]):
-        return {
-            "response": f"""🤝 Świetnie{user_context}! Jesteśmy zawsze otwarci na nowych talentów. LuxOS to przyszłość samoorganizujących się systemów.
-
-            **Co oferujemy:**
-            - Udział w tworzeniu przełomowej technologii
-            - Możliwość pracy zdalnej i elastyczne godziny
-            - Współpracę z pasjonatami AI i neurobiologii
-            - Rozwój w dynamicznym startupie
-
-            Czy chcesz dowiedzieć się więcej o otwartych pozycjach czy procesie rekrutacji?""",
-            "metadata": {
-                "response_type": "collaboration_info",
-                "confidence": 0.90,
-                "personalized": bool(user_context)
-            },
-            "suggestions": [
-                "Zobacz otwarte pozycje",
-                "Jak wygląda proces rekrutacji?",
-                "Opowiedz o zespole"
-            ]
-        }
-    elif any(word in message_lower for word in ["demo", "pokaż", "jak to działa"]):
-        return {
-            "response": f"""
-✨ Jasne{user_context}! Pozwól, że pokażę Ci, jak działa LuxOS. Nasz system wykorzystuje zaawansowane algorytmy AI inspirowane działaniem mózgu do tworzenia samoorganizujących się struktur danych.
-
-**Co zobaczysz w demo:**
-- Inteligentną analizę intencji użytkownika
-- Dynamiczne tworzenie relacji między danymi
-- Ewolucję systemów w czasie rzeczywistym
-
-Czy chcesz uruchomić demo techniczne czy biznesowe?""",
-            "metadata": {
-                "response_type": "demo_info",
-                "confidence": 0.98,
-                "personalized": bool(user_context)
-            },
-            "suggestions": [
-                "Uruchom demo techniczne",
-                "Uruchom demo biznesowe",
-                "Dowiedz się więcej o technologii"
-            ]
-        }
-    else:
-        return {
-            "response": f"""
-🌟 Witaj ponownie{user_context}! Jestem Lux - Twój AI przewodnik po świecie LuxOS i ruchu Luxunda.
-
-Jak mogę Ci dzisiaj pomóc? Czy interesują Cię inwestycje, współpraca, czy po prostu chcesz dowiedzieć się więcej o naszej rewolucyjnej technologii?
-            """,
-            "metadata": {
-                "response_type": "general_greeting",
-                "confidence": 0.85,
-                "personalized": bool(user_context)
-            },
-            "suggestions": [
-                "Możliwości inwestycyjne",
-                "Jak mogę współpracować?",
-                "Pokaż demo LuxOS"
-            ]
-        }
+    return {
+        "response": response_data["response"],
+        "metadata": {
+            "response_type": response_data.get("intent", "default"),
+            "confidence": response_data.get("confidence", 0.5),
+            "personalized": bool(user_info and user_info.get("identificationData") and user_info["identificationData"].get("names")),
+            "message_ulid": response_data.get("message_ulid"),
+            "conversation_history_count": response_data.get("conversation_history_count")
+        },
+        "suggestions": response_data.get("suggestions", [])
+    }
 
 @app.post("/api/chat")
 async def chat_endpoint(request: Request):
@@ -930,7 +992,7 @@ async def chat_endpoint(request: Request):
         user_info = data.get("user_info", {})
 
         print(f"💬 Received message: {message}")
-        print(f"👤 User info: {user_info.get('userId', 'anonymous')}")
+        print(f"👤 User info: {user_info.get('userId', 'anonymous')}, Fingerprint: {user_info.get('fingerprint', 'N/A')}")
 
         # Symulacja odpowiedzi asystenta Lux z kontekstem użytkownika
         response = await simulate_lux_response(message, context, user_info)

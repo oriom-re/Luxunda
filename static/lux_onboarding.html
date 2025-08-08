@@ -112,22 +112,26 @@
             padding: 15px;
             border-radius: 12px;
             animation: fadeIn 0.5s ease;
+            display: flex; /* Added for alignment */
         }
 
         .message.system {
             background: rgba(0, 204, 255, 0.1);
             border-left: 4px solid #00ccff;
+            justify-content: center; /* Center system messages */
         }
 
         .message.user {
             background: rgba(0, 255, 136, 0.1);
             border-left: 4px solid #00ff88;
             margin-left: 40px;
+            justify-content: flex-end; /* Align user messages to the right */
         }
 
         .message.lux {
             background: rgba(255, 0, 204, 0.1);
             border-left: 4px solid #ff00cc;
+            margin-right: 40px; /* Align lux messages to the left */
         }
 
         .message-actions {
@@ -178,6 +182,7 @@
             font-style: italic;
             color: rgba(255, 255, 255, 0.7);
             animation: pulse 1.5s infinite;
+            text-align: center; /* Center typing indicator */
         }
 
         @keyframes fadeIn {
@@ -239,6 +244,21 @@
             font-size: 0.9rem;
             opacity: 0.8;
         }
+
+        .message-content.system {
+            background: rgba(135, 206, 235, 0.1);
+            color: #87CEEB;
+            border: 1px solid rgba(135, 206, 235, 0.3);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.9em;
+        }
+
+        .message.system-message {
+            justify-content: center;
+            margin: 5px 0;
+        }
+
     </style>
     <script src="user-identification.js"></script>
     <script src="lux-components.js"></script>
@@ -549,6 +569,40 @@
                 content: '📞 **Umówmy rozmowę!**<br><br>Skontaktuj się z nami:<br>📧 team@luxos.ai<br>💬 Discord: LuxOS Community<br>📅 Calendly: /luxos-meeting'
             });
         }
+
+        // Add system message display function
+        function displaySystemMessage(message) {
+            const messagesDiv = document.getElementById('chatMessages'); // Corrected ID
+            const systemDiv = document.createElement('div');
+            systemDiv.className = 'message system-message'; // Added system-message class
+            systemDiv.innerHTML = `
+                <div class="message-content system">
+                    <small><em>${message}</em></small>
+                </div>
+            `;
+            messagesDiv.appendChild(systemDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Add suggestion display function (assuming it's used elsewhere or intended for future use)
+        function displaySuggestions(suggestions) {
+            const container = document.getElementById('suggestions'); // This ID might not exist in the current HTML
+            if (!container) return; // Prevent error if container doesn't exist
+
+            container.innerHTML = '';
+
+            suggestions.forEach(suggestion => {
+                const button = document.createElement('button');
+                button.className = 'suggestion-btn';
+                button.textContent = suggestion;
+                button.onclick = () => {
+                    document.getElementById('messageInput').value = suggestion;
+                    sendMessage(suggestion); // Pass the suggestion to sendMessage
+                };
+                container.appendChild(button);
+            });
+        }
+
 
         // Initialize
         initWebSocket();
