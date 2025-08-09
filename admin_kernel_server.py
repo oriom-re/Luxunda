@@ -1,15 +1,26 @@
 
+#!/usr/bin/env python3
 """
-Admin Kernel Server - Serwer FastAPI dla interfejsu administratora
+🚀 LuxOS Admin Kernel Server
+Unified LuxOS System - Administrator Interface
 """
 
 import asyncio
+import sys
 import uvicorn
+from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
+
+# Dodaj główny katalog do ścieżki Python
+sys.path.insert(0, str(Path(__file__).parent))
+
+print("🚀 Starting LuxOS Admin Kernel Server...")
+print("🌟 Unified LuxOS System Entry Point")
+print("=" * 60)
 
 from luxdb.core.admin_kernel import admin_kernel
 

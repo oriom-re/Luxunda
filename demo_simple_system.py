@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
 """
-Demo LuxOS - Uproszczony system prezentacyjny
+🚀 LuxOS Demo System
+Unified LuxOS System - Simple Demo Interface
 Tradycyjna baza danych + symulacja systemu bytowego
 """
 
@@ -7,14 +9,22 @@ import asyncio
 import json
 import sqlite3
 import uuid
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, asdict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import uvicorn
-from flask import Flask, render_template_string # Import render_template_string from flask
+
+# Dodaj główny katalog do ścieżki Python
+sys.path.insert(0, str(Path(__file__).parent))
+
+print("🚀 Starting LuxOS Demo System...")
+print("🌟 Unified LuxOS System Entry Point")
+print("=" * 60)
 
 # ===== TRADYCYJNE MODELE DANYCH =====
 

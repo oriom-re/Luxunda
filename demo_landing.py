@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
 """
-🚀 LuxDB Development Landing Server
+🚀 LuxOS Landing Server
+Unified LuxOS System - Landing & Development Interface
 Enhanced with reactive system and proper lifespan management
 """
 
 import asyncio
 import os
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
+
+# Dodaj główny katalog do ścieżki Python
+sys.path.insert(0, str(Path(__file__).parent))
+
+print("🚀 Starting LuxOS Landing Server...")
+print("🌟 Unified LuxOS System Entry Point")
+print("=" * 60)
 
 try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request

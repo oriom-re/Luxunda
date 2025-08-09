@@ -1,10 +1,22 @@
 
+#!/usr/bin/env python3
 """
-Demo Lux AI Assistant
+🚀 LuxOS AI Assistant Demo
+Unified LuxOS System - AI Assistant Interface
 """
 
 import asyncio
 import os
+import sys
+from pathlib import Path
+
+# Dodaj główny katalog do ścieżki Python
+sys.path.insert(0, str(Path(__file__).parent))
+
+print("🚀 Starting LuxOS AI Assistant...")
+print("🌟 Unified LuxOS System Entry Point")
+print("=" * 60)
+
 from luxdb.ai_lux_assistant import LuxAssistant
 from database.postgre_db import Postgre_db
 

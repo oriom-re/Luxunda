@@ -1,10 +1,21 @@
 
+#!/usr/bin/env python3
 """
-Demo systemu eventów bazodanowych
+🚀 LuxOS Event System Demo
+Unified LuxOS System - Database Event Interface
 """
 
 import asyncio
+import sys
 from datetime import datetime
+from pathlib import Path
+
+# Dodaj główny katalog do ścieżki Python
+sys.path.insert(0, str(Path(__file__).parent))
+
+print("🚀 Starting LuxOS Event System...")
+print("🌟 Unified LuxOS System Entry Point")
+print("=" * 60)
 
 from luxdb.core.event_listener import event_bus, DatabaseEventListener
 from luxdb.models.event import Event
