@@ -38,7 +38,8 @@ class Message:
         author_ulid: Optional[str] = None,
         fingerprint: str = None,
         conversation_id: Optional[str] = None,
-        metadata: Dict[str, Any] = None
+        metadata: Dict[str, Any] = None,
+        create_fragments: bool = True
     ) -> 'Message':
         """
         Tworzy nową wiadomość.
@@ -99,6 +100,18 @@ class Message:
         
         if fingerprint:
             await cls._create_fingerprint_relation(message.ulid, fingerprint)
+        
+        # Automatycznie utwórz fragmenty jeśli wymagane
+        if create_fragments and len(content) > 50:  # Tylko dla dłuższych wiadomości
+            from .message_fragment import MessageFragment
+            await MessageFragment.create_from_message(
+                message_content=content,
+                message_ulid=message.ulid,
+                author_ulid=author_ulid,
+                fingerprint=fingerprint,
+                conversation_id=conversation_id,
+                metadata=metadata
+            )
         
         return message
 

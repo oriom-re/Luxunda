@@ -150,34 +150,74 @@ class SessionAssistant:
         # Dodaj więcej reguł...
     
     async def process_message(self, message_content: str) -> str:
-        """Przetwarza wiadomość użytkownika z pełnym kontekstem"""
+        """Przetwarza wiadomość użytkownika z fragmentami i pamięcią"""
+        from ..models.message_fragment import MessageFragment
+        from ..models.memory_cache import MemoryCache
+        
         # Odśwież aktywność
         self.session.refresh_activity()
         
         # Utwórz wiadomość jako Being z relacjami
         message = await self.create_contextual_message(message_content)
         
-        # Zbuduj kontekst dla LLM
-        context = await self.build_conversation_context()
+        # Fragmentacja wiadomości na części
+        fragments = await MessageFragment.create_from_message(
+            message_content=message_content,
+            message_ulid=message.ulid,
+            author_ulid=self.session.user_ulid,
+            fingerprint=self.session.user_fingerprint,
+            conversation_id=self.session.session_id
+        )
         
-        # Przetwórz przez Lux z kontekstem
+        # Pobierz istotne wspomnienia
+        relevant_memories = await MemoryCache.get_relevant_memories(
+            conversation_id=self.session.session_id,
+            author_ulid=self.session.user_ulid,
+            tags=list(self.session.project_tags),
+            min_importance=0.4,
+            time_limit_hours=12,
+            limit=8
+        )
+        
+        # Zbuduj kontekst z fragmentów i pamięci
+        context = await self.build_enhanced_conversation_context(fragments, relevant_memories)
+        
+        # Przetwórz przez Lux z rozbudowanym kontekstem
         enhanced_prompt = f"""
         Kontekst sesji użytkownika:
         - Ostatnie działania: {self.get_recent_actions_summary()}
         - Aktywne projekty: {', '.join(self.session.project_tags)}
         - Czas sesji: {self.session.last_activity.strftime('%H:%M')}
         
+        Pamięć istotnych wydarzeń:
+        {self._format_memory_context(relevant_memories)}
+        
+        Fragmenty aktualnej wiadomości:
+        {self._format_fragments_context(fragments)}
+        
         Aktywne eventy: {len(self.session.active_events)}
         
         Wiadomość użytkownika: {message_content}
         
-        Odpowiedz jako Lux, uwzględniając pełny kontekst działań użytkownika.
+        Odpowiedz jako Lux, uwzględniając pełną historię fragmentów, pamięć wydarzeń i aktualny kontekst.
         """
         
         response = await self.lux_core.chat(enhanced_prompt)
         
-        # Zapisz odpowiedź jako kolejną wiadomość
-        await self.create_contextual_message(response, role="assistant")
+        # Zapisz odpowiedź jako kolejną wiadomość z fragmentami
+        response_message = await self.create_contextual_message(response, role="assistant")
+        response_fragments = await MessageFragment.create_from_message(
+            message_content=response,
+            message_ulid=response_message.ulid,
+            author_ulid=None,  # Assistant
+            fingerprint=self.session.user_fingerprint,
+            conversation_id=self.session.session_id
+        )
+        
+        # Analizuj odpowiedź pod kątem nowych faktów do zapamiętania
+        await self.extract_and_store_insights(
+            message_content, response, fragments + response_fragments
+        )
         
         return response
     
@@ -245,6 +285,83 @@ class SessionAssistant:
             "recent_activity": self.get_recent_actions_summary(),
             "active_events_count": len(self.session.active_events)
         }
+    
+    async def build_enhanced_conversation_context(self, fragments: List, memories: List) -> Dict[str, Any]:
+        """Buduje rozszerzony kontekst z fragmentami i pamięcią"""
+        base_context = await self.build_conversation_context()
+        
+        base_context.update({
+            "message_fragments_count": len(fragments),
+            "relevant_memories_count": len(memories),
+            "memory_importance_avg": sum(getattr(m, 'importance_level', 0) for m in memories) / max(len(memories), 1),
+            "conversation_fragments": [getattr(f, 'content', '') for f in fragments[:5]]  # Pierwsze 5 fragmentów
+        })
+        
+        return base_context
+    
+    def _format_memory_context(self, memories: List) -> str:
+        """Formatuje pamięć wydarzeń do kontekstu"""
+        if not memories:
+            return "Brak istotnych wspomnień z tej sesji."
+        
+        context_lines = []
+        for memory in memories[:5]:  # Top 5 najważniejszych
+            memory_type = getattr(memory, 'memory_type', 'unknown')
+            content = getattr(memory, 'content', '')
+            importance = getattr(memory, 'importance_level', 0)
+            context_lines.append(f"- [{memory_type.upper()}:{importance:.1f}] {content}")
+        
+        return '\n'.join(context_lines)
+    
+    def _format_fragments_context(self, fragments: List) -> str:
+        """Formatuje fragmenty wiadomości do kontekstu"""
+        if not fragments:
+            return "Brak fragmentów wiadomości."
+        
+        context_lines = []
+        for i, fragment in enumerate(fragments):
+            frag_type = getattr(fragment, 'fragment_type', 'unknown')
+            content = getattr(fragment, 'content', '')
+            context_lines.append(f"{i+1}. [{frag_type}] {content}")
+        
+        return '\n'.join(context_lines)
+    
+    async def extract_and_store_insights(self, user_message: str, assistant_response: str, all_fragments: List):
+        """Ekstraktuje i przechowuje istotne wglądy z rozmowy"""
+        from ..models.memory_cache import MemoryCache
+        
+        # Prosta heurystyka - szukaj faktów i ważnych stwierdzeń
+        insight_triggers = [
+            "ważne:", "pamiętaj:", "wydarzenie:", "problem:", "rozwiązanie:",
+            "ustalenie:", "decyzja:", "plan:", "status:", "aktualizacja:"
+        ]
+        
+        combined_text = f"{user_message} {assistant_response}".lower()
+        
+        for trigger in insight_triggers:
+            if trigger in combined_text:
+                # Znajdź kontekst wokół trigger'a
+                trigger_index = combined_text.find(trigger)
+                context_start = max(0, trigger_index - 50)
+                context_end = min(len(combined_text), trigger_index + 200)
+                context = combined_text[context_start:context_end].strip()
+                
+                # Utwórz pamięć z wyższą ważnością
+                await MemoryCache.create_memory(
+                    memory_type="fact" if trigger in ["ustalenie:", "decyzja:", "status:"] else "insight",
+                    content=context,
+                    importance_level=0.8 if trigger in ["ważne:", "decyzja:"] else 0.6,
+                    context_ulids=[f.ulid for f in all_fragments],
+                    conversation_id=self.session.session_id,
+                    author_ulid=self.session.user_ulid,
+                    tags=["auto_extracted", "conversation"] + list(self.session.project_tags),
+                    metadata={
+                        "trigger_word": trigger,
+                        "auto_extracted": True,
+                        "session_duration": int((datetime.now() - self.session.created_at).total_seconds() / 60)
+                    }
+                )
+                break  # Tylko jedna pamięć per wiadomość żeby nie spamować
     
     async def check_expiry(self) -> bool:
         """Sprawdza czy sesja wygasła i przełącza w tryb offline"""
