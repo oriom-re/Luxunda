@@ -1,22 +1,13 @@
-# app_v2/database/soul_repository.py
-__name__ = 'soul_repository'
-__doc__ = 'Repository pattern dla operacji na souls w bazie danych'
-__version__ = '2.0.0'
-
-
 
 from typing import Dict, Any, Optional, List
 import json
 from database.postgre_db import Postgre_db
 from core.globals import Globals
-from database.parser_table import parse_py_type, build_table_name, process_genotype_for_tables
-# pobiera typy
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from database.models.base import Being
     from database.models.base import Soul
 
-# Import dla runtime
 def get_soul_class():
     from database.models.base import Soul
     return Soul
@@ -25,11 +16,8 @@ def get_being_class():
     from database.models.base import Being
     return Being
 
-
-"""Repository pattern dla operacji na souls w bazie danych"""
-
 class SoulRepository:
-    """Repository dla operacji na souls w bazie danych"""
+    """Repository dla operacji na souls w podejściu JSONB"""
 
     @staticmethod
     async def save(soul: 'Soul') -> dict:
@@ -38,28 +26,24 @@ class SoulRepository:
         if not pool:
             return {"success": False}
 
-
         async with pool.acquire() as conn:
-
             query = """
                 INSERT INTO souls (soul_hash, global_ulid, alias, genotype)
                 VALUES ($1, $2, $3, $4)
                 ON CONFLICT (soul_hash) DO NOTHING
+                RETURNING created_at
             """
 
-            result = await conn.execute(query,
+            result = await conn.fetchrow(query,
                 soul.soul_hash,
                 soul.global_ulid,
                 soul.alias,
                 json.dumps(soul.genotype)
             )
-            if result.endswith("1"):
-                row = await conn.fetchrow("SELECT * FROM souls WHERE soul_hash = $1", soul.soul_hash)
-                if not row:
-                    print("❌ Failed to save soul, no row returned.")
-                    return {"success": False}
+            
+            if result:
+                soul.created_at = result['created_at']
                 print(f"✅ Soul saved with hash: {soul.soul_hash[:8]}... and alias: {soul.alias}")
-                soul.created_at = row['created_at']
                 
                 # Automatycznie twórz indeksy na podstawie genotypu
                 await SoulRepository.create_soul_indexes(conn, soul.soul_hash, soul.genotype)
@@ -68,7 +52,7 @@ class SoulRepository:
 
     @staticmethod
     async def create_soul_indexes(conn, soul_hash: str, genotype: Dict):
-        """Tworzy indeksy specyficzne dla duszy na podstawie genotypu"""
+        """Tworzy indeksy specyficzne dla duszy na podstawie genotypu JSONB"""
         try:
             attributes = genotype.get("attributes", {})
             
@@ -90,12 +74,17 @@ class SoulRepository:
                             WHERE soul_hash = '{soul_hash}'
                         """)
                     elif index_type == "composite":
-                        # Złożony indeks na kilka pól
                         fields = attr_meta.get("composite_fields", [attr_name])
                         field_expressions = [f"(data->>'{field}')" for field in fields]
                         await conn.execute(f"""
                             CREATE INDEX IF NOT EXISTS {index_name} 
                             ON beings ({', '.join(field_expressions)})
+                            WHERE soul_hash = '{soul_hash}'
+                        """)
+                    elif index_type == "vector" and attr_name == "vector_embedding":
+                        await conn.execute(f"""
+                            CREATE INDEX IF NOT EXISTS {index_name}_vector
+                            ON beings USING ivfflat (vector_embedding vector_cosine_ops)
                             WHERE soul_hash = '{soul_hash}'
                         """)
                     
@@ -151,7 +140,8 @@ class SoulRepository:
                     soul.genotype = json.loads(row['genotype'])
                     soul.created_at = row['created_at']
                     soul.global_ulid = row['global_ulid']
-            return {"success": True, "soul": soul}
+                    return {"success": True, "soul": soul}
+            return {"success": False}
         except Exception as e:
             print(f"❌ Error loading soul by ulid: {e}")
             return {"success": False, "error": str(e)}
@@ -180,7 +170,8 @@ class SoulRepository:
                     soul.genotype = json.loads(row['genotype'])
                     soul.created_at = row['created_at']
                     soul.global_ulid = row['global_ulid']
-            return {"success": True, "soul": soul}
+                    return {"success": True, "soul": soul}
+            return {"success": False}
         except Exception as e:
             print(f"❌ Error loading soul by alias: {e}")
             return {"success": False, "error": str(e)}
@@ -192,7 +183,6 @@ class SoulRepository:
             pool = await Postgre_db.get_db_pool()
             if not pool:
                 return {"success": False, "error": "No database connection"}
-
 
             async with pool.acquire() as conn:
                 query = """
@@ -210,8 +200,6 @@ class SoulRepository:
                     soul.created_at = row['created_at']
                     soul.global_ulid = row['global_ulid']
                     souls.append(soul)
-                if not souls:
-                    souls = [None]
             return {"success": True, "souls": souls}
         except Exception as e:
             print(f"❌ Error loading all souls: {e}")
@@ -242,26 +230,36 @@ class SoulRepository:
                     soul.created_at = row['created_at']
                     soul.global_ulid = row['global_ulid']
                     souls.append(soul)
-                if not souls:
-                    souls = [None]
             return {"success": True, "souls": souls}
         except Exception as e:
             print(f"❌ Error loading souls by alias: {e}")
             return {"success": False, "error": str(e)}
 
 class BeingRepository:
-    """Repository dla operacji na beings w bazie danych"""
+    """Repository dla operacji na beings w podejściu JSONB"""
 
     @staticmethod
-    async def save(being: 'Being') -> dict:
-        """Zapisuje being do bazy danych"""
+    async def save_jsonb(being: 'Being') -> dict:
+        """Zapisuje being do bazy danych w podejściu JSONB"""
         pool = await Postgre_db.get_db_pool()
         if not pool:
             return {"success": False}
 
         async with pool.acquire() as conn:
-            # Determine table_type based on soul alias and genotype
-            table_type = 'being'  # default
+            query = """
+                INSERT INTO beings (ulid, soul_hash, alias, data, vector_embedding, table_type)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (ulid) DO UPDATE SET
+                    alias = EXCLUDED.alias,
+                    data = EXCLUDED.data,
+                    vector_embedding = EXCLUDED.vector_embedding,
+                    table_type = EXCLUDED.table_type,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING created_at, updated_at
+            """
+            
+            # Determine table_type
+            table_type = 'being'
             if hasattr(being, '_soul') and being._soul:
                 soul_alias = getattr(being._soul, 'alias', None)
                 genotype = getattr(being._soul, 'genotype', {})
@@ -272,25 +270,117 @@ class BeingRepository:
                 elif genesis_type == 'relation' or soul_alias == 'basic_relation':
                     table_type = 'relation'
 
-            query = """
-                INSERT INTO beings (ulid, soul_hash, alias, table_type)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (ulid) DO UPDATE SET
-                    alias = EXCLUDED.alias,
-                    table_type = EXCLUDED.table_type,
-                    updated_at = CURRENT_TIMESTAMP
-            """
-            result = await conn.execute(query,
+            result = await conn.fetchrow(query,
                 being.ulid,
                 being.soul_hash,
                 being.alias,
+                json.dumps(being.data),
+                being.vector_embedding,
                 table_type
             )
-            if result.endswith("1"):
-                if not being.created_at:
-                    await BeingRepository.load(being)
+            
+            if result:
+                being.created_at = result['created_at']
+                being.updated_at = result['updated_at']
                 print(f"✅ Being saved with ulid: {being.ulid[:8]}... and soul hash: {being.soul_hash[:8]}...")
+            
             return {"success": True}
+
+    @staticmethod
+    async def update_vector(ulid: str, embedding: List[float]) -> dict:
+        """Aktualizuje embedding wektorowy"""
+        pool = await Postgre_db.get_db_pool()
+        if not pool:
+            return {"success": False}
+
+        async with pool.acquire() as conn:
+            query = """
+                UPDATE beings 
+                SET vector_embedding = $2, updated_at = CURRENT_TIMESTAMP
+                WHERE ulid = $1
+            """
+            await conn.execute(query, ulid, embedding)
+            return {"success": True}
+
+    @staticmethod
+    async def search_by_jsonb_data(query: Dict[str, Any], soul_hash: str = None) -> List:
+        """Wyszukuje beings na podstawie danych JSONB"""
+        pool = await Postgre_db.get_db_pool()
+        if not pool:
+            return []
+
+        async with pool.acquire() as conn:
+            # Buduje zapytanie JSONB
+            conditions = []
+            params = []
+            param_count = 1
+            
+            for key, value in query.items():
+                conditions.append(f"data->>'{key}' = ${param_count}")
+                params.append(str(value))
+                param_count += 1
+            
+            where_clause = " AND ".join(conditions)
+            if soul_hash:
+                where_clause += f" AND soul_hash = ${param_count}"
+                params.append(soul_hash)
+            
+            sql_query = f"""
+                SELECT * FROM beings 
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+            """
+            
+            rows = await conn.fetch(sql_query, *params)
+            Being = get_being_class()
+            beings = []
+            
+            for row in rows:
+                being = Being()
+                being.ulid = row['ulid']
+                being.soul_hash = row['soul_hash']
+                being.alias = row['alias']
+                being.data = json.loads(row['data']) if row['data'] else {}
+                being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
+                being.created_at = row['created_at']
+                being.updated_at = row['updated_at']
+                beings.append(being)
+            
+            return beings
+
+    @staticmethod
+    async def find_similar_beings(embedding: List[float], limit: int = 10, threshold: float = 0.8) -> List:
+        """Znajduje podobne beings na podstawie embeddingu wektorowego"""
+        pool = await Postgre_db.get_db_pool()
+        if not pool:
+            return []
+
+        async with pool.acquire() as conn:
+            query = """
+                SELECT *, vector_embedding <-> $1 as distance
+                FROM beings 
+                WHERE vector_embedding IS NOT NULL 
+                AND vector_embedding <-> $1 < $2
+                ORDER BY vector_embedding <-> $1
+                LIMIT $3
+            """
+            
+            rows = await conn.fetch(query, embedding, 1 - threshold, limit)
+            Being = get_being_class()
+            beings = []
+            
+            for row in rows:
+                being = Being()
+                being.ulid = row['ulid']
+                being.soul_hash = row['soul_hash']
+                being.alias = row['alias']
+                being.data = json.loads(row['data']) if row['data'] else {}
+                being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
+                being.created_at = row['created_at']
+                being.updated_at = row['updated_at']
+                beings.append(being)
+            
+            return beings
 
     @staticmethod
     async def load_by_ulid(ulid: str) -> dict:
@@ -312,35 +402,14 @@ class BeingRepository:
                     being.ulid = row['ulid']
                     being.soul_hash = row['soul_hash']
                     being.alias = row['alias']
+                    being.data = json.loads(row['data']) if row['data'] else {}
+                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
                     being.created_at = row['created_at']
-                    if 'updated_at' in row:
-                        being.updated_at = row['updated_at']
-            return {"success": True, "being": being}
+                    being.updated_at = row['updated_at']
+                    return {"success": True, "being": being}
+            return {"success": False}
         except Exception as e:
             print(f"❌ Error loading being by ulid: {e}")
-            return {"success": False, "error": str(e)}
-
-    @staticmethod
-    async def load(being: 'Being') -> dict:
-        """Ładuje being z bazy danych na podstawie jego unikalnego ulid"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False}
-
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM beings
-                    WHERE ulid = $1
-                """
-                row = await conn.fetchrow(query, being.ulid)
-                if row:
-                    being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
-                    being.created_at = row['created_at']
-            return {"success": True}
-        except Exception as e:
-            print(f"❌ Error loading being: {e}")
             return {"success": False, "error": str(e)}
 
     @staticmethod
@@ -365,43 +434,11 @@ class BeingRepository:
                     being.ulid = row['ulid']
                     being.soul_hash = row['soul_hash']
                     being.alias = row['alias']
+                    being.data = json.loads(row['data']) if row['data'] else {}
+                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
                     being.created_at = row['created_at']
-                    if 'updated_at' in row:
-                        being.updated_at = row['updated_at']
+                    being.updated_at = row['updated_at']
                     beings.append(being)
-                if not beings:
-                    beings = [None]
-            return {"success": True, "beings": beings}
-        except Exception as e:
-            print(f"❌ Error loading beings by soul hash: {e}")
-            return {"success": False, "error": str(e)}
-
-    @staticmethod
-    async def load_last_by_soul_hash(soul_hash: str) -> dict:
-        """Ładuje beings z bazy danych na podstawie unikalnego soul_hash"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False}
-
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM beings
-                    WHERE soul_hash = $1
-                    ORDER BY created_at DESC
-                """
-                rows = await conn.fetch(query, soul_hash)
-                Being = get_being_class()
-                beings: List['Being'] = []
-                for row in rows:
-                    being = Being()
-                    being.ulid = row['ulid']
-                    being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
-                    being.created_at = row['created_at']
-                    beings.append(being)
-                if not beings:
-                    beings = [None]
             return {"success": True, "beings": beings}
         except Exception as e:
             print(f"❌ Error loading beings by soul hash: {e}")
@@ -416,22 +453,11 @@ class BeingRepository:
                 return {"success": False}
 
             async with pool.acquire() as conn:
-                # Force fresh statement plan if cached plan is invalid
-                try:
-                    query = """
-                        SELECT * FROM beings
-                        ORDER BY created_at DESC
-                    """
-                    rows = await conn.fetch(query)
-                except Exception as e:
-                    if "cached statement plan is invalid" in str(e).lower():
-                        print("🔄 Cached statement plan invalid, forcing reset...")
-                        # Reset connection and try again
-                        await conn.execute("DEALLOCATE ALL")
-                        rows = await conn.fetch(query)
-                    else:
-                        raise e
-
+                query = """
+                    SELECT * FROM beings
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query)
                 Being = get_being_class()
                 beings: List['Being'] = []
                 for row in rows:
@@ -439,13 +465,11 @@ class BeingRepository:
                     being.ulid = row['ulid']
                     being.soul_hash = row['soul_hash']
                     being.alias = row['alias']
+                    being.data = json.loads(row['data']) if row['data'] else {}
+                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
                     being.created_at = row['created_at']
-                    # Add table_type if it exists
-                    if 'table_type' in row:
-                        being.table_type = row['table_type']
+                    being.updated_at = row['updated_at']
                     beings.append(being)
-                if not beings:
-                    beings = []  # Return empty list instead of [None]
             print(f"✅ BeingRepository.load_all returning {len(beings)} beings")
             return {"success": True, "beings": beings}
         except Exception as e:
@@ -453,6 +477,26 @@ class BeingRepository:
             import traceback
             traceback.print_exc()
             return {"success": False, "error": str(e)}
+
+    # Legacy compatibility methods
+    @staticmethod
+    async def save(being: 'Being') -> dict:
+        """Legacy compatibility - delegates to save_jsonb"""
+        return await BeingRepository.save_jsonb(being)
+
+    @staticmethod
+    async def load(being: 'Being') -> dict:
+        """Legacy compatibility"""
+        return await BeingRepository.load_by_ulid(being.ulid)
+
+    @staticmethod
+    async def load_last_by_soul_hash(soul_hash: str) -> dict:
+        """Legacy compatibility"""
+        result = await BeingRepository.load_all_by_soul_hash(soul_hash)
+        beings = result.get('beings', [])
+        if beings:
+            return {"success": True, "beings": [beings[0]]}
+        return {"success": False, "beings": []}
 
     @staticmethod
     async def load_all_by_alias(alias: str) -> dict:
@@ -476,157 +520,55 @@ class BeingRepository:
                     being.ulid = row['ulid']
                     being.soul_hash = row['soul_hash']
                     being.alias = row['alias']
+                    being.data = json.loads(row['data']) if row['data'] else {}
+                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
                     being.created_at = row['created_at']
+                    being.updated_at = row['updated_at']
                     beings.append(being)
-                if not beings:
-                    beings = [None]
             return {"success": True, "beings": beings}
         except Exception as e:
             print(f"❌ Error loading beings by alias: {e}")
             return {"success": False, "error": str(e)}
 
+# Legacy DynamicRepository for backward compatibility
 class DynamicRepository:
-    """Repository dla dynamicznych pól w souls"""
+    """Legacy repository - now delegates to JSONB approach"""
 
     @staticmethod
     async def insert_data_transaction(being, genotype: Dict[str, Any]) -> bool:
-        """Zapisuje dynamiczne pola w transakcji"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
+        """Legacy compatibility - delegates to JSONB save"""
+        try:
+            result = await BeingRepository.save_jsonb(being)
+            return result.get("success", False)
+        except Exception as e:
+            print(f"❌ Error in legacy insert_data_transaction: {e}")
             return False
-
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                # wpisuje being
-                await BeingRepository.save(being)
-
-                attributes = genotype.get("attributes", {})
-
-                # przygotuj tabele
-                tables_to_create = process_genotype_for_tables(genotype)
-                for table_info in tables_to_create:
-                    table_hash = table_info['table_hash']
-                    table_name = table_info['table_name']
-                    column_def = table_info['column_def']
-                    index = table_info['index']
-                    foreign_key = table_info['foreign_key']
-                    unique = table_info['unique']
-
-                    # Sprawdź, czy tabela istnieje i zbuduj ją, jeśli nie
-                    result = await Postgre_db.ensure_table(
-                        conn, table_hash=table_hash, table_name=table_name, column_def=column_def, index=index, foreign_key=foreign_key, unique=unique
-                    )
-
-                    if result.get("status") == "error":
-                        print(f"❌ Error creating table {table_name}: {result.get('error')}")
-                        return False
-                # iteruje po atrybutach i zapisuje je w odpowiednich tabelach
-                for attr_name, attr_meta in attributes.items():
-
-                    # parsuje typ atrybutu
-                    parsed = parse_py_type(attr_name, attr_meta)
-                    build_result = build_table_name(parsed)
-                    if len(build_result) == 5:
-                        table_name, column_def, index, foreign_key, unique = build_result
-                    else:
-                        # Handle case where build_table_name returns different number of values
-                        table_name, column_def = build_result[:2]
-                        index = False
-                        foreign_key = False
-                        unique = {}
-
-
-                    # Sprawdź, czy tabela istnieje i zbuduj ją, jeśli nie
-                    result = await Postgre_db.ensure_table(
-                        conn, table_name, column_def, index, foreign_key=foreign_key
-                    )
-
-                    import ulid
-                    _ulid = ulid.ulid()
-
-                    if result.get("status") != "error":
-                        query = f"""
-                            INSERT INTO {table_name} (ulid, being_ulid, soul_hash, key, value)
-                            VALUES ($1, $2, $3, $4, $5)
-                            ON CONFLICT (being_ulid, key) DO UPDATE SET
-                                value = EXCLUDED.value,
-                                modified_at = CURRENT_TIMESTAMP
-                        """
-                        # pobiera atrybut z being
-                        being_data = getattr(being, attr_name, None)
-                        value = json.dumps(being_data) if parsed["requires_serialization"] else being_data
-
-                        # wstawia dane do tabeli
-                        if value is None:
-                            print(f"🔍 No value for attribute {attr_name} in being data.")
-                            continue
-                        await conn.execute(query, _ulid, being.ulid, being.soul_hash, attr_name, value)
-
-                return True
 
     @staticmethod
     async def load_values(being, key_list: List[str], genotype: dict) -> Optional[Dict[str, Any]]:
-        """Ładuje dynamiczne pola dla danego being"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return None
-
-        async with pool.acquire() as conn:
+        """Legacy compatibility - loads from JSONB data"""
+        if hasattr(being, 'data') and being.data:
             result = {}
-            attributes = genotype.get("attributes", {})
-            async with conn.transaction():
-                for key in key_list:
-                    #odszukaj nazwę tabeli na podstawie genotype attributes
-                    parsed = parse_py_type(key, attributes.get(key, {}))
-                    table_name, column_def, index, foreign_key, unique = build_table_name(parsed)
-                    # Pobiera dane z dynamicznej tabeli
-                    query = f"""
-                        SELECT value FROM {table_name}
-                        WHERE being_ulid = $1 AND key = $2
-                    """
-                    row = await conn.fetchrow(query, being.ulid, key)
-
-
-                    result[key] = json.loads(row['value']) if parsed["requires_serialization"] else (row['value'] if row else None)
-            if result:
-                for key, value in result.items():
-                    if value is not None:
-                        setattr(being, key, value)
+            for key in key_list:
+                if key in being.data:
+                    result[key] = being.data[key]
+                    setattr(being, key, being.data[key])
+            return result if result else None
+        return None
 
     @staticmethod
     async def load_full_table(being, key_list: List[str], genotype: dict) -> Optional[Dict[str, Any]]:
-        """Wczytuje całą tabelę dynamicznych pól dla danego being"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return None
-
-        async with pool.acquire() as conn:
-            result = {}
-            attributes = genotype.get("attributes", {})
-            async with conn.transaction():
-                for key in key_list:
-                    #odszukaj nazwę tabeli na podstawie genotype attributes
-                    parsed = parse_py_type(key, attributes.get(key, {}))
-                    table_name, column_def, index, foreign_key, unique = build_table_name(parsed)
-                    # Pobiera dane z dynamicznej tabeli
-                    query = f"""
-                        SELECT * FROM {table_name}
-                        WHERE being_ulid = $1 AND key = $2
-                    """
-                    rows = await conn.fetch(query, being.ulid, key)
-
-                    for row in rows:
-                        value = json.loads(row['value']) if parsed["requires_serialization"] else row['value']
-                        result[row['key']] = value
-            return result if result else None
-
+        """Legacy compatibility - returns JSONB data"""
+        if hasattr(being, 'data') and being.data:
+            return {key: being.data.get(key) for key in key_list if key in being.data}
+        return None
 
 class RelationRepository:
-    """Repository pattern dla operacji na relations w bazie danych"""
+    """Repository pattern dla operacji na relations w podejściu JSONB"""
 
     @staticmethod
     async def save(relation) -> dict:
-        """Zapisuje relację do bazy danych"""
+        """Zapisuje relację do bazy danych w podejściu JSONB"""
         try:
             pool = await Postgre_db.get_db_pool()
             if not pool:
@@ -634,23 +576,35 @@ class RelationRepository:
 
             async with pool.acquire() as conn:
                 query = """
-                    INSERT INTO relations (ulid, soul_hash, alias, source_ulid, target_ulid)
-                    VALUES ($1, $2, $3, $4, $5)
+                    INSERT INTO relations (ulid, soul_hash, alias, source_ulid, target_ulid, data, relation_type, strength)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     ON CONFLICT (ulid) DO UPDATE SET
                         soul_hash = EXCLUDED.soul_hash,
                         alias = EXCLUDED.alias,
                         source_ulid = EXCLUDED.source_ulid,
                         target_ulid = EXCLUDED.target_ulid,
+                        data = EXCLUDED.data,
+                        relation_type = EXCLUDED.relation_type,
+                        strength = EXCLUDED.strength,
                         updated_at = CURRENT_TIMESTAMP
                     RETURNING created_at, updated_at
                 """
+                
+                relation_data = getattr(relation, 'data', {})
+                relation_type = getattr(relation, 'relation_type', 'connection')
+                strength = getattr(relation, 'strength', 1.0)
+                
                 result = await conn.fetchrow(query,
                     relation.ulid,
                     relation.soul_hash,
                     relation.alias,
                     relation.source_ulid,
-                    relation.target_ulid
+                    relation.target_ulid,
+                    json.dumps(relation_data),
+                    relation_type,
+                    strength
                 )
+                
                 if result:
                     relation.created_at = result['created_at']
                     relation.updated_at = result['updated_at']
@@ -674,7 +628,6 @@ class RelationRepository:
                 """
                 row = await conn.fetchrow(query, ulid)
                 if row:
-                    # Import tutaj aby uniknąć circular imports
                     from database.models.relation import Relation
                     relation = Relation()
                     relation.ulid = row['ulid']
@@ -682,6 +635,9 @@ class RelationRepository:
                     relation.alias = row['alias']
                     relation.source_ulid = row['source_ulid']
                     relation.target_ulid = row['target_ulid']
+                    relation.data = json.loads(row['data']) if row['data'] else {}
+                    relation.relation_type = row['relation_type']
+                    relation.strength = row['strength']
                     relation.created_at = row['created_at']
                     relation.updated_at = row['updated_at']
                     return {"success": True, "relation": relation}
@@ -715,6 +671,9 @@ class RelationRepository:
                     relation.alias = row['alias']
                     relation.source_ulid = row['source_ulid']
                     relation.target_ulid = row['target_ulid']
+                    relation.data = json.loads(row['data']) if row['data'] else {}
+                    relation.relation_type = row['relation_type']
+                    relation.strength = row['strength']
                     relation.created_at = row['created_at']
                     relation.updated_at = row['updated_at']
                     relations.append(relation)
@@ -747,6 +706,9 @@ class RelationRepository:
                     relation.alias = row['alias']
                     relation.source_ulid = row['source_ulid']
                     relation.target_ulid = row['target_ulid']
+                    relation.data = json.loads(row['data']) if row['data'] else {}
+                    relation.relation_type = row['relation_type']
+                    relation.strength = row['strength']
                     relation.created_at = row['created_at']
                     relation.updated_at = row['updated_at']
                     relations.append(relation)
@@ -780,6 +742,9 @@ class RelationRepository:
                     relation.alias = row['alias']
                     relation.source_ulid = row['source_ulid']
                     relation.target_ulid = row['target_ulid']
+                    relation.data = json.loads(row['data']) if row['data'] else {}
+                    relation.relation_type = row['relation_type']
+                    relation.strength = row['strength']
                     relation.created_at = row['created_at']
                     relation.updated_at = row['updated_at']
                     relations.append(relation)

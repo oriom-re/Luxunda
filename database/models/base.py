@@ -1,4 +1,4 @@
-# from app_v2.beings.new_being import Soul
+
 from dataclasses import dataclass, field, make_dataclass, asdict
 import json
 from typing import Dict, Any, List, Optional, Callable
@@ -10,17 +10,16 @@ from core.globals import Globals
 
 @dataclass
 class Soul:
-    """Podstawowa klasa dla wszystkich bytów w systemie"""
-    # generuje testowy hash dla bytu
+    """Podstawowa klasa dla wszystkich genotypów w systemie JSONB"""
     soul_hash: str = None
     global_ulid: str = field(default=Globals.GLOBAL_ULID)
-    alias: str = None  # Alias dla bytu
+    alias: str = None
     genotype: Dict[str, Any] = field(default_factory=dict)
-    created_at: Optional[datetime] = None  # Data zapisu bytu w bazie danych
+    created_at: Optional[datetime] = None
 
     @classmethod
     async def create(cls, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
-        """Tworzy nowy byt na podstawie genotypu i wartości"""
+        """Tworzy nowy genotyp na podstawie definicji"""
         soul = cls()
         soul.alias = alias
         soul.genotype = genotype
@@ -33,7 +32,7 @@ class Soul:
 
     @classmethod
     async def load_by_hash(cls, hash: str) -> 'Soul':
-        """Ładuje byt z bazy danych na podstawie jego unikalnego hasha"""
+        """Ładuje genotyp z bazy danych na podstawie jego unikalnego hasha"""
         result = await SoulRepository.load_by_hash(hash)
         if result:
             return result.get('soul', None)
@@ -51,31 +50,55 @@ class Soul:
         return soul
 
     async def load(self) -> list['Soul']:
-        """Ładuje wszystkie byty z bazy danych"""
+        """Ładuje wszystkie genotypy z bazy danych"""
         await SoulRepository.load(self)
-
 
     @classmethod
     async def load_by_alias(cls, alias: str) -> 'Soul':
-        """Ładuje byt z bazy danych na podstawie jego aliasu"""
+        """Ładuje genotyp z bazy danych na podstawie jego aliasu"""
         result = await SoulRepository.load_by_alias(alias)
         if result:
             return result.get('soul', None)
 
     @classmethod
     async def load_all_by_alias(cls, alias: str) -> list['Soul']:
-        """Ładuje wszystkie byty z bazy danych na podstawie aliasu"""
+        """Ładuje wszystkie genotypy z bazy danych na podstawie aliasu"""
         result = await SoulRepository.load_all_by_alias(alias)
         if result:
             return result.get('souls', [])
 
     @classmethod
     async def load_all(cls) -> list['Soul']:
-        """Ładuje wszystkie dusze z bazy danych"""
+        """Ładuje wszystkie genotypy z bazy danych"""
         result = await SoulRepository.load_all()
         if result:
             return result.get('souls', [])
         return []
+
+    def validate_data(self, data: Dict[str, Any]) -> List[str]:
+        """Waliduje dane względem genotypu"""
+        errors = []
+        attributes = self.genotype.get("attributes", {})
+        
+        for attr_name, attr_meta in attributes.items():
+            required = attr_meta.get("required", False)
+            py_type = attr_meta.get("py_type", "str")
+            
+            if required and attr_name not in data:
+                errors.append(f"Required attribute '{attr_name}' is missing")
+            
+            if attr_name in data:
+                value = data[attr_name]
+                # Podstawowa walidacja typów
+                type_map = {
+                    "str": str, "int": int, "bool": bool, "float": float,
+                    "dict": dict, "List[str]": list, "List[float]": list
+                }
+                expected_type = type_map.get(py_type, str)
+                if value is not None and not isinstance(value, expected_type):
+                    errors.append(f"Attribute '{attr_name}' should be of type {py_type}")
+        
+        return errors
 
     def to_dict(self) -> Dict[str, Any]:
         """Konwertuje Soul do słownika"""
@@ -89,7 +112,7 @@ class Soul:
 
     @classmethod
     def parser(cls, soul_data: Dict[str, Any]) -> 'Soul':
-        """Parser dla danych duszy"""
+        """Parser dla danych genotypu"""
         if not soul_data:
             return None
         soul = cls()
@@ -99,12 +122,14 @@ class Soul:
 
 @dataclass
 class Being:
-    """Podstawowa klasa dla wszystkich bytów w systemie"""
+    """Podstawowa klasa dla wszystkich bytów w systemie JSONB"""
 
     ulid: str = field(default_factory=lambda: str(_ulid.ulid()))
     global_ulid: str = field(default=Globals.GLOBAL_ULID)
     soul_hash: Optional[str] = None
     alias: Optional[str] = None
+    data: Dict[str, Any] = field(default_factory=dict)  # JSONB data
+    vector_embedding: Optional[List[float]] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     genotype: Dict[str, Any] = field(default_factory=dict)
@@ -112,18 +137,19 @@ class Being:
 
     @classmethod
     async def create(cls, soul: 'Soul', data: Dict[str, Any], limit: int = None) -> 'Being':
-        """Tworzy nowy byt na podstawie genotypu i wartości"""
+        """Tworzy nowy byt na podstawie genotypu i danych w podejściu JSONB"""
+        
+        # Walidacja danych względem genotypu
+        errors = soul.validate_data(data)
+        if errors:
+            raise ValueError(f"Data validation errors: {', '.join(errors)}")
 
         being = cls(
             ulid=str(_ulid.ulid()),
             soul_hash=soul.soul_hash,
-            genotype=soul.genotype
+            genotype=soul.genotype,
+            data=data  # Wszystkie dane w JSONB
         )
-
-        being._apply_genotype(soul.genotype)
-
-        for key, value in data.items():
-            setattr(being, key, value)
 
         # Sprawdź limit tylko jeśli został podany
         if limit is not None:
@@ -134,126 +160,62 @@ class Being:
         # Load genes from genotype
         being.genes = soul.genotype.get("genes", {})
 
-        await being.save(soul, data)
+        await being.save()
         return being
 
-    def _apply_genotype(self, genotype: dict):
-        """Tworzy dynamiczną wersję bytu z polami z genotypu"""
-        fields = []
-        type_map = {"str": str, "int": int, "bool": bool, "float": float, "dict": dict, "List[str]": list, "List[float]": list}
-
-        attributes = genotype.get("attributes", {})
-        for name, meta in attributes.items():
-            typ_name = meta.get("py_type", "str")
-            typ = type_map.get(typ_name, str)
-            fields.append((name, typ, field(default=None)))
-
-        if fields:  # tylko jeśli są jakieś pola do dodania
-            DynamicBeing = make_dataclass(
-                cls_name="DynamicBeing",
-                fields=fields,
-                bases=(self.__class__,),
-                frozen=False
-            )
-
-            self.__class__ = DynamicBeing
-
-    async def save(self, soul: Soul, data: Dict[str, Any]=None) -> 'Being':
-        """Zapisuje byt do bazy danych
-
-            przykład genotypu:
-            {
-                "attributes": {
-                    "attribute_name": {
-                        "table_name": "_text",
-                        "py_type": "str"
-                    }
-                }
-                "genes": {
-                    "gene_name": "path.to.gene_function"
-                }
-            }
-
-        """
-
-        data_to_save = {}
-        if not soul.genotype or not soul.genotype.get("attributes"):
-            raise ValueError("Soul genotype must have attributes defined")
-        for key, metadata in soul.genotype.get("attributes", {}).items():
-            if not hasattr(self, key):
-                raise ValueError(f"Being instance does not have attribute {key}")
-            data_to_save[metadata.get('table_name')] = getattr(self, key)
-
-        if data:
-            for key, value in data.items():
-                setattr(self, key, value)
-
-        print(f"Saving soul with hash: {soul.soul_hash}")
-        await DynamicRepository.insert_data_transaction(self, soul.genotype)
+    async def save(self) -> 'Being':
+        """Zapisuje byt do bazy danych w podejściu JSONB"""
+        await BeingRepository.save_jsonb(self)
         return self
 
-    async def get_attributes(self):
-        """Zwraca wszystkie atrybuty tego bytu z bazy danych"""
-        attributes = {}
+    async def update_data(self, new_data: Dict[str, Any]) -> None:
+        """Aktualizuje dane JSONB"""
+        self.data.update(new_data)
+        await self.save()
 
-        try:
-            from database.postgre_db import Postgre_db
-            db_pool = await Postgre_db.get_db_pool()
+    async def get_data(self, key: str = None) -> Any:
+        """Pobiera dane z JSONB"""
+        if key:
+            return self.data.get(key)
+        return self.data
 
-            if db_pool:
-                async with db_pool.acquire() as conn:
-                    # Sprawdź wszystkie tabele z atrybutami - używamy prawidłowych nazw kolumn
-                    for table_suffix in ['_text', '_int', '_float', '_boolean', '_jsonb']:
-                        table_name = f"attr{table_suffix}"
-                        try:
-                            query = f"""
-                                SELECT key, value
-                                FROM {table_name}
-                                WHERE being_ulid = $1
-                            """
-                            rows = await conn.fetch(query, self.ulid)
-                            for row in rows:
-                                attributes[row['key']] = row['value']
-                        except Exception as e:
-                            # Tabela może nie istnieć lub mieć inną strukturę
-                            print(f"⚠️ Błąd czytania tabeli {table_name}: {e}")
-                            continue
+    async def set_vector_embedding(self, embedding: List[float]) -> None:
+        """Ustawia embedding wektorowy"""
+        self.vector_embedding = embedding
+        await BeingRepository.update_vector(self.ulid, embedding)
 
-        except Exception as e:
-            print(f"❌ Błąd pobierania atrybutów dla {self.ulid}: {e}")
-
-        return attributes
+    async def find_similar(self, limit: int = 10, threshold: float = 0.8) -> List['Being']:
+        """Znajdź podobne byty na podstawie embeddingu wektorowego"""
+        if not self.vector_embedding:
+            return []
+        return await BeingRepository.find_similar_beings(self.vector_embedding, limit, threshold)
 
     @classmethod
     async def load_by_ulid(cls, ulid: str) -> 'Being':
         """Ładuje byt z bazy danych na podstawie jego unikalnego ulid"""
         result = await BeingRepository.load_by_ulid(ulid)
-        if result:
-            return result.get('beings', [])
-        return []
+        if result and result.get('success'):
+            return result.get('being')
+        return None
 
     @classmethod
     async def load_all_by_soul_hash(cls, soul_hash: str) -> list['Being']:
-        """Ładuje byt z bazy danych na podstawie jego unikalnego hasha"""
+        """Ładuje wszystkie byty dla danego genotypu"""
         result = await BeingRepository.load_all_by_soul_hash(soul_hash)
-        if result:
-            return result.get('beings', [])
+        beings = result.get('beings', [])
+        return [being for being in beings if being is not None]
 
     @classmethod
     async def load_all(cls) -> List['Being']:
-        """Ładuje wszystkie beings z bazy danych"""
+        """Ładuje wszystkie byty z bazy danych"""
         result = await BeingRepository.load_all()
-        if isinstance(result, dict) and result.get("success") and result.get("beings"):
-            return result["beings"]
-        return []
+        beings = result.get('beings', [])
+        return [being for being in beings if being is not None]
 
     @classmethod
-    async def load_last_by_soul_hash(cls, soul_hash: str) -> 'Being':
-        """Ładuje ostatni byt z bazy danych na podstawie jego unikalnego hasha"""
-        result = await BeingRepository.load_last_by_soul_hash(soul_hash)
-        if result:
-            return result.get('beings', [])
-        return []
+    async def search_by_data(cls, query: Dict[str, Any], soul_hash: str = None) -> List['Being']:
+        """Wyszukuje byty na podstawie danych JSONB"""
+        return await BeingRepository.search_by_jsonb_data(query, soul_hash)
 
     async def execute(self, gene_name: str, *args, **kwargs):
         """Wykonuje gen na bycie"""
@@ -285,7 +247,6 @@ class Being:
         
         # Dodaj pole _soul dla kompatybilności z frontendem
         if hasattr(self, 'soul_hash') and self.soul_hash:
-            # Pobierz soul na podstawie hash
             result['_soul'] = {
                 'soul_hash': self.soul_hash,
                 'genesis': self.genotype.get('genesis', {}),
@@ -295,32 +256,48 @@ class Being:
         
         return result
 
+    # Discord integration methods
+    async def discord_report_error(self, error_message: str):
+        """Zgłasza błąd przez Discord"""
+        from luxdb.core.discord_being import being_discord_report_error
+        return await being_discord_report_error(self, error_message)
+    
+    async def discord_suggest(self, suggestion: str):
+        """Wysyła sugestię przez Discord"""
+        from luxdb.core.discord_being import being_discord_suggest
+        return await being_discord_suggest(self, suggestion)
+    
+    async def discord_revolution_talk(self, message_content: str):
+        """Rozmawia o rewolucji przez Discord"""
+        from luxdb.core.discord_being import being_discord_revolution_talk
+        return await being_discord_revolution_talk(self, message_content)
+    
+    async def discord_status(self, status_message: str):
+        """Wysyła status przez Discord"""
+        from luxdb.core.discord_being import being_discord_status
+        return await being_discord_status(self, status_message)
+
     def __repr__(self):
-        return f"<Being {self.ulid} fields={self.to_dict()}>"
+        return f"<Being {self.ulid} data_keys={list(self.data.keys()) if self.data else []}>"
 
 @dataclass
 class Message(Being):
-    """Klasa reprezentująca wiadomość w systemie"""
-    source_uid: str = None  # UID źródła wiadomości
-    thread_uid: str = None  # UID wątku wiadomości
-    message: Dict[str, Any] = field(default_factory=dict)  # Treść wiadomości
+    """Klasa reprezentująca wiadomość w systemie JSONB"""
+    source_uid: str = None
+    thread_uid: str = None
+    message: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    async def create(cls, soul:Soul, source_uid: str, thread_uid: str, message: Dict[str, Any], limit: int = None) -> 'Message':
-        """Tworzy nową wiadomość"""
-        instance = cls()
+    async def create(cls, soul: Soul, source_uid: str, thread_uid: str, message: Dict[str, Any], limit: int = None) -> 'Message':
+        """Tworzy nową wiadomość w systemie JSONB"""
+        message_data = {
+            "source_uid": source_uid,
+            "thread_uid": thread_uid,
+            "message": message
+        }
+        
+        instance = await super().create(soul, message_data, limit)
         instance.source_uid = source_uid
         instance.thread_uid = thread_uid
         instance.message = message
-        instance._apply_genotype(soul.genotype)
-        instance.soul_hash = soul.soul_hash
-        instance.ulid = str(_ulid.ulid())
-
-        # Sprawdź limit tylko jeśli został podany
-        if limit is not None:
-            beings = await BeingRepository.load_all_by_soul_hash(soul.soul_hash)
-            if len(beings) >= limit:
-                raise ValueError(f"Limit of {limit} beings reached for soul {soul.soul_hash}")
-
-        await instance.save(soul)
         return instance
