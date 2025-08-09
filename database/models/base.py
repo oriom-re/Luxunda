@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass, field, make_dataclass, asdict
 import json
 from typing import Dict, Any, List, Optional, Callable
@@ -79,14 +78,14 @@ class Soul:
         """Waliduje dane względem genotypu"""
         errors = []
         attributes = self.genotype.get("attributes", {})
-        
+
         for attr_name, attr_meta in attributes.items():
             required = attr_meta.get("required", False)
             py_type = attr_meta.get("py_type", "str")
-            
+
             if required and attr_name not in data:
                 errors.append(f"Required attribute '{attr_name}' is missing")
-            
+
             if attr_name in data:
                 value = data[attr_name]
                 # Podstawowa walidacja typów
@@ -97,7 +96,7 @@ class Soul:
                 expected_type = type_map.get(py_type, str)
                 if value is not None and not isinstance(value, expected_type):
                     errors.append(f"Attribute '{attr_name}' should be of type {py_type}")
-        
+
         return errors
 
     def to_dict(self) -> Dict[str, Any]:
@@ -138,7 +137,7 @@ class Being:
     @classmethod
     async def create(cls, soul: 'Soul', data: Dict[str, Any], limit: int = None) -> 'Being':
         """Tworzy nowy byt na podstawie genotypu i danych w podejściu JSONB"""
-        
+
         # Walidacja danych względem genotypu
         errors = soul.validate_data(data)
         if errors:
@@ -244,7 +243,7 @@ class Being:
     def to_dict(self) -> Dict[str, Any]:
         """Konwertuje Being do słownika z uwzględnieniem _soul dla frontend"""
         result = asdict(self)
-        
+
         # Dodaj pole _soul dla kompatybilności z frontendem
         if hasattr(self, 'soul_hash') and self.soul_hash:
             result['_soul'] = {
@@ -253,7 +252,7 @@ class Being:
                 'alias': self.alias,
                 'genotype': self.genotype
             }
-        
+
         return result
 
     # Discord integration methods
@@ -261,17 +260,17 @@ class Being:
         """Zgłasza błąd przez Discord"""
         from luxdb.core.discord_being import being_discord_report_error
         return await being_discord_report_error(self, error_message)
-    
+
     async def discord_suggest(self, suggestion: str):
         """Wysyła sugestię przez Discord"""
         from luxdb.core.discord_being import being_discord_suggest
         return await being_discord_suggest(self, suggestion)
-    
+
     async def discord_revolution_talk(self, message_content: str):
         """Rozmawia o rewolucji przez Discord"""
         from luxdb.core.discord_being import being_discord_revolution_talk
         return await being_discord_revolution_talk(self, message_content)
-    
+
     async def discord_status(self, status_message: str):
         """Wysyła status przez Discord"""
         from luxdb.core.discord_being import being_discord_status
@@ -295,7 +294,7 @@ class Message(Being):
             "thread_uid": thread_uid,
             "message": message
         }
-        
+
         instance = await super().create(soul, message_data, limit)
         instance.source_uid = source_uid
         instance.thread_uid = thread_uid

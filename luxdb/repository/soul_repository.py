@@ -3,300 +3,245 @@
 🗄️ Soul Repository - Tylko nowoczesny JSONB, bez legacy
 """
 
+from typing import Dict, Any, Optional, List
 import json
-from typing import Dict, Any, List, Optional
-from datetime import datetime
 from database.postgre_db import Postgre_db
+from core.globals import Globals
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from database.models.base import Being
+    from database.models.base import Soul
 
-# Eksportuj tylko BeingRepository
-__all__ = ['BeingRepository']
+def get_soul_class():
+    from database.models.base import Soul
+    return Soul
 
 def get_being_class():
-    """Importuje klasę Being aby uniknąć circular imports"""
-    from ..models.being import Being
+    from database.models.base import Being
     return Being
 
-class BeingRepository:
-    """
-    Nowoczesne repozytorium używające tylko JSONB
-    Bez dynamicznych tabel i legacy systemów
-    """
+class SoulRepository:
+    """Repository for Soul operations"""
 
     @staticmethod
-    async def save_jsonb(being: 'Being') -> dict:
-        """Zapisuje being używając podejścia JSONB"""
+    async def create_soul(genotype: Dict[str, Any], alias: str = None) -> 'Soul':
+        """Create a new soul"""
+        Soul = get_soul_class()
+        soul = Soul(genotype=genotype, alias=alias)
+        await soul.save()
+        return soul
+
+    @staticmethod
+    async def get_soul_by_hash(soul_hash: str) -> Optional['Soul']:
+        """Get soul by hash"""
+        Soul = get_soul_class()
+        return await Soul.load_by_hash(soul_hash)
+
+    @staticmethod
+    async def get_all_souls(limit: int = 100) -> Dict[str, Any]:
+        """Get all souls"""
         try:
             pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False, "error": "No database connection"}
-
             async with pool.acquire() as conn:
-                if being.ulid:
-                    # Update istniejącego
-                    query = """
-                        UPDATE beings 
-                        SET 
-                            soul_hash = $2,
-                            alias = $3,
-                            data = $4,
-                            vector_embedding = $5,
-                            table_type = $6,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE ulid = $1
-                        RETURNING ulid, created_at, updated_at
-                    """
-                    row = await conn.fetchrow(
-                        query,
-                        being.ulid,
-                        being.soul_hash,
-                        being.alias,
-                        json.dumps(being.data) if being.data else '{}',
-                        being.vector_embedding,
-                        being.table_type or 'being'
+                rows = await conn.fetch(
+                    "SELECT * FROM souls ORDER BY created_at DESC LIMIT $1",
+                    limit
+                )
+
+                Soul = get_soul_class()
+                souls = []
+                for row in rows:
+                    soul = Soul(
+                        genotype=row['genotype'],
+                        alias=row['alias'],
+                        soul_hash=row['soul_hash'],
+                        global_ulid=row['global_ulid']
                     )
-                else:
-                    # Insert nowego
-                    query = """
-                        INSERT INTO beings (soul_hash, alias, data, vector_embedding, table_type)
-                        VALUES ($1, $2, $3, $4, $5)
-                        RETURNING ulid, created_at, updated_at
-                    """
-                    row = await conn.fetchrow(
-                        query,
-                        being.soul_hash,
-                        being.alias,
-                        json.dumps(being.data) if being.data else '{}',
-                        being.vector_embedding,
-                        being.table_type or 'being'
-                    )
-
-                if row:
-                    return {
-                        "success": True,
-                        "ulid": row['ulid'],
-                        "created_at": row['created_at'],
-                        "updated_at": row['updated_at']
-                    }
-                else:
-                    return {"success": False, "error": "Failed to save being"}
-
-        except Exception as e:
-            print(f"❌ Error saving being: {e}")
-            return {"success": False, "error": str(e)}
-
-    @staticmethod
-    async def load_by_ulid(ulid: str) -> dict:
-        """Ładuje being z bazy danych na podstawie ULID"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False, "error": "No database connection"}
-
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM beings WHERE ulid = $1
-                """
-                row = await conn.fetchrow(query, ulid)
-
-                if row:
-                    Being = get_being_class()
-                    being = Being()
-                    being.ulid = row['ulid']
-                    being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
-                    being.data = json.loads(row['data']) if row['data'] else {}
-                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
-                    being.table_type = row['table_type']
-                    being.created_at = row['created_at']
-                    being.updated_at = row['updated_at']
-
-                    return {"success": True, "beings": [being]}
-                else:
-                    return {"success": False, "beings": []}
-
-        except Exception as e:
-            print(f"❌ Error loading being by ULID: {e}")
-            return {"success": False, "error": str(e)}
-
-    @staticmethod
-    async def load_all_by_soul_hash(soul_hash: str) -> dict:
-        """Ładuje wszystkie beings z danym soul_hash"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False, "error": "No database connection"}
-
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM beings
-                    WHERE soul_hash = $1
-                    ORDER BY created_at DESC
-                """
-                rows = await conn.fetch(query, soul_hash)
-
-                Being = get_being_class()
-                beings: List['Being'] = []
-
-                for row in rows:
-                    being = Being()
-                    being.ulid = row['ulid']
-                    being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
-                    being.data = json.loads(row['data']) if row['data'] else {}
-                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
-                    being.table_type = row['table_type']
-                    being.created_at = row['created_at']
-                    being.updated_at = row['updated_at']
-                    beings.append(being)
-
-                return {"success": True, "beings": beings}
-
-        except Exception as e:
-            print(f"❌ Error loading beings by soul_hash: {e}")
-            return {"success": False, "error": str(e)}
-
-    @staticmethod
-    async def load_all_by_alias(alias: str) -> dict:
-        """Ładuje beings z bazy danych na podstawie aliasu"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False, "error": "No database connection"}
-
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM beings
-                    WHERE alias = $1
-                    ORDER BY created_at DESC
-                """
-                rows = await conn.fetch(query, alias)
-                Being = get_being_class()
-                beings: List['Being'] = []
-                for row in rows:
-                    being = Being()
-                    being.ulid = row['ulid']
-                    being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
-                    being.data = json.loads(row['data']) if row['data'] else {}
-                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
-                    being.created_at = row['created_at']
-                    being.updated_at = row['updated_at']
-                    beings.append(being)
-            return {"success": True, "beings": beings}
-        except Exception as e:
-            print(f"❌ Error loading beings by alias: {e}")
-            return {"success": False, "error": str(e)}
-
-    @staticmethod
-    async def find_similar_beings(embedding: List[float], threshold: float = 0.8, limit: int = 10) -> List['Being']:
-        """Znajduje podobne beings na podstawie embedingu wektorowego"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                print("❌ No database connection")
-                return []
-
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT *, vector_embedding <-> $1 as distance
-                    FROM beings 
-                    WHERE vector_embedding IS NOT NULL 
-                    AND vector_embedding <-> $1 < $2
-                    ORDER BY vector_embedding <-> $1
-                    LIMIT $3
-                """
-
-                rows = await conn.fetch(query, embedding, 1 - threshold, limit)
-                Being = get_being_class()
-                beings = []
-
-                for row in rows:
-                    being = Being()
-                    being.ulid = row['ulid']
-                    being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
-                    being.data = json.loads(row['data']) if row['data'] else {}
-                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
-                    being.created_at = row['created_at']
-                    being.updated_at = row['updated_at']
-                    beings.append(being)
-
-                return beings
-
-        except Exception as e:
-            print(f"❌ Error finding similar beings: {e}")
-            return []
-
-    @staticmethod
-    async def delete_being(ulid: str) -> dict:
-        """Usuwa being z bazy danych"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False, "error": "No database connection"}
-
-            async with pool.acquire() as conn:
-                query = "DELETE FROM beings WHERE ulid = $1"
-                result = await conn.execute(query, ulid)
+                    soul.created_at = row['created_at']
+                    souls.append(soul)
 
                 return {
-                    "success": True,
-                    "deleted": result == "DELETE 1"
+                    'success': True,
+                    'souls': souls,
+                    'count': len(souls)
                 }
-
         except Exception as e:
-            print(f"❌ Error deleting being: {e}")
-            return {"success": False, "error": str(e)}
+            return {
+                'success': False,
+                'error': str(e),
+                'souls': [],
+                'count': 0
+            }
+
+class BeingRepository:
+    """Repository for Being operations"""
 
     @staticmethod
-    async def get_all_beings(limit: int = 100, offset: int = 0) -> dict:
-        """Pobiera wszystkie beings z paginacją"""
+    async def create_being(soul_hash: str, alias: str = None, data: Dict[str, Any] = None) -> 'Being':
+        """Create a new being"""
+        Being = get_being_class()
+        being = Being(soul_hash=soul_hash, alias=alias, data=data or {})
+        await being.save()
+        return being
+
+    @staticmethod
+    async def get_being_by_ulid(ulid: str) -> Optional['Being']:
+        """Get being by ULID"""
+        Being = get_being_class()
+        return await Being.load_by_ulid(ulid)
+
+    @staticmethod
+    async def get_all_beings(limit: int = 100) -> Dict[str, Any]:
+        """Get all beings"""
         try:
             pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False, "error": "No database connection"}
-
             async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM beings
-                    ORDER BY created_at DESC
-                    LIMIT $1 OFFSET $2
-                """
-                rows = await conn.fetch(query, limit, offset)
+                rows = await conn.fetch(
+                    "SELECT * FROM beings ORDER BY created_at DESC LIMIT $1",
+                    limit
+                )
 
                 Being = get_being_class()
-                beings: List['Being'] = []
-
+                beings = []
                 for row in rows:
-                    being = Being()
-                    being.ulid = row['ulid']
-                    being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
-                    being.data = json.loads(row['data']) if row['data'] else {}
-                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
-                    being.table_type = row['table_type']
+                    being = Being(
+                        soul_hash=row['soul_hash'],
+                        alias=row['alias'],
+                        data=row['data'] or {},
+                        ulid=row['ulid']
+                    )
                     being.created_at = row['created_at']
                     being.updated_at = row['updated_at']
                     beings.append(being)
 
-                return {"success": True, "beings": beings}
-
+                return {
+                    'success': True,
+                    'beings': beings,
+                    'count': len(beings)
+                }
         except Exception as e:
-            print(f"❌ Error getting all beings: {e}")
-            return {"success": False, "error": str(e)}
+            return {
+                'success': False,
+                'error': str(e),
+                'beings': [],
+                'count': 0
+            }
 
     @staticmethod
     async def count_beings() -> int:
-        """Zlicza wszystkie beings w bazie"""
+        """Count total beings"""
         try:
             pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return 0
-
             async with pool.acquire() as conn:
-                count = await conn.fetchval("SELECT COUNT(*) FROM beings")
-                return count or 0
-
+                result = await conn.fetchval("SELECT COUNT(*) FROM beings")
+                return result or 0
         except Exception as e:
-            print(f"❌ Error counting beings: {e}")
+            print(f"Error counting beings: {e}")
             return 0
+
+    @staticmethod
+    async def search_beings(query: str, limit: int = 50) -> Dict[str, Any]:
+        """Search beings by alias or data content"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT * FROM beings 
+                    WHERE alias ILIKE $1 
+                    OR data::text ILIKE $1
+                    ORDER BY created_at DESC 
+                    LIMIT $2
+                """, f"%{query}%", limit)
+
+                Being = get_being_class()
+                beings = []
+                for row in rows:
+                    being = Being(
+                        soul_hash=row['soul_hash'],
+                        alias=row['alias'],
+                        data=row['data'] or {},
+                        ulid=row['ulid']
+                    )
+                    being.created_at = row['created_at']
+                    being.updated_at = row['updated_at']
+                    beings.append(being)
+
+                return {
+                    'success': True,
+                    'beings': beings,
+                    'count': len(beings)
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'beings': [],
+                'count': 0
+            }
+
+class RelationshipRepository:
+    """Repository for Relationship operations"""
+
+    @staticmethod
+    async def create_relationship(source_ulid: str, target_ulid: str, 
+                                relation_type: str = 'connection', 
+                                strength: float = 1.0,
+                                metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Create a relationship between beings"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            async with pool.acquire() as conn:
+                relationship_id = await conn.fetchval("""
+                    INSERT INTO relationships 
+                    (source_ulid, target_ulid, source_id, target_id, relation_type, strength, metadata)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    RETURNING id
+                """, source_ulid, target_ulid, source_ulid, target_ulid, 
+                    relation_type, strength, json.dumps(metadata or {}))
+
+                return {
+                    'success': True,
+                    'relationship_id': str(relationship_id)
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    @staticmethod
+    async def get_relationships_for_being(ulid: str) -> Dict[str, Any]:
+        """Get all relationships for a being"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT * FROM relationships 
+                    WHERE source_ulid = $1 OR target_ulid = $1
+                    ORDER BY created_at DESC
+                """, ulid)
+
+                relationships = []
+                for row in rows:
+                    relationships.append({
+                        'id': str(row['id']),
+                        'source_ulid': row['source_ulid'],
+                        'target_ulid': row['target_ulid'],
+                        'relation_type': row['relation_type'],
+                        'strength': row['strength'],
+                        'metadata': row['metadata'],
+                        'created_at': row['created_at'].isoformat() if row['created_at'] else None
+                    })
+
+                return {
+                    'success': True,
+                    'relationships': relationships,
+                    'count': len(relationships)
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'relationships': [],
+                'count': 0
+            }
