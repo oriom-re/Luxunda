@@ -166,16 +166,16 @@ class ScenarioLoader:
         
         # Utwórz Soul jeśli nie istnieje
         soul_alias = being_data.get("soul_alias", f"soul_{being_hash[:8]}")
-        soul = await Soul.get_by_alias(soul_alias)
+        soul = await Soul.get(alias=soul_alias)
 
         if not soul:
-            soul = await Soul.create(
+            soul = await Soul.set(
                 genotype=being_data.get("genotype", {}),
                 alias=soul_alias
             )
 
         # Utwórz Being
-        being = await Being.create(
+        being = await Being.set(
             soul=soul,  # Przekaż obiekt Soul
             data=being_data.get("attributes", {}),
             alias=being_data.get("alias", f"being_{being_hash[:8]}"))
@@ -213,13 +213,13 @@ class ScenarioLoader:
                     }
 
                 # Utwórz Soul
-                soul = await Soul.create(genotype, being_data.get('alias', 'unknown'))
+                soul = await Soul.set(genotype, being_data.get('alias', 'unknown'))
 
                 # Przygotuj dane dla Being
                 attributes = being_data.get('attributes', {})
 
                 # Utwórz Being z obiektem Soul
-                being = await Being.create(
+                being = await Being.set(
                     soul=soul,  # Przekaż obiekt Soul
                     data=attributes,
                     alias=being_data.get('alias', f"being_{soul.soul_hash[:8]}"))
