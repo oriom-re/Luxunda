@@ -180,7 +180,7 @@ class LuxOSUnifiedSystem:
                 result = await BeingRepository.get_all_beings(limit=5)
                 if result.get('success') and result.get('beings'):
                     self.log("INFO", "Ostatnie byty:", "STATUS")
-                    for being in result['beings'][:5]:
+                    for being in result['beings']:
                         being_type = being.get_data('type', 'unknown')
                         self.log("INFO", f"  - {being.alias or being.ulid[:8]}: {being_type}", "STATUS")
 
@@ -268,6 +268,28 @@ class LuxOSUnifiedSystem:
             admin_success = await self.initialize_admin_kernel()
             server_success = self.start_admin_server()
 
+        # Initialize Authentication System
+        self.log("INFO", "AUTH", "Inicjalizacja Authentication Manager...")
+        try:
+            from luxdb.core.auth_session import auth_manager
+            await auth_manager.initialize()
+            self.log("SUCCESS", "AUTH", "Authentication Manager zainicjalizowany")
+        except Exception as e:
+            self.log("ERROR", "AUTH", f"Błąd inicjalizacji Authentication: {e}")
+            if not args.ignore_errors: # Assuming args is accessible here or passed as parameter
+                return False
+
+        # Initialize Communication System
+        self.log("INFO", "COMM", "Inicjalizacja Communication System...")
+        try:
+            from luxdb.core.communication_system import communication_system
+            await communication_system.initialize()
+            self.log("SUCCESS", "COMM", "Communication System zainicjalizowany")
+        except Exception as e:
+            self.log("ERROR", "COMM", f"Błąd inicjalizacji Communication: {e}")
+            if not args.ignore_errors: # Assuming args is accessible here or passed as parameter
+                return False
+
         # Podsumowanie
         active_count = sum(self.components_active.values())
         total_count = len(self.components_active)
@@ -292,6 +314,7 @@ async def main():
     parser.add_argument('--interactive', action='store_true', help='Tryb interaktywny')
     parser.add_argument('--status', action='store_true', help='Wyświetla status systemu')
     parser.add_argument('--wakeup', action='store_true', help='Pełne przebudzenie systemu (alias for --mode=full)')
+    parser.add_argument('--ignore-errors', action='store_true', help='Ignoruje błędy podczas uruchamiania') # Added for ignore_errors
 
     args = parser.parse_args()
 
