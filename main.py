@@ -276,8 +276,7 @@ class LuxOSUnifiedSystem:
             self.log("SUCCESS", "AUTH", "Authentication Manager zainicjalizowany")
         except Exception as e:
             self.log("ERROR", "AUTH", f"Błąd inicjalizacji Authentication: {e}")
-            if not args.ignore_errors: # Assuming args is accessible here or passed as parameter
-                return False
+            return False
 
         # Initialize Communication System
         self.log("INFO", "COMM", "Inicjalizacja Communication System...")
@@ -287,8 +286,7 @@ class LuxOSUnifiedSystem:
             self.log("SUCCESS", "COMM", "Communication System zainicjalizowany")
         except Exception as e:
             self.log("ERROR", "COMM", f"Błąd inicjalizacji Communication: {e}")
-            if not args.ignore_errors: # Assuming args is accessible here or passed as parameter
-                return False
+            return False
 
         # Podsumowanie
         active_count = sum(self.components_active.values())

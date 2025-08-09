@@ -198,18 +198,16 @@ class BeingRepository:
                     being.soul_hash = row['soul_hash']
                     being.alias = row['alias']
                     being.data = row['data'] or {}
-                    being.vector_embedding = row['vector_embedding']
-                    being.table_type = row['table_type']
                     being.created_at = row['created_at']
                     being.updated_at = row['updated_at']
-                    return {"success": True, "beings": [being]}
+                    return {"success": True, "being": being}
             return {"success": False}
         except Exception as e:
             print(f"❌ Error getting being by ULID: {e}")
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    async def get_all_by_alias(alias: str) -> dict:
+    async def get_by_alias(alias: str) -> dict:
         """Pobiera wszystkie beings o danym aliasie"""
         try:
             pool = await Postgre_db.get_db_pool()
@@ -242,6 +240,11 @@ class BeingRepository:
         except Exception as e:
             print(f"❌ Error getting beings by alias: {e}")
             return {"success": False, "error": str(e), "beings": []}
+
+    @staticmethod
+    async def save(being: 'Being') -> dict:
+        """Alias for save_jsonb method"""
+        return await BeingRepository.save_jsonb(being)
 
     @staticmethod
     async def save_jsonb(being: 'Being') -> dict:
