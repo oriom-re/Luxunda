@@ -187,7 +187,7 @@ class BeingRepository:
             async with pool.acquire() as conn:
                 query = """
                     SELECT ulid, soul_hash, alias, data, created_at, updated_at
-                    FROM beings 
+                    FROM beings
                     WHERE ulid = $1
                 """
                 row = await conn.fetchrow(query, ulid)
