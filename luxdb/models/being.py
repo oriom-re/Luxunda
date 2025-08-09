@@ -230,3 +230,24 @@ class Being:
 
     def __str__(self) -> str:
         return f"Being({self.alias or self.ulid})"
+
+    # Discord integration methods
+    async def discord_report_error(self, error_message: str):
+        """Zgłasza błąd przez Discord"""
+        from luxdb.core.discord_being import being_discord_report_error
+        return await being_discord_report_error(self, error_message)
+
+    async def discord_suggest(self, suggestion: str):
+        """Wysyła sugestię przez Discord"""
+        from luxdb.core.discord_being import being_discord_suggest
+        return await being_discord_suggest(self, suggestion)
+
+    async def discord_revolution_talk(self, message_content: str):
+        """Rozmawia o rewolucji przez Discord"""
+        from luxdb.core.discord_being import being_discord_revolution_talk
+        return await being_discord_revolution_talk(self, message_content)
+
+    async def discord_status(self, status_message: str):
+        """Wysyła status przez Discord"""
+        from luxdb.core.discord_being import being_discord_status
+        return await being_discord_status(self, status_message)

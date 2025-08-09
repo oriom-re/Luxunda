@@ -21,23 +21,23 @@ class KernelBeing:
             "register_being": self._register_being,
             "get_system_status": self._get_system_status
         }
-    
+
     async def process_intention(self, intention):
         intention_type = intention.get('type')
         handler = self.intentions.get(intention_type)
         if handler:
             return await handler(intention)
         return {"status": "ok", "message": f"Handled {intention_type}"}
-    
+
     async def _register_being(self, intention):
         being_info = intention.get('being_info', {})
         being_id = being_info.get('ulid')
         self.registered_beings[being_id] = being_info
         return {"status": "success", "being_id": being_id}
-    
+
     async def _get_system_status(self, intention):
         return {
-            "status": "success", 
+            "status": "success",
             "active": self.active,
             "registered_beings": len(self.registered_beings)
         }
@@ -100,7 +100,7 @@ class ScenarioLoader:
 
         # Sortuj według load_order
         beings_to_load = sorted(
-            scenario_data["beings"], 
+            scenario_data["beings"],
             key=lambda x: x["load_order"]
         )
 
@@ -165,7 +165,7 @@ class KernelSystem:
         self.load_sequence = [
             "kernel",
             "communication",
-            "database", 
+            "database",
             "platform",
             "agents",
             "presentation"
@@ -213,10 +213,10 @@ class KernelSystem:
         default_beings = [
             {
                 "alias": "kernel_core",
-                "soul_alias": "kernel_soul", 
+                "soul_alias": "kernel_soul",
                 "genotype": {
                     "genesis": {
-                        "name": "kernel_system", 
+                        "name": "kernel_system",
                         "type": "system_kernel",
                         "version": "1.0.0",
                         "description": "Główny kernel systemu LuxOS"
