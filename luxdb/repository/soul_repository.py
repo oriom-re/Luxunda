@@ -8,6 +8,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from database.postgre_db import Postgre_db
 
+# Eksportuj tylko BeingRepository
+__all__ = ['BeingRepository']
+
 def get_being_class():
     """Importuje klasę Being aby uniknąć circular imports"""
     from ..models.being import Being

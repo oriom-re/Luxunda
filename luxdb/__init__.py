@@ -1,4 +1,3 @@
-
 """
 LuxDB - Genetic Database Library
 ================================
@@ -23,7 +22,7 @@ Przykład użycia:
             database='luxdb'
         )
         await db.initialize()
-        
+
         # Definicja genotypu
         genotype = {
             "genesis": {"name": "user", "version": "1.0"},
@@ -33,7 +32,7 @@ Przykład użycia:
                 "age": {"py_type": "int"}
             }
         }
-        
+
         # Utworzenie soul i being
         soul = await Soul.create(genotype, alias="user")
         being = await Being.create(soul, {
@@ -41,7 +40,7 @@ Przykład użycia:
             "email": "jan@example.com", 
             "age": 30
         })
-        
+
         print(f"Utworzono: {being.ulid}")
 
     asyncio.run(main())
@@ -68,14 +67,14 @@ __all__ = [
     "Soul", 
     "Being",
     "Relationship",
-    
+
     # Types
     "GenotypeDef",
     "AttributeDef",
-    
+
     # Utilities
     "validate_genotype",
-    
+
     # Meta
     "__version__",
     "__author__",
