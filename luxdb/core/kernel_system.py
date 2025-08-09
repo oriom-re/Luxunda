@@ -52,9 +52,31 @@ class ScenarioLoader:
         self.being_hashes = {}
 
     def create_being_hash(self, being_data: Dict[str, Any]) -> str:
-        """Tworzy hash dla bytu"""
-        content = json.dumps(being_data, sort_keys=True)
+        """Tworzy hash dla bytu z automatyczną detekcją serializacji"""
+        # Automatycznie konwertuj obiekty do JSON-serializable
+        serializable_data = self._make_json_serializable(being_data)
+        content = json.dumps(serializable_data, sort_keys=True)
         return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+    def _make_json_serializable(self, data: Any) -> Any:
+        """Automatycznie wykrywa i konwertuje dane do JSON-serializable"""
+        if hasattr(data, 'to_json_serializable'):
+            return data.to_json_serializable()
+        elif hasattr(data, 'to_dict'):
+            return data.to_dict()
+        elif hasattr(data, '__json__'):
+            return data.__json__()
+        elif isinstance(data, dict):
+            return {k: self._make_json_serializable(v) for k, v in data.items()}
+        elif isinstance(data, (list, tuple)):
+            return [self._make_json_serializable(item) for item in data]
+        elif isinstance(data, datetime):
+            return data.isoformat()
+        elif hasattr(data, '__dict__'):
+            # Obiekt z atrybutami - konwertuj na słownik
+            return {k: self._make_json_serializable(v) for k, v in data.__dict__.items() if not k.startswith('_')}
+        else:
+            return data
 
     async def save_scenario(self, scenario_name: str, beings: List[Dict[str, Any]]) -> str:
         """Zapisuje scenariusz z hashami bytów"""
@@ -72,15 +94,17 @@ class ScenarioLoader:
                 "dependencies": being_data.get("dependencies", [])
             })
 
-            # Zapisz byt pod hashiem
+            # Zapisz byt pod hashiem z automatyczną serializacją
             being_file = self.scenarios_path / f"{being_hash}.json"
+            serializable_data = self._make_json_serializable(being_data)
             with open(being_file, 'w') as f:
-                json.dump(being_data, f, indent=2)
+                json.dump(serializable_data, f, indent=2)
 
-        # Zapisz scenariusz
+        # Zapisz scenariusz z automatyczną serializacją
         scenario_file = self.scenarios_path / f"{scenario_name}.scenario"
+        serializable_scenario = self._make_json_serializable(scenario_data)
         with open(scenario_file, 'w') as f:
-            json.dump(scenario_data, f, indent=2)
+            json.dump(serializable_scenario, f, indent=2)
 
         scenario_hash = self.create_being_hash(scenario_data)
         print(f"💾 Zapisano scenariusz: {scenario_name} (hash: {scenario_hash})")

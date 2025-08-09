@@ -198,5 +198,42 @@ class Soul:
 
         return errors
 
+    async def get_hash(self) -> str:
+        """Zwraca hash Soul"""
+        return self.soul_hash
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Konwertuje Soul do słownika dla serializacji"""
+        return {
+            'soul_hash': self.soul_hash,
+            'global_ulid': self.global_ulid,
+            'alias': self.alias,
+            'genotype': self.genotype,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+    def to_json_serializable(self) -> Dict[str, Any]:
+        """Automatycznie wykrywa i konwertuje strukturę do JSON-serializable"""
+        return self.to_dict()
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Soul':
+        """Tworzy Soul z słownika"""
+        soul = cls()
+        soul.soul_hash = data.get('soul_hash')
+        soul.global_ulid = data.get('global_ulid', Globals.GLOBAL_ULID)
+        soul.alias = data.get('alias')
+        soul.genotype = data.get('genotype', {})
+        if data.get('created_at'):
+            if isinstance(data['created_at'], str):
+                soul.created_at = datetime.fromisoformat(data['created_at'])
+            else:
+                soul.created_at = data['created_at']
+        return soul
+
+    def __json__(self):
+        """Protokół dla automatycznej serializacji JSON"""
+        return self.to_dict()
+
     def __repr__(self):
         return f"Soul(hash={self.soul_hash[:8]}..., alias={self.alias})"

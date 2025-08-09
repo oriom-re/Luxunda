@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 🧬 Being Model - Nowoczesny model JSONB bez legacy systemów
@@ -14,7 +13,7 @@ class Being:
     Nowoczesny Being Model używający tylko JSONB
     Bez legacy dynamicznych tabel i przestarzałych systemów
     """
-    
+
     def __init__(self):
         self.ulid: Optional[str] = None
         self.soul_hash: Optional[str] = None
@@ -51,39 +50,39 @@ class Being:
     async def create(cls, **kwargs) -> 'Being':
         """
         Tworzy nowy Being
-        
+
         Args:
             **kwargs: Dowolne atrybuty do zapisania w JSONB
-            
+
         Returns:
             Nowy Being
         """
         being = cls()
-        
+
         # Generuj ULID jeśli nie podano
         import ulid
         being.ulid = str(ulid.ulid())
-        
+
         # Ustaw podstawowe atrybuty
         being.alias = kwargs.pop('alias', None)
         being.soul_hash = kwargs.pop('soul_hash', None)
         being.table_type = kwargs.pop('table_type', 'being')
-        
+
         # Wszystko inne do data JSONB
         being.data.update(kwargs)
-        
+
         # Zapisz do bazy
         result = await BeingRepository.save_jsonb(being)
         if result.get('success'):
             being.created_at = result.get('created_at')
             being.updated_at = result.get('updated_at')
-            
+
         return being
 
     async def save(self) -> bool:
         """
         Zapisuje Being do bazy danych
-        
+
         Returns:
             True jeśli zapis się powiódł
         """
@@ -101,7 +100,7 @@ class Being:
         """
         if not self.ulid:
             return
-            
+
         result = await BeingRepository.load_by_ulid(self.ulid)
         if result.get('success') and result.get('beings'):
             being_data = result['beings'][0]
@@ -117,17 +116,17 @@ class Being:
     async def load_by_ulid(cls, ulid: str) -> Optional['Being']:
         """
         Ładuje Being na podstawie ULID
-        
+
         Args:
             ulid: ULID Being'a
-            
+
         Returns:
             Being lub None jeśli nie znaleziono
         """
         result = await BeingRepository.load_by_ulid(ulid)
         if not result.get('success') or not result.get('beings'):
             return None
-            
+
         being_data = result['beings'][0]
         being = cls()
         being.ulid = being_data.ulid
@@ -138,17 +137,17 @@ class Being:
         being.table_type = being_data.table_type
         being.created_at = being_data.created_at
         being.updated_at = being_data.updated_at
-        
+
         return being
 
     @classmethod
     async def load_by_alias(cls, alias: str) -> List['Being']:
         """
         Ładuje wszystkie Being o danym aliasie
-        
+
         Args:
             alias: Alias do wyszukania
-            
+
         Returns:
             Lista Being o podanym aliasie
         """
@@ -160,12 +159,12 @@ class Being:
     async def find_similar(cls, embedding: List[float], threshold: float = 0.8, limit: int = 10) -> List['Being']:
         """
         Znajduje podobne Being na podstawie embedingu
-        
+
         Args:
             embedding: Wektor do porównania
             threshold: Próg podobieństwa
             limit: Maksymalna liczba wyników
-            
+
         Returns:
             Lista podobnych Being
         """
@@ -175,7 +174,7 @@ class Being:
     def set_data(self, key: str, value: Any) -> None:
         """
         Ustawia wartość w data JSONB
-        
+
         Args:
             key: Klucz
             value: Wartość
@@ -185,11 +184,11 @@ class Being:
     def get_data(self, key: str, default: Any = None) -> Any:
         """
         Pobiera wartość z data JSONB
-        
+
         Args:
             key: Klucz
             default: Wartość domyślna
-            
+
         Returns:
             Wartość lub default
         """
@@ -198,22 +197,17 @@ class Being:
     def has_data(self, key: str) -> bool:
         """
         Sprawdza czy klucz istnieje w data JSONB
-        
+
         Args:
             key: Klucz do sprawdzenia
-            
+
         Returns:
             True jeśli klucz istnieje
         """
         return key in self.data
 
     def to_dict(self) -> Dict[str, Any]:
-        """
-        Konwertuje Being do słownika
-        
-        Returns:
-            Słownik z danymi Being
-        """
+        """Konwertuje Being do słownika dla serializacji"""
         return {
             'ulid': self.ulid,
             'soul_hash': self.soul_hash,
@@ -225,8 +219,50 @@ class Being:
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
+    def to_json_serializable(self) -> Dict[str, Any]:
+        """Automatycznie wykrywa i konwertuje strukturę do JSON-serializable"""
+        data = self.to_dict()
+
+        # Jeśli soul to obiekt, konwertuj go
+        if hasattr(self, '_soul_instance') and self._soul_instance:
+            if hasattr(self._soul_instance, 'to_json_serializable'):
+                data['soul'] = self._soul_instance.to_json_serializable()
+            elif hasattr(self._soul_instance, 'to_dict'):
+                data['soul'] = self._soul_instance.to_dict()
+
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Being':
+        """Tworzy Being z słownika"""
+        being = cls()
+        being.ulid = data.get('ulid')
+        being.soul_hash = data.get('soul_hash')
+        being.alias = data.get('alias')
+        being.data = data.get('data', {})
+        being.vector_embedding = data.get('vector_embedding')
+        being.table_type = data.get('table_type', 'being')
+
+        if data.get('created_at'):
+            if isinstance(data['created_at'], str):
+                being.created_at = datetime.fromisoformat(data['created_at'])
+            else:
+                being.created_at = data['created_at']
+
+        if data.get('updated_at'):
+            if isinstance(data['updated_at'], str):
+                being.updated_at = datetime.fromisoformat(data['updated_at'])
+            else:
+                being.updated_at = data['updated_at']
+
+        return being
+
+    def __json__(self):
+        """Protokół dla automatycznej serializacji JSON"""
+        return self.to_json_serializable()
+
     def __repr__(self) -> str:
-        return f"Being(ulid='{self.ulid}', alias='{self.alias}', data_keys={list(self.data.keys())})"
+        return f"Being(ulid={self.ulid[:8]}..., alias={self.alias})"
 
     def __str__(self) -> str:
         return f"Being({self.alias or self.ulid})"
