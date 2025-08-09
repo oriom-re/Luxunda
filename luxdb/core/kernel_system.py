@@ -146,13 +146,49 @@ class ScenarioLoader:
         being = await Being.create(
             soul=soul,
             attributes=being_data.get("attributes", {}),
-            alias=being_data.get("alias", f"being_{being_hash[:8]}")
-        )
+            alias=being_data.get("alias", f"being_{being_hash[:8]}"))
 
         self.loaded_beings[being_hash] = being
         self.being_hashes[being.ulid] = being_hash
 
         return being
+
+    async def _save_being_to_database(self, being_data):
+        """Zapisuje byt do bazy danych używając Being.create"""
+        try:
+            # Sprawdź czy to jest słownik z danymi
+            if isinstance(being_data, dict):
+                # Przygotuj genotype dla Soul
+                genotype = being_data.get('genotype', {})
+                if not genotype:
+                    # Domyślny genotype jeśli brak
+                    genotype = {
+                        "genesis": {
+                            "name": being_data.get('alias', 'unknown_being'),
+                            "version": "1.0"
+                        },
+                        "attributes": {
+                            "name": {"py_type": "str"},
+                            "type": {"py_type": "str"}
+                        }
+                    }
+
+                # Utwórz Soul
+                soul = await Soul.create(genotype, being_data.get('alias', 'unknown'))
+
+                # Przygotuj dane dla Being
+                attributes = being_data.get('attributes', being_data)
+
+                # Utwórz Being
+                being = await Being.create(soul, attributes)
+                return being
+            else:
+                print(f"❌ Error saving being: Invalid being_data type: {type(being_data)}")
+                return None
+        except Exception as e:
+            print(f"❌ Error saving being: {str(e)}")
+            return None
+
 
 class KernelSystem:
     """System Kernel zarządzający całym LuxOS"""

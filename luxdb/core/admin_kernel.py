@@ -324,10 +324,12 @@ Kernel działa sprawnie, wszystkie systemy są aktywne. W czym mogę pomóc?
         beings_data = []
 
         for ulid, being in kernel_system.beings_registry.items():
+            being_soul = await being.soul
+            soul_hash = await being_soul.get_hash() if being_soul else 'N/A'
             beings_data.append({
                 "ulid": ulid,
                 "alias": being.alias,
-                "soul_hash": getattr(being, 'soul_hash', 'unknown')[:8] + "..."
+                "soul_hash": soul_hash[:8] + "..." if soul_hash != 'N/A' else 'N/A'
             })
 
         return {
@@ -351,27 +353,44 @@ async def monitor_system_resources(being, context):
 async def manage_beings(being, context):
     """Zarządza bytami w systemie"""
     action = context.get("action")
-    target_being = context.get("target_being")
+    target_being_ulid = context.get("target_being")
 
     if action == "list":
         return {"beings": list(kernel_system.beings_registry.keys())}
     elif action == "status":
-        return {"status": f"Being {target_being} status"}
+        if target_being_ulid in kernel_system.beings_registry:
+            target_being = kernel_system.beings_registry[target_being_ulid]
+            return {"status": f"Being {target_being.alias} status: active"}
+        else:
+            return {"status": f"Being with ULID {target_being_ulid} not found"}
+    elif action == "remove":
+        if target_being_ulid in kernel_system.beings_registry:
+            del kernel_system.beings_registry[target_being_ulid]
+            return {"result": f"Being with ULID {target_being_ulid} removed"}
+        else:
+            return {"result": f"Being with ULID {target_being_ulid} not found"}
 
-    return {"result": f"Action {action} executed on {target_being}"}
+    return {"result": f"Action {action} on {target_being_ulid} processed"}
+
 
 async def execute_admin_command(being, context):
     """Wykonuje komendy administratorskie"""
     command = context.get("command")
-    return {"result": f"Executed: {command}"}
+    if command == "restart kernel":
+        await admin_kernel.initialize() # Restart the admin interface and Lux
+        return {"result": "Admin Kernel Interface and Lux restarted."}
+    return {"result": f"Executed admin command: {command}"}
 
 async def process_lux_message(being, context):
     """Przetwarza wiadomość dla Lux"""
     message = context.get("message", "")
-    return {"processed": True, "response_ready": True}
+    # This is a placeholder. In a real scenario, this would involve
+    # more complex processing or calling another gene.
+    return {"processed": True, "response_ready": True, "internal_response": f"Lux processed: '{message}'"}
 
 async def analyze_system_state(being, context):
     """Analizuje stan systemu"""
+    # This is a placeholder. It should ideally query the kernel_system.
     return {
         "system_health": "good",
         "recommendations": ["Monitor memory usage", "Check being connections"],
@@ -380,7 +399,9 @@ async def analyze_system_state(being, context):
 
 async def generate_lux_response(being, context):
     """Generuje odpowiedź Lux"""
+    # This is a placeholder. It should use context to generate a meaningful response.
+    response_text = context.get("internal_response", "Default Lux response.")
     return {
-        "response": "Generated response based on context",
+        "response": response_text,
         "confidence": 0.9
     }
