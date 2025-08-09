@@ -12,9 +12,11 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from .kernel_system import kernel_system
-from .primitive_beings import KernelBeing, LuxBeing
+from .primitive_beings import KernelBeing
 from ..models.soul import Soul
+
+# Import kernel_system - będzie zaimportowany dynamicznie
+kernel_system = None
 from ..models.being import Being
 
 logger = logging.getLogger(__name__)
@@ -39,6 +41,12 @@ class AdminKernelInterface:
     async def initialize(self):
         """Inicjalizuje Kernel i Lux Beings"""
         print("🚀 Inicjalizacja Admin Kernel Interface...")
+        
+        # Dynamiczny import kernel_system
+        global kernel_system
+        if kernel_system is None:
+            from .kernel_system import kernel_system as ks
+            kernel_system = ks
         
         # Inicjalizuj główny Kernel System
         await kernel_system.initialize("advanced")
