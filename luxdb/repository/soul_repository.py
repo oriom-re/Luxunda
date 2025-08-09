@@ -176,15 +176,22 @@ class BeingRepository:
 
                 # Determine table_type
                 table_type = 'being'
-                if hasattr(being, '_soul') and being._soul:
-                    soul_alias = getattr(being._soul, 'alias', None)
-                    genotype = getattr(being._soul, 'genotype', {})
-                    genesis_type = genotype.get('genesis', {}).get('type', None)
+                
+                # Spróbuj pobrać Soul dla określenia typu
+                try:
+                    soul = await being.get_soul() if hasattr(being, 'get_soul') else None
+                    if soul:
+                        soul_alias = getattr(soul, 'alias', None)
+                        genotype = getattr(soul, 'genotype', {})
+                        genesis_type = genotype.get('genesis', {}).get('type', None)
 
-                    if soul_alias in ['user_profile', 'ai_agent']:
-                        table_type = 'soul'
-                    elif genesis_type == 'relation' or soul_alias == 'basic_relation':
-                        table_type = 'relation'
+                        if soul_alias in ['user_profile', 'ai_agent']:
+                            table_type = 'soul'
+                        elif genesis_type == 'relation' or soul_alias == 'basic_relation':
+                            table_type = 'relation'
+                except Exception as e:
+                    print(f"⚠️ Nie można określić table_type dla Being {being.ulid}: {e}")
+                    # Zostaw domyślny 'being'
 
                 result = await conn.fetchrow(query,
                     being.ulid,

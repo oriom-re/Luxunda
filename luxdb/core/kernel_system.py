@@ -201,10 +201,17 @@ class ScenarioLoader:
                 soul = await Soul.create(genotype, being_data.get('alias', 'unknown'))
 
                 # Przygotuj dane dla Being
-                attributes = being_data.get('attributes', being_data)
+                attributes = being_data.get('attributes', {})
 
-                # Utwórz Being
-                being = await Being.create(soul, attributes)
+                # Utwórz Being z soul_hash
+                being = await Being.create(
+                    soul=soul.soul_hash,  # Przekaż soul_hash zamiast obiektu soul
+                    attributes=attributes,
+                    alias=being_data.get('alias', f"being_{soul.soul_hash[:8]}"))
+
+                # Zapisz obiekt soul w cache
+                being._soul_cache = soul
+
                 return being
             else:
                 print(f"❌ Error saving being: Invalid being_data type: {type(being_data)}")
