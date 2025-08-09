@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Import kluczowych komponentów
 from luxdb.core.admin_kernel import admin_kernel
 from luxdb.core.kernel_system import kernel_system
-from luxdb.core.primitive_beings import PrimitiveSystemOrchestrator
+# PrimitiveSystemOrchestrator został usunięty - używamy głównego systemu Soul/Being/Relationship
 
 class LuxOSBootstrap:
     """System przebudzenia LuxOS z pełnym logowaniem i monitoringiem"""
@@ -34,7 +34,7 @@ class LuxOSBootstrap:
         self.primitive_beings_active = False
         self.admin_server_process = None
         self.system_logs = []
-        self.orchestrator = PrimitiveSystemOrchestrator()
+        # Używamy głównego systemu Soul/Being/Relationship zamiast primitive beings
         
     def log(self, level: str, message: str, component: str = "BOOTSTRAP"):
         """Centralized logging system"""
@@ -82,25 +82,26 @@ class LuxOSBootstrap:
             self.log("ERROR", f"❌ Błąd inicjalizacji Kernel System: {e}", "KERNEL")
             return False
     
-    async def step_2_wake_up_primitive_beings(self) -> bool:
-        """Krok 2: Przebudzenie pierwotnych bytów"""
-        self.log("INFO", "🧠 KROK 2: Przebudzenie Primitive Beings System...", "PRIMITIVES")
+    async def step_2_wake_up_soul_being_system(self) -> bool:
+        """Krok 2: Przebudzenie głównego systemu Soul/Being/Relationship"""
+        self.log("INFO", "🧠 KROK 2: Przebudzenie Soul/Being/Relationship System...", "SOUL_SYSTEM")
         
         try:
-            # Inicjalizuj orkiestrator pierwotnych bytów
-            result = await self.orchestrator.initialize()
+            # Import głównych modeli
+            from luxdb.models.soul import Soul
+            from luxdb.models.being import Being
+            from luxdb.models.relationship import Relationship
             
-            self.log("SUCCESS", "✅ Primitive Beings System aktywny", "PRIMITIVES")
-            self.log("INFO", f"🔗 Kernel ULID: {result['beings']['kernel'][:8]}...", "PRIMITIVES")
-            self.log("INFO", f"💾 Database ULID: {result['beings']['database'][:8]}...", "PRIMITIVES")
-            self.log("INFO", f"📡 Communication ULID: {result['beings']['communication'][:8]}...", "PRIMITIVES")
-            self.log("INFO", f"📨 Dispatcher ULID: {result['beings']['dispatcher'][:8]}...", "PRIMITIVES")
+            self.log("SUCCESS", "✅ Soul/Being/Relationship System aktywny", "SOUL_SYSTEM")
+            self.log("INFO", "🧬 Soul: genotypy dostępne", "SOUL_SYSTEM")
+            self.log("INFO", "🤖 Being: instancje danych dostępne", "SOUL_SYSTEM")
+            self.log("INFO", "🔗 Relationship: relacje dostępne", "SOUL_SYSTEM")
             
             self.primitive_beings_active = True
             return True
             
         except Exception as e:
-            self.log("ERROR", f"❌ Błąd inicjalizacji Primitive Beings: {e}", "PRIMITIVES")
+            self.log("ERROR", f"❌ Błąd inicjalizacji Soul/Being System: {e}", "SOUL_SYSTEM")
             return False
     
     async def step_3_wake_up_admin_kernel(self) -> bool:
@@ -198,7 +199,7 @@ class LuxOSBootstrap:
         
         # Wykonaj wszystkie kroki sekwencyjnie
         step1_success = await self.step_1_wake_up_kernel_system()
-        step2_success = await self.step_2_wake_up_primitive_beings()
+        step2_success = await self.step_2_wake_up_soul_being_system()
         step3_success = await self.step_3_wake_up_admin_kernel()
         step4_success = self.start_admin_server_background()
         

@@ -10,7 +10,7 @@ from pathlib import Path
 # Dodaj główny katalog do ścieżki Python
 sys.path.insert(0, str(Path(__file__).parent))
 
-from luxos_bootstrap import wake_up_luxos, luxos_bootstrap, log_info, log_success, log_error
+from luxos_bootstrap import wake_up_luxos, luxos_bootstrap
 
 async def main():
     """Główna funkcja wake up"""
