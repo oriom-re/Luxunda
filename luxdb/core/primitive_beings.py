@@ -1,675 +1,291 @@
+#!/usr/bin/env python3
 """
-LuxDB Primitive Beings System
-============================
-
-System pierwotnych bytów - fundament żywej architektury.
+🧬 Primitive Beings - Podstawowe typy bytów używające tylko JSONB
 """
 
-import asyncio
 import json
-from typing import Dict, Any, List, Optional
+import asyncio
 from datetime import datetime
-import uuid
+from typing import Dict, Any, List, Optional
+from ..models.being import Being
 
-class PrimitiveBeing:
-    """Bazowa klasa dla pierwotnych bytów systemu"""
+class PrimitiveBeing(Being):
+    """
+    Bazowa klasa dla prymitywnych bytów
+    Używa tylko JSONB, bez legacy systemów
+    """
 
-    def __init__(self, being_type: str, ulid: str = None):
+    def __init__(self, being_type: str = "primitive"):
+        super().__init__()
         self.being_type = being_type
-        self.ulid = ulid or str(uuid.uuid4())
-        self.intentions = {}
-        self.relations = {}
-        self.active = False
-        self.created_at = datetime.now()
+        self.set_data('type', being_type)
+        self.set_data('created_timestamp', datetime.now().isoformat())
 
-    async def process_intention(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Przetwarza intencję skierowaną do bytu"""
-        intention_type = intention.get('type')
-        handler = self.intentions.get(intention_type)
+    async def initialize(self, **kwargs) -> None:
+        """Inicjalizuje byt z podanymi parametrami"""
+        for key, value in kwargs.items():
+            self.set_data(key, value)
+        await self.save()
 
-        if handler:
-            return await handler(intention)
-        else:
-            return {"status": "error", "message": f"Unknown intention: {intention_type}"}
-
-    async def create_relation(self, target_being: 'PrimitiveBeing', relation_type: str, data: Dict[str, Any] = None):
-        """Tworzy żywą relację z innym bytem"""
-        relation_id = str(uuid.uuid4())
-        relation = {
-            "id": relation_id,
-            "source": self.ulid,
-            "target": target_being.ulid,
-            "type": relation_type,
-            "data": data or {},
-            "status": "active",
-            "created_at": datetime.now(),
-            "history": []
-        }
-
-        self.relations[relation_id] = relation
-        return relation
-
-class DatabaseBeing(PrimitiveBeing):
-    """Byt bazy danych - żywy system przechowywania i zarządzania danymi"""
+class DataBeing(PrimitiveBeing):
+    """
+    Byt do przechowywania i manipulacji danych
+    """
 
     def __init__(self):
-        super().__init__("database")
-        self.storage = {}
-        self.schemas = {}
-        self.connections = {}
+        super().__init__("data")
+        self.set_data('storage', {})
 
-        # Rejestracja intencji
-        self.intentions = {
-            "store_data": self._store_data,
-            "retrieve_data": self._retrieve_data,
-            "create_schema": self._create_schema,
-            "query_data": self._query_data,
-            "establish_connection": self._establish_connection
-        }
+    async def store_value(self, key: str, value: Any) -> None:
+        """Przechowuje wartość pod kluczem"""
+        storage = self.get_data('storage', {})
+        storage[key] = value
+        self.set_data('storage', storage)
+        self.set_data('last_updated', datetime.now().isoformat())
+        await self.save()
 
-    async def _store_data(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Przechowuje dane zgodnie z intencją"""
-        data = intention.get('data')
-        schema = intention.get('schema', 'default')
+    async def get_value(self, key: str, default: Any = None) -> Any:
+        """Pobiera wartość pod kluczem"""
+        storage = self.get_data('storage', {})
+        return storage.get(key, default)
 
-        if schema not in self.storage:
-            self.storage[schema] = []
+    async def has_key(self, key: str) -> bool:
+        """Sprawdza czy klucz istnieje"""
+        storage = self.get_data('storage', {})
+        return key in storage
 
-        entry_id = str(uuid.uuid4())
-        entry = {
-            "id": entry_id,
-            "data": data,
-            "stored_at": datetime.now(),
-            "intention_id": intention.get('id')
-        }
+    async def get_all_keys(self) -> List[str]:
+        """Pobiera wszystkie klucze"""
+        storage = self.get_data('storage', {})
+        return list(storage.keys())
 
-        self.storage[schema].append(entry)
-
-        return {
-            "status": "success",
-            "entry_id": entry_id,
-            "stored_in": schema
-        }
-
-    async def _retrieve_data(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Pobiera dane zgodnie z intencją"""
-        schema = intention.get('schema', 'default')
-        filters = intention.get('filters', {})
-
-        if schema not in self.storage:
-            return {"status": "error", "message": f"Schema {schema} not found"}
-
-        results = []
-        for entry in self.storage[schema]:
-            if self._matches_filters(entry['data'], filters):
-                results.append(entry)
-
-        return {
-            "status": "success",
-            "results": results,
-            "count": len(results)
-        }
-
-    async def _create_schema(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Tworzy nowy schemat danych"""
-        schema_name = intention.get('schema_name')
-        schema_def = intention.get('schema_definition')
-
-        self.schemas[schema_name] = {
-            "definition": schema_def,
-            "created_at": datetime.now(),
-            "creator": intention.get('creator')
-        }
-
-        if schema_name not in self.storage:
-            self.storage[schema_name] = []
-
-        return {
-            "status": "success",
-            "schema": schema_name,
-            "created": True
-        }
-
-    async def _query_data(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Wykonuje zaawansowane zapytania"""
-        query = intention.get('query')
-
-        # Tutaj można zaimplementować zaawansowany silnik zapytań
-        # Na razie prosty przykład
-        results = []
-        for schema_name, entries in self.storage.items():
-            for entry in entries:
-                if query.get('type') == 'all':
-                    results.append({
-                        "schema": schema_name,
-                        "entry": entry
-                    })
-
-        return {
-            "status": "success",
-            "results": results,
-            "query": query
-        }
-
-    async def _establish_connection(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Nawiązuje połączenie z bazą danych"""
-        connection_id = str(uuid.uuid4())
-        client_id = intention.get('client_id')
-
-        connection = {
-            "id": connection_id,
-            "client_id": client_id,
-            "established_at": datetime.now(),
-            "status": "active",
-            "queries_count": 0
-        }
-
-        self.connections[connection_id] = connection
-
-        return {
-            "status": "success",
-            "connection_id": connection_id,
-            "message": "Database connection established"
-        }
-
-    def _matches_filters(self, data: Dict[str, Any], filters: Dict[str, Any]) -> bool:
-        """Sprawdza czy dane pasują do filtrów"""
-        for key, value in filters.items():
-            if key not in data or data[key] != value:
-                return False
-        return True
-
-class CommunicationBeing(PrimitiveBeing):
-    """Byt komunikacyjny - zarządza wszystkimi formami komunikacji w systemie"""
+class FunctionBeing(PrimitiveBeing):
+    """
+    Byt reprezentujący funkcję
+    """
 
     def __init__(self):
-        super().__init__("communication")
-        self.channels = {}
-        self.active_connections = {}
-        self.message_history = []
+        super().__init__("function")
+        self.set_data('function_code', '')
+        self.set_data('function_name', '')
+        self.set_data('execution_count', 0)
 
-        self.intentions = {
-            "create_channel": self._create_channel,
-            "send_message": self._send_message,
-            "establish_socket": self._establish_socket,
-            "broadcast_message": self._broadcast_message,
-            "get_message_history": self._get_message_history
+    async def set_function(self, name: str, code: str) -> None:
+        """Ustawia kod funkcji"""
+        self.set_data('function_name', name)
+        self.set_data('function_code', code)
+        self.set_data('function_defined_at', datetime.now().isoformat())
+        await self.save()
+
+    async def execute(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Wykonuje funkcję (symulacja)
+        W prawdziwej implementacji można by dodać bezpieczny executor
+        """
+        execution_count = self.get_data('execution_count', 0)
+        self.set_data('execution_count', execution_count + 1)
+        self.set_data('last_execution', datetime.now().isoformat())
+
+        result = {
+            'success': True,
+            'function_name': self.get_data('function_name'),
+            'args': args,
+            'kwargs': kwargs,
+            'execution_time': datetime.now().isoformat(),
+            'message': f"Function {self.get_data('function_name')} executed successfully"
         }
 
-    async def _create_channel(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Tworzy nowy kanał komunikacyjny"""
-        channel_name = intention.get('channel_name')
-        channel_type = intention.get('channel_type', 'general')
+        await self.save()
+        return result
 
-        channel_id = str(uuid.uuid4())
-        channel = {
-            "id": channel_id,
-            "name": channel_name,
-            "type": channel_type,
-            "created_at": datetime.now(),
-            "participants": [],
-            "message_count": 0,
-            "status": "active"
-        }
-
-        self.channels[channel_id] = channel
-
-        return {
-            "status": "success",
-            "channel_id": channel_id,
-            "channel": channel
-        }
-
-    async def _send_message(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Wysyła wiadomość przez kanał"""
-        channel_id = intention.get('channel_id')
-        message = intention.get('message')
-        sender = intention.get('sender')
-
-        if channel_id not in self.channels:
-            return {"status": "error", "message": "Channel not found"}
-
-        message_id = str(uuid.uuid4())
-        message_entry = {
-            "id": message_id,
-            "channel_id": channel_id,
-            "sender": sender,
-            "content": message,
-            "sent_at": datetime.now(),
-            "type": "message"
-        }
-
-        self.message_history.append(message_entry)
-        self.channels[channel_id]["message_count"] += 1
-
-        return {
-            "status": "success",
-            "message_id": message_id,
-            "delivered": True
-        }
-
-    async def _establish_socket(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Nawiązuje połączenie socketowe"""
-        client_id = intention.get('client_id')
-        socket_type = intention.get('socket_type', 'websocket')
-
-        connection_id = str(uuid.uuid4())
-        connection = {
-            "id": connection_id,
-            "client_id": client_id,
-            "type": socket_type,
-            "established_at": datetime.now(),
-            "status": "connected",
-            "last_ping": datetime.now()
-        }
-
-        self.active_connections[connection_id] = connection
-
-        # Tworzymy relację connection_ws z danymi połączenia
-        await self.create_relation(
-            target_being=self,  # Self-relation dla socketów
-            relation_type="connection_ws",
-            data={
-                "connection_id": connection_id,
-                "status": "connected",
-                "client_info": intention.get('client_info', {})
-            }
-        )
-
-        return {
-            "status": "success",
-            "connection_id": connection_id,
-            "socket_established": True
-        }
-
-    async def _broadcast_message(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Rozsyła wiadomość do wszystkich połączonych klientów"""
-        message = intention.get('message')
-        sender = intention.get('sender', 'system')
-
-        broadcast_id = str(uuid.uuid4())
-        delivered_count = 0
-
-        for connection_id, connection in self.active_connections.items():
-            if connection['status'] == 'connected':
-                # Tutaj normalnie wysłalibyśmy przez socket
-                delivered_count += 1
-
-        broadcast_entry = {
-            "id": broadcast_id,
-            "message": message,
-            "sender": sender,
-            "delivered_to": delivered_count,
-            "broadcast_at": datetime.now()
-        }
-
-        self.message_history.append(broadcast_entry)
-
-        return {
-            "status": "success",
-            "broadcast_id": broadcast_id,
-            "delivered_count": delivered_count
-        }
-
-    async def _get_message_history(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Pobiera historię wiadomości"""
-        channel_id = intention.get('channel_id')
-        limit = intention.get('limit', 50)
-
-        if channel_id:
-            messages = [msg for msg in self.message_history if msg.get('channel_id') == channel_id]
-        else:
-            messages = self.message_history
-
-        # Sortuj według daty i ogranicz
-        messages = sorted(messages, key=lambda x: x.get('sent_at', x.get('broadcast_at')), reverse=True)[:limit]
-
-        return {
-            "status": "success",
-            "messages": messages,
-            "count": len(messages)
-        }
-
-class KernelBeing(PrimitiveBeing):
-    """Byt jądra - zarządza całym systemem i koordynuje działanie innych bytów"""
+class MessageBeing(PrimitiveBeing):
+    """
+    Byt reprezentujący wiadomość
+    """
 
     def __init__(self):
-        super().__init__("kernel")
-        self.registered_beings = {}
-        self.system_state = "initializing"
-        self.task_queue = []
-        self.performance_metrics = {}
+        super().__init__("message")
+        self.set_data('content', '')
+        self.set_data('sender', '')
+        self.set_data('metadata', {})
 
-        self.intentions = {
-            "register_being": self._register_being,
-            "execute_system_task": self._execute_system_task,
-            "get_system_status": self._get_system_status,
-            "coordinate_beings": self._coordinate_beings,
-            "shutdown_system": self._shutdown_system
-        }
+    async def set_message(self, content: str, sender: str = '', **metadata) -> None:
+        """Ustawia treść wiadomości"""
+        self.set_data('content', content)
+        self.set_data('sender', sender)
+        self.set_data('sent_at', datetime.now().isoformat())
 
-    async def _register_being(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Rejestruje nowy byt w systemie"""
-        being_info = intention.get('being_info')
-        being_id = being_info.get('ulid')
+        current_metadata = self.get_data('metadata', {})
+        current_metadata.update(metadata)
+        self.set_data('metadata', current_metadata)
 
-        self.registered_beings[being_id] = {
-            "info": being_info,
-            "registered_at": datetime.now(),
-            "status": "active",
-            "last_heartbeat": datetime.now()
-        }
+        await self.save()
 
-        return {
-            "status": "success",
-            "being_id": being_id,
-            "registered": True
-        }
+    async def get_content(self) -> str:
+        """Pobiera treść wiadomości"""
+        return self.get_data('content', '')
 
-    async def _execute_system_task(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Wykonuje zadanie systemowe"""
-        task = intention.get('task')
-        priority = intention.get('priority', 1)
+    async def get_sender(self) -> str:
+        """Pobiera nadawcę wiadomości"""
+        return self.get_data('sender', '')
 
-        task_id = str(uuid.uuid4())
-        task_entry = {
-            "id": task_id,
-            "task": task,
-            "priority": priority,
-            "created_at": datetime.now(),
-            "status": "queued"
-        }
-
-        self.task_queue.append(task_entry)
-        self.task_queue.sort(key=lambda x: x['priority'], reverse=True)
-
-        return {
-            "status": "success",
-            "task_id": task_id,
-            "queued": True
-        }
-
-    async def _get_system_status(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Zwraca status całego systemu"""
-        return {
-            "status": "success",
-            "system_state": self.system_state,
-            "registered_beings": len(self.registered_beings),
-            "active_tasks": len([t for t in self.task_queue if t['status'] == 'running']),
-            "queued_tasks": len([t for t in self.task_queue if t['status'] == 'queued']),
-            "uptime": (datetime.now() - self.created_at).total_seconds(),
-            "beings": list(self.registered_beings.keys())
-        }
-
-    async def _coordinate_beings(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Koordynuje działanie między bytami"""
-        coordination_type = intention.get('coordination_type')
-        beings = intention.get('beings', [])
-
-        coordination_id = str(uuid.uuid4())
-        coordination = {
-            "id": coordination_id,
-            "type": coordination_type,
-            "beings": beings,
-            "initiated_at": datetime.now(),
-            "status": "coordinating"
-        }
-
-        # Tutaj logika koordynacji między bytami
-
-        return {
-            "status": "success",
-            "coordination_id": coordination_id,
-            "coordinating": True
-        }
-
-    async def _shutdown_system(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Wyłącza system w kontrolowany sposób"""
-        shutdown_reason = intention.get('reason', 'manual')
-
-        self.system_state = "shutting_down"
-
-        # Powiadom wszystkie byty o wyłączeniu
-        for being_id in self.registered_beings:
-            # Wyślij intencję shutdown do każdego bytu
-            pass
-
-        return {
-            "status": "success",
-            "message": "System shutdown initiated",
-            "reason": shutdown_reason
-        }
-
-class DispatcherBeing(PrimitiveBeing):
-    """Dispatcher - inteligentnie kieruje powiadomienia tylko do zainteresowanych bytów"""
+class TaskBeing(PrimitiveBeing):
+    """
+    Byt reprezentujący zadanie
+    """
 
     def __init__(self):
-        super().__init__("dispatcher")
-        self.subscriptions = {}  # {relation_type: [being_ulids]}
-        self.being_interests = {}  # {being_ulid: [relation_types]}
-        self.notification_queue = []
+        super().__init__("task")
+        self.set_data('task_name', '')
+        self.set_data('task_description', '')
+        self.set_data('status', 'pending')  # pending, running, completed, failed
+        self.set_data('progress', 0)
+        self.set_data('results', {})
 
-        self.intentions = {
-            "subscribe_to_relation": self._subscribe_to_relation,
-            "unsubscribe_from_relation": self._unsubscribe_from_relation,
-            "dispatch_notification": self._dispatch_notification,
-            "get_subscribers": self._get_subscribers,
-            "process_queue": self._process_queue
-        }
+    async def create_task(self, name: str, description: str = '') -> None:
+        """Tworzy nowe zadanie"""
+        self.set_data('task_name', name)
+        self.set_data('task_description', description)
+        self.set_data('created_at', datetime.now().isoformat())
+        self.set_data('status', 'pending')
+        await self.save()
 
-    async def _subscribe_to_relation(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Rejestruje byt do otrzymywania powiadomień o określonym typie relacji"""
-        being_ulid = intention.get('being_ulid')
-        relation_type = intention.get('relation_type')
+    async def start_task(self) -> None:
+        """Rozpoczyna wykonanie zadania"""
+        self.set_data('status', 'running')
+        self.set_data('started_at', datetime.now().isoformat())
+        await self.save()
 
-        if relation_type not in self.subscriptions:
-            self.subscriptions[relation_type] = []
+    async def update_progress(self, progress: int) -> None:
+        """Aktualizuje postęp zadania"""
+        self.set_data('progress', max(0, min(100, progress)))
+        self.set_data('last_progress_update', datetime.now().isoformat())
+        await self.save()
 
-        if being_ulid not in self.subscriptions[relation_type]:
-            self.subscriptions[relation_type].append(being_ulid)
+    async def complete_task(self, results: Dict[str, Any] = None) -> None:
+        """Kończy zadanie jako zakończone"""
+        self.set_data('status', 'completed')
+        self.set_data('completed_at', datetime.now().isoformat())
+        self.set_data('progress', 100)
 
-        if being_ulid not in self.being_interests:
-            self.being_interests[being_ulid] = []
+        if results:
+            self.set_data('results', results)
 
-        if relation_type not in self.being_interests[being_ulid]:
-            self.being_interests[being_ulid].append(relation_type)
+        await self.save()
 
-        return {
-            "status": "success",
-            "message": f"Being {being_ulid} subscribed to {relation_type}",
-            "subscribers_count": len(self.subscriptions[relation_type])
-        }
+    async def fail_task(self, error: str = '') -> None:
+        """Kończy zadanie jako nieudane"""
+        self.set_data('status', 'failed')
+        self.set_data('failed_at', datetime.now().isoformat())
+        self.set_data('error', error)
+        await self.save()
 
-    async def _unsubscribe_from_relation(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Wypisuje byt z powiadomień"""
-        being_ulid = intention.get('being_ulid')
-        relation_type = intention.get('relation_type')
-
-        if relation_type in self.subscriptions and being_ulid in self.subscriptions[relation_type]:
-            self.subscriptions[relation_type].remove(being_ulid)
-
-        if being_ulid in self.being_interests and relation_type in self.being_interests[being_ulid]:
-            self.being_interests[being_ulid].remove(relation_type)
-
-        return {
-            "status": "success",
-            "message": f"Being {being_ulid} unsubscribed from {relation_type}"
-        }
-
-    async def _dispatch_notification(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Wysyła powiadomienie tylko do zainteresowanych bytów"""
-        relation_type = intention.get('relation_type')
-        notification_data = intention.get('notification_data')
-        source_being = intention.get('source_being')
-
-        subscribers = self.subscriptions.get(relation_type, [])
-        dispatched_count = 0
-
-        notification = {
-            "id": str(uuid.uuid4()),
-            "relation_type": relation_type,
-            "data": notification_data,
-            "source_being": source_being,
-            "timestamp": datetime.now(),
-            "dispatched_to": []
-        }
-
-        for subscriber_ulid in subscribers:
-            # Tutaj normalnie wysłalibyśmy do konkretnego bytu
-            notification["dispatched_to"].append(subscriber_ulid)
-            dispatched_count += 1
-
-        self.notification_queue.append(notification)
-
-        return {
-            "status": "success",
-            "notification_id": notification["id"],
-            "dispatched_count": dispatched_count,
-            "subscribers": subscribers
-        }
-
-    async def _get_subscribers(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Zwraca listę subskrybentów dla danego typu relacji"""
-        relation_type = intention.get('relation_type')
-
-        return {
-            "status": "success",
-            "relation_type": relation_type,
-            "subscribers": self.subscriptions.get(relation_type, []),
-            "total_subscribers": len(self.subscriptions.get(relation_type, []))
-        }
-
-    async def _process_queue(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Przetwarza kolejkę powiadomień"""
-        processed = len(self.notification_queue)
-
-        # Tutaj normalnie wysłalibyśmy wszystkie powiadomienia
-        self.notification_queue.clear()
-
-        return {
-            "status": "success",
-            "processed_notifications": processed
-        }
-
-# System Orchestrator - łączy wszystkie pierwotne byty
-class PrimitiveSystemOrchestrator:
-    """Orkiestrator systemu pierwotnych bytów"""
+class ComponentBeing(PrimitiveBeing):
+    """
+    Byt reprezentujący komponent interfejsu
+    """
 
     def __init__(self):
-        self.kernel = KernelBeing()
-        self.database = DatabaseBeing()
-        self.communication = CommunicationBeing()
-        self.dispatcher = DispatcherBeing()
-        self.intention_router = {}
+        super().__init__("component")
+        self.set_data('component_type', 'generic')
+        self.set_data('properties', {})
+        self.set_data('children', [])
 
-    async def initialize(self):
-        """Inicjalizuje system pierwotnych bytów"""
-        print("🚀 Inicjalizacja systemu pierwotnych bytów...")
+    async def set_component_type(self, component_type: str) -> None:
+        """Ustawia typ komponentu"""
+        self.set_data('component_type', component_type)
+        await self.save()
 
-        # Aktywuj byty
-        self.kernel.active = True
-        self.database.active = True
-        self.communication.active = True
-        self.dispatcher.active = True
+    async def set_property(self, key: str, value: Any) -> None:
+        """Ustawia właściwość komponentu"""
+        properties = self.get_data('properties', {})
+        properties[key] = value
+        self.set_data('properties', properties)
+        await self.save()
 
-        # Zarejestruj byty w kernel
-        await self.kernel.process_intention({
-            "type": "register_being",
-            "being_info": {"ulid": self.database.ulid, "type": "database"}
-        })
+    async def add_child(self, child_ulid: str) -> None:
+        """Dodaje dziecko do komponentu"""
+        children = self.get_data('children', [])
+        if child_ulid not in children:
+            children.append(child_ulid)
+            self.set_data('children', children)
+            await self.save()
 
-        await self.kernel.process_intention({
-            "type": "register_being", 
-            "being_info": {"ulid": self.communication.ulid, "type": "communication"}
-        })
+    async def remove_child(self, child_ulid: str) -> None:
+        """Usuwa dziecko z komponentu"""
+        children = self.get_data('children', [])
+        if child_ulid in children:
+            children.remove(child_ulid)
+            self.set_data('children', children)
+            await self.save()
 
-        await self.kernel.process_intention({
-            "type": "register_being", 
-            "being_info": {"ulid": self.dispatcher.ulid, "type": "dispatcher"}
-        })
+# Factory do tworzenia prymitywnych bytów
+class PrimitiveBeingFactory:
+    """
+    Factory do tworzenia różnych typów prymitywnych bytów
+    """
 
-        # Utwórz relacje między bytami
-        await self.kernel.create_relation(self.database, "manages_data", {"role": "data_manager"})
-        await self.kernel.create_relation(self.communication, "manages_comm", {"role": "communication_manager"})
-        await self.kernel.create_relation(self.dispatcher, "manages_notifications", {"role": "notification_dispatcher"})
-        await self.database.create_relation(self.communication, "data_channel", {"purpose": "data_exchange"})
+    BEING_TYPES = {
+        'data': DataBeing,
+        'function': FunctionBeing,
+        'message': MessageBeing,
+        'task': TaskBeing,
+        'component': ComponentBeing,
+        'primitive': PrimitiveBeing
+    }
 
-        # Setup automatic subscriptions
-        # Communication subskrybuje connection_ws relacje
-        await self.dispatcher.process_intention({
-            "type": "subscribe_to_relation",
-            "being_ulid": self.communication.ulid,
-            "relation_type": "connection_ws"
-        })
+    @classmethod
+    async def create_being(cls, being_type: str, **kwargs) -> PrimitiveBeing:
+        """
+        Tworzy byt określonego typu
 
-        # Database subskrybuje data_update relacje
-        await self.dispatcher.process_intention({
-            "type": "subscribe_to_relation",
-            "being_ulid": self.database.ulid,
-            "relation_type": "data_update"
-        })
+        Args:
+            being_type: Typ bytu do utworzenia
+            **kwargs: Parametry inicjalizacji
 
-        # Uaktualnij stan systemu
-        self.kernel.system_state = "running"
+        Returns:
+            Nowy byt
+        """
+        BeingClass = cls.BEING_TYPES.get(being_type, PrimitiveBeing)
+        being = BeingClass()
 
-        print("✅ System pierwotnych bytów zainicjalizowany")
-        print(f"📡 Dispatcher aktywny z {len(self.dispatcher.subscriptions)} typami subskrypcji")
+        # Ustaw alias jeśli podany
+        if 'alias' in kwargs:
+            being.alias = kwargs.pop('alias')
 
-        return {
-            "status": "initialized",
-            "beings": {
-                "kernel": self.kernel.ulid,
-                "database": self.database.ulid,
-                "communication": self.communication.ulid,
-                "dispatcher": self.dispatcher.ulid
-            }
-        }
+        # Inicjalizuj z pozostałymi parametrami
+        await being.initialize(**kwargs)
 
-    async def process_intention(self, intention: Dict[str, Any]) -> Dict[str, Any]:
-        """Kieruje intencję do odpowiedniego bytu"""
-        target_being = intention.get('target_being', 'kernel')
+        return being
 
-        if target_being == 'kernel':
-            return await self.kernel.process_intention(intention)
-        elif target_being == 'database':
-            return await self.database.process_intention(intention)
-        elif target_being == 'communication':
-            return await self.communication.process_intention(intention)
-        elif target_being == 'dispatcher':
-            return await self.dispatcher.process_intention(intention)
-        else:
-            return {"status": "error", "message": f"Unknown target being: {target_being}"}
+    @classmethod
+    async def load_being(cls, ulid: str) -> Optional[PrimitiveBeing]:
+        """
+        Ładuje byt i tworzy odpowiednią instancję na podstawie typu
 
-    async def get_system_overview(self) -> Dict[str, Any]:
-        """Zwraca przegląd całego systemu"""
-        kernel_status = await self.kernel.process_intention({"type": "get_system_status"})
+        Args:
+            ulid: ULID bytu
 
-        return {
-            "system_status": kernel_status,
-            "beings": {
-                "kernel": {
-                    "ulid": self.kernel.ulid,
-                    "active": self.kernel.active,
-                    "relations": len(self.kernel.relations)
-                },
-                "database": {
-                    "ulid": self.database.ulid,
-                    "active": self.database.active,
-                    "schemas": len(self.database.schemas),
-                    "connections": len(self.database.connections)
-                },
-                "communication": {
-                    "ulid": self.communication.ulid,
-                    "active": self.communication.active,
-                    "channels": len(self.communication.channels),
-                    "connections": len(self.communication.active_connections)
-                },
-                "dispatcher": {
-                    "ulid": self.dispatcher.ulid,
-                    "active": self.dispatcher.active,
-                    "subscriptions": len(self.dispatcher.subscriptions),
-                    "queue_size": len(self.dispatcher.notification_queue),
-                    "total_subscribers": sum(len(subs) for subs in self.dispatcher.subscriptions.values())
-                }
-            }
-        }
+        Returns:
+            Byt lub None jeśli nie znaleziono
+        """
+        being = await Being.load_by_ulid(ulid)
+        if not being:
+            return None
+
+        # Określ typ bytu
+        being_type = being.get_data('type', 'primitive')
+        BeingClass = cls.BEING_TYPES.get(being_type, PrimitiveBeing)
+
+        # Utwórz instancję odpowiedniej klasy
+        typed_being = BeingClass()
+        typed_being.ulid = being.ulid
+        typed_being.soul_hash = being.soul_hash
+        typed_being.alias = being.alias
+        typed_being.data = being.data
+        typed_being.vector_embedding = being.vector_embedding
+        typed_being.table_type = being.table_type
+        typed_being.created_at = being.created_at
+        typed_being.updated_at = being.updated_at
+
+        return typed_being

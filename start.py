@@ -1,143 +1,185 @@
+
 #!/usr/bin/env python3
 """
-🚀 LuxOS Kernel System Start
-Entry point z nowym systemem bytów i hashów
+🚀 LuxOS Modern Start Script - Tylko nowoczesne JSONB systemy
 """
 
 import asyncio
-import uvicorn
-from pathlib import Path
-import os
 import sys
+import argparse
+from database.postgre_db import Postgre_db
+from luxdb.models.being import Being
+from luxdb.core.primitive_beings import PrimitiveBeingFactory
 
-# Dodaj główny katalog do ścieżki Python
-sys.path.insert(0, str(Path(__file__).parent))
+async def initialize_database():
+    """Inicjalizuje bazę danych"""
+    print("🔄 Inicjalizacja bazy PostgreSQL...")
+    
+    if not await Postgre_db.initialize_pool():
+        print("❌ Nie udało się połączyć z bazą danych")
+        return False
+    
+    print("✅ Baza danych PostgreSQL zainicjalizowana")
+    return True
 
-async def initialize_kernel():
-    """Inicjalizuje Kernel System"""
+async def create_sample_beings():
+    """Tworzy przykładowe byty w systemie"""
+    print("🧬 Tworzę przykładowe byty...")
+    
+    # Przykładowy byt danych
+    data_being = await PrimitiveBeingFactory.create_being(
+        'data',
+        alias='sample_data',
+        name='Sample Data Storage',
+        description='Przykładowy byt do przechowywania danych'
+    )
+    await data_being.store_value('sample_key', 'sample_value')
+    print(f"📦 Data Being: {data_being.ulid}")
+    
+    # Przykładowy byt funkcji
+    function_being = await PrimitiveBeingFactory.create_being(
+        'function',
+        alias='sample_function',
+        name='Sample Function',
+        description='Przykładowa funkcja'
+    )
+    await function_being.set_function('hello_world', 'def hello_world(): return "Hello, World!"')
+    print(f"⚙️ Function Being: {function_being.ulid}")
+    
+    # Przykładowy byt wiadomości
+    message_being = await PrimitiveBeingFactory.create_being(
+        'message',
+        alias='sample_message',
+        name='Sample Message'
+    )
+    await message_being.set_message('Witaj w LuxOS!', 'system')
+    print(f"💌 Message Being: {message_being.ulid}")
+    
+    print("✅ Przykładowe byty utworzone")
+
+async def show_system_status():
+    """Wyświetla status systemu"""
+    print("\n📊 Status systemu LuxOS:")
+    
     try:
-        from luxdb.core.kernel_system import kernel_system
-        from luxdb.core.module_system import module_watcher
-        from luxdb.core.json_kernel_runner import json_kernel_runner
-
-        print("🚀 Inicjalizacja LuxOS Kernel System...")
-        print("=" * 60)
-
-        # Sprawdź czy jest plik konfiguracji JSON
-        scenarios_dir = Path("scenarios")
-        if scenarios_dir.exists():
-            config_files = list(scenarios_dir.glob("*.json"))
-            # Znajdź pierwszy plik konfiguracyjny JSON (nie .scenario)
-            json_config = next((f for f in config_files if not f.name.endswith(".scenario")), None)
-
-            if json_config:
-                print(f"📋 Found JSON config: {json_config}")
-                success = await json_kernel_runner.run_from_config(str(json_config))
-                if success:
-                    print("✅ System uruchomiony z konfiguracji JSON")
-                    return True
-
-        # Standardowy tryb kernel
-        print("📦 Skanowanie i rejestracja modułów...")
-        modules = await module_watcher.scan_and_register_all()
-
-        print("🔗 Tworzenie relacji między modułami...")
-        await module_watcher.create_module_relationships()
-
-        # Inicjalizuj kernel
-        await kernel_system.initialize("advanced")
-
-        # Wyświetl statystyki
-        stats = module_watcher.get_module_stats()
-        print(f"📊 Statystyki modułów:")
-        print(f"  - Zarejestrowane moduły: {stats['total_modules']}")
-        print(f"  - Całkowity rozmiar: {stats['total_size_bytes']} bajtów")
-        print(f"  - Typy modułów: {stats['module_types']}")
-        
-        status = await kernel_system.get_system_status()
-        print(f"📊 System Status:")
-        print(f"   Scenario: {status['active_scenario']}")
-        print(f"   Beings: {status['registered_beings']}")
-        print(f"   Hashes: {status['loaded_hashes']}")
-
-        print("✅ LuxOS Kernel System zainicjalizowany")
-        return True
-    except ImportError as e:
-        print(f"❌ Kernel initialization error: {e}")
-        print("⚠️ Kernel nie uruchomiony, kontynuuję bez...")
-        return False
-    except Exception as e:
-        print(f"❌ Kernel initialization error: {e}")
-        return False
-
-def main():
-    """Start the LuxOS system with bootstrap option"""
-    print("🚀 Starting LuxOS System...")
-    print("=" * 60)
-
-    # Check if user wants full bootstrap
-    if "--bootstrap" in sys.argv or "--wake-up" in sys.argv:
-        print("🌅 Launching full LuxOS Bootstrap procedure...")
-        try:
-            from luxos_bootstrap import wake_up_luxos
-            result = asyncio.run(wake_up_luxos())
+        # Sprawdź połączenie z bazą
+        pool = await Postgre_db.get_db_pool()
+        if pool:
+            print("✅ Baza danych: Połączona")
             
-            if result["success"]:
-                print("🎯 Bootstrap complete! Admin ready at http://0.0.0.0:3030")
-                # Keep main process alive
-                import time
-                try:
-                    while True:
-                        time.sleep(30)
-                except KeyboardInterrupt:
-                    print("\n👋 LuxOS shutting down...")
-                return
-            else:
-                print("⚠️ Bootstrap partial success, continuing with standard startup...")
-        except Exception as e:
-            print(f"❌ Bootstrap error: {e}, falling back to standard startup...")
+            # Policz byty
+            from luxdb.repository.soul_repository import BeingRepository
+            beings_count = await BeingRepository.count_beings()
+            print(f"🧬 Liczba bytów: {beings_count}")
+            
+            # Pokaż ostatnie byty
+            result = await BeingRepository.get_all_beings(limit=5)
+            if result.get('success') and result.get('beings'):
+                print("📋 Ostatnie byty:")
+                for being in result['beings'][:5]:
+                    being_type = being.get_data('type', 'unknown')
+                    print(f"   - {being.alias or being.ulid[:8]}: {being_type}")
+            
+        else:
+            print("❌ Baza danych: Brak połączenia")
+            
+    except Exception as e:
+        print(f"❌ Błąd sprawdzania statusu: {e}")
 
-    # Standard startup procedure
-    kernel_ready = asyncio.run(initialize_kernel())
-
-    if not kernel_ready:
-        print("⚠️ Kernel nie uruchomiony, kontynuuję bez...")
-
-    # Check if demo_landing.py exists and try to run it
-    if Path("demo_landing.py").exists():
-        print("📁 Found demo_landing.py - starting with Kernel integration...")
+async def run_interactive_mode():
+    """Uruchamia tryb interaktywny"""
+    print("\n🎮 Tryb interaktywny LuxOS")
+    print("Dostępne komendy:")
+    print("  create <type> <alias> - Tworzy nowy byt")
+    print("  list - Wyświetla wszystkie byty")
+    print("  status - Wyświetla status systemu")
+    print("  exit - Wychodzi z trybu interaktywnego")
+    
+    while True:
         try:
-            # Import and run demo_landing
-            uvicorn.run(
-                "demo_landing:socket_app",
-                host="0.0.0.0",
-                port=3001,
-                reload=False,
-                log_level="info"
-            )
+            command = input("\nLuxOS> ").strip().split()
+            
+            if not command:
+                continue
+            
+            if command[0] == 'exit':
+                break
+            elif command[0] == 'status':
+                await show_system_status()
+            elif command[0] == 'list':
+                await list_beings()
+            elif command[0] == 'create' and len(command) >= 3:
+                being_type = command[1]
+                alias = command[2]
+                await create_being_interactive(being_type, alias)
+            else:
+                print("Nieznana komenda. Spróbuj: create, list, status, exit")
+                
+        except KeyboardInterrupt:
+            break
         except Exception as e:
-            print(f"❌ Error with demo_landing: {e}")
-            fallback_server()
+            print(f"Błąd: {e}")
+
+async def list_beings():
+    """Wyświetla listę bytów"""
+    try:
+        from luxdb.repository.soul_repository import BeingRepository
+        result = await BeingRepository.get_all_beings(limit=20)
+        
+        if result.get('success') and result.get('beings'):
+            print("\n📋 Lista bytów:")
+            for being in result['beings']:
+                being_type = being.get_data('type', 'unknown')
+                created = being.created_at.strftime('%Y-%m-%d %H:%M') if being.created_at else 'unknown'
+                print(f"  {being.alias or being.ulid[:8]}: {being_type} (created: {created})")
+        else:
+            print("Brak bytów w systemie")
+            
+    except Exception as e:
+        print(f"Błąd listowania bytów: {e}")
+
+async def create_being_interactive(being_type: str, alias: str):
+    """Tworzy byt w trybie interaktywnym"""
+    try:
+        being = await PrimitiveBeingFactory.create_being(
+            being_type,
+            alias=alias,
+            name=f"Interactive {being_type}",
+            created_via='interactive_mode'
+        )
+        print(f"✅ Utworzono byt: {being.ulid} ({being_type})")
+        
+    except Exception as e:
+        print(f"Błąd tworzenia bytu: {e}")
+
+async def main():
+    """Główna funkcja startowa"""
+    parser = argparse.ArgumentParser(description='LuxOS Modern System Starter')
+    parser.add_argument('--bootstrap', action='store_true', help='Tworzy przykładowe byty')
+    parser.add_argument('--interactive', action='store_true', help='Tryb interaktywny')
+    parser.add_argument('--status', action='store_true', help='Wyświetla status systemu')
+    
+    args = parser.parse_args()
+    
+    print("🌟 LuxOS Modern System")
+    print("====================")
+    
+    # Inicjalizacja bazy danych
+    if not await initialize_database():
+        sys.exit(1)
+    
+    # Wykonaj odpowiednią akcję
+    if args.bootstrap:
+        await create_sample_beings()
+    elif args.status:
+        await show_system_status()
+    elif args.interactive:
+        await show_system_status()
+        await run_interactive_mode()
     else:
-        print("📁 demo_landing.py not found - starting fallback...")
-        fallback_server()
-
-def fallback_server():
-    """Simple fallback HTTP server"""
-    from http.server import HTTPServer, SimpleHTTPRequestHandler
-    import os
-
-    os.chdir("static") if Path("static").exists() else None
-
-    class CustomHandler(SimpleHTTPRequestHandler):
-        def end_headers(self):
-            self.send_header('Access-Control-Allow-Origin', '*')
-            super().end_headers()
-
-    print("🌐 Starting simple HTTP server on port 3001...")
-    server = HTTPServer(("0.0.0.0", 3001), CustomHandler)
-    print("✅ Server running at http://0.0.0.0:3001")
-    server.serve_forever()
+        # Domyślnie pokaż status
+        await show_system_status()
+        print("\nUżyj --help aby zobaczyć dostępne opcje")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

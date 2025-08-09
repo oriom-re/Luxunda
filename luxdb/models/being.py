@@ -1,265 +1,229 @@
+
+#!/usr/bin/env python3
 """
-Model Being (Byt) dla LuxDB.
+🧬 Being Model - Nowoczesny model JSONB bez legacy systemów
 """
 
 import json
-from typing import Dict, Any, List, Optional
 from datetime import datetime
-from dataclasses import dataclass, field
-import ulid
+from typing import Dict, Any, List, Optional
+from ..repository.soul_repository import BeingRepository
 
-from ..core.globals import Globals
-from .soul import Soul
-from ..repository.soul_repository import BeingRepository, DynamicRepository
-
-@dataclass
 class Being:
     """
-    Being reprezentuje instancję danych utworzoną na podstawie Soul (genotypu).
-
-    Każdy Being ma unikalny ULID i jest powiązany z konkretnym Soul.
+    Nowoczesny Being Model używający tylko JSONB
+    Bez legacy dynamicznych tabel i przestarzałych systemów
     """
+    
+    def __init__(self):
+        self.ulid: Optional[str] = None
+        self.soul_hash: Optional[str] = None
+        self.alias: Optional[str] = None
+        self.data: Dict[str, Any] = {}
+        self.vector_embedding: Optional[List[float]] = None
+        self.table_type: str = "being"
+        self.created_at: Optional[datetime] = None
+        self.updated_at: Optional[datetime] = None
 
-    ulid: str = field(default_factory=lambda: str(ulid.ulid()))
-    global_ulid: str = field(default=Globals.GLOBAL_ULID)
-    soul_hash: Optional[str] = None
-    alias: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    genotype: Dict[str, Any] = field(default_factory=dict)
+    def __getattr__(self, name: str) -> Any:
+        """
+        Dynamiczny dostęp do atrybutów z data JSONB
+        """
+        if name in self.data:
+            return self.data[name]
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """
+        Dynamiczne ustawianie atrybutów w data JSONB
+        """
+        # Podstawowe atrybuty klasy
+        if name in ['ulid', 'soul_hash', 'alias', 'data', 'vector_embedding', 
+                   'table_type', 'created_at', 'updated_at']:
+            super().__setattr__(name, value)
+        else:
+            # Wszystko inne idzie do data JSONB
+            if not hasattr(self, 'data'):
+                super().__setattr__('data', {})
+            self.data[name] = value
 
     @classmethod
-    async def create(cls, soul: Soul, data: Dict[str, Any], alias: str = None) -> 'Being':
+    async def create(cls, **kwargs) -> 'Being':
         """
-        Tworzy nowy Being na podstawie Soul i danych.
-
+        Tworzy nowy Being
+        
         Args:
-            soul: Soul (genotyp) na podstawie którego tworzy się Being
-            data: Dane dla nowego Being
-            alias: Opcjonalny alias
-
+            **kwargs: Dowolne atrybuty do zapisania w JSONB
+            
         Returns:
-            Nowy obiekt Being
-
-        Example:
-            ```python
-            user_data = {
-                "name": "Jan Kowalski",
-                "email": "jan@example.com",
-                "age": 30
-            }
-            being = await Being.create(user_soul, user_data)
-            ```
+            Nowy Being
         """
-
-        # Walidacja danych względem genotypu
-        errors = soul.validate_data(data)
-        if errors:
-            raise ValueError(f"Data validation errors: {', '.join(errors)}")
-
-        # Tworzenie Being
-        being = cls(
-            ulid=str(ulid.ulid()),
-            soul_hash=soul.soul_hash,
-            genotype=soul.genotype,
-            alias=alias
-        )
-
-        # Zastosowanie genotypu (dynamiczne pola)
-        being._apply_genotype(soul.genotype)
-
-        # Ustawienie danych
-        for key, value in data.items():
-            setattr(being, key, value)
-
-        # Zapis do bazy danych
-        await DynamicRepository.insert_data_transaction(being, soul.genotype)
-
+        being = cls()
+        
+        # Ustaw podstawowe atrybuty
+        being.alias = kwargs.pop('alias', None)
+        being.soul_hash = kwargs.pop('soul_hash', None)
+        being.table_type = kwargs.pop('table_type', 'being')
+        
+        # Wszystko inne do data JSONB
+        being.data.update(kwargs)
+        
+        # Zapisz do bazy
+        result = await BeingRepository.save_jsonb(being)
+        if result.get('success'):
+            being.ulid = result.get('ulid')
+            being.created_at = result.get('created_at')
+            being.updated_at = result.get('updated_at')
+            
         return being
 
-    def _apply_genotype(self, genotype: dict):
+    async def save(self) -> bool:
         """
-        Dynamicznie dodaje pola z genotypu do obiektu Being.
-
-        Args:
-            genotype: Definicja genotypu
+        Zapisuje Being do bazy danych
+        
+        Returns:
+            True jeśli zapis się powiódł
         """
-        from dataclasses import make_dataclass, field
+        result = await BeingRepository.save_jsonb(self)
+        if result.get('success'):
+            self.ulid = result.get('ulid', self.ulid)
+            self.created_at = result.get('created_at', self.created_at)
+            self.updated_at = result.get('updated_at', self.updated_at)
+            return True
+        return False
 
-        fields = []
-        type_map = {
-            "str": str,
-            "int": int,
-            "bool": bool,
-            "float": float,
-            "dict": dict,
-            "List[str]": list,
-            "List[float]": list
-        }
-
-        attributes = genotype.get("attributes", {})
-        for name, meta in attributes.items():
-            type_name = meta.get("py_type", "str")
-            py_type = type_map.get(type_name, str)
-            fields.append((name, py_type, field(default=None)))
-
-        if fields:  # tylko jeśli są jakieś pola do dodania
-            DynamicBeing = make_dataclass(
-                cls_name="DynamicBeing",
-                fields=fields,
-                bases=(self.__class__,),
-                frozen=False
-            )
-            self.__class__ = DynamicBeing
+    async def load_full_data(self) -> None:
+        """
+        Ładuje pełne dane Being z bazy
+        """
+        if not self.ulid:
+            return
+            
+        result = await BeingRepository.load_by_ulid(self.ulid)
+        if result.get('success') and result.get('beings'):
+            being_data = result['beings'][0]
+            self.soul_hash = being_data.soul_hash
+            self.alias = being_data.alias
+            self.data = being_data.data or {}
+            self.vector_embedding = being_data.vector_embedding
+            self.table_type = being_data.table_type
+            self.created_at = being_data.created_at
+            self.updated_at = being_data.updated_at
 
     @classmethod
     async def load_by_ulid(cls, ulid: str) -> Optional['Being']:
         """
-        Ładuje Being po ULID.
-
+        Ładuje Being na podstawie ULID
+        
         Args:
-            ulid: Unikalny identyfikator Being
-
+            ulid: ULID Being'a
+            
         Returns:
             Being lub None jeśli nie znaleziono
         """
-
         result = await BeingRepository.load_by_ulid(ulid)
-        return result.get('being') if result.get('success') else None
+        if not result.get('success') or not result.get('beings'):
+            return None
+            
+        being_data = result['beings'][0]
+        being = cls()
+        being.ulid = being_data.ulid
+        being.soul_hash = being_data.soul_hash
+        being.alias = being_data.alias
+        being.data = being_data.data or {}
+        being.vector_embedding = being_data.vector_embedding
+        being.table_type = being_data.table_type
+        being.created_at = being_data.created_at
+        being.updated_at = being_data.updated_at
+        
+        return being
 
     @classmethod
-    async def load_all_by_soul_hash(cls, soul_hash: str) -> List['Being']:
+    async def load_by_alias(cls, alias: str) -> List['Being']:
         """
-        Ładuje wszystkie Being dla danego Soul.
-
-        Args:
-            soul_hash: Hash Soul (genotypu)
-
-        Returns:
-            Lista Being
-        """
-
-        result = await BeingRepository.load_all_by_soul_hash(soul_hash)
-        beings = result.get('beings', [])
-        return [being for being in beings if being is not None]
-
-    @classmethod
-    async def load_all(cls) -> List['Being']:
-        """
-        Ładuje wszystkie Being z bazy danych.
-
-        Returns:
-            Lista wszystkich Being
-        """
-
-        result = await BeingRepository.load_all()
-        beings = result.get('beings', [])
-        return [being for being in beings if being is not None]
-
-    @classmethod
-    async def load_all_by_alias(cls, alias: str) -> List['Being']:
-        """
-        Ładuje wszystkie Being o danym aliasie.
-
+        Ładuje wszystkie Being o danym aliasie
+        
         Args:
             alias: Alias do wyszukania
-
+            
         Returns:
             Lista Being o podanym aliasie
         """
-
         result = await BeingRepository.load_all_by_alias(alias)
         beings = result.get('beings', [])
         return [being for being in beings if being is not None]
 
-    async def save(self) -> bool:
+    @classmethod
+    async def find_similar(cls, embedding: List[float], threshold: float = 0.8, limit: int = 10) -> List['Being']:
         """
-        Zapisuje zmiany w Being do bazy danych.
-
+        Znajduje podobne Being na podstawie embedingu
+        
+        Args:
+            embedding: Wektor do porównania
+            threshold: Próg podobieństwa
+            limit: Maksymalna liczba wyników
+            
         Returns:
-            True jeśli zapis się powiódł
+            Lista podobnych Being
         """
+        similar_beings = await BeingRepository.find_similar_beings(embedding, threshold, limit)
+        return similar_beings
 
-        # Zapisz podstawowe informacje Being
-        result = await BeingRepository.save(self)
-        if not result.get('success'):
-            return False
-
-        # Zapisz dynamiczne atrybuty
-        if self.genotype:
-            await DynamicRepository.insert_data_transaction(self, self.genotype)
-
-        return True
-
-    async def get_attributes(self) -> Dict[str, Any]:
+    def set_data(self, key: str, value: Any) -> None:
         """
-        Pobiera wszystkie atrybuty Being z bazy danych.
+        Ustawia wartość w data JSONB
+        
+        Args:
+            key: Klucz
+            value: Wartość
+        """
+        self.data[key] = value
 
+    def get_data(self, key: str, default: Any = None) -> Any:
+        """
+        Pobiera wartość z data JSONB
+        
+        Args:
+            key: Klucz
+            default: Wartość domyślna
+            
         Returns:
-            Słownik atrybutów
+            Wartość lub default
         """
-        attributes = {}
+        return self.data.get(key, default)
 
-        try:
-            from ..core.connection import ConnectionManager
-            # Tutaj można by użyć globalnego managera połączeń
-            # Na razie uproszczona implementacja
-
-            # W pełnej implementacji należałoby:
-            # 1. Pobrać połączenie z puli
-            # 2. Wykonać zapytania do tabel attr_*
-            # 3. Zebrać wszystkie atrybuty
-
-            pass  # Implementacja w przyszłości
-
-        except Exception as e:
-            print(f"❌ Błąd pobierania atrybutów dla {self.ulid}: {e}")
-
-        return attributes
-
-    async def load_full_data(self) -> None:
+    def has_data(self, key: str) -> bool:
         """
-        Ładuje pełne dane Being z bazy danych (łącznie z dynamicznymi atrybutami).
+        Sprawdza czy klucz istnieje w data JSONB
+        
+        Args:
+            key: Klucz do sprawdzenia
+            
+        Returns:
+            True jeśli klucz istnieje
         """
-        if not self.genotype:
-            return
-
-        # Pobierz nazwy atrybutów z genotypu
-        attributes = self.genotype.get("attributes", {})
-        key_list = list(attributes.keys())
-
-        if key_list:
-            await DynamicRepository.load_values(self, key_list, self.genotype)
+        return key in self.data
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Konwertuje Being do słownika.
-
+        Konwertuje Being do słownika
+        
         Returns:
-            Słownik reprezentujący Being
+            Słownik z danymi Being
         """
-        from dataclasses import asdict
-        return asdict(self)
+        return {
+            'ulid': self.ulid,
+            'soul_hash': self.soul_hash,
+            'alias': self.alias,
+            'data': self.data,
+            'vector_embedding': self.vector_embedding,
+            'table_type': self.table_type,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
 
-    async def discord_report_error(self, error_message: str):
-        """Zgłasza błąd przez Discord"""
-        from ..core.discord_being import being_discord_report_error
-        return await being_discord_report_error(self, error_message)
+    def __repr__(self) -> str:
+        return f"Being(ulid='{self.ulid}', alias='{self.alias}', data_keys={list(self.data.keys())})"
 
-    async def discord_suggest(self, suggestion: str):
-        """Wysyła sugestię przez Discord"""
-        from ..core.discord_being import being_discord_suggest
-        return await being_discord_suggest(self, suggestion)
-
-    async def discord_revolution_talk(self, message_content: str):
-        """Rozmawia o rewolucji przez Discord"""
-        from ..core.discord_being import being_discord_revolution_talk
-        return await being_discord_revolution_talk(self, message_content)
-
-    async def discord_status(self, status_message: str):
-        """Wysyła status przez Discord"""
-        from ..core.discord_being import being_discord_status
-        return await being_discord_status(self, status_message)
-
-    def __repr__(self):
-        return f"Being(ulid={self.ulid[:8]}..., soul_hash={self.soul_hash[:8] if self.soul_hash else None}...)"
+    def __str__(self) -> str:
+        return f"Being({self.alias or self.ulid})"
