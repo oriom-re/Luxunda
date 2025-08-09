@@ -109,26 +109,39 @@ class Being:
 
     async def save(self) -> bool:
         """Zapisuje Being do bazy danych z automatyczną serializacją"""
-        from ..repository.being_repository import BeingRepository
+        from luxdb.repository.soul_repository import BeingRepository
+        from luxdb.utils.serializer import JSONBSerializer
 
         # Automatyczna serializacja przed zapisem
         soul = await self.get_soul()
         if soul and self.data:
-            self.data = JSONBSerializer.serialize_being_data(self.data, soul)
+            try:
+                # Waliduj i serializuj dane
+                serialized_data, errors = JSONBSerializer.validate_and_serialize(self.data, soul)
+                if errors:
+                    print(f"⚠️ Błędy walidacji przy zapisie Being {self.ulid}: {errors}")
+                    # Można zdecydować czy kontynuować czy przerwać
+                self.data = serialized_data
+                print(f"✅ Dane Being {self.ulid} zserializowane zgodnie ze schematem Soul")
+            except Exception as e:
+                print(f"❌ Błąd serializacji danych Being {self.ulid}: {e}")
 
-        result = await BeingRepository.save(self)
+        result = await BeingRepository.save_jsonb(self)
         return result.get('success', False)
 
     async def load_full_data(self) -> None:
         """
-        Ładuje pełne dane Being z bazy
+        Ładuje pełne dane Being z bazy z automatyczną deserializacją
         """
         if not self.ulid:
             return
 
+        from luxdb.repository.soul_repository import BeingRepository
+        from luxdb.utils.serializer import JSONBSerializer
+
         result = await BeingRepository.load_by_ulid(self.ulid)
-        if result.get('success') and result.get('beings'):
-            being_data = result['beings'][0]
+        if result.get('success') and result.get('being'):
+            being_data = result['being']
             self.soul_hash = being_data.soul_hash
             self.alias = being_data.alias
             self.data = being_data.data or {}
@@ -136,6 +149,15 @@ class Being:
             self.table_type = being_data.table_type
             self.created_at = being_data.created_at
             self.updated_at = being_data.updated_at
+
+            # Automatyczna deserializacja po załadowaniu
+            soul = await self.get_soul()
+            if soul and self.data:
+                try:
+                    self.data = JSONBSerializer.deserialize_being_data(self.data, soul)
+                    print(f"✅ Dane Being {self.ulid} zdeserializowane zgodnie ze schematem Soul")
+                except Exception as e:
+                    print(f"⚠️ Błąd deserializacji danych Being {self.ulid}: {e}")
 
     @classmethod
     async def load_by_ulid(cls, ulid: str) -> Optional['Being']:
@@ -350,16 +372,18 @@ class Being:
         """Pobiera instancję Soul, cachując ją"""
         if not self.soul_hash:
             return None
+            
         if not hasattr(self, '_soul_cache') or self._soul_cache is None:
-            # Tutaj powinna być logika do ładowania Soul na podstawie soul_hash
-            # Na potrzeby przykładu, zakładamy, że mamy dostęp do takiej funkcji
-            # from luxdb.repository.soul_repository import SoulRepository
-            # soul_instance = await SoulRepository.get_soul_by_hash(self.soul_hash)
-            # self._soul_cache = soul_instance
-            # Jeśli nie ma SoulRepository, można fallbackować do obiektu Soul z atrybutów
-            if hasattr(self, '_soul_instance'):
-                self._soul_cache = self._soul_instance
-            else:
-                # W przypadku braku instancji i soul_hash, można rozważyć utworzenie tymczasowego obiektu Soul lub zwrócenie None
+            try:
+                from luxdb.repository.soul_repository import SoulRepository
+                result = await SoulRepository.load_by_hash(self.soul_hash)
+                if result.get('success') and result.get('soul'):
+                    self._soul_cache = result['soul']
+                else:
+                    print(f"⚠️ Nie znaleziono Soul dla hash: {self.soul_hash}")
+                    return None
+            except Exception as e:
+                print(f"❌ Błąd ładowania Soul {self.soul_hash}: {e}")
                 return None
+                
         return self._soul_cache

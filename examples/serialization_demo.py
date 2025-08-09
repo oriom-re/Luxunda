@@ -1,133 +1,145 @@
 
+#!/usr/bin/env python3
 """
-Demo automatycznej serializacji JSONB na podstawie schematu Soul
+🎯 Demo systemu automatycznej serializacji JSONB
 """
 
 import asyncio
-from luxdb.models.soul import Soul
+import json
+from datetime import datetime
+from database.models.base import Soul
 from luxdb.models.being import Being
 from luxdb.utils.serializer import JSONBSerializer
 
-
-async def demo_automatic_serialization():
-    """Demonstracja automatycznej serializacji"""
+async def main():
+    """Demo automatycznej serializacji"""
+    print("🎯 Demo systemu automatycznej serializacji JSONB dla LuxDB")
+    print("=" * 60)
     
-    print("🧬 Demo automatycznej serializacji JSONB")
-    print("=" * 50)
-    
-    # 1. Utwórz genotyp z różnymi typami danych
-    genotype = {
-        "genesis": {
-            "name": "user_profile",
-            "version": "1.0",
-            "description": "Profil użytkownika z automatyczną serializacją"
-        },
+    # Przykład 1: User Profile
+    print("\n📝 Przykład 1: Profil użytkownika")
+    user_genotype = {
         "attributes": {
-            "name": {"py_type": "str"},
-            "age": {"py_type": "int"},
-            "height": {"py_type": "float"},
-            "is_active": {"py_type": "bool"},
-            "skills": {"py_type": "List[str]"},
-            "scores": {"py_type": "List[float]"},
-            "preferences": {"py_type": "dict"},
-            "joined_date": {"py_type": "datetime"},
-            "balance": {"py_type": "decimal"}
+            "username": {"py_type": "str", "required": True},
+            "email": {"py_type": "str", "required": True},
+            "age": {"py_type": "int", "required": False, "default": 18},
+            "created_at": {"py_type": "datetime", "required": False},
+            "preferences": {"py_type": "dict", "required": False, "default": {}},
+            "tags": {"py_type": "List[str]", "required": False, "default": []},
+            "is_active": {"py_type": "bool", "required": False, "default": True}
         }
     }
     
-    # 2. Utwórz Soul
-    soul = await Soul.create(genotype, alias="user_profile_demo")
-    print(f"✅ Utworzono Soul: {soul.alias}")
+    user_soul = await Soul.create(genotype=user_genotype, alias="user_profile")
     
-    # 3. Surowe dane (różne typy jako stringi)
-    raw_data = {
-        "name": "Jan Kowalski",
-        "age": "28",  # String -> int
-        "height": "175.5",  # String -> float
-        "is_active": "true",  # String -> bool
-        "skills": '["Python", "JavaScript", "SQL"]',  # JSON string -> List[str]
-        "scores": '["85.5", "92.0", "78.5"]',  # JSON string -> List[float]
-        "preferences": '{"theme": "dark", "notifications": true}',  # JSON string -> dict
-        "joined_date": "2023-01-15T10:30:00",  # ISO string -> datetime
-        "balance": "1234.56"  # String -> decimal
+    user_data = {
+        "username": "lux_developer",
+        "email": "dev@luxdb.ai",
+        "age": "28",  # String będzie przekonwertowany na int
+        "created_at": datetime.now(),
+        "preferences": {"theme": "dark", "language": "pl"},
+        "tags": ["developer", "ai_enthusiast"],
+        "is_active": "true"  # String będzie przekonwertowany na bool
     }
     
-    print("\n📥 Surowe dane:")
-    for key, value in raw_data.items():
-        print(f"  {key}: {value} ({type(value).__name__})")
-    
-    # 4. Automatyczna serializacja
-    serialized_data = JSONBSerializer.serialize_being_data(raw_data, soul)
-    
-    print("\n🔄 Po serializacji:")
-    for key, value in serialized_data.items():
-        print(f"  {key}: {value} ({type(value).__name__})")
-    
-    # 5. Utwórz Being z automatyczną serializacją
-    being = await Being.create(
-        soul_hash=soul.soul_hash,
-        alias="jan_kowalski",
-        data=raw_data  # Surowe dane - będą automatycznie zserializowane
+    user_being = await Being.create(
+        soul=user_soul,
+        alias="developer_profile",
+        attributes=user_data
     )
     
-    print(f"\n✅ Utworzono Being: {being.alias}")
-    print(f"📊 Zserializowane dane w Being:")
-    for key, value in being.data.items():
-        print(f"  {key}: {value} ({type(value).__name__})")
+    print(f"✅ Stworzono User Being: {user_being.ulid}")
+    print(f"📊 Zserializowane dane: {json.dumps(user_being.data, indent=2, ensure_ascii=False, default=str)}")
     
-    # 6. Test deserializacji
-    deserialized_data = being.deserialize_data()
-    
-    print(f"\n🔙 Po deserializacji:")
-    for key, value in deserialized_data.items():
-        print(f"  {key}: {value} ({type(value).__name__})")
-    
-    # 7. Test aktualizacji z automatyczną serializacją
-    update_data = {
-        "age": "29",  # String -> int
-        "skills": '["Python", "JavaScript", "SQL", "Docker"]',  # Dodanie nowej umiejętności
-        "balance": "1500.75"  # String -> decimal
+    # Przykład 2: Product Catalog
+    print("\n🛍️ Przykład 2: Katalog produktów")
+    product_genotype = {
+        "attributes": {
+            "name": {"py_type": "str", "required": True},
+            "price": {"py_type": "float", "required": True},
+            "category": {"py_type": "str", "required": True},
+            "in_stock": {"py_type": "bool", "required": False, "default": True},
+            "specifications": {"py_type": "dict", "required": False, "default": {}},
+            "tags": {"py_type": "List[str]", "required": False, "default": []},
+            "ratings": {"py_type": "List[float]", "required": False, "default": []}
+        }
     }
     
-    print(f"\n📝 Aktualizacja danych:")
-    success = await being.update_data(update_data)
+    product_soul = await Soul.create(genotype=product_genotype, alias="product")
     
-    if success:
-        print(f"✅ Dane zaktualizowane pomyślnie")
-        print(f"📊 Zaktualizowane dane:")
-        for key, value in being.data.items():
+    product_data = {
+        "name": "LuxDB Pro License",
+        "price": "99.99",  # String będzie przekonwertowany na float
+        "category": "software",
+        "in_stock": True,
+        "specifications": {
+            "max_beings": 10000,
+            "vector_search": True,
+            "ai_integration": True
+        },
+        "tags": ["database", "ai", "professional"],
+        "ratings": [4.8, 4.9, 5.0, 4.7]
+    }
+    
+    product_being = await Being.create(
+        soul=product_soul,
+        alias="luxdb_pro",
+        attributes=product_data
+    )
+    
+    print(f"✅ Stworzono Product Being: {product_being.ulid}")
+    print(f"📊 Zserializowane dane: {json.dumps(product_being.data, indent=2, ensure_ascii=False, default=str)}")
+    
+    # Przykład 3: Event Log
+    print("\n📋 Przykład 3: Log wydarzeń")
+    event_genotype = {
+        "attributes": {
+            "event_type": {"py_type": "str", "required": True},
+            "timestamp": {"py_type": "datetime", "required": True},
+            "user_id": {"py_type": "str", "required": False},
+            "data": {"py_type": "dict", "required": False, "default": {}},
+            "severity": {"py_type": "str", "required": False, "default": "info"},
+            "processed": {"py_type": "bool", "required": False, "default": False}
+        }
+    }
+    
+    event_soul = await Soul.create(genotype=event_genotype, alias="event_log")
+    
+    event_data = {
+        "event_type": "user_login",
+        "timestamp": "2024-01-15T14:30:00Z",
+        "user_id": user_being.ulid,
+        "data": {
+            "ip_address": "192.168.1.100",
+            "user_agent": "LuxDB-Client/1.0",
+            "success": True
+        },
+        "severity": "info",
+        "processed": False
+    }
+    
+    event_being = await Being.create(
+        soul=event_soul,
+        alias="login_event",
+        attributes=event_data
+    )
+    
+    print(f"✅ Stworzono Event Being: {event_being.ulid}")
+    print(f"📊 Zserializowane dane: {json.dumps(event_being.data, indent=2, ensure_ascii=False, default=str)}")
+    
+    # Test ładowania i deserializacji
+    print("\n🔄 Test ładowania z automatyczną deserializacją")
+    
+    loaded_user = await Being.load_by_ulid(user_being.ulid)
+    if loaded_user:
+        await loaded_user.load_full_data()
+        print(f"✅ Załadowano User Being z bazy")
+        print(f"🔍 Sprawdzenie typów po deserializacji:")
+        for key, value in loaded_user.data.items():
             print(f"  {key}: {value} ({type(value).__name__})")
     
-    # 8. Test walidacji i serializacji
-    print(f"\n🔍 Test walidacji i serializacji:")
-    
-    # Poprawne dane
-    valid_test_data = {
-        "name": "Anna Nowak",
-        "age": "32",
-        "is_active": "false"
-    }
-    
-    serialized, errors = await being.validate_and_serialize_data(valid_test_data)
-    print(f"Walidacja poprawnych danych - błędy: {len(errors)}")
-    
-    # Niepoprawne dane (wiek jako tekst)
-    invalid_test_data = {
-        "name": "Test User",
-        "age": "trzydzieści",  # Nie da się skonwertować na int
-        "is_active": "yes"
-    }
-    
-    try:
-        serialized, errors = JSONBSerializer.validate_and_serialize(invalid_test_data, soul)
-        print(f"Walidacja niepoprawnych danych - błędy: {len(errors)}")
-        if errors:
-            print(f"  Błędy: {errors}")
-    except Exception as e:
-        print(f"  Błąd serializacji: {e}")
-    
-    print(f"\n🎉 Demo zakończone pomyślnie!")
-
+    print("\n🎉 Demo zakończone pomyślnie!")
+    print("✨ System automatycznej serializacji działa!")
 
 if __name__ == "__main__":
-    asyncio.run(demo_automatic_serialization())
+    asyncio.run(main())

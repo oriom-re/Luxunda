@@ -1,182 +1,60 @@
 
+#!/usr/bin/env python3
 """
-Automatyczny serializer dla pól JSONB na podstawie schematu Soul
+🔧 JSONB Serializer - Automatyczna serializacja na podstawie schematu Soul
 """
 
 import json
-import datetime
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from decimal import Decimal
 
+if TYPE_CHECKING:
+    from database.models.base import Soul
 
 class JSONBSerializer:
-    """Automatyczny serializer dla pól JSONB"""
-    
-    @staticmethod
-    def serialize_value(value: Any, py_type: str) -> Any:
-        """
-        Serializuje wartość zgodnie z typem zdefiniowanym w Soul
-        
-        Args:
-            value: Wartość do serializacji
-            py_type: Typ zdefiniowany w genotypie Soul
-            
-        Returns:
-            Zserializowana wartość gotowa do zapisania w JSONB
-        """
-        if value is None:
-            return None
-            
-        # Podstawowe typy Python
-        if py_type == "str":
-            return str(value)
-        elif py_type == "int":
-            return int(value) if value != "" else None
-        elif py_type == "float":
-            return float(value) if value != "" else None
-        elif py_type == "bool":
-            if isinstance(value, str):
-                return value.lower() in ('true', '1', 'yes', 'on')
-            return bool(value)
-        elif py_type == "dict":
-            if isinstance(value, str):
-                try:
-                    return json.loads(value)
-                except:
-                    return {}
-            return dict(value) if value else {}
-        
-        # Typy listowe
-        elif py_type.startswith("List["):
-            inner_type = py_type[5:-1]  # Wyciąga typ z List[typ]
-            
-            if isinstance(value, str):
-                try:
-                    value = json.loads(value)
-                except:
-                    return []
-                    
-            if not isinstance(value, list):
-                return []
-                
-            return [JSONBSerializer.serialize_value(item, inner_type) for item in value]
-        
-        # Specjalne typy
-        elif py_type == "datetime":
-            if isinstance(value, str):
-                try:
-                    return datetime.datetime.fromisoformat(value).isoformat()
-                except:
-                    return None
-            elif isinstance(value, datetime.datetime):
-                return value.isoformat()
-            return None
-        elif py_type == "date":
-            if isinstance(value, str):
-                try:
-                    return datetime.datetime.fromisoformat(value).date().isoformat()
-                except:
-                    return None
-            elif isinstance(value, datetime.date):
-                return value.isoformat()
-            return None
-        elif py_type == "decimal":
-            if isinstance(value, (str, int, float)):
-                try:
-                    return str(Decimal(str(value)))
-                except:
-                    return None
-            elif isinstance(value, Decimal):
-                return str(value)
-            return None
-        
-        # Domyślnie konwertuj na string
-        return str(value)
-    
-    @staticmethod
-    def deserialize_value(value: Any, py_type: str) -> Any:
-        """
-        Deserializuje wartość z JSONB do odpowiedniego typu Python
-        
-        Args:
-            value: Wartość z JSONB
-            py_type: Typ zdefiniowany w genotypie Soul
-            
-        Returns:
-            Zdeserializowana wartość w odpowiednim typie Python
-        """
-        if value is None:
-            return None
-            
-        try:
-            # Podstawowe typy Python
-            if py_type == "str":
-                return str(value)
-            elif py_type == "int":
-                return int(value)
-            elif py_type == "float":
-                return float(value)
-            elif py_type == "bool":
-                return bool(value)
-            elif py_type == "dict":
-                return dict(value) if isinstance(value, dict) else {}
-            
-            # Typy listowe
-            elif py_type.startswith("List["):
-                inner_type = py_type[5:-1]
-                if isinstance(value, list):
-                    return [JSONBSerializer.deserialize_value(item, inner_type) for item in value]
-                return []
-            
-            # Specjalne typy
-            elif py_type == "datetime":
-                if isinstance(value, str):
-                    return datetime.datetime.fromisoformat(value)
-                return value
-            elif py_type == "date":
-                if isinstance(value, str):
-                    return datetime.datetime.fromisoformat(value).date()
-                return value
-            elif py_type == "decimal":
-                if isinstance(value, str):
-                    return Decimal(value)
-                return Decimal(str(value))
-            
-            return value
-            
-        except Exception as e:
-            print(f"⚠️ Błąd deserializacji {py_type}: {e}")
-            return value
+    """Serializer dla danych JSONB na podstawie schematu Soul"""
     
     @staticmethod
     def serialize_being_data(data: Dict[str, Any], soul: 'Soul') -> Dict[str, Any]:
         """
-        Serializuje wszystkie dane Being zgodnie ze schematem Soul
+        Serializuje dane Being zgodnie ze schematem Soul
         
         Args:
-            data: Surowe dane Being
+            data: Dane do serializacji
             soul: Obiekt Soul z definicją schematu
             
         Returns:
             Zserializowane dane gotowe do zapisu w JSONB
         """
-        if not soul or not soul.genotype:
-            return data
-            
-        attributes = soul.genotype.get("attributes", {})
-        serialized_data = {}
+        if not data or not soul or not soul.genotype:
+            return data or {}
         
-        for key, value in data.items():
-            attr_config = attributes.get(key, {})
-            py_type = attr_config.get("py_type", "str")
-            
-            try:
-                serialized_data[key] = JSONBSerializer.serialize_value(value, py_type)
-            except Exception as e:
-                print(f"⚠️ Błąd serializacji pola {key}: {e}")
-                serialized_data[key] = value
+        serialized = {}
+        attributes = soul.genotype.get("attributes", {})
+        
+        for attr_name, value in data.items():
+            if attr_name in attributes:
+                attr_meta = attributes[attr_name]
+                py_type = attr_meta.get("py_type", "str")
                 
-        return serialized_data
+                try:
+                    serialized[attr_name] = JSONBSerializer._serialize_value(value, py_type)
+                except Exception as e:
+                    print(f"⚠️ Błąd serializacji atrybutu '{attr_name}': {e}")
+                    serialized[attr_name] = value
+            else:
+                # Atrybut nie jest zdefiniowany w schemacie - zachowaj jak jest
+                serialized[attr_name] = value
+        
+        # Dodaj atrybuty z defaultami, jeśli nie są obecne
+        for attr_name, attr_meta in attributes.items():
+            if attr_name not in serialized and "default" in attr_meta:
+                default_value = attr_meta["default"]
+                py_type = attr_meta.get("py_type", "str")
+                serialized[attr_name] = JSONBSerializer._serialize_value(default_value, py_type)
+        
+        return serialized
     
     @staticmethod
     def deserialize_being_data(data: Dict[str, Any], soul: 'Soul') -> Dict[str, Any]:
@@ -184,52 +62,250 @@ class JSONBSerializer:
         Deserializuje dane Being zgodnie ze schematem Soul
         
         Args:
-            data: Dane z JSONB
+            data: Dane JSONB do deserializacji
             soul: Obiekt Soul z definicją schematu
             
         Returns:
-            Zdeserializowane dane w odpowiednich typach Python
+            Zdeserializowane dane z odpowiednimi typami Python
         """
-        if not soul or not soul.genotype:
-            return data
-            
-        attributes = soul.genotype.get("attributes", {})
-        deserialized_data = {}
+        if not data or not soul or not soul.genotype:
+            return data or {}
         
-        for key, value in data.items():
-            attr_config = attributes.get(key, {})
-            py_type = attr_config.get("py_type", "str")
-            
-            try:
-                deserialized_data[key] = JSONBSerializer.deserialize_value(value, py_type)
-            except Exception as e:
-                print(f"⚠️ Błąd deserializacji pola {key}: {e}")
-                deserialized_data[key] = value
+        deserialized = {}
+        attributes = soul.genotype.get("attributes", {})
+        
+        for attr_name, value in data.items():
+            if attr_name in attributes:
+                attr_meta = attributes[attr_name]
+                py_type = attr_meta.get("py_type", "str")
                 
-        return deserialized_data
+                try:
+                    deserialized[attr_name] = JSONBSerializer._deserialize_value(value, py_type)
+                except Exception as e:
+                    print(f"⚠️ Błąd deserializacji atrybutu '{attr_name}': {e}")
+                    deserialized[attr_name] = value
+            else:
+                # Atrybut nie jest zdefiniowany w schemacie - zachowaj jak jest
+                deserialized[attr_name] = value
+        
+        return deserialized
     
     @staticmethod
     def validate_and_serialize(data: Dict[str, Any], soul: 'Soul') -> tuple[Dict[str, Any], List[str]]:
         """
-        Waliduje i serializuje dane jednocześnie
+        Waliduje i serializuje dane zgodnie ze schematem Soul
         
         Args:
-            data: Surowe dane do walidacji i serializacji
+            data: Dane do walidacji i serializacji
             soul: Obiekt Soul z definicją schematu
             
         Returns:
             Tuple (zserializowane_dane, lista_błędów)
         """
-        errors = []
+        if not soul or not soul.genotype:
+            return data, ["Brak schematu Soul dla walidacji"]
         
-        # Najpierw walidacja
-        validation_errors = soul.validate_data(data)
-        errors.extend(validation_errors)
+        # Walidacja
+        errors = soul.validate_data(data)
         
-        # Potem serializacja
+        if errors:
+            return data, errors
+        
+        # Serializacja
         try:
             serialized_data = JSONBSerializer.serialize_being_data(data, soul)
-            return serialized_data, errors
+            return serialized_data, []
         except Exception as e:
-            errors.append(f"Błąd serializacji: {str(e)}")
-            return data, errors
+            return data, [f"Błąd serializacji: {str(e)}"]
+    
+    @staticmethod
+    def _serialize_value(value: Any, py_type: str) -> Any:
+        """Serializuje pojedynczą wartość według typu"""
+        if value is None:
+            return None
+        
+        if py_type == "datetime":
+            if isinstance(value, datetime):
+                return value.isoformat()
+            elif isinstance(value, str):
+                # Sprawdź czy to już jest ISO format
+                try:
+                    datetime.fromisoformat(value.replace('Z', '+00:00'))
+                    return value
+                except ValueError:
+                    return value
+        
+        elif py_type == "List[str]":
+            if isinstance(value, (list, tuple)):
+                return [str(item) for item in value]
+            elif isinstance(value, str):
+                return [value]
+        
+        elif py_type == "List[int]":
+            if isinstance(value, (list, tuple)):
+                return [int(item) for item in value if str(item).isdigit()]
+            elif isinstance(value, (int, str)):
+                return [int(value)]
+        
+        elif py_type == "List[float]":
+            if isinstance(value, (list, tuple)):
+                return [float(item) for item in value]
+            elif isinstance(value, (int, float, str)):
+                return [float(value)]
+        
+        elif py_type == "dict":
+            if isinstance(value, dict):
+                return value
+            elif isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    return {"value": value}
+        
+        elif py_type == "list":
+            if isinstance(value, (list, tuple)):
+                return list(value)
+            else:
+                return [value]
+        
+        elif py_type == "int":
+            return int(value)
+        
+        elif py_type == "float":
+            return float(value)
+        
+        elif py_type == "bool":
+            if isinstance(value, bool):
+                return value
+            elif isinstance(value, str):
+                return value.lower() in ('true', '1', 'yes', 'on')
+            else:
+                return bool(value)
+        
+        elif py_type == "decimal":
+            return str(Decimal(str(value)))
+        
+        # Default: str
+        return str(value)
+    
+    @staticmethod
+    def _deserialize_value(value: Any, py_type: str) -> Any:
+        """Deserializuje pojedynczą wartość według typu"""
+        if value is None:
+            return None
+        
+        if py_type == "datetime":
+            if isinstance(value, str):
+                try:
+                    return datetime.fromisoformat(value.replace('Z', '+00:00'))
+                except ValueError:
+                    return value
+            elif isinstance(value, datetime):
+                return value
+        
+        elif py_type in ["List[str]", "List[int]", "List[float]"]:
+            if isinstance(value, list):
+                if py_type == "List[str]":
+                    return [str(item) for item in value]
+                elif py_type == "List[int]":
+                    return [int(item) for item in value if str(item).isdigit()]
+                elif py_type == "List[float]":
+                    return [float(item) for item in value]
+            else:
+                return [value]
+        
+        elif py_type == "dict":
+            if isinstance(value, dict):
+                return value
+            elif isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    return {"value": value}
+        
+        elif py_type == "list":
+            if isinstance(value, list):
+                return value
+            else:
+                return [value]
+        
+        elif py_type == "int":
+            return int(value)
+        
+        elif py_type == "float":
+            return float(value)
+        
+        elif py_type == "bool":
+            if isinstance(value, bool):
+                return value
+            elif isinstance(value, str):
+                return value.lower() in ('true', '1', 'yes', 'on')
+            else:
+                return bool(value)
+        
+        elif py_type == "decimal":
+            return Decimal(str(value))
+        
+        # Default: str
+        return str(value)
+    
+    @staticmethod
+    def get_json_schema(soul: 'Soul') -> Dict[str, Any]:
+        """
+        Generuje JSON Schema na podstawie definicji Soul
+        
+        Args:
+            soul: Obiekt Soul
+            
+        Returns:
+            JSON Schema
+        """
+        if not soul or not soul.genotype:
+            return {}
+        
+        attributes = soul.genotype.get("attributes", {})
+        schema = {
+            "type": "object",
+            "title": soul.alias or "Being Data",
+            "properties": {},
+            "required": []
+        }
+        
+        for attr_name, attr_meta in attributes.items():
+            py_type = attr_meta.get("py_type", "str")
+            required = attr_meta.get("required", False)
+            description = attr_meta.get("description", "")
+            
+            # Mapowanie typów Python na JSON Schema
+            json_type = JSONBSerializer._python_to_json_type(py_type)
+            
+            schema["properties"][attr_name] = {
+                "type": json_type,
+                "description": description
+            }
+            
+            if "default" in attr_meta:
+                schema["properties"][attr_name]["default"] = attr_meta["default"]
+            
+            if required:
+                schema["required"].append(attr_name)
+        
+        return schema
+    
+    @staticmethod
+    def _python_to_json_type(py_type: str) -> str:
+        """Mapuje typy Python na typy JSON Schema"""
+        mapping = {
+            "str": "string",
+            "int": "integer",
+            "float": "number",
+            "bool": "boolean",
+            "dict": "object",
+            "list": "array",
+            "List[str]": "array",
+            "List[int]": "array",
+            "List[float]": "array",
+            "datetime": "string",
+            "decimal": "string"
+        }
+        return mapping.get(py_type, "string")
