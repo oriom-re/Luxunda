@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import ulid
 
 from .session_assistant import SessionManager, session_manager
+from .access_control import access_controller, AccessLevel
 from ..models.being import Being
 from ..models.soul import Soul
 from ..models.event import Event
@@ -291,6 +292,89 @@ class AuthenticationManager:
         user_events.sort(key=lambda e: getattr(e, 'created_at', ''), reverse=True)
         
         return user_events[:limit]
+    
+    async def get_accessible_beings(self, user_ulid: str) -> List[Being]:
+        """Pobiera wszystkie byty dostępne dla użytkownika"""
+        if user_ulid not in self.user_credentials:
+            return []
+        
+        # Znajdź sesję użytkownika
+        user_session = None
+        for session_data in self.active_sessions.values():
+            if session_data.get("user_ulid") == user_ulid:
+                user_session = session_data
+                break
+        
+        # Pobierz wszystkie byty z kontrolą dostępu
+        return await Being.get_all(user_ulid, user_session)
+    
+    async def create_secured_being(self, user_ulid: str, soul, data: Dict[str, Any], 
+                                  access_level: str = "authenticated", 
+                                  alias: str = None, ttl_hours: int = None) -> Being:
+        """Tworzy nowy byt z odpowiednimi uprawnieniami"""
+        if user_ulid not in self.user_credentials:
+            raise PermissionError("User not found")
+        
+        user_data = self.user_credentials[user_ulid]
+        user_role = user_data.get("role", "user")
+        
+        # Sprawdź uprawnienia do tworzenia w różnych strefach
+        if access_level == "sensitive" and user_role not in ["admin", "super_admin"]:
+            # Użytkownik może tworzyć w strefie sensitive tylko jeśli ma odpowiednie uprawnienia
+            permissions = user_data.get("permissions", [])
+            if "create_sensitive" not in permissions:
+                access_level = "authenticated"  # Przełącz na authenticated
+        
+        # Znajdź odpowiednią strefę
+        zone_mapping = {
+            "public": "public_zone",
+            "authenticated": "authenticated_zone", 
+            "sensitive": "sensitive_zone"
+        }
+        access_zone = zone_mapping.get(access_level, "authenticated_zone")
+        
+        # Utwórz byt
+        being = await Being.create(
+            soul=soul,
+            data=data,
+            alias=alias,
+            access_zone=access_zone,
+            ttl_hours=ttl_hours
+        )
+        
+        # Przypisz użytkownika jako właściciela dla niepublicznych bytów
+        if access_level != "public":
+            zone = access_controller.zones.get(access_zone)
+            if zone:
+                zone.grant_user_access(user_ulid)
+        
+        # Utwórz event tworzenia
+        await Event.create_event(
+            "being_created",
+            {
+                "being_ulid": being.ulid,
+                "creator_ulid": user_ulid,
+                "access_zone": access_zone,
+                "access_level": access_level
+            }
+        )
+        
+        print(f"🔐 Created secured being: {being.ulid[:8]}... in zone: {access_zone}")
+        return being
+    
+    def get_user_access_summary(self, user_ulid: str) -> Dict[str, Any]:
+        """Zwraca podsumowanie dostępów użytkownika"""
+        if user_ulid not in self.user_credentials:
+            return {"error": "User not found"}
+        
+        # Znajdź sesję użytkownika
+        user_session = None
+        for session_data in self.active_sessions.values():
+            if session_data.get("user_ulid") == user_ulid:
+                user_session = session_data
+                break
+        
+        return access_controller.get_access_summary(user_ulid, user_session)
 
 # Globalna instancja
 auth_manager = AuthenticationManager()

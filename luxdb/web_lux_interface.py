@@ -400,6 +400,145 @@ async def search_tools(query: str):
 
     return {"results": results}
 
+@app.get("/api/access/zones")
+async def get_access_zones(request: Request):
+    """Pobiera wszystkie strefy dostępu"""
+    try:
+        from .core.access_control import access_controller
+
+        zones_data = {}
+        for zone_id, zone in access_controller.zones.items():
+            zones_data[zone_id] = zone.to_dict()
+
+        return {"zones": zones_data}
+    except Exception as e:
+        return {"error": f"Error getting zones: {str(e)}"}
+
+@app.get("/api/access/summary")
+async def get_access_summary(request: Request):
+    """Pobiera podsumowanie dostępów dla użytkownika"""
+    try:
+        # Pobierz token z nagłówka
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return {"error": "Authorization required"}
+
+        token = auth_header[7:]
+
+        # Waliduj sesję
+        from .core.auth_session import auth_manager
+        session_data = await auth_manager.validate_session(token)
+        if not session_data:
+            return {"error": "Invalid session"}
+
+        # Pobierz podsumowanie dostępów
+        summary = auth_manager.get_user_access_summary(session_data["user_ulid"])
+        return {"access_summary": summary}
+
+    except Exception as e:
+        return {"error": f"Error getting access summary: {str(e)}"}
+
+@app.post("/api/beings/create_secured")
+async def create_secured_being(request: Request):
+    """Tworzy nowy byt z kontrolą dostępu"""
+    try:
+        # Pobierz token z nagłówka
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return {"error": "Authorization required"}
+
+        token = auth_header[7:]
+
+        # Waliduj sesję
+        from .core.auth_session import auth_manager
+        session_data = await auth_manager.validate_session(token)
+        if not session_data:
+            return {"error": "Invalid session"}
+
+        # Pobierz dane z requestu
+        data = await request.json()
+        soul_alias = data.get("soul_alias")
+        being_data = data.get("data", {})
+        access_level = data.get("access_level", "authenticated")
+        alias = data.get("alias")
+        ttl_hours = data.get("ttl_hours")
+
+        if not soul_alias:
+            return {"error": "soul_alias is required"}
+
+        # Pobierz Soul
+        from .models.soul import Soul
+        soul = await Soul.get_by_alias(soul_alias)
+        if not soul:
+            return {"error": f"Soul with alias '{soul_alias}' not found"}
+
+        # Utwórz zabezpieczony byt
+        being = await auth_manager.create_secured_being(
+            user_ulid=session_data["user_ulid"],
+            soul=soul,
+            data=being_data,
+            access_level=access_level,
+            alias=alias,
+            ttl_hours=ttl_hours
+        )
+
+        return {
+            "success": True,
+            "being": being.to_dict(),
+            "message": f"Secured being created in {access_level} zone"
+        }
+
+    except Exception as e:
+        return {"error": f"Error creating secured being: {str(e)}"}
+
+@app.get("/api/beings/by_zone/{zone_id}")
+async def get_beings_by_zone(request: Request):
+    """Pobiera byty z określonej strefy dostępu"""
+    try:
+        zone_id = request.path_params.get("zone_id")
+
+        # Pobierz token z nagłówka (opcjonalnie)
+        auth_header = request.headers.get('Authorization', '')
+        user_ulid = None
+        user_session = None
+
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]
+            from .core.auth_session import auth_manager
+            session_data = await auth_manager.validate_session(token)
+            if session_data:
+                user_ulid = session_data["user_ulid"]
+                user_session = session_data
+
+        # Pobierz byty ze strefy
+        from .models.being import Being
+        beings = await Being.get_by_access_zone(zone_id, user_ulid, user_session)
+
+        beings_data = []
+        for being in beings:
+            being_dict = being.to_dict()
+            # Dodaj informacje o Soul
+            soul = await being.get_soul()
+            if soul:
+                being_dict["_soul"] = {
+                    "soul_hash": soul.soul_hash,
+                    "alias": soul.alias,
+                    "genotype": soul.genotype
+                }
+            beings_data.append(being_dict)
+
+        return {
+            "zone_id": zone_id,
+            "beings": beings_data,
+            "total": len(beings_data)
+        }
+
+    except Exception as e:
+        return {"error": f"Error getting beings by zone: {str(e)}"}
+
+
 if __name__ == "__main__":
-    import uvicorn
+    import asyncio
+    from hypercorn.config import Config
+    from hypercorn.asyncio import serve
     uvicorn.run(app, host="0.0.0.0", port=3001)
