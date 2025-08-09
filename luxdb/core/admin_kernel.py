@@ -64,14 +64,13 @@ class AdminKernelInterface:
         # Utwórz lub załaduj Lux Being
         lux_soul = await self._get_or_create_lux_soul()
         self.lux_being = await Being.create(
-            lux_soul,
-            {
+            soul=lux_soul,
+            attributes={
                 "role": "ai_assistant",
-                "capabilities": ["conversation", "system_analysis", "support"],
-                "personality": "helpful_technical_expert",
+                "capabilities": ["conversation", "analysis", "task_management"],
                 "status": "active"
             },
-            alias="admin_lux"
+            alias="Lux"
         )
 
         self.system_status["kernel_active"] = True

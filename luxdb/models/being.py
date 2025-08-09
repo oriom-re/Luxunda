@@ -47,12 +47,15 @@ class Being:
             self.data[name] = value
 
     @classmethod
-    async def create(cls, **kwargs) -> 'Being':
+    async def create(cls, soul=None, attributes=None, alias=None, **kwargs) -> 'Being':
         """
-        Tworzy nowy Being
+        Tworzy nowy Being kompatybilnie z poprzednią sygnaturą
 
         Args:
-            **kwargs: Dowolne atrybuty do zapisania w JSONB
+            soul: Obiekt Soul lub soul_hash
+            attributes: Atrybuty (słownik) 
+            alias: Alias Being
+            **kwargs: Dodatkowe atrybuty
 
         Returns:
             Nowy Being
@@ -63,13 +66,36 @@ class Being:
         import ulid
         being.ulid = str(ulid.ulid())
 
-        # Ustaw podstawowe atrybuty
-        being.alias = kwargs.pop('alias', None)
-        being.soul_hash = kwargs.pop('soul_hash', None)
+        # Ustaw alias
+        being.alias = alias or kwargs.pop('alias', None)
+        
+        # Obsługuj soul (może być obiektem Soul lub hashem)
+        if soul:
+            if hasattr(soul, 'soul_hash'):
+                # To jest obiekt Soul
+                being.soul_hash = soul.soul_hash
+                being._soul_instance = soul  # Cache dla serializacji
+            elif isinstance(soul, str):
+                # To jest bezpośrednio hash
+                being.soul_hash = soul
+            else:
+                # Fallback - spróbuj wyciągnąć hash
+                being.soul_hash = getattr(soul, 'soul_hash', str(soul))
+        else:
+            # Brak soul - generuj domyślny hash
+            import hashlib
+            being.soul_hash = hashlib.md5(f"default_{being.ulid}".encode()).hexdigest()
+
         being.table_type = kwargs.pop('table_type', 'being')
 
-        # Wszystko inne do data JSONB
-        being.data.update(kwargs)
+        # Połącz attributes z kwargs
+        all_data = {}
+        if attributes:
+            all_data.update(attributes)
+        all_data.update(kwargs)
+        
+        # Wszystko do data JSONB
+        being.data.update(all_data)
 
         # Zapisz do bazy
         result = await BeingRepository.save_jsonb(being)
