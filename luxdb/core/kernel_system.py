@@ -60,7 +60,11 @@ class ScenarioLoader:
 
     def _make_json_serializable(self, data: Any) -> Any:
         """Automatycznie wykrywa i konwertuje dane do JSON-serializable"""
-        if hasattr(data, 'to_json_serializable'):
+        if data is None:
+            return None
+        elif isinstance(data, (str, int, float, bool)):
+            return data
+        elif hasattr(data, 'to_json_serializable'):
             return data.to_json_serializable()
         elif hasattr(data, 'to_dict'):
             return data.to_dict()
@@ -168,9 +172,12 @@ class ScenarioLoader:
 
         # Utwórz Being
         being = await Being.create(
-            soul=soul,
+            soul=soul.soul_hash,  # Przekaż soul_hash
             attributes=being_data.get("attributes", {}),
             alias=being_data.get("alias", f"being_{being_hash[:8]}"))
+
+        # Zapisz obiekt soul w cache dla przyszłego użytku
+        being._soul_cache = soul
 
         self.loaded_beings[being_hash] = being
         self.being_hashes[being.ulid] = being_hash
@@ -266,7 +273,7 @@ class KernelSystem:
             "type": "register_being",
             "being_info": {
                 "ulid": being.ulid,
-                "soul_hash": being.soul.soul_hash if hasattr(being.soul, 'soul_hash') else None,
+                "soul_hash": being.soul_hash,
                 "alias": being.alias,
                 "type": getattr(being, 'being_type', 'generic')
             }
