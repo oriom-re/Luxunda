@@ -160,6 +160,10 @@ class ScenarioLoader:
         with open(being_file, 'r') as f:
             being_data = json.load(f)
 
+        # Sprawdź czy being_data jest stringiem i zdekoduj go
+        if isinstance(being_data, str):
+            being_data = json.loads(being_data)
+        
         # Utwórz Soul jeśli nie istnieje
         soul_alias = being_data.get("soul_alias", f"soul_{being_hash[:8]}")
         soul = await Soul.get_by_alias(soul_alias)
@@ -187,6 +191,10 @@ class ScenarioLoader:
     async def _save_being_to_database(self, being_data):
         """Zapisuje byt do bazy danych używając Being.create"""
         try:
+            # Sprawdź czy being_data jest stringiem i zdekoduj go
+            if isinstance(being_data, str):
+                being_data = json.loads(being_data)
+            
             # Sprawdź czy to jest słownik z danymi
             if isinstance(being_data, dict):
                 # Przygotuj genotype dla Soul
