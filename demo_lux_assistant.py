@@ -25,7 +25,8 @@ async def main():
     print("=" * 50)
     
     # Initialize database
-    await Postgre_db.initialize()
+    db = Postgre_db()
+    await db.initialize()
     
     # Get OpenAI API key (you'll need to set this)
     api_key = os.getenv("OPENAI_API_KEY", "your-api-key-here")
