@@ -6,6 +6,7 @@
     "genesis": {
       "name": "advanced_kernel",
       "type": "system_core_advanced",
+      "version": "1.0.0",
       "doc": "Zaawansowany kernel z rozszerzoną funkcjonalnością"
     },
     "attributes": {

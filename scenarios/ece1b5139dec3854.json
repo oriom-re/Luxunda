@@ -5,6 +5,7 @@
     "genesis": {
       "name": "communication",
       "type": "system_io",
+      "version": "1.0.0",
       "doc": "Hub komunikacyjny systemu"
     }
   },

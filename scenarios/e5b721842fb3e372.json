@@ -5,7 +5,8 @@
     "genesis": {
       "name": "kernel",
       "type": "system_core",
-      "doc": "G\u0142\u00f3wny byt systemu"
+      "version": "1.0.0",
+      "doc": "Główny byt systemu"
     }
   },
   "attributes": {
