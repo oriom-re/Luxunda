@@ -1,4 +1,3 @@
-
 from typing import Dict, Any, Optional, List
 import json
 from database.postgre_db import Postgre_db
@@ -40,14 +39,14 @@ class SoulRepository:
                 soul.alias,
                 json.dumps(soul.genotype)
             )
-            
+
             if result:
                 soul.created_at = result['created_at']
                 print(f"✅ Soul saved with hash: {soul.soul_hash[:8]}... and alias: {soul.alias}")
-                
+
                 # Automatycznie twórz indeksy na podstawie genotypu
                 await SoulRepository.create_soul_indexes(conn, soul.soul_hash, soul.genotype)
-                
+
             return {"success": True}
 
     @staticmethod
@@ -55,12 +54,12 @@ class SoulRepository:
         """Tworzy indeksy specyficzne dla duszy na podstawie genotypu JSONB"""
         try:
             attributes = genotype.get("attributes", {})
-            
+
             for attr_name, attr_meta in attributes.items():
                 if attr_meta.get("indexed", False):
                     index_type = attr_meta.get("index_type", "gin")
                     index_name = f"idx_{soul_hash[:12]}_{attr_name}"
-                    
+
                     if index_type == "gin":
                         await conn.execute(f"""
                             CREATE INDEX IF NOT EXISTS {index_name} 
@@ -87,9 +86,9 @@ class SoulRepository:
                             ON beings USING ivfflat (vector_embedding vector_cosine_ops)
                             WHERE soul_hash = '{soul_hash}'
                         """)
-                    
+
                     print(f"✅ Created index {index_name} for soul {soul_hash[:8]}...")
-                        
+
         except Exception as e:
             print(f"❌ Error creating indexes for soul {soul_hash[:8]}: {e}")
 
@@ -257,7 +256,7 @@ class BeingRepository:
                     updated_at = CURRENT_TIMESTAMP
                 RETURNING created_at, updated_at
             """
-            
+
             # Determine table_type
             table_type = 'being'
             if hasattr(being, '_soul') and being._soul:
@@ -278,12 +277,12 @@ class BeingRepository:
                 being.vector_embedding,
                 table_type
             )
-            
+
             if result:
                 being.created_at = result['created_at']
                 being.updated_at = result['updated_at']
                 print(f"✅ Being saved with ulid: {being.ulid[:8]}... and soul hash: {being.soul_hash[:8]}...")
-            
+
             return {"success": True}
 
     @staticmethod
@@ -314,27 +313,27 @@ class BeingRepository:
             conditions = []
             params = []
             param_count = 1
-            
+
             for key, value in query.items():
                 conditions.append(f"data->>'{key}' = ${param_count}")
                 params.append(str(value))
                 param_count += 1
-            
+
             where_clause = " AND ".join(conditions)
             if soul_hash:
                 where_clause += f" AND soul_hash = ${param_count}"
                 params.append(soul_hash)
-            
+
             sql_query = f"""
                 SELECT * FROM beings 
                 WHERE {where_clause}
                 ORDER BY created_at DESC
             """
-            
+
             rows = await conn.fetch(sql_query, *params)
             Being = get_being_class()
             beings = []
-            
+
             for row in rows:
                 being = Being()
                 being.ulid = row['ulid']
@@ -345,7 +344,7 @@ class BeingRepository:
                 being.created_at = row['created_at']
                 being.updated_at = row['updated_at']
                 beings.append(being)
-            
+
             return beings
 
     @staticmethod
@@ -364,11 +363,11 @@ class BeingRepository:
                 ORDER BY vector_embedding <-> $1
                 LIMIT $3
             """
-            
+
             rows = await conn.fetch(query, embedding, 1 - threshold, limit)
             Being = get_being_class()
             beings = []
-            
+
             for row in rows:
                 being = Being()
                 being.ulid = row['ulid']
@@ -379,7 +378,7 @@ class BeingRepository:
                 being.created_at = row['created_at']
                 being.updated_at = row['updated_at']
                 beings.append(being)
-            
+
             return beings
 
     @staticmethod
@@ -589,11 +588,11 @@ class RelationRepository:
                         updated_at = CURRENT_TIMESTAMP
                     RETURNING created_at, updated_at
                 """
-                
+
                 relation_data = getattr(relation, 'data', {})
                 relation_type = getattr(relation, 'relation_type', 'connection')
                 strength = getattr(relation, 'strength', 1.0)
-                
+
                 result = await conn.fetchrow(query,
                     relation.ulid,
                     relation.soul_hash,
@@ -604,7 +603,7 @@ class RelationRepository:
                     relation_type,
                     strength
                 )
-                
+
                 if result:
                     relation.created_at = result['created_at']
                     relation.updated_at = result['updated_at']
@@ -628,7 +627,7 @@ class RelationRepository:
                 """
                 row = await conn.fetchrow(query, ulid)
                 if row:
-                    from database.models.relation import Relation
+                    from ..models.relationship import Relationship as Relation
                     relation = Relation()
                     relation.ulid = row['ulid']
                     relation.soul_hash = row['soul_hash']
@@ -662,7 +661,7 @@ class RelationRepository:
                     ORDER BY created_at DESC
                 """
                 rows = await conn.fetch(query, soul_hash)
-                from database.models.relation import Relation
+                from ..models.relationship import Relationship as Relation
                 relations = []
                 for row in rows:
                     relation = Relation()
@@ -697,7 +696,7 @@ class RelationRepository:
                     ORDER BY created_at DESC
                 """
                 rows = await conn.fetch(query)
-                from database.models.relation import Relation
+                from ..models.relationship import Relationship as Relation
                 relations = []
                 for row in rows:
                     relation = Relation()
@@ -733,7 +732,7 @@ class RelationRepository:
                     ORDER BY created_at DESC
                 """
                 rows = await conn.fetch(query, being_ulid)
-                from database.models.relation import Relation
+                from ..models.relationship import Relationship as Relation
                 relations = []
                 for row in rows:
                     relation = Relation()

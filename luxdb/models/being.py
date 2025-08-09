@@ -10,8 +10,7 @@ import ulid
 
 from ..core.globals import Globals
 from .soul import Soul
-from database.soul_repository import BeingRepository
-from database.dynamic_repository import DynamicRepository
+from ..repository.soul_repository import BeingRepository, DynamicRepository
 
 @dataclass
 class Being:

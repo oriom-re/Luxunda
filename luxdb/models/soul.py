@@ -51,7 +51,7 @@ class Soul:
             ```
         """
         from ..utils.validators import validate_genotype
-        from database.soul_repository import SoulRepository
+        from ..repository.soul_repository import SoulRepository
 
         # Walidacja genotypu
         validate_genotype(genotype)
@@ -82,7 +82,7 @@ class Soul:
         Returns:
             Soul lub None jeśli nie znaleziono
         """
-        from database.soul_repository import SoulRepository
+        from ..repository.soul_repository import SoulRepository
 
         result = await SoulRepository.load_by_hash(hash)
         return result.get('soul') if result.get('success') else None
@@ -98,7 +98,7 @@ class Soul:
         Returns:
             Soul lub None jeśli nie znaleziono
         """
-        from database.soul_repository import SoulRepository
+        from ..repository.soul_repository import SoulRepository
 
         result = await SoulRepository.load_by_alias(alias)
         return result.get('soul') if result.get('success') else None
@@ -111,7 +111,7 @@ class Soul:
         Returns:
             Lista wszystkich Soul
         """
-        from database.soul_repository import SoulRepository
+        from ..repository.soul_repository import SoulRepository
 
         result = await SoulRepository.load_all()
         souls = result.get('souls', [])
@@ -128,7 +128,7 @@ class Soul:
         Returns:
             Lista Soul o podanym aliasie
         """
-        from database.soul_repository import SoulRepository
+        from ..repository.soul_repository import SoulRepository
 
         result = await SoulRepository.load_all_by_alias(alias)
         souls = result.get('souls', [])
@@ -141,7 +141,7 @@ class Soul:
         Returns:
             True jeśli zapis się powiódł
         """
-        from database.soul_repository import SoulRepository
+        from ..repository.soul_repository import SoulRepository
 
         result = await SoulRepository.save(self)
         return result.get('success', False)
