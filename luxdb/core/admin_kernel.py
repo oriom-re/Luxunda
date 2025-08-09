@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from luxdb.models.being import Being
-from database.models.base import Soul
+from luxdb.models.soul import Soul
 
 # Import kernel_system - będzie zaimportowany dynamicznie
 kernel_system = None
@@ -343,7 +343,7 @@ async def monitor_system_resources(being, context):
     """Monitoruje zasoby systemu"""
     return {
         "cpu_usage": "12%",
-        "memory_usage": "245MB", 
+        "memory_usage": "245MB",
         "active_beings": len(kernel_system.beings_registry),
         "connections": len(admin_kernel.active_connections)
     }

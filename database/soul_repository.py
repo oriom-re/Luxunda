@@ -4,15 +4,15 @@ from database.postgre_db import Postgre_db
 from core.globals import Globals
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from database.models.base import Being
-    from database.models.base import Soul
+    from luxdb.models.being import Being
+    from luxdb.models.soul import Soul
 
 def get_soul_class():
-    from database.models.base import Soul
+    from luxdb.models.soul import Soul
     return Soul
 
 def get_being_class():
-    from database.models.base import Being
+    from luxdb.models.being import Being
     return Being
 
 class SoulRepository:
@@ -35,7 +35,7 @@ class SoulRepository:
                 """
                 row = await conn.fetchrow(query, alias)
                 if row:
-                    from database.models.base import Soul
+                    from luxdb.models.soul import Soul
                     soul = Soul(
                         genotype=row['genotype'],
                         alias=row['alias'],

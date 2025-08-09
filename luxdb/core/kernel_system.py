@@ -9,8 +9,8 @@ from datetime import datetime
 from pathlib import Path
 import hashlib
 
-from luxdb.models.being import Being
 from luxdb.models.soul import Soul
+from luxdb.models.being import Being
 
 class KernelBeing:
     """Prosta klasa Kernel Being dla systemu jądra"""

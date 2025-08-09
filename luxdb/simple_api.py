@@ -6,8 +6,9 @@ import asyncio
 import json
 from typing import Dict, Any, List, Optional
 from database.postgre_db import Postgre_db
-from database.models.base import Soul, Being
-from database.models.relationship import Relationship
+from luxdb.models.soul import Soul
+from luxdb.models.being import Being
+from luxdb.models.relationship import Relationship
 
 
 class SimpleEntity:
