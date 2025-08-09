@@ -72,7 +72,7 @@ class Soul:
         return soul
 
     @classmethod
-    async def load_by_hash(cls, hash: str) -> Optional['Soul']:
+    async def get_by_hash(cls, hash: str) -> Optional['Soul']:
         """
         Ładuje Soul po global_ulid.
 
@@ -84,11 +84,11 @@ class Soul:
         """
         from ..repository.soul_repository import SoulRepository
 
-        result = await SoulRepository.load_by_hash(hash)
+        result = await SoulRepository.get_by_hash(hash)
         return result.get('soul') if result.get('success') else None
 
     @classmethod
-    async def load_by_alias(cls, alias: str) -> Optional['Soul']:
+    async def get_by_alias(cls, alias: str) -> Optional['Soul']:
         """
         Ładuje Soul po aliasie.
 
@@ -104,7 +104,7 @@ class Soul:
         return result.get('soul') if result.get('success') else None
 
     @classmethod
-    async def load_all(cls) -> List['Soul']:
+    async def get_all(cls) -> List['Soul']:
         """
         Ładuje wszystkie Soul z bazy danych.
 
@@ -118,7 +118,7 @@ class Soul:
         return [soul for soul in souls if soul is not None]
 
     @classmethod
-    async def load_all_by_alias(cls, alias: str) -> List['Soul']:
+    async def get_all_by_alias(cls, alias: str) -> List['Soul']:
         """
         Ładuje wszystkie Soul o danym aliasie.
 
