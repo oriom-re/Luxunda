@@ -28,8 +28,13 @@ from luxdb.core.admin_kernel import admin_kernel
 async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting Admin Kernel Server...")
-    await admin_kernel.initialize()
-    print("✅ Admin Kernel Server ready!")
+    try:
+        await admin_kernel.initialize()
+        print("✅ Admin Kernel Server ready!")
+        print("👑 Admin Interface available at: http://0.0.0.0:3030")
+    except Exception as e:
+        print(f"⚠️ Admin Kernel Server startup warning: {e}")
+        print("🔄 Continuing with limited functionality...")
     yield
     # Shutdown
     print("🔄 Shutting down Admin Kernel Server...")

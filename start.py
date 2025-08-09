@@ -71,11 +71,33 @@ async def initialize_kernel():
         return False
 
 def main():
-    """Start the LuxOS system"""
-    print("🚀 Starting LuxOS Kernel System...")
+    """Start the LuxOS system with bootstrap option"""
+    print("🚀 Starting LuxOS System...")
     print("=" * 60)
 
-    # Initialize Kernel System
+    # Check if user wants full bootstrap
+    if "--bootstrap" in sys.argv or "--wake-up" in sys.argv:
+        print("🌅 Launching full LuxOS Bootstrap procedure...")
+        try:
+            from luxos_bootstrap import wake_up_luxos
+            result = asyncio.run(wake_up_luxos())
+            
+            if result["success"]:
+                print("🎯 Bootstrap complete! Admin ready at http://0.0.0.0:3030")
+                # Keep main process alive
+                import time
+                try:
+                    while True:
+                        time.sleep(30)
+                except KeyboardInterrupt:
+                    print("\n👋 LuxOS shutting down...")
+                return
+            else:
+                print("⚠️ Bootstrap partial success, continuing with standard startup...")
+        except Exception as e:
+            print(f"❌ Bootstrap error: {e}, falling back to standard startup...")
+
+    # Standard startup procedure
     kernel_ready = asyncio.run(initialize_kernel())
 
     if not kernel_ready:
