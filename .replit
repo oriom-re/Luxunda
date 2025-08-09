@@ -16,7 +16,7 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS Unified Onboarding"
+runButton = "Demo Lux Assistant"
 
 [[workflows.workflow]]
 name = "Start LuxOS Server"
@@ -134,6 +134,15 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python admin_kernel_server.py"
+
+[[workflows.workflow]]
+name = "Demo Lux Assistant"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python demo_lux_assistant.py"
 
 [[ports]]
 localPort = 3000
