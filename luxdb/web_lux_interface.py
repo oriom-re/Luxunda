@@ -10,16 +10,18 @@ import json
 import asyncio
 from typing import List
 from luxdb.ai_lux_assistant import LuxAssistant
+from luxdb.core.session_assistant import session_manager, SessionManager
 from database.postgre_db import Postgre_db
 import os
+import hashlib
 
 app = FastAPI(title="Lux AI Assistant Web Interface")
 
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Global Lux instance
-lux_assistant = None
+# Global Session Manager
+session_manager = SessionManager()
 
 class ConnectionManager:
     def __init__(self):
@@ -61,43 +63,86 @@ async def serve_interface():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for Lux conversations"""
+    """WebSocket endpoint for Session-based Lux conversations"""
     await manager.connect(websocket)
     
-    # Send welcome message
-    await websocket.send_text(json.dumps({
-        "type": "system",
-        "message": "🌟 Witaj! Jestem Lux - Twój AI asystent do zarządzania bytami i narzędziami!",
-        "timestamp": "now"
-    }))
+    # Initialize session
+    user_session = None
     
     try:
+        # First message should contain user identification
+        data = await websocket.receive_text()
+        init_data = json.loads(data)
+        
+        if init_data.get("type") == "init_session":
+            # Create user fingerprint
+            user_info = init_data.get("user_info", {})
+            fingerprint_data = f"{user_info.get('user_agent', '')}{user_info.get('screen_resolution', '')}{user_info.get('timezone', '')}"
+            user_fingerprint = hashlib.md5(fingerprint_data.encode()).hexdigest()
+            
+            # Create session assistant
+            user_session = await session_manager.create_session(
+                user_fingerprint=user_fingerprint,
+                user_ulid=user_info.get("user_ulid"),
+                ttl_minutes=30
+            )
+            
+            # Send welcome with context
+            context = await user_session.build_conversation_context()
+            await websocket.send_text(json.dumps({
+                "type": "system",
+                "message": f"🌟 Witaj! Jestem Lux - Twój kontekstowy asystent!\n\nTwoja sesja: {user_session.session.session_id[:8]}...\nAktywne projekty: {', '.join(user_session.session.project_tags) if user_session.session.project_tags else 'Brak'}",
+                "session_context": context,
+                "timestamp": "now"
+            }))
+        else:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": "Proszę zainicjalizować sesję"
+            }))
+            return
+        
+        # Main conversation loop
         while True:
-            # Receive user message
             data = await websocket.receive_text()
             message_data = json.loads(data)
             
             if message_data["type"] == "user_message":
                 user_message = message_data["message"]
                 
-                # Send thinking indicator
+                # Send thinking indicator with context
                 await websocket.send_text(json.dumps({
                     "type": "thinking",
-                    "message": "🤔 Lux myśli...",
+                    "message": f"🤔 Analizuję w kontekście {len(user_session.session.active_events)} aktywnych eventów...",
                 }))
                 
-                # Process with Lux
-                response = await lux_assistant.chat(user_message)
+                # Process with Session Assistant
+                response = await user_session.process_message(user_message)
                 
-                # Send Lux response
+                # Send contextual response
+                context = await user_session.build_conversation_context()
                 await websocket.send_text(json.dumps({
                     "type": "lux_response", 
                     "message": response,
+                    "session_context": context,
+                    "active_projects": list(user_session.session.project_tags),
+                    "recent_activity": user_session.get_recent_actions_summary(),
                     "timestamp": "now"
+                }))
+            
+            elif message_data["type"] == "user_action":
+                # Track user action as event
+                action_data = message_data.get("action", {})
+                await user_session.track_event_from_frontend(action_data)
+                
+                await websocket.send_text(json.dumps({
+                    "type": "action_tracked",
+                    "message": f"Akcja {action_data.get('type', 'unknown')} została zarejestrowana"
                 }))
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+        # Session will be cleaned up automatically by TTL
 
 @app.get("/api/tools")
 async def get_available_tools():

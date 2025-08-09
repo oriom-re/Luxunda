@@ -4,7 +4,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌟 Lux AI Assistant</title>
+    <title>🌟 Lux AI Assistant - Session Context</title>
+    <style>
+        .session-sidebar {
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 300px;
+            height: 100vh;
+            background: #f8f9fa;
+            border-left: 1px solid #e9ecef;
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        .context-info, .project-tags, .recent-activity {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #007bff;
+            color: white;
+            border-radius: 4px;
+            margin: 2px;
+            font-size: 12px;
+        }
+        
+        .tag-luxunda { background: #28a745; }
+        .tag-deployment { background: #ffc107; }
+        .tag-database { background: #17a2b8; }
+        
+        .action-notification {
+            position: fixed;
+            top: 20px;
+            right: 320px;
+            background: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            z-index: 1001;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .main-content {
+            margin-right: 320px; /* Make space for sidebar */
+        }
+        
+        #thinking-indicator {
+            display: none;
+            padding: 10px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-style: italic;
+        }
+    </style>
+    <script src="/static/session-context.js"></script>
+</head>
+<body>
+    <div class="main-content">
+        <!-- Istniejąca zawartość chat interface -->
+        <div id="chat-container">
+            <div id="chat-messages"></div>
+            <div id="thinking-indicator">🤔 Myślę...</div>
+            <div id="chat-input">
+                <input type="text" id="message-input" placeholder="Napisz wiadomość do Lux...">
+                <button onclick="sendMessage()">Wyślij</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Session Context Sidebar -->
+    <div class="session-sidebar">
+        <h3>🎯 Kontekst Sesji</h3>
+        
+        <div id="session-context">
+            <div class="context-info">
+                <h4>📊 Ładowanie...</h4>
+                <p>Inicjalizacja sesji...</p>
+            </div>
+        </div>
+        
+        <div id="project-tags">
+            <!-- Projekty będą dodane dynamicznie -->
+        </div>
+        
+        <div id="recent-activity">
+            <!-- Ostatnie działania będą dodane dynamicznie -->
+        </div>
+    </div>
+
+    <script>
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (message && window.luxSession) {
+                window.luxSession.sendMessage(message);
+                input.value = '';
+            }
+        }
+        
+        // Enter key support
+        document.getElementById('message-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
     <style>
         * {
             margin: 0;
