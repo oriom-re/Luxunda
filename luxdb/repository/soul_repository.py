@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 🗄️ Soul Repository - Tylko nowoczesny JSONB, bez legacy
@@ -187,21 +186,46 @@ class BeingRepository:
 
             async with pool.acquire() as conn:
                 query = """
-                    SELECT * FROM beings
+                    SELECT ulid, soul_hash, alias, data, created_at, updated_at
+                    FROM beings 
                     WHERE ulid = $1
                 """
                 row = await conn.fetchrow(query, ulid)
-                if row:
-                    Being = get_being_class()
-                    being = Being()
-                    being.ulid = row['ulid']
-                    being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
-                    being.data = row['data'] or {}
-                    being.created_at = row['created_at']
-                    being.updated_at = row['updated_at']
-                    return {"success": True, "being": being}
-            return {"success": False}
+
+                if not row:
+                    return {"success": False, "error": "Being not found"}
+
+                # Pobierz Soul dla deserializacji
+                Soul = get_soul_class()
+                soul = None
+                if row['soul_hash']:
+                    soul_result = await SoulRepository.get_by_hash(row['soul_hash'])
+                    if soul_result.get('success'):
+                        soul = soul_result.get('soul')
+
+                # Deserializuj dane według schematu Soul
+                from ..utils.serializer import JSONBSerializer
+                data = row['data'] or {}
+                if soul:
+                    data = JSONBSerializer.deserialize_being_data(data, soul)
+
+                # Deserializuj Being z bazy
+                being_dict = {
+                    'ulid': row['ulid'],
+                    'soul_hash': row['soul_hash'],
+                    'alias': row['alias'],
+                    'data': data,  # Teraz z deserializacją typów
+                    'created_at': row['created_at'],
+                    'updated_at': row['updated_at']
+                }
+
+                Being = get_being_class()
+                being = Being.from_dict(being_dict)
+
+                return {
+                    "success": True,
+                    "being": being
+                }
         except Exception as e:
             print(f"❌ Error getting being by ULID: {e}")
             return {"success": False, "error": str(e)}
@@ -221,7 +245,7 @@ class BeingRepository:
                     ORDER BY created_at DESC
                 """
                 rows = await conn.fetch(query, alias)
-                
+
                 Being = get_being_class()
                 beings = []
                 for row in rows:
@@ -274,7 +298,7 @@ class BeingRepository:
 
                 # Determine table_type
                 table_type = 'being'
-                
+
                 # Spróbuj pobrać Soul dla określenia typu
                 try:
                     soul = await being.get_soul() if hasattr(being, 'get_soul') else None
@@ -348,7 +372,7 @@ class BeingRepository:
                     being.created_at = row['created_at']
                     being.updated_at = row['updated_at']
                     beings.append(being)
-                
+
                 return {
                     'success': True,
                     'beings': beings,
@@ -370,10 +394,10 @@ class BeingRepository:
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
                 rows = await conn.fetch("""
-                    SELECT * FROM beings 
-                    WHERE alias ILIKE $1 
+                    SELECT * FROM beings
+                    WHERE alias ILIKE $1
                     OR data::text ILIKE $1
-                    ORDER BY created_at DESC 
+                    ORDER BY created_at DESC
                     LIMIT $2
                 """, f"%{query}%", limit)
 
@@ -407,8 +431,8 @@ class RelationshipRepository:
     """Repository for Relationship operations"""
 
     @staticmethod
-    async def create_relationship(source_ulid: str, target_ulid: str, 
-                                relation_type: str = 'connection', 
+    async def create_relationship(source_ulid: str, target_ulid: str,
+                                relation_type: str = 'connection',
                                 strength: float = 1.0,
                                 metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """Create a relationship between beings"""
@@ -416,11 +440,11 @@ class RelationshipRepository:
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
                 relationship_id = await conn.fetchval("""
-                    INSERT INTO relationships 
+                    INSERT INTO relationships
                     (source_ulid, target_ulid, source_id, target_id, relation_type, strength, metadata)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
                     RETURNING id
-                """, source_ulid, target_ulid, source_ulid, target_ulid, 
+                """, source_ulid, target_ulid, source_ulid, target_ulid,
                     relation_type, strength, json.dumps(metadata or {}))
 
                 return {
@@ -440,7 +464,7 @@ class RelationshipRepository:
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
                 rows = await conn.fetch("""
-                    SELECT * FROM relationships 
+                    SELECT * FROM relationships
                     WHERE source_ulid = $1 OR target_ulid = $1
                     ORDER BY created_at DESC
                 """, ulid)
