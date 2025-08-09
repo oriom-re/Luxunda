@@ -52,8 +52,8 @@ class AdminKernelInterface:
         # Utwórz lub załaduj Kernel Being
         kernel_soul = await self._get_or_create_kernel_soul()
         self.kernel_being = await Being.create(
-            kernel_soul,
-            {
+            soul=kernel_soul,
+            data={
                 "role": "system_kernel",
                 "capabilities": ["system_management", "being_supervision", "resource_monitoring"],
                 "status": "active"
@@ -65,7 +65,7 @@ class AdminKernelInterface:
         lux_soul = await self._get_or_create_lux_soul()
         self.lux_being = await Being.create(
             soul=lux_soul,
-            attributes={
+            data={
                 "role": "ai_assistant",
                 "capabilities": ["conversation", "analysis", "task_management"],
                 "status": "active"
