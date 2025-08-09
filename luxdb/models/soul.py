@@ -65,7 +65,7 @@ class Soul:
         ).hexdigest()
 
         # Zapis do bazy danych
-        result = await SoulRepository.save(soul)
+        result = await SoulRepository.set(soul)
         if not result.get('success'):
             raise Exception("Failed to create soul")
 

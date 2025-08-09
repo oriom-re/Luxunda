@@ -85,7 +85,7 @@ class Being:
             being.ttl_expires = datetime.now() + timedelta(hours=ttl_hours)
 
         # Zapis do bazy danych
-        result = await BeingRepository.save(being)
+        result = await BeingRepository.set(being)
         if not result.get('success'):
             raise Exception("Failed to create being")
 
@@ -247,7 +247,7 @@ class Being:
         from ..repository.soul_repository import BeingRepository
 
         self.updated_at = datetime.now()
-        result = await BeingRepository.save(self)
+        result = await BeingRepository.set(self)
         return result.get('success', False)
 
     async def delete(self) -> bool:

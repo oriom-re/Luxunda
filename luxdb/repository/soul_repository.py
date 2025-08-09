@@ -135,7 +135,7 @@ class SoulRepository:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    async def save(soul: 'Soul') -> dict:
+    async def set(soul: 'Soul') -> dict:
         """Zapisuje soul do bazy danych"""
         try:
             pool = await Postgre_db.get_db_pool()
@@ -242,7 +242,7 @@ class BeingRepository:
             return {"success": False, "error": str(e), "beings": []}
 
     @staticmethod
-    async def save(being: 'Being') -> dict:
+    async def set(being: 'Being') -> dict:
         """Alias for save_jsonb method"""
         return await BeingRepository.save_jsonb(being)
 
