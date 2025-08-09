@@ -36,10 +36,10 @@ class SoulRepository:
     async def get_soul_by_hash(soul_hash: str) -> Optional['Soul']:
         """Get soul by hash"""
         Soul = get_soul_class()
-        return await Soul.load_by_hash(soul_hash)
+        return await Soul.get_by_hash(soul_hash)
 
     @staticmethod
-    async def load_by_hash(soul_hash: str) -> dict:
+    async def get_by_hash(soul_hash: str) -> dict:
         """Ładuje soul z bazy danych na podstawie jego unikalnego global_ulid"""
         try:
             pool = await Postgre_db.get_db_pool()
@@ -104,7 +104,7 @@ class SoulRepository:
             }
 
     @staticmethod
-    async def load_by_alias(alias: str) -> dict:
+    async def get_by_alias(alias: str) -> dict:
         """Ładuje soul z bazy danych na podstawie aliasu"""
         try:
             pool = await Postgre_db.get_db_pool()
@@ -175,7 +175,73 @@ class BeingRepository:
     async def get_being_by_ulid(ulid: str) -> Optional['Being']:
         """Get being by ULID"""
         Being = get_being_class()
-        return await Being.load_by_ulid(ulid)
+        return await Being.get_by_ulid(ulid)
+
+    @staticmethod
+    async def get_by_ulid(ulid: str) -> dict:
+        """Pobiera being z bazy danych na podstawie ULID"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM beings
+                    WHERE ulid = $1
+                """
+                row = await conn.fetchrow(query, ulid)
+                if row:
+                    Being = get_being_class()
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.data = row['data'] or {}
+                    being.vector_embedding = row['vector_embedding']
+                    being.table_type = row['table_type']
+                    being.created_at = row['created_at']
+                    being.updated_at = row['updated_at']
+                    return {"success": True, "beings": [being]}
+            return {"success": False}
+        except Exception as e:
+            print(f"❌ Error getting being by ULID: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def get_all_by_alias(alias: str) -> dict:
+        """Pobiera wszystkie beings o danym aliasie"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM beings
+                    WHERE alias = $1
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query, alias)
+                
+                Being = get_being_class()
+                beings = []
+                for row in rows:
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.data = row['data'] or {}
+                    being.vector_embedding = row['vector_embedding']
+                    being.table_type = row['table_type']
+                    being.created_at = row['created_at']
+                    being.updated_at = row['updated_at']
+                    beings.append(being)
+
+                return {"success": True, "beings": beings}
+        except Exception as e:
+            print(f"❌ Error getting beings by alias: {e}")
+            return {"success": False, "error": str(e), "beings": []}
 
     @staticmethod
     async def save_jsonb(being: 'Being') -> dict:

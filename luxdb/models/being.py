@@ -139,7 +139,7 @@ class Being:
         from luxdb.repository.soul_repository import BeingRepository
         from luxdb.utils.serializer import JSONBSerializer
 
-        result = await BeingRepository.load_by_ulid(self.ulid)
+        result = await BeingRepository.get_by_ulid(self.ulid)
         if result.get('success') and result.get('being'):
             being_data = result['being']
             self.soul_hash = being_data.soul_hash
@@ -160,7 +160,7 @@ class Being:
                     print(f"⚠️ Błąd deserializacji danych Being {self.ulid}: {e}")
 
     @classmethod
-    async def load_by_ulid(cls, ulid: str) -> Optional['Being']:
+    async def get_by_ulid(cls, ulid: str) -> Optional['Being']:
         """
         Ładuje Being na podstawie ULID
 
@@ -170,7 +170,7 @@ class Being:
         Returns:
             Being lub None jeśli nie znaleziono
         """
-        result = await BeingRepository.load_by_ulid(ulid)
+        result = await BeingRepository.get_by_ulid(ulid)
         if not result.get('success') or not result.get('beings'):
             return None
 
@@ -188,7 +188,7 @@ class Being:
         return being
 
     @classmethod
-    async def load_by_alias(cls, alias: str) -> List['Being']:
+    async def get_by_alias(cls, alias: str) -> List['Being']:
         """
         Ładuje wszystkie Being o danym aliasie
 
@@ -198,7 +198,7 @@ class Being:
         Returns:
             Lista Being o podanym aliasie
         """
-        result = await BeingRepository.load_all_by_alias(alias)
+        result = await BeingRepository.get_all_by_alias(alias)
         beings = result.get('beings', [])
         return [being for being in beings if being is not None]
 
@@ -383,7 +383,7 @@ class Being:
         if not hasattr(self, '_soul_cache') or self._soul_cache is None:
             try:
                 from luxdb.repository.soul_repository import SoulRepository
-                result = await SoulRepository.load_by_hash(self.soul_hash)
+                result = await SoulRepository.get_by_hash(self.soul_hash)
                 if result.get('success') and result.get('soul'):
                     self._soul_cache = result['soul']
                     self._soul_cache_ttl = time.time() + 3600  # 1 godzina TTL
