@@ -16,7 +16,7 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "Demo Lux Assistant"
+runButton = "LuxOS Full System"
 
 [[workflows.workflow]]
 name = "Start LuxOS Server"
@@ -88,7 +88,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python start.py"
+args = "python main.py --status"
 
 [[workflows.workflow]]
 name = "LuxOS Kernel System"
@@ -179,6 +179,24 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python database_cleanup.py"
+
+[[workflows.workflow]]
+name = "LuxOS Full System"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py --mode=full --bootstrap"
+
+[[workflows.workflow]]
+name = "LuxOS Interactive Mode"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py --interactive"
 
 [[ports]]
 localPort = 3000
