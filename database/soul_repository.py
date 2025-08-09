@@ -19,6 +19,36 @@ class SoulRepository:
     """Repository dla operacji na souls w podejściu JSONB"""
 
     @staticmethod
+    async def load_by_alias(alias: str) -> dict:
+        """Ładuje soul z bazy danych na podstawie aliasu"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM souls
+                    WHERE alias = $1
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """
+                row = await conn.fetchrow(query, alias)
+                if row:
+                    Soul = get_soul_class()
+                    soul = Soul()
+                    soul.soul_hash = row['soul_hash']
+                    soul.global_ulid = row['global_ulid']
+                    soul.alias = row['alias']
+                    soul.genotype = json.loads(row['genotype'])
+                    soul.created_at = row['created_at']
+                    return {"success": True, "soul": soul}
+                else:
+                    return {"success": False, "error": "Soul not found"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
     async def save(soul: 'Soul') -> dict:
         """Zapisuje soul do bazy danych"""
         try:
@@ -232,35 +262,6 @@ class SoulRepository:
 
 class BeingRepository:
     """Repository dla operacji na beings w podejściu JSONB"""
-
-    @staticmethod
-    async def save_jsonb(being: 'Being') -> dict:
-        """Zapisuje being do bazy danych w formacie JSONB"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False}
-
-            async with pool.acquire() as conn:
-                query = """
-                    INSERT INTO beings (ulid, global_ulid, soul_hash, alias, data, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-                    ON CONFLICT (ulid) DO UPDATE SET
-                        soul_hash = EXCLUDED.soul_hash,
-                        alias = EXCLUDED.alias,
-                        data = EXCLUDED.data,
-                        updated_at = NOW()
-                """
-                await conn.execute(query,
-                    being.ulid,
-                    being.global_ulid,
-                    being.soul_hash,
-                    being.alias,
-                    json.dumps(being.data)
-                )
-                return {"success": True}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
 
     @staticmethod
     async def count_beings() -> int:

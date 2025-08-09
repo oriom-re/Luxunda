@@ -73,6 +73,65 @@ class SoulRepository:
                 'count': 0
             }
 
+class SoulRepository:
+    """Repository for Soul operations"""
+
+    @staticmethod
+    async def load_by_alias(alias: str) -> dict:
+        """Ładuje soul z bazy danych na podstawie aliasu"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM souls
+                    WHERE alias = $1
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """
+                row = await conn.fetchrow(query, alias)
+                if row:
+                    Soul = get_soul_class()
+                    soul = Soul()
+                    soul.soul_hash = row['soul_hash']
+                    soul.global_ulid = row['global_ulid']
+                    soul.alias = row['alias']
+                    soul.genotype = json.loads(row['genotype'])
+                    soul.created_at = row['created_at']
+                    return {"success": True, "soul": soul}
+                else:
+                    return {"success": False, "error": "Soul not found"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def save(soul: 'Soul') -> dict:
+        """Zapisuje soul do bazy danych"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    INSERT INTO souls (soul_hash, global_ulid, alias, genotype, created_at)
+                    VALUES ($1, $2, $3, $4, NOW())
+                    ON CONFLICT (soul_hash) DO UPDATE SET
+                        alias = EXCLUDED.alias,
+                        genotype = EXCLUDED.genotype
+                """
+                await conn.execute(query,
+                    soul.soul_hash,
+                    soul.global_ulid,
+                    soul.alias,
+                    json.dumps(soul.genotype)
+                )
+                return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
 class BeingRepository:
     """Repository for Being operations"""
 
@@ -89,6 +148,73 @@ class BeingRepository:
         """Get being by ULID"""
         Being = get_being_class()
         return await Being.load_by_ulid(ulid)
+
+    @staticmethod
+    async def save_jsonb(being: 'Being') -> dict:
+        """Zapisuje being do bazy danych w podejściu JSONB"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    INSERT INTO beings (ulid, soul_hash, alias, data, vector_embedding, table_type)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (ulid) DO UPDATE SET
+                        alias = EXCLUDED.alias,
+                        data = EXCLUDED.data,
+                        vector_embedding = EXCLUDED.vector_embedding,
+                        table_type = EXCLUDED.table_type,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING created_at, updated_at
+                """
+
+                # Determine table_type
+                table_type = 'being'
+                if hasattr(being, '_soul') and being._soul:
+                    soul_alias = getattr(being._soul, 'alias', None)
+                    genotype = getattr(being._soul, 'genotype', {})
+                    genesis_type = genotype.get('genesis', {}).get('type', None)
+
+                    if soul_alias in ['user_profile', 'ai_agent']:
+                        table_type = 'soul'
+                    elif genesis_type == 'relation' or soul_alias == 'basic_relation':
+                        table_type = 'relation'
+
+                result = await conn.fetchrow(query,
+                    being.ulid,
+                    being.soul_hash,
+                    being.alias,
+                    json.dumps(being.data),
+                    getattr(being, 'vector_embedding', None),
+                    table_type
+                )
+
+                if result:
+                    being.created_at = result['created_at']
+                    being.updated_at = result['updated_at']
+
+                return {"success": True}
+        except Exception as e:
+            print(f"❌ Error saving being: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def count_beings() -> int:
+        """Zwraca liczbę wszystkich beings w bazie danych"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return 0
+
+            async with pool.acquire() as conn:
+                query = "SELECT COUNT(*) FROM beings"
+                result = await conn.fetchval(query)
+                return result if result is not None else 0
+        except Exception as e:
+            print(f"❌ Error counting beings: {e}")
+            return 0
 
     @staticmethod
     async def get_all_beings(limit: int = 100) -> Dict[str, Any]:
@@ -113,6 +239,11 @@ class BeingRepository:
                     being.created_at = row['created_at']
                     being.updated_at = row['updated_at']
                     beings.append(being)
+                
+                return {"success": True, "beings": beings}
+        except Exception as e:
+            print(f"❌ Error getting all beings: {e}")
+            return {"success": False, "error": str(e)eing)
 
                 return {
                     'success': True,
