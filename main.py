@@ -51,13 +51,18 @@ class LuxOSUnifiedSystem:
         """Inicjalizuje bazę danych"""
         self.log("INFO", "Inicjalizacja bazy PostgreSQL...", "DATABASE")
         
-        if not await Postgre_db.initialize_pool():
-            self.log("ERROR", "Nie udało się połączyć z bazą danych", "DATABASE")
+        try:
+            db_pool = await Postgre_db.get_db_pool()
+            if db_pool:
+                self.log("SUCCESS", "Baza danych PostgreSQL zainicjalizowana", "DATABASE")
+                self.components_active['database'] = True
+                return True
+            else:
+                self.log("ERROR", "Nie udało się połączyć z bazą danych", "DATABASE")
+                return False
+        except Exception as e:
+            self.log("ERROR", f"Błąd inicjalizacji bazy danych: {e}", "DATABASE")
             return False
-        
-        self.log("SUCCESS", "Baza danych PostgreSQL zainicjalizowana", "DATABASE")
-        self.components_active['database'] = True
-        return True
     
     async def initialize_kernel_system(self):
         """Inicjalizuje główny system kernel"""
