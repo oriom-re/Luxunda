@@ -60,6 +60,10 @@ class Being:
         """
         being = cls()
         
+        # Generuj ULID jeśli nie podano
+        import ulid
+        being.ulid = str(ulid.ulid())
+        
         # Ustaw podstawowe atrybuty
         being.alias = kwargs.pop('alias', None)
         being.soul_hash = kwargs.pop('soul_hash', None)
@@ -71,7 +75,6 @@ class Being:
         # Zapisz do bazy
         result = await BeingRepository.save_jsonb(being)
         if result.get('success'):
-            being.ulid = result.get('ulid')
             being.created_at = result.get('created_at')
             being.updated_at = result.get('updated_at')
             

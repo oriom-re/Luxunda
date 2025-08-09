@@ -169,6 +169,11 @@ class BeingRepository:
                     RETURNING created_at, updated_at
                 """
 
+                # Ensure ULID is generated if missing
+                if not being.ulid:
+                    import ulid
+                    being.ulid = str(ulid.ulid())
+
                 # Determine table_type
                 table_type = 'being'
                 if hasattr(being, '_soul') and being._soul:
