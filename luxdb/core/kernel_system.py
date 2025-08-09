@@ -172,7 +172,7 @@ class ScenarioLoader:
 
         # Utwórz Being
         being = await Being.create(
-            soul=soul.soul_hash,  # Przekaż soul_hash
+            soul=soul,  # Przekaż obiekt Soul
             data=being_data.get("attributes", {}),
             alias=being_data.get("alias", f"being_{being_hash[:8]}"))
 
@@ -210,9 +210,9 @@ class ScenarioLoader:
                 # Przygotuj dane dla Being
                 attributes = being_data.get('attributes', {})
 
-                # Utwórz Being z soul_hash
+                # Utwórz Being z obiektem Soul
                 being = await Being.create(
-                    soul=soul.soul_hash,  # Przekaż soul_hash
+                    soul=soul,  # Przekaż obiekt Soul
                     data=attributes,
                     alias=being_data.get('alias', f"being_{soul.soul_hash[:8]}"))
 
