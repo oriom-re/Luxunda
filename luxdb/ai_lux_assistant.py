@@ -8,7 +8,7 @@ import json
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 import openai
-from ai.embendding import generate_embedding
+# Embedding będzie obsłużony przez OpenAI bezpośrednio
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
 from database.soul_repository import BeingRepository
@@ -144,7 +144,8 @@ class LuxAssistant:
     async def search_similar_tools(self, keywords: List[str]) -> List[Dict[str, Any]]:
         """Search for similar tools using embeddings"""
         search_query = " ".join(keywords)
-        query_embedding = await generate_embedding(search_query)
+        # Tymczasowo używamy prostego wyszukiwania tekstowego
+        query_embedding = []
         
         # Load all beings and their embeddings
         all_beings = await Being.load_all()
@@ -185,9 +186,9 @@ class LuxAssistant:
         try:
             genotype = json.loads(response.choices[0].message.content)
             
-            # Create embeddings for the tool
+            # Create embeddings for the tool  
             description = genotype.get("genesis", {}).get("description", analysis["description"])
-            embeddings = await generate_embedding(description)
+            embeddings = []  # Tymczasowo pusta lista
             
             # Create soul and being
             soul = await Soul.create(genotype, alias=tool_name)
@@ -230,7 +231,7 @@ class LuxAssistant:
         }
         
         # Generate embeddings for the note
-        embeddings = await generate_embedding(analysis["description"])
+        embeddings = []  # Tymczasowo pusta lista
         
         soul = await Soul.create(note_genotype, alias="daily_note")
         note_being = await Being.create(

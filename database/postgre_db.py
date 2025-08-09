@@ -63,11 +63,21 @@ class Postgre_db:
         try:
             async with db_pool.acquire() as conn:
                 # Rozszerzenia PostgreSQL
-                await conn.execute("""
-                    CREATE EXTENSION IF NOT EXISTS vector;
-                    CREATE EXTENSION IF NOT EXISTS pgcrypto;
-                    CREATE EXTENSION IF NOT EXISTS btree_gin;
-                """)
+                # Sprawdź czy extensions istnieją przed utworzeniem
+                try:
+                    await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                except:
+                    print("⚠️ Vector extension not available, skipping...")
+                    
+                try:
+                    await conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
+                except:
+                    print("⚠️ Pgcrypto extension not available, skipping...")
+                    
+                try:
+                    await conn.execute("CREATE EXTENSION IF NOT EXISTS btree_gin;")
+                except:
+                    print("⚠️ Btree_gin extension not available, skipping...")
 
                 # Tabela souls - bez zmian
                 await conn.execute("""  
