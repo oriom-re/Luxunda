@@ -48,6 +48,37 @@ class Being:
         self.updated_at = datetime.now()
 
     @classmethod
+    async def set(cls, soul, data: Dict[str, Any], alias: str = None, 
+                  access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
+        """
+        Metoda set dla Being (standard API).
+        
+        Args:
+            soul: Obiekt Soul (genotyp)
+            data: Dane bytu
+            alias: Opcjonalny alias
+            access_zone: Strefa dostępu
+            ttl_hours: TTL w godzinach
+            
+        Returns:
+            Nowy obiekt Being
+        """
+        return await cls.create(soul, data, alias, access_zone, ttl_hours)
+
+    @classmethod
+    async def get(cls, ulid_value: str) -> Optional['Being']:
+        """
+        Standardowa metoda get dla Being - szuka po ULID.
+        
+        Args:
+            ulid_value: ULID bytu
+            
+        Returns:
+            Being lub None jeśli nie znaleziono
+        """
+        return await cls.get_by_ulid(ulid_value)
+
+    @classmethod
     async def create(cls, soul, data: Dict[str, Any], alias: str = None, 
                     access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
         """
