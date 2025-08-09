@@ -7,6 +7,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from ..repository.soul_repository import BeingRepository
+from luxdb.utils.serializer import JSONBSerializer
 
 class Being:
     """
@@ -23,6 +24,7 @@ class Being:
         self.table_type: str = "being"
         self.created_at: Optional[datetime] = None
         self.updated_at: Optional[datetime] = None
+        self._soul_cache: Optional[Any] = None # Cache dla instancji Soul
 
     def __getattr__(self, name: str) -> Any:
         """
@@ -38,7 +40,7 @@ class Being:
         """
         # Podstawowe atrybuty klasy
         if name in ['ulid', 'soul_hash', 'alias', 'data', 'vector_embedding', 
-                   'table_type', 'created_at', 'updated_at']:
+                   'table_type', 'created_at', 'updated_at', '_soul_cache']:
             super().__setattr__(name, value)
         else:
             # Wszystko inne idzie do data JSONB
@@ -68,13 +70,13 @@ class Being:
 
         # Ustaw alias
         being.alias = alias or kwargs.pop('alias', None)
-        
+
         # Obsługuj soul (może być obiektem Soul lub hashem)
         if soul:
             if hasattr(soul, 'soul_hash'):
                 # To jest obiekt Soul
                 being.soul_hash = soul.soul_hash
-                being._soul_instance = soul  # Cache dla serializacji
+                being._soul_cache = soul  # Cache dla serializacji
             elif isinstance(soul, str):
                 # To jest bezpośrednio hash
                 being.soul_hash = soul
@@ -93,7 +95,7 @@ class Being:
         if attributes:
             all_data.update(attributes)
         all_data.update(kwargs)
-        
+
         # Wszystko do data JSONB
         being.data.update(all_data)
 
@@ -106,19 +108,16 @@ class Being:
         return being
 
     async def save(self) -> bool:
-        """
-        Zapisuje Being do bazy danych
+        """Zapisuje Being do bazy danych z automatyczną serializacją"""
+        from ..repository.being_repository import BeingRepository
 
-        Returns:
-            True jeśli zapis się powiódł
-        """
-        result = await BeingRepository.save_jsonb(self)
-        if result.get('success'):
-            self.ulid = result.get('ulid', self.ulid)
-            self.created_at = result.get('created_at', self.created_at)
-            self.updated_at = result.get('updated_at', self.updated_at)
-            return True
-        return False
+        # Automatyczna serializacja przed zapisem
+        soul = await self.get_soul()
+        if soul and self.data:
+            self.data = JSONBSerializer.serialize_being_data(self.data, soul)
+
+        result = await BeingRepository.save(self)
+        return result.get('success', False)
 
     async def load_full_data(self) -> None:
         """
@@ -255,6 +254,10 @@ class Being:
                 data['soul'] = self._soul_instance.to_json_serializable()
             elif hasattr(self._soul_instance, 'to_dict'):
                 data['soul'] = self._soul_instance.to_dict()
+        # Jeśli mamy soul_hash i nie mamy instancji, spróbuj ją załadować
+        elif self.soul_hash and not hasattr(self, '_soul_instance'):
+             # Tutaj można by dodać logikę ładowania Soul po soul_hash, jeśli to konieczne
+             pass
 
         return data
 
@@ -280,6 +283,15 @@ class Being:
                 being.updated_at = datetime.fromisoformat(data['updated_at'])
             else:
                 being.updated_at = data['updated_at']
+        
+        # Załaduj instancję Soul, jeśli jest dostępna w danych lub przez soul_hash
+        if data.get('soul'):
+            # Zakładamy, że 'soul' w słowniku to już serializowana reprezentacja
+            # Może wymagać dodatkowej logiki do deserializacji do obiektu Soul
+            pass # Tutaj można by dodać logikę tworzenia obiektu Soul
+        elif being.soul_hash:
+             # Można próbować załadować Soul po soul_hash, jeśli jest to potrzebne
+             pass
 
         return being
 
@@ -313,3 +325,41 @@ class Being:
         """Wysyła status przez Discord"""
         from luxdb.core.discord_being import being_discord_status
         return await being_discord_status(self, status_message)
+
+    # Nowe metody serializacji
+    def serialize_data(self) -> Dict[str, Any]:
+        """Serializuje dane Being zgodnie ze schematem Soul"""
+        if hasattr(self, '_soul_cache') and self._soul_cache:
+            return JSONBSerializer.serialize_being_data(self.data, self._soul_cache)
+        return self.data
+
+    def deserialize_data(self) -> Dict[str, Any]:
+        """Deserializuje dane Being zgodnie ze schematem Soul"""
+        if hasattr(self, '_soul_cache') and self._soul_cache:
+            return JSONBSerializer.deserialize_being_data(self.data, self._soul_cache)
+        return self.data
+
+    async def validate_and_serialize_data(self, new_data: Dict[str, Any]) -> tuple[Dict[str, Any], List[str]]:
+        """Waliduje i serializuje nowe dane"""
+        soul = await self.get_soul()
+        if soul:
+            return JSONBSerializer.validate_and_serialize(new_data, soul)
+        return new_data, []
+
+    async def get_soul(self) -> Optional[Any]:
+        """Pobiera instancję Soul, cachując ją"""
+        if not self.soul_hash:
+            return None
+        if not hasattr(self, '_soul_cache') or self._soul_cache is None:
+            # Tutaj powinna być logika do ładowania Soul na podstawie soul_hash
+            # Na potrzeby przykładu, zakładamy, że mamy dostęp do takiej funkcji
+            # from luxdb.repository.soul_repository import SoulRepository
+            # soul_instance = await SoulRepository.get_soul_by_hash(self.soul_hash)
+            # self._soul_cache = soul_instance
+            # Jeśli nie ma SoulRepository, można fallbackować do obiektu Soul z atrybutów
+            if hasattr(self, '_soul_instance'):
+                self._soul_cache = self._soul_instance
+            else:
+                # W przypadku braku instancji i soul_hash, można rozważyć utworzenie tymczasowego obiektu Soul lub zwrócenie None
+                return None
+        return self._soul_cache
