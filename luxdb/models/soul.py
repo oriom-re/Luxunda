@@ -100,7 +100,7 @@ class Soul:
         """
         from ..repository.soul_repository import SoulRepository
 
-        result = await SoulRepository.load_by_alias(alias)
+        result = await SoulRepository.get_by_alias(alias)
         return result.get('soul') if result.get('success') else None
 
     @classmethod
@@ -113,7 +113,7 @@ class Soul:
         """
         from ..repository.soul_repository import SoulRepository
 
-        result = await SoulRepository.load_all()
+        result = await SoulRepository.get_all_souls()
         souls = result.get('souls', [])
         return [soul for soul in souls if soul is not None]
 
@@ -130,7 +130,7 @@ class Soul:
         """
         from ..repository.soul_repository import SoulRepository
 
-        result = await SoulRepository.load_all_by_alias(alias)
+        result = await SoulRepository.get_all_by_alias(alias)
         souls = result.get('souls', [])
         return [soul for soul in souls if soul is not None]
 

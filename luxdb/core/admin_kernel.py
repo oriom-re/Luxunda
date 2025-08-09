@@ -81,7 +81,7 @@ class AdminKernelInterface:
 
     async def _get_or_create_kernel_soul(self) -> Soul:
         """Tworzy lub ładuje Soul dla Kernel Being"""
-        soul = await Soul.load_by_alias("admin_kernel_soul")
+        soul = await Soul.get_by_alias("admin_kernel_soul")
 
         if not soul:
             kernel_genotype = {
@@ -111,7 +111,7 @@ class AdminKernelInterface:
 
     async def _get_or_create_lux_soul(self) -> Soul:
         """Tworzy lub ładuje Soul dla Lux Being"""
-        soul = await Soul.load_by_alias("admin_lux_soul")
+        soul = await Soul.get_by_alias("admin_lux_soul")
 
         if not soul:
             lux_genotype = {

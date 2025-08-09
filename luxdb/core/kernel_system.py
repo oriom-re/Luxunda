@@ -162,7 +162,7 @@ class ScenarioLoader:
 
         # Utwórz Soul jeśli nie istnieje
         soul_alias = being_data.get("soul_alias", f"soul_{being_hash[:8]}")
-        soul = await Soul.load_by_alias(soul_alias)
+        soul = await Soul.get_by_alias(soul_alias)
 
         if not soul:
             soul = await Soul.create(
