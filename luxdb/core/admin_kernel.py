@@ -12,12 +12,11 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from .primitive_beings import KernelBeing
 from ..models.soul import Soul
+from ..models.being import Being
 
 # Import kernel_system - będzie zaimportowany dynamicznie
 kernel_system = None
-from ..models.being import Being
 
 logger = logging.getLogger(__name__)
 

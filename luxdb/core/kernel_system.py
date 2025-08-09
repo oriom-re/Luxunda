@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 import hashlib
 
-from luxdb.core.primitive_beings import PrimitiveBeing, KernelBeing
 from luxdb.models.being import Being
 from luxdb.models.soul import Soul
 
