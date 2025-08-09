@@ -369,9 +369,16 @@ class Being:
         return new_data, []
 
     async def get_soul(self) -> Optional[Any]:
-        """Pobiera instancję Soul, cachując ją"""
+        """Pobiera instancję Soul, cachując ją z TTL"""
+        import time
+        
         if not self.soul_hash:
             return None
+            
+        # Sprawdź czy cache nie wygasł
+        if (hasattr(self, '_soul_cache_ttl') and 
+            time.time() > self._soul_cache_ttl):
+            self._soul_cache = None  # Wyczyść wygasły cache
             
         if not hasattr(self, '_soul_cache') or self._soul_cache is None:
             try:
@@ -379,6 +386,7 @@ class Being:
                 result = await SoulRepository.load_by_hash(self.soul_hash)
                 if result.get('success') and result.get('soul'):
                     self._soul_cache = result['soul']
+                    self._soul_cache_ttl = time.time() + 3600  # 1 godzina TTL
                 else:
                     print(f"⚠️ Nie znaleziono Soul dla hash: {self.soul_hash}")
                     return None

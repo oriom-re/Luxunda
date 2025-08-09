@@ -39,6 +39,35 @@ class SoulRepository:
         return await Soul.load_by_hash(soul_hash)
 
     @staticmethod
+    async def load_by_hash(soul_hash: str) -> dict:
+        """Ładuje soul z bazy danych na podstawie jego unikalnego global_ulid"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM souls
+                    WHERE global_ulid = $1
+                """
+                row = await conn.fetchrow(query, soul_hash)
+                if row:
+                    Soul = get_soul_class()
+                    soul = Soul(
+                        genotype=row['genotype'],
+                        alias=row['alias'],
+                        soul_hash=row['soul_hash'],
+                        global_ulid=row['global_ulid']
+                    )
+                    soul.created_at = row['created_at']
+                    return {"success": True, "soul": soul}
+            return {"success": False}
+        except Exception as e:
+            print(f"❌ Error loading soul by hash: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
     async def get_all_souls(limit: int = 100) -> Dict[str, Any]:
         """Get all souls"""
         try:
