@@ -35,12 +35,13 @@ class SoulRepository:
                 """
                 row = await conn.fetchrow(query, alias)
                 if row:
-                    Soul = get_soul_class()
-                    soul = Soul()
-                    soul.soul_hash = row['soul_hash']
-                    soul.global_ulid = row['global_ulid']
-                    soul.alias = row['alias']
-                    soul.genotype = json.loads(row['genotype'])
+                    from database.models.base import Soul
+                    soul = Soul(
+                        genotype=row['genotype'],
+                        alias=row['alias'],
+                        soul_hash=row['soul_hash'],
+                        global_ulid=row['global_ulid']
+                    )
                     soul.created_at = row['created_at']
                     return {"success": True, "soul": soul}
                 else:
@@ -75,38 +76,7 @@ class SoulRepository:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    async def load_by_alias(alias: str) -> dict:
-        """Ładuje soul z bazy danych na podstawie aliasu"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False}
-
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM souls
-                    WHERE alias = $1
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                """
-                row = await conn.fetchrow(query, alias)
-                if row:
-                    from database.models.base import Soul
-                    soul = Soul(
-                        genotype=row['genotype'],
-                        alias=row['alias'],
-                        soul_hash=row['soul_hash'],
-                        global_ulid=row['global_ulid']
-                    )
-                    soul.created_at = row['created_at']
-                    return {"success": True, "soul": soul}
-                else:
-                    return {"success": False, "error": "Soul not found"}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    @staticmethod
-    async def load_all(soul: 'Soul') -> dict:
+    async def load_all() -> dict:
         """Ładuje wszystkie souls z bazy danych"""
         try:
             pool = await Postgre_db.get_db_pool()
@@ -132,6 +102,34 @@ class SoulRepository:
             return {"success": True, "souls": souls}
         except Exception as e:
             print(f"❌ Error loading all souls: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def load_by_hash(hash: str) -> dict:
+        """Ładuje soul z bazy danych na podstawie jego unikalnego global_ulid"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM souls
+                    WHERE global_ulid = $1
+                """
+                row = await conn.fetchrow(query, hash)
+                if row:
+                    Soul = get_soul_class()
+                    soul = Soul()
+                    soul.alias = row['alias']
+                    soul.soul_hash = row['soul_hash']
+                    soul.genotype = json.loads(row['genotype'])
+                    soul.created_at = row['created_at']
+                    soul.global_ulid = row['global_ulid']
+                    return {"success": True, "soul": soul}
+            return {"success": False}
+        except Exception as e:
+            print(f"❌ Error loading soul by ulid: {e}")
             return {"success": False, "error": str(e)}
 
     @staticmethod
@@ -177,13 +175,13 @@ class SoulRepository:
 
                     if index_type == "gin":
                         await conn.execute(f"""
-                            CREATE INDEX IF NOT EXISTS {index_name} 
-                            ON beings USING gin ((data->>'{attr_name}')) 
+                            CREATE INDEX IF NOT EXISTS {index_name}
+                            ON beings USING gin ((data->>'{attr_name}'))
                             WHERE soul_hash = '{soul_hash}'
                         """)
                     elif index_type == "btree":
                         await conn.execute(f"""
-                            CREATE INDEX IF NOT EXISTS {index_name} 
+                            CREATE INDEX IF NOT EXISTS {index_name}
                             ON beings USING btree ((data->>'{attr_name}'))
                             WHERE soul_hash = '{soul_hash}'
                         """)
@@ -191,7 +189,7 @@ class SoulRepository:
                         fields = attr_meta.get("composite_fields", [attr_name])
                         field_expressions = [f"(data->>'{field}')" for field in fields]
                         await conn.execute(f"""
-                            CREATE INDEX IF NOT EXISTS {index_name} 
+                            CREATE INDEX IF NOT EXISTS {index_name}
                             ON beings ({', '.join(field_expressions)})
                             WHERE soul_hash = '{soul_hash}'
                         """)
@@ -232,34 +230,6 @@ class SoulRepository:
             print(f"❌ Error loading soul: {e}")
             return {"success": False, "error": str(e)}
 
-    @staticmethod
-    async def load_by_hash(hash: str) -> dict:
-        """Ładuje soul z bazy danych na podstawie jego unikalnego global_ulid"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False}
-
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM souls
-                    WHERE global_ulid = $1
-                """
-                row = await conn.fetchrow(query, hash)
-                if row:
-                    Soul = get_soul_class()
-                    soul = Soul()
-                    soul.alias = row['alias']
-                    soul.soul_hash = row['soul_hash']
-                    soul.genotype = json.loads(row['genotype'])
-                    soul.created_at = row['created_at']
-                    soul.global_ulid = row['global_ulid']
-                    return {"success": True, "soul": soul}
-            return {"success": False}
-        except Exception as e:
-            print(f"❌ Error loading soul by ulid: {e}")
-            return {"success": False, "error": str(e)}
-
 class BeingRepository:
     """Repository dla operacji na beings w podejściu JSONB"""
 
@@ -282,146 +252,161 @@ class BeingRepository:
     @staticmethod
     async def save_jsonb(being: 'Being') -> dict:
         """Zapisuje being do bazy danych w podejściu JSONB"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return {"success": False}
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
 
-        async with pool.acquire() as conn:
-            query = """
-                INSERT INTO beings (ulid, soul_hash, alias, data, vector_embedding, table_type)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                ON CONFLICT (ulid) DO UPDATE SET
-                    alias = EXCLUDED.alias,
-                    data = EXCLUDED.data,
-                    vector_embedding = EXCLUDED.vector_embedding,
-                    table_type = EXCLUDED.table_type,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING created_at, updated_at
-            """
+            async with pool.acquire() as conn:
+                query = """
+                    INSERT INTO beings (ulid, soul_hash, alias, data, vector_embedding, table_type)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (ulid) DO UPDATE SET
+                        alias = EXCLUDED.alias,
+                        data = EXCLUDED.data,
+                        vector_embedding = EXCLUDED.vector_embedding,
+                        table_type = EXCLUDED.table_type,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING created_at, updated_at
+                """
 
-            # Determine table_type
-            table_type = 'being'
-            if hasattr(being, '_soul') and being._soul:
-                soul_alias = getattr(being._soul, 'alias', None)
-                genotype = getattr(being._soul, 'genotype', {})
-                genesis_type = genotype.get('genesis', {}).get('type', None)
+                # Determine table_type
+                table_type = 'being'
+                if hasattr(being, '_soul') and being._soul:
+                    soul_alias = getattr(being._soul, 'alias', None)
+                    genotype = getattr(being._soul, 'genotype', {})
+                    genesis_type = genotype.get('genesis', {}).get('type', None)
 
-                if soul_alias in ['user_profile', 'ai_agent']:
-                    table_type = 'soul'
-                elif genesis_type == 'relation' or soul_alias == 'basic_relation':
-                    table_type = 'relation'
+                    if soul_alias in ['user_profile', 'ai_agent']:
+                        table_type = 'soul'
+                    elif genesis_type == 'relation' or soul_alias == 'basic_relation':
+                        table_type = 'relation'
 
-            result = await conn.fetchrow(query,
-                being.ulid,
-                being.soul_hash,
-                being.alias,
-                json.dumps(being.data),
-                being.vector_embedding,
-                table_type
-            )
+                result = await conn.fetchrow(query,
+                    being.ulid,
+                    being.soul_hash,
+                    being.alias,
+                    json.dumps(being.data),
+                    getattr(being, 'vector_embedding', None),
+                    table_type
+                )
 
-            if result:
-                being.created_at = result['created_at']
-                being.updated_at = result['updated_at']
-                print(f"✅ Being saved with ulid: {being.ulid[:8]}... and soul hash: {being.soul_hash[:8]}...")
+                if result:
+                    being.created_at = result['created_at']
+                    being.updated_at = result['updated_at']
 
-            return {"success": True}
+                return {"success": True}
+        except Exception as e:
+            print(f"❌ Error saving being: {e}")
+            return {"success": False, "error": str(e)}
 
     @staticmethod
     async def update_vector(ulid: str, embedding: List[float]) -> dict:
         """Aktualizuje embedding wektorowy"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
-            return {"success": False}
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
 
-        async with pool.acquire() as conn:
-            query = """
-                UPDATE beings 
-                SET vector_embedding = $2, updated_at = CURRENT_TIMESTAMP
-                WHERE ulid = $1
-            """
-            await conn.execute(query, ulid, embedding)
-            return {"success": True}
+            async with pool.acquire() as conn:
+                query = """
+                    UPDATE beings
+                    SET vector_embedding = $2, updated_at = CURRENT_TIMESTAMP
+                    WHERE ulid = $1
+                """
+                await conn.execute(query, ulid, embedding)
+                return {"success": True}
+        except Exception as e:
+            print(f"❌ Error updating vector embedding: {e}")
+            return {"success": False, "error": str(e)}
 
     @staticmethod
     async def search_by_jsonb_data(query: Dict[str, Any], soul_hash: str = None) -> List:
         """Wyszukuje beings na podstawie danych JSONB"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return []
+
+            async with pool.acquire() as conn:
+                # Buduje zapytanie JSONB
+                conditions = []
+                params = []
+                param_count = 1
+
+                for key, value in query.items():
+                    conditions.append(f"data->>'{key}' = ${param_count}")
+                    params.append(str(value))
+                    param_count += 1
+
+                where_clause = " AND ".join(conditions)
+                if soul_hash:
+                    where_clause += f" AND soul_hash = ${param_count}"
+                    params.append(soul_hash)
+
+                sql_query = f"""
+                    SELECT * FROM beings
+                    WHERE {where_clause}
+                    ORDER BY created_at DESC
+                """
+
+                rows = await conn.fetch(sql_query, *params)
+                Being = get_being_class()
+                beings = []
+
+                for row in rows:
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.data = json.loads(row['data']) if row['data'] else {}
+                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
+                    being.created_at = row['created_at']
+                    being.updated_at = row['updated_at']
+                    beings.append(being)
+
+                return beings
+        except Exception as e:
+            print(f"❌ Error searching beings by JSONB data: {e}")
             return []
-
-        async with pool.acquire() as conn:
-            # Buduje zapytanie JSONB
-            conditions = []
-            params = []
-            param_count = 1
-
-            for key, value in query.items():
-                conditions.append(f"data->>'{key}' = ${param_count}")
-                params.append(str(value))
-                param_count += 1
-
-            where_clause = " AND ".join(conditions)
-            if soul_hash:
-                where_clause += f" AND soul_hash = ${param_count}"
-                params.append(soul_hash)
-
-            sql_query = f"""
-                SELECT * FROM beings 
-                WHERE {where_clause}
-                ORDER BY created_at DESC
-            """
-
-            rows = await conn.fetch(sql_query, *params)
-            Being = get_being_class()
-            beings = []
-
-            for row in rows:
-                being = Being()
-                being.ulid = row['ulid']
-                being.soul_hash = row['soul_hash']
-                being.alias = row['alias']
-                being.data = json.loads(row['data']) if row['data'] else {}
-                being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
-                being.created_at = row['created_at']
-                being.updated_at = row['updated_at']
-                beings.append(being)
-
-            return beings
 
     @staticmethod
     async def find_similar_beings(embedding: List[float], limit: int = 10, threshold: float = 0.8) -> List:
         """Znajduje podobne beings na podstawie embeddingu wektorowego"""
-        pool = await Postgre_db.get_db_pool()
-        if not pool:
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return []
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT *, vector_embedding <-> $1 as distance
+                    FROM beings
+                    WHERE vector_embedding IS NOT NULL
+                    AND vector_embedding <-> $1 < $2
+                    ORDER BY vector_embedding <-> $1
+                    LIMIT $3
+                """
+
+                rows = await conn.fetch(query, embedding, 1 - threshold, limit)
+                Being = get_being_class()
+                beings = []
+
+                for row in rows:
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.data = json.loads(row['data']) if row['data'] else {}
+                    being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
+                    being.created_at = row['created_at']
+                    being.updated_at = row['updated_at']
+                    beings.append(being)
+
+                return beings
+        except Exception as e:
+            print(f"❌ Error finding similar beings: {e}")
             return []
-
-        async with pool.acquire() as conn:
-            query = """
-                SELECT *, vector_embedding <-> $1 as distance
-                FROM beings 
-                WHERE vector_embedding IS NOT NULL 
-                AND vector_embedding <-> $1 < $2
-                ORDER BY vector_embedding <-> $1
-                LIMIT $3
-            """
-
-            rows = await conn.fetch(query, embedding, 1 - threshold, limit)
-            Being = get_being_class()
-            beings = []
-
-            for row in rows:
-                being = Being()
-                being.ulid = row['ulid']
-                being.soul_hash = row['soul_hash']
-                being.alias = row['alias']
-                being.data = json.loads(row['data']) if row['data'] else {}
-                being.vector_embedding = list(row['vector_embedding']) if row['vector_embedding'] else None
-                being.created_at = row['created_at']
-                being.updated_at = row['updated_at']
-                beings.append(being)
-
-            return beings
 
     @staticmethod
     async def load_by_ulid(ulid: str) -> dict:

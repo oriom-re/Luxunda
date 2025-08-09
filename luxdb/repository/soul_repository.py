@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 🗄️ Soul Repository - Tylko nowoczesny JSONB, bez legacy
@@ -73,9 +74,6 @@ class SoulRepository:
                 'count': 0
             }
 
-class SoulRepository:
-    """Repository for Soul operations"""
-
     @staticmethod
     async def load_by_alias(alias: str) -> dict:
         """Ładuje soul z bazy danych na podstawie aliasu"""
@@ -94,11 +92,12 @@ class SoulRepository:
                 row = await conn.fetchrow(query, alias)
                 if row:
                     Soul = get_soul_class()
-                    soul = Soul()
-                    soul.soul_hash = row['soul_hash']
-                    soul.global_ulid = row['global_ulid']
-                    soul.alias = row['alias']
-                    soul.genotype = json.loads(row['genotype'])
+                    soul = Soul(
+                        genotype=row['genotype'],
+                        alias=row['alias'],
+                        soul_hash=row['soul_hash'],
+                        global_ulid=row['global_ulid']
+                    )
                     soul.created_at = row['created_at']
                     return {"success": True, "soul": soul}
                 else:
@@ -240,35 +239,19 @@ class BeingRepository:
                     being.updated_at = row['updated_at']
                     beings.append(being)
                 
-                return {"success": True, "beings": beings}
-        except Exception as e:
-            print(f"❌ Error getting all beings: {e}")
-            return {"success": False, "error": str(e)eing)
-
                 return {
                     'success': True,
                     'beings': beings,
                     'count': len(beings)
                 }
         except Exception as e:
+            print(f"❌ Error getting all beings: {e}")
             return {
                 'success': False,
                 'error': str(e),
                 'beings': [],
                 'count': 0
             }
-
-    @staticmethod
-    async def count_beings() -> int:
-        """Count total beings"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            async with pool.acquire() as conn:
-                result = await conn.fetchval("SELECT COUNT(*) FROM beings")
-                return result or 0
-        except Exception as e:
-            print(f"Error counting beings: {e}")
-            return 0
 
     @staticmethod
     async def search_beings(query: str, limit: int = 50) -> Dict[str, Any]:
