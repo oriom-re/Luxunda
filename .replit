@@ -171,6 +171,15 @@ mode = "sequential"
 task = "shell.exec"
 args = "python start.py --bootstrap"
 
+[[workflows.workflow]]
+name = "Database Cleanup"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python database_cleanup.py"
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
