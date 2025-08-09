@@ -72,6 +72,48 @@ class Soul:
         return soul
 
     @classmethod
+    async def get(cls, **kwargs) -> Optional['Soul']:
+        """
+        Uniwersalna metoda get dla Soul.
+        
+        Args:
+            **kwargs: Parametry wyszukiwania (alias, hash, itp.)
+            
+        Returns:
+            Soul lub None jeśli nie znaleziono
+        """
+        if 'alias' in kwargs:
+            return await cls.get_by_alias(kwargs['alias'])
+        elif 'hash' in kwargs:
+            return await cls.get_by_hash(kwargs['hash'])
+        elif 'soul_hash' in kwargs:
+            return await cls.get_by_hash(kwargs['soul_hash'])
+        else:
+            # Jeśli podano tylko alias jako pierwszy argument
+            for value in kwargs.values():
+                if isinstance(value, str):
+                    # Próbuj najpierw alias, potem hash
+                    soul = await cls.get_by_alias(value)
+                    if soul:
+                        return soul
+                    return await cls.get_by_hash(value)
+        return None
+
+    @classmethod
+    async def set(cls, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
+        """
+        Metoda set dla Soul (alias dla create).
+        
+        Args:
+            genotype: Definicja struktury danych
+            alias: Opcjonalny alias
+            
+        Returns:
+            Nowy obiekt Soul
+        """
+        return await cls.create(genotype, alias)
+
+    @classmethod
     async def get_by_hash(cls, hash: str) -> Optional['Soul']:
         """
         Ładuje Soul po global_ulid.
