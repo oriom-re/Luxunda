@@ -1,56 +1,26 @@
 {
   "name": "default",
-  "created_at": "2025-08-10T06:55:40.364114",
+  "created_at": "2025-08-10T07:04:03.805101",
   "beings": [
     {
       "hash": "45d0e159efdfbf2a",
       "load_order": 0,
-      "alias": "kernel_core",
-      "genotype": {
-        "genesis": {
-          "name": "kernel_system",
-          "type": "system_kernel",
-          "version": "1.0.0"
-        },
-        "attributes": {
-          "system_role": {"py_type": "str"},
-          "priority": {"py_type": "int"}
-        }
-      }
+      "dependencies": []
     },
     {
       "hash": "ece1b5139dec3854",
       "load_order": 1,
-      "dependencies": ["kernel_core"],
-      "alias": "communication_hub",
-      "genotype": {
-        "genesis": {
-          "name": "communication",
-          "type": "system_io",
-          "version": "1.0.0"
-        },
-        "attributes": {
-          "system_role": {"py_type": "str"},
-          "priority": {"py_type": "int"}
-        }
-      }
+      "dependencies": [
+        "kernel_core"
+      ]
     },
     {
       "hash": "90375978297a2c32",
       "load_order": 2,
-      "dependencies": ["kernel_core", "communication_hub"],
-      "alias": "platform_manager",
-      "genotype": {
-        "genesis": {
-          "name": "platform",
-          "type": "system_platform",
-          "version": "1.0.0"
-        },
-        "attributes": {
-          "system_role": {"py_type": "str"},
-          "priority": {"py_type": "int"}
-        }
-      }
+      "dependencies": [
+        "kernel_core",
+        "communication_hub"
+      ]
     }
   ]
 }
