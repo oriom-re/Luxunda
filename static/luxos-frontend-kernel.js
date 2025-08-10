@@ -1,4 +1,3 @@
-
 /**
  * LuxOS Frontend Kernel - Samowystarczalny system z obsługą scenariuszy
  */
@@ -18,31 +17,31 @@ class FrontendKernel {
 
     async initialize() {
         console.log('🚀 LuxOS Frontend Kernel - Inicjalizacja...');
-        
+
         try {
             // 1. Połączenie z bazą danych
             await this.connectToDatabase();
-            
+
             // 2. Ładowanie BIOS scenariusza
             await this.loadBiosScenario();
-            
+
             // 3. Wykonanie sekwencji bootstrap
             await this.executeBootstrapSequence();
-            
+
             // 4. Inicjalizacja podstawowych bytów
             await this.initializeCoreBeing();
-            
+
             // 5. Uruchomienie event listenerów
             this.startEventListeners();
-            
+
             this.initialized = true;
             this.bootstrapState = 'ready';
-            
+
             console.log('✅ LuxOS Frontend Kernel zainicjalizowany');
             this.emit('kernel:ready', this);
-            
+
             return this;
-            
+
         } catch (error) {
             console.error('❌ Błąd inicjalizacji kernela:', error);
             this.bootstrapState = 'error';
@@ -52,7 +51,7 @@ class FrontendKernel {
 
     async connectToDatabase() {
         console.log('📡 Łączenie z bazą danych...');
-        
+
         this.dbConnection = {
             async query(endpoint, options = {}) {
                 const response = await fetch(`/api/${endpoint}`, {
@@ -60,49 +59,49 @@ class FrontendKernel {
                     headers: { 'Content-Type': 'application/json' },
                     body: options.body ? JSON.stringify(options.body) : undefined
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`API Error: ${response.status}`);
                 }
-                
+
                 return await response.json();
             },
-            
+
             async getScenario(name) {
                 return await this.query(`scenarios/${name}`);
             },
-            
+
             async saveScenario(name, data) {
                 return await this.query(`scenarios/${name}`, {
                     method: 'POST',
                     body: data
                 });
             },
-            
+
             async getMinimalBeings() {
                 return await this.query('beings/minimal');
             },
-            
+
             async getBeing(ulid) {
                 return await this.query(`beings/${ulid}`);
             },
-            
+
             async createBeing(beingData) {
                 return await this.query('beings', {
                     method: 'POST',
                     body: { being_data: beingData }
                 });
             },
-            
+
             async getSoul(soulHash) {
                 return await this.query(`souls/${soulHash}`);
             },
-            
+
             async getSystemStatus() {
                 return await this.query('system/status');
             }
         };
-        
+
         // Test połączenia
         const status = await this.dbConnection.getSystemStatus();
         console.log('📊 Status systemu:', status);
@@ -111,14 +110,14 @@ class FrontendKernel {
     async loadBiosScenario() {
         console.log('🔧 Ładowanie BIOS scenariusza...');
         this.bootstrapState = 'loading_bios';
-        
+
         try {
             const biosResponse = await this.dbConnection.query('bios');
             this.biosScenario = biosResponse.data;
-            
+
             console.log('✅ BIOS załadowany:', this.biosScenario.name);
             this.scenarios.set('bios', this.biosScenario);
-            
+
         } catch (error) {
             console.error('❌ Błąd ładowania BIOS:', error);
             // Fallback do lokalnego BIOS
@@ -133,7 +132,7 @@ class FrontendKernel {
             description: "Lokalny scenariusz rozruchowy",
             bootstrap_sequence: [
                 "init_kernel",
-                "load_communication", 
+                "load_communication",
                 "setup_ui",
                 "ready_state"
             ],
@@ -148,30 +147,73 @@ class FrontendKernel {
     }
 
     async executeBootstrapSequence() {
-        console.log('⚙️ Wykonywanie sekwencji bootstrap...');
-        
-        const sequence = this.biosScenario.bootstrap_sequence || [];
-        
-        for (const step of sequence) {
-            this.bootstrapState = step;
-            console.log(`🔄 Bootstrap step: ${step}`);
-            
-            switch (step) {
-                case 'init_kernel':
-                    await this.initKernel();
-                    break;
-                case 'load_communication':
-                    await this.loadCommunication();
-                    break;
-                case 'setup_ui':
-                    await this.setupUI();
-                    break;
-                case 'ready_state':
-                    await this.enterReadyState();
-                    break;
-                default:
-                    console.warn(`⚠️ Nieznany krok bootstrap: ${step}`);
+        console.log('⚙️ Wykonywanie sekwencji bootstrap z BIOS bytu...');
+        this.bootstrapState = 'bootstrap';
+
+        const sequence = this.biosScenario.bootstrap_sequence || [
+            'init_kernel',
+            'load_communication',
+            'setup_ui',
+            'ready_state'
+        ];
+
+        const fallbackProcedure = this.biosScenario.fallback_procedure || {
+            max_retries: 3,
+            retry_delay: 5000,
+            emergency_mode: true
+        };
+
+        console.log('📋 BIOS instrukcje:', {
+            sequence,
+            fallback: fallbackProcedure,
+            required_beings: this.biosScenario.required_beings?.length || 0
+        });
+
+        let retries = 0;
+        while (retries < fallbackProcedure.max_retries) {
+            try {
+                for (const step of sequence) {
+                    console.log(`🔄 Bootstrap krok ${retries + 1}/${fallbackProcedure.max_retries}: ${step}`);
+                    await this.executeBootstrapStep(step);
+                }
+
+                // Jeśli udało się wykonać całą sekwencję, przerwij pętlę
+                break;
+
+            } catch (error) {
+                retries++;
+                console.error(`❌ Błąd w bootstrap (próba ${retries}):`, error);
+
+                if (retries < fallbackProcedure.max_retries) {
+                    console.log(`⏳ Czekam ${fallbackProcedure.retry_delay}ms przed ponowną próbą...`);
+                    await new Promise(resolve => setTimeout(resolve, fallbackProcedure.retry_delay));
+                } else if (fallbackProcedure.emergency_mode) {
+                    console.log('🚨 Tryb awaryjny - minimalna inicjalizacja...');
+                    await this.executeEmergencyBootstrap();
+                }
             }
+        }
+
+        this.bootstrapState = 'complete';
+        this.emit('kernel:bootstrap_complete');
+    }
+
+    async executeBootstrapStep(step) {
+        switch (step) {
+            case 'init_kernel':
+                await this.initKernel();
+                break;
+            case 'load_communication':
+                await this.loadCommunication();
+                break;
+            case 'setup_ui':
+                await this.setupUI();
+                break;
+            case 'ready_state':
+                await this.enterReadyState();
+                break;
+            default:
+                console.warn(`⚠️ Nieznany krok bootstrap: ${step}`);
         }
     }
 
@@ -179,7 +221,7 @@ class FrontendKernel {
         // Inicjalizacja podstawowych struktur
         this.beings.clear();
         this.souls.clear();
-        
+
         // Utwórz scenario manager
         this.scenarioManager = new ScenarioManager(this);
     }
@@ -201,9 +243,9 @@ class FrontendKernel {
 
     async initializeCoreBeing() {
         console.log('🤖 Inicjalizacja podstawowych bytów...');
-        
+
         const requiredBeings = this.biosScenario.required_beings || [];
-        
+
         for (const beingConfig of requiredBeings) {
             switch (beingConfig.type) {
                 case 'ai_assistant':
@@ -244,7 +286,7 @@ class FrontendKernel {
 
         this.lux = new LuxAssistant(luxSoul, this);
         this.beings.set('lux_assistant', this.lux);
-        
+
         console.log('🌟 Lux Assistant zainicjalizowany');
     }
 
@@ -264,21 +306,21 @@ class FrontendKernel {
         document.addEventListener('luxos:message', (e) => {
             this.handleMessage(e.detail);
         });
-        
+
         document.addEventListener('luxos:load_scenario', (e) => {
             this.loadScenario(e.detail.name);
         });
-        
+
         document.addEventListener('luxos:create_being', (e) => {
             this.createBeing(e.detail);
         });
-        
+
         console.log('🔧 Event listeners uruchomione');
     }
 
     async handleMessage(message) {
         console.log('💬 Kernel otrzymał wiadomość:', message);
-        
+
         if (this.lux) {
             const response = await this.lux.processMessage(message);
             this.emit('lux:response', response);
@@ -289,18 +331,18 @@ class FrontendKernel {
 
     async loadScenario(scenarioName) {
         console.log(`📋 Ładowanie scenariusza: ${scenarioName}`);
-        
+
         try {
             const scenarioData = await this.dbConnection.getScenario(scenarioName);
             this.scenarios.set(scenarioName, scenarioData.data);
-            
+
             this.emit('scenario:loaded', {
                 name: scenarioName,
                 data: scenarioData.data
             });
-            
+
             return scenarioData.data;
-            
+
         } catch (error) {
             console.error(`❌ Błąd ładowania scenariusza ${scenarioName}:`, error);
             throw error;
@@ -309,17 +351,17 @@ class FrontendKernel {
 
     async createBeing(beingData) {
         console.log('🆕 Tworzenie nowego bytu:', beingData);
-        
+
         try {
             const result = await this.dbConnection.createBeing(beingData);
-            
+
             // Utwórz lokalną instancję
             const being = new FrontendBeing(beingData, this);
             this.beings.set(result.ulid, being);
-            
+
             this.emit('being:created', being);
             return being;
-            
+
         } catch (error) {
             console.error('❌ Błąd tworzenia bytu:', error);
             throw error;
@@ -356,6 +398,23 @@ class FrontendKernel {
             console.error('❌ Błąd zapisywania bytu:', error);
         }
     }
+
+    async executeEmergencyBootstrap() {
+        console.log('🚨 Wykonywanie awaryjnej sekwencji bootstrap...');
+
+        // Minimalna sekwencja w trybie awaryjnym
+        const emergencySequence = ['init_kernel', 'ready_state'];
+
+        for (const step of emergencySequence) {
+            try {
+                console.log(`🚨 Awaryjny krok: ${step}`);
+                await this.executeBootstrapStep(step);
+            } catch (error) {
+                console.error(`💥 Krytyczny błąd w kroku ${step}:`, error);
+                // W trybie awaryjnym kontynuuj mimo błędów
+            }
+        }
+    }
 }
 
 class LuxAssistant {
@@ -368,7 +427,7 @@ class LuxAssistant {
 
     async processMessage(message) {
         console.log('🤖 Lux przetwarza:', message);
-        
+
         this.conversationHistory.push({
             timestamp: new Date(),
             message: message,
@@ -406,19 +465,19 @@ class LuxAssistant {
 
     analyzeIntent(message) {
         const lowerMessage = message.toLowerCase();
-        
+
         if (lowerMessage.includes('stwórz') || lowerMessage.includes('utwórz')) {
             return { type: 'create_being', message };
         }
-        
+
         if (lowerMessage.includes('scenariusz') || lowerMessage.includes('załaduj')) {
             return { type: 'load_scenario', message };
         }
-        
+
         if (lowerMessage.includes('status') || lowerMessage.includes('stan')) {
             return { type: 'system_status', message };
         }
-        
+
         return { type: 'general_chat', message };
     }
 
@@ -446,7 +505,7 @@ class LuxAssistant {
             // Wyciągnij nazwę scenariusza z wiadomości
             const match = intent.message.match(/scenariusz\s+(\w+)/i);
             const scenarioName = match ? match[1] : 'default';
-            
+
             const scenario = await this.kernel.loadScenario(scenarioName);
             return `📋 Załadowałem scenariusz: ${scenario.name || scenarioName}`;
         } catch (error) {
@@ -458,7 +517,7 @@ class LuxAssistant {
         const beings = this.kernel.getAllBeings();
         const scenarios = Array.from(this.kernel.scenarios.keys());
         const bootstrapState = this.kernel.getBootstrapState();
-        
+
         return `📊 Status systemu LuxOS:
 • Bootstrap: ${bootstrapState}
 • Bytów w pamięci: ${beings.length}
@@ -468,8 +527,8 @@ class LuxAssistant {
     }
 
     async handleGeneralChat(intent) {
-        return `🤖 Jestem Lux, asystentem LuxOS działającym w przeglądarce. 
-Mogę zarządzać bytami i scenariuszami. 
+        return `🤖 Jestem Lux, asystentem LuxOS działającym w przeglądarce.
+Mogę zarządzać bytami i scenariuszami.
 System status: ${this.kernel.getBootstrapState()}`;
     }
 }
@@ -546,21 +605,21 @@ window.LuxOSKernel = null;
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         console.log('🌟 LuxOS Frontend System - Uruchamianie...');
-        
+
         window.LuxOSKernel = new FrontendKernel();
         await window.LuxOSKernel.initialize();
-        
+
         // Emit ready event
-        document.dispatchEvent(new CustomEvent('luxos:ready', { 
-            detail: window.LuxOSKernel 
+        document.dispatchEvent(new CustomEvent('luxos:ready', {
+            detail: window.LuxOSKernel
         }));
-        
+
     } catch (error) {
         console.error('❌ Błąd inicjalizacji LuxOS:', error);
-        
+
         // Emit error event
-        document.dispatchEvent(new CustomEvent('luxos:error', { 
-            detail: { error: error.message } 
+        document.dispatchEvent(new CustomEvent('luxos:error', {
+            detail: { error: error.message }
         }));
     }
 });

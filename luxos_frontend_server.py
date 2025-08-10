@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 LuxOS Frontend Server - Minimalny serwer dla samowystarczalnego frontendu
@@ -43,7 +42,7 @@ async def startup():
             max_size=5
         )
         print("✅ Frontend Server: Połączono z bazą PostgreSQL")
-        
+
         # Sprawdź czy istnieje tabela scenarios
         async with db_pool.acquire() as conn:
             exists = await conn.fetchval("""
@@ -52,7 +51,7 @@ async def startup():
                     WHERE table_name = 'scenarios'
                 )
             """)
-            
+
             if not exists:
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS scenarios (
@@ -65,7 +64,7 @@ async def startup():
                     )
                 """)
                 print("✅ Utworzono tabelę scenarios")
-                
+
     except Exception as e:
         print(f"❌ Błąd połączenia z bazą: {e}")
 
@@ -85,7 +84,7 @@ async def list_scenarios():
     """Zwraca listę dostępnych scenariuszy"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
-    
+
     try:
         async with db_pool.acquire() as conn:
             scenarios = await conn.fetch("""
@@ -93,7 +92,7 @@ async def list_scenarios():
                 FROM scenarios 
                 ORDER BY name
             """)
-            
+
             return {
                 "scenarios": [
                     {
@@ -113,7 +112,7 @@ async def get_scenario(scenario_name: str):
     """Pobiera konkretny scenariusz"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
-    
+
     try:
         async with db_pool.acquire() as conn:
             scenario = await conn.fetchrow("""
@@ -121,7 +120,7 @@ async def get_scenario(scenario_name: str):
                 FROM scenarios 
                 WHERE name = $1
             """, scenario_name)
-            
+
             if not scenario:
                 # Spróbuj załadować z pliku scenarios/
                 import os
@@ -129,7 +128,7 @@ async def get_scenario(scenario_name: str):
                 if os.path.exists(scenario_path):
                     with open(scenario_path, 'r') as f:
                         scenario_data = json.load(f)
-                    
+
                     # Zapisz do bazy
                     await conn.execute("""
                         INSERT INTO scenarios (name, data, hash_id)
@@ -137,21 +136,21 @@ async def get_scenario(scenario_name: str):
                         ON CONFLICT (name) DO UPDATE SET
                         data = $2, updated_at = CURRENT_TIMESTAMP
                     """, scenario_name, json.dumps(scenario_data), f"file_{scenario_name}")
-                    
+
                     return {
                         "name": scenario_name,
                         "data": scenario_data,
                         "source": "file_imported"
                     }
-                
+
                 raise HTTPException(status_code=404, detail="Scenariusz nie znaleziony")
-            
+
             return {
                 "name": scenario['name'],
                 "data": scenario['data'],
                 "hash_id": scenario['hash_id']
             }
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -160,7 +159,7 @@ async def save_scenario(scenario_name: str, scenario_data: Dict[str, Any]):
     """Zapisuje scenariusz do bazy"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
-    
+
     try:
         async with db_pool.acquire() as conn:
             await conn.execute("""
@@ -174,9 +173,9 @@ async def save_scenario(scenario_name: str, scenario_data: Dict[str, Any]):
             f"frontend_{datetime.now().strftime('%Y%m%d_%H%M%S')}", 
             datetime.now()
             )
-            
+
             return {"status": "success", "scenario": scenario_name}
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -185,7 +184,7 @@ async def get_minimal_beings():
     """Pobiera tylko podstawowe informacje o bytach (bez pełnych danych)"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
-    
+
     try:
         async with db_pool.acquire() as conn:
             beings = await conn.fetch("""
@@ -195,7 +194,7 @@ async def get_minimal_beings():
                 ORDER BY created_at DESC 
                 LIMIT 50
             """)
-            
+
             return {
                 "beings": [
                     {
@@ -216,16 +215,16 @@ async def get_being_full(being_ulid: str):
     """Pobiera pełne dane konkretnego bytu na żądanie"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
-    
+
     try:
         async with db_pool.acquire() as conn:
             being = await conn.fetchrow("""
                 SELECT * FROM beings WHERE ulid = $1
             """, being_ulid)
-            
+
             if not being:
                 raise HTTPException(status_code=404, detail="Byt nie znaleziony")
-            
+
             return {
                 "ulid": being['ulid'],
                 "alias": being['alias'],
@@ -234,7 +233,7 @@ async def get_being_full(being_ulid: str):
                 "created_at": being['created_at'].isoformat() if being['created_at'] else None,
                 "updated_at": being['updated_at'].isoformat() if being['updated_at'] else None
             }
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -243,16 +242,16 @@ async def create_being(request: BeingDataRequest):
     """Tworzy nowy byt w bazie"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
-    
+
     try:
         being_data = request.being_data
-        
+
         async with db_pool.acquire() as conn:
             # Generuj ULID jeśli nie ma
             if 'ulid' not in being_data:
                 import ulid
                 being_data['ulid'] = str(ulid.new())
-            
+
             await conn.execute("""
                 INSERT INTO beings (ulid, soul_hash, alias, data, created_at, updated_at)
                 VALUES ($1, $2, $3, $4, $5, $6)
@@ -264,9 +263,9 @@ async def create_being(request: BeingDataRequest):
             datetime.now(),
             datetime.now()
             )
-            
+
             return {"status": "success", "ulid": being_data['ulid']}
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -275,16 +274,16 @@ async def get_soul(soul_hash: str):
     """Pobiera soul na żądanie"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
-    
+
     try:
         async with db_pool.acquire() as conn:
             soul = await conn.fetchrow("""
                 SELECT * FROM souls WHERE soul_hash = $1
             """, soul_hash)
-            
+
             if not soul:
                 raise HTTPException(status_code=404, detail="Soul nie znaleziona")
-            
+
             return {
                 "soul_hash": soul['soul_hash'],
                 "global_ulid": soul['global_ulid'],
@@ -292,7 +291,7 @@ async def get_soul(soul_hash: str):
                 "genotype": soul['genotype'],
                 "created_at": soul['created_at'].isoformat() if soul['created_at'] else None
             }
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -301,13 +300,13 @@ async def get_system_status():
     """Zwraca status systemu"""
     if not db_pool:
         return {"status": "error", "message": "Brak połączenia z bazą"}
-    
+
     try:
         async with db_pool.acquire() as conn:
             beings_count = await conn.fetchval("SELECT COUNT(*) FROM beings")
             souls_count = await conn.fetchval("SELECT COUNT(*) FROM souls")
             scenarios_count = await conn.fetchval("SELECT COUNT(*) FROM scenarios")
-            
+
         return {
             "status": "active",
             "mode": "frontend_only",
@@ -321,53 +320,121 @@ async def get_system_status():
 
 @app.get("/api/bios")
 async def get_bios_scenario():
-    """Pobiera główny scenariusz BIOS systemu"""
+    """Pobiera główny BIOS systemu jako byt"""
     try:
-        # Spróbuj pobrać z bazy
-        bios_scenario = await get_scenario("bios")
-        return bios_scenario
-    except:
-        # Utwórz domyślny BIOS
-        default_bios = {
-            "name": "LuxOS BIOS",
-            "version": "1.0.0",
-            "description": "Podstawowy scenariusz rozruchowy LuxOS",
+        from luxdb.repository.soul_repository import BeingRepository
+        from luxdb.models.soul import Soul
+        from luxdb.models.being import Being
+
+        # Szukaj BIOS bytów
+        all_beings = await BeingRepository.get_all_beings()
+        bios_beings = []
+
+        if all_beings.get('success'):
+            for being in all_beings.get('beings', []):
+                if (being and 
+                    hasattr(being, 'data') and 
+                    being.data.get('system_type') == 'bios'):
+                    bios_beings.append(being)
+
+        # Sortuj: stabilne najpierw, potem według daty
+        bios_beings.sort(key=lambda b: (
+            not b.data.get('stable', False),
+            -(b.created_at.timestamp() if b.created_at else 0)
+        ))
+
+        if bios_beings:
+            # Zwróć najlepszy BIOS
+            bios_being = bios_beings[0]
+            soul = await bios_being.get_soul()
+
+            return {
+                "name": bios_being.alias,
+                "ulid": bios_being.ulid,
+                "stable": bios_being.data.get('stable', False),
+                "version": bios_being.data.get('version', '1.0.0'),
+                "genesis": soul.genotype.get('genesis', {}) if soul else {},
+                "system_type": "bios"
+            }
+        else:
+            # Utwórz domyślny BIOS jako byt
+            bios_genotype = {
+                "genesis": {
+                    "name": "LuxOS_BIOS_Default",
+                    "type": "system_bios",
+                    "version": "1.0.0",
+                    "description": "Domyślny BIOS systemu LuxOS",
+                    "bootstrap_sequence": [
+                        "init_kernel",
+                        "load_communication",
+                        "setup_ui",
+                        "ready_state"
+                    ],
+                    "required_beings": [
+                        {
+                            "alias": "lux_assistant",
+                            "type": "ai_assistant",
+                            "priority": 100,
+                            "critical": False
+                        },
+                        {
+                            "alias": "kernel_core",
+                            "type": "system_kernel",
+                            "priority": 100,
+                            "critical": True
+                        }
+                    ],
+                    "fallback_procedure": {
+                        "max_retries": 3,
+                        "retry_delay": 5,
+                        "emergency_mode": True
+                    }
+                },
+                "attributes": {
+                    "system_type": {"py_type": "str", "default": "bios"},
+                    "stable": {"py_type": "bool", "default": True},
+                    "version": {"py_type": "str", "default": "1.0.0"}
+                }
+            }
+
+            # Utwórz Soul i Being
+            bios_soul = await Soul.create(
+                genotype=bios_genotype,
+                alias="luxos_bios_default_soul"
+            )
+
+            bios_being = await Being.create(
+                soul=bios_soul,
+                alias="luxos_bios_default",
+                attributes={
+                    "system_type": "bios",
+                    "stable": True,
+                    "version": "1.0.0",
+                    "created_by": "frontend_server"
+                }
+            )
+
+            return {
+                "name": bios_being.alias,
+                "ulid": bios_being.ulid,
+                "stable": True,
+                "version": "1.0.0",
+                "genesis": bios_genotype["genesis"],
+                "system_type": "bios",
+                "created": True
+            }
+
+    except Exception as e:
+        return {
+            "error": f"Błąd ładowania BIOS: {str(e)}",
+            "fallback": True,
+            "name": "LuxOS_BIOS_Fallback",
             "bootstrap_sequence": [
                 "init_kernel",
-                "load_communication",
+                "load_communication", 
                 "setup_ui",
                 "ready_state"
-            ],
-            "required_beings": [
-                {
-                    "alias": "lux_assistant",
-                    "type": "ai_assistant",
-                    "priority": 100
-                },
-                {
-                    "alias": "scenario_manager", 
-                    "type": "system_manager",
-                    "priority": 90
-                }
             ]
-        }
-        
-        # Zapisz do bazy
-        if db_pool:
-            try:
-                async with db_pool.acquire() as conn:
-                    await conn.execute("""
-                        INSERT INTO scenarios (name, data, hash_id)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT (name) DO NOTHING
-                    """, "bios", json.dumps(default_bios), "system_bios")
-            except:
-                pass
-        
-        return {
-            "name": "bios",
-            "data": default_bios,
-            "source": "generated"
         }
 
 if __name__ == "__main__":
