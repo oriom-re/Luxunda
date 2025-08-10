@@ -288,6 +288,32 @@ class LuxOSUnifiedSystem:
             self.log("ERROR", "COMM", f"Błąd inicjalizacji Communication: {e}")
             return False
 
+        # Initialize Lux Assistant Communication
+        self.log("INFO", "LUX", "Inicjalizacja Lux Assistant Communication...")
+        try:
+            from luxdb.ai_lux_assistant import LuxAssistant
+            from luxdb.core.session_assistant import session_manager
+            
+            # Pobierz klucz OpenAI z zmiennych środowiskowych
+            import os
+            openai_key = os.getenv('OPENAI_API_KEY')
+            
+            if openai_key:
+                # Zainicjalizuj główny Lux Assistant
+                global_lux = LuxAssistant(openai_key)
+                await global_lux.initialize()
+                
+                # Dodaj do session managera jako główną instancję
+                session_manager.global_lux_assistant = global_lux
+                
+                self.log("SUCCESS", "LUX", "Lux Assistant Communication zainicjalizowany")
+            else:
+                self.log("WARN", "LUX", "Brak OPENAI_API_KEY - Lux Assistant wyłączony")
+                
+        except Exception as e:
+            self.log("ERROR", "LUX", f"Błąd inicjalizacji Lux Assistant: {e}")
+            # Nie przerywamy działania systemu - Lux to opcjonalny komponent
+
         # Podsumowanie
         active_count = sum(self.components_active.values())
         total_count = len(self.components_active)

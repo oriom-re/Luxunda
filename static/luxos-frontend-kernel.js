@@ -527,9 +527,33 @@ class LuxAssistant {
     }
 
     async handleGeneralChat(intent) {
-        return `🤖 Jestem Lux, asystentem LuxOS działającym w przeglądarce.
+        // Najpierw spróbuj komunikacji z serwerem
+        try {
+            const response = await fetch('/api/lux/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: intent.message
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                return data.response;
+            } else {
+                throw new Error(data.response || 'Server error');
+            }
+        } catch (error) {
+            console.warn('Fallback to local chat:', error);
+            // Fallback do lokalnej odpowiedzi
+            return `🤖 Jestem Lux, asystentem LuxOS działającym w przeglądarce.
 Mogę zarządzać bytami i scenariuszami.
-System status: ${this.kernel.getBootstrapState()}`;
+System status: ${this.kernel.getBootstrapState()}
+⚠️ Komunikacja z serwerem niedostępna - tryb lokalny`;
+        }
     }
 }
 

@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -374,14 +373,14 @@
                     <h3>🤖 Rozmowa z Lux Assistant</h3>
                     <p>Samowystarczalny system zarządzania scenariuszami i bytami</p>
                 </div>
-                
+
                 <div class="chat-messages" id="chat-messages">
                     <div class="message assistant">
                         Witaj w LuxOS Frontend System! 
                         System jest w trakcie inicjalizacji. Poczekaj na zakończenie ładowania BIOS...
                     </div>
                 </div>
-                
+
                 <div class="chat-input">
                     <input type="text" id="message-input" placeholder="Wiadomość do Lux..." disabled />
                     <button onclick="sendMessage()" id="send-button" disabled>Wyślij</button>
@@ -405,45 +404,89 @@
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-button');
 
-        // Event listeners
+        // Funkcja pomocnicza do wyświetlania wiadomości w chatboxie
+        function addChatMessage(sender, message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender.toLowerCase()}`;
+            messageDiv.textContent = message;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Funkcja pomocnicza do aktualizacji statusu systemu
+        function updateSystemStatus(status = 'System Aktywny') {
+            statusText.textContent = status;
+            if (status === 'System Aktywny') {
+                statusIndicator.className = 'status-indicator';
+            } else if (status === 'Błąd inicjalizacji') {
+                statusIndicator.className = 'status-indicator error';
+            } else {
+                statusIndicator.className = 'status-indicator loading';
+            }
+        }
+
+        // Inicjalizuj system po załadowaniu DOM
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                window.kernel = new LuxOSKernel();
+                await window.kernel.initialize();
+
+                // Inicjalizuj asystenta Lux
+                window.lux = new LuxAssistant(window.kernel.beings.get('lux_soul'), window.kernel);
+
+                console.log('✅ LuxOS System zainicjalizowany');
+                updateSystemStatus();
+
+                // Automatyczna komunikacja z Lux po inicjalizacji
+                try {
+                    const welcomeMessage = await window.lux.processMessage("Status systemu i gotowość do pracy");
+                    addChatMessage('Lux', welcomeMessage);
+                    console.log('🤖 Lux Assistant połączony i gotowy');
+                } catch (error) {
+                    console.warn('⚠️ Lux Assistant - tryb lokalny:', error);
+                    addChatMessage('Lux', '🤖 Lux Assistant gotowy - tryb lokalny');
+                }
+
+            } catch (error) {
+                console.error('❌ Błąd inicjalizacji:', error);
+                updateSystemStatus('Błąd inicjalizacji');
+            }
+        });
+
+        // Event listeners dla zdarzeń systemu LuxOS
         document.addEventListener('luxos:ready', (e) => {
             kernel = e.detail;
-            statusText.textContent = 'System Aktywny';
-            statusIndicator.className = 'status-indicator';
-            bootstrapState.textContent = 'Gotowy';
-            
+            updateSystemStatus('System Aktywny');
+
             messageInput.disabled = false;
             sendButton.disabled = false;
-            
+
             updateSystemInfo();
             loadScenariosDisplay();
             loadBeingsList();
-            
-            displayMessage('✅ LuxOS Frontend System gotowy do pracy!\nMogę zarządzać scenariuszami i bytami.', 'assistant');
+
+            addChatMessage('Lux', '✅ LuxOS Frontend System gotowy do pracy!\nMogę zarządzać scenariuszami i bytami.');
         });
 
         document.addEventListener('luxos:error', (e) => {
-            statusText.textContent = 'Błąd systemu';
-            statusIndicator.className = 'status-indicator error';
-            bootstrapState.textContent = 'Błąd';
-            
-            displayMessage(`❌ Błąd inicjalizacji systemu: ${e.detail.error}`, 'assistant');
+            updateSystemStatus('Błąd systemu');
+            addChatMessage('Lux', `❌ Błąd inicjalizacji systemu: ${e.detail.error}`);
         });
 
         document.addEventListener('luxos:lux:response', (e) => {
-            displayMessage(e.detail, 'assistant');
+            addChatMessage('Lux', e.detail);
         });
 
         document.addEventListener('luxos:being:created', (e) => {
             updateSystemInfo();
             loadBeingsList();
-            displayMessage(`✨ Utworzono nowy byt: ${e.detail.alias}`, 'assistant');
+            addChatMessage('Lux', `✨ Utworzono nowy byt: ${e.detail.alias}`);
         });
 
         document.addEventListener('luxos:scenario:loaded', (e) => {
             updateSystemInfo();
             loadScenariosDisplay();
-            displayMessage(`📋 Załadowano scenariusz: ${e.detail.name}`, 'assistant');
+            addChatMessage('Lux', `📋 Załadowano scenariusz: ${e.detail.name}`);
         });
 
         document.addEventListener('luxos:kernel:bootstrap_complete', (e) => {
@@ -456,7 +499,7 @@
             if (kernel) {
                 const state = kernel.getBootstrapState();
                 bootstrapDisplay.textContent = state;
-                
+
                 if (state === 'ready') {
                     statusIndicator.className = 'status-indicator';
                 } else if (state === 'error') {
@@ -469,10 +512,10 @@
 
         function updateSystemInfo() {
             if (!kernel) return;
-            
+
             const beings = kernel.getAllBeings();
             const scenarios = Array.from(kernel.scenarios.keys());
-            
+
             beingsCount.textContent = beings.length;
             scenariosCount.textContent = scenarios.length;
         }
@@ -482,12 +525,12 @@
 
             scenariosContainer.innerHTML = '';
             const scenarios = Array.from(kernel.scenarios.entries());
-            
+
             scenarios.forEach(([name, data]) => {
                 const scenarioElement = document.createElement('div');
                 scenarioElement.className = 'scenario-item';
                 if (name === 'bios') scenarioElement.classList.add('active');
-                
+
                 scenarioElement.innerHTML = `
                     <div>
                         <strong>${name}</strong>
@@ -498,7 +541,7 @@
                         <button class="scenario-btn" onclick="editScenario('${name}')">Edit</button>
                     </div>
                 `;
-                
+
                 scenariosContainer.appendChild(scenarioElement);
             });
         }
@@ -508,7 +551,7 @@
 
             const beings = kernel.getAllBeings();
             beingsContainer.innerHTML = '';
-            
+
             beings.forEach(being => {
                 const beingElement = document.createElement('div');
                 beingElement.className = 'being-item';
@@ -523,47 +566,42 @@
 
         function selectBeing(being) {
             console.log('Wybrano byt:', being);
-            displayMessage(`📋 Szczegóły bytu: ${being.alias} (${being.type || 'generic'})`, 'assistant');
+            addChatMessage('Lux', `📋 Szczegóły bytu: ${being.alias} (${being.type || 'generic'})`);
         }
 
         function sendMessage() {
             const message = messageInput.value.trim();
-            if (!message || !kernel) return;
+            if (!message || !kernel || !window.lux) return;
 
-            displayMessage(message, 'user');
+            addChatMessage('User', message);
             messageInput.value = '';
 
             // Wyślij do kernel
-            document.dispatchEvent(new CustomEvent('luxos:message', {
-                detail: message
-            }));
-        }
-
-        function displayMessage(text, type) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${type}`;
-            messageDiv.textContent = text;
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            window.lux.processMessage(message)
+                .then(response => addChatMessage('Lux', response))
+                .catch(error => {
+                    console.error('Błąd podczas wysyłania wiadomości do Lux:', error);
+                    addChatMessage('Lux', `Błąd: ${error.message}`);
+                });
         }
 
         async function loadScenario(name) {
             if (!kernel) return;
-            
+
             try {
                 await kernel.loadScenario(name);
-                displayMessage(`📋 Scenariusz ${name} załadowany pomyślnie`, 'assistant');
+                addChatMessage('Lux', `📋 Scenariusz ${name} załadowany pomyślnie`);
             } catch (error) {
-                displayMessage(`❌ Błąd ładowania scenariusza: ${error.message}`, 'assistant');
+                addChatMessage('Lux', `❌ Błąd ładowania scenariusza: ${error.message}`);
             }
         }
 
         function editScenario(name) {
-            displayMessage(`🔧 Edycja scenariusza ${name} - funkcja w przygotowaniu`, 'assistant');
+            addChatMessage('Lux', `🔧 Edycja scenariusza ${name} - funkcja w przygotowaniu`);
         }
 
         function createNewScenario() {
-            displayMessage('🆕 Tworzenie nowego scenariusza - funkcja w przygotowaniu', 'assistant');
+            addChatMessage('Lux', '🆕 Tworzenie nowego scenariusza - funkcja w przygotowaniu');
         }
 
         // Enter key support

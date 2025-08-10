@@ -437,6 +437,32 @@ async def get_bios_scenario():
             ]
         }
 
+@app.post("/api/lux/chat")
+async def chat_with_lux(request: dict):
+    """Komunikacja z Lux Assistant"""
+    try:
+        from luxdb.core.session_assistant import session_manager
+
+        message = request.get("message", "")
+        if not message:
+            raise HTTPException(status_code=400, detail="Brak wiadomości")
+
+        # Użyj globalnego Lux Assistant
+        response = await session_manager.chat_with_global_lux(message)
+
+        return {
+            "status": "success",
+            "response": response,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "response": f"❌ Błąd: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5000)
