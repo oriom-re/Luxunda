@@ -324,7 +324,13 @@ async def run_initialization_tests():
             failed += 1
     
     print(f"\n📊 Wyniki testów inicjalizacji: {passed} ✅ | {failed} ❌")
-    return passed, failed
+    
+    return {
+        'overall_success': failed == 0,
+        'passed': passed,
+        'failed': failed,
+        'total': len(tests)
+    }
 
 
 if __name__ == "__main__":

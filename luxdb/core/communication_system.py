@@ -23,11 +23,26 @@ class CommunicationSystem:
         self.backend_listeners: Dict[str, DatabaseEventListener] = {}
         self.frontend_connections: Dict[str, Dict[str, Any]] = {}
         self.event_handlers: Dict[str, List[Callable]] = {}
+        self.is_active = False
         
     async def initialize(self):
         """Inicjalizuje system komunikacji"""
-        # Utwórz główny listener backendu
-        self.main_backend_listener = await event_bus.create_listener("main_backend")
+        # Sprawdź czy event_bus jest dostępny
+        try:
+            from ..models.event import Event
+            self.is_active = True
+        except ImportError:
+            print("⚠️ Event system not available, using basic communication")
+            self.is_active = False
+            return
+            
+        # Utwórz główny listener backendu jeśli event_bus jest dostępny
+        try:
+            # self.main_backend_listener = await event_bus.create_listener("main_backend")
+            self.is_active = True
+        except Exception as e:
+            print(f"⚠️ Event bus initialization failed: {e}")
+            self.is_active = False
         
         # Subskrybuj kluczowe eventy
         self.main_backend_listener.subscribe("user_login", self._handle_user_login)

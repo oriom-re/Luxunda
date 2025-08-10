@@ -37,47 +37,29 @@ class AdminKernelInterface:
         }
 
     async def initialize(self):
-        """Inicjalizuje Kernel i Lux Beings"""
+        """Inicjalizuje Admin Kernel Interface"""
         print("🚀 Inicjalizacja Admin Kernel Interface...")
 
-        # Dynamiczny import kernel_system
-        global kernel_system
-        if kernel_system is None:
-            from .kernel_system import kernel_system as ks
-            kernel_system = ks
+        try:
+            # Inicjalizuj kernel system
+            await kernel_system.initialize("default")
 
-        # Inicjalizuj główny Kernel System
-        await kernel_system.initialize("advanced")
+            # Pobierz status systemu
+            self.system_status = await kernel_system.get_system_status()
 
-        # Utwórz lub załaduj Kernel Being
-        kernel_soul = await self._get_or_create_kernel_soul()
-        self.kernel_being = await Being.create(
-            soul=kernel_soul,
-            data={
-                "role": "system_kernel",
-                "capabilities": ["system_management", "being_supervision", "resource_monitoring"],
-                "status": "active"
-            },
-            alias="admin_kernel"
-        )
+            # Utwórz byty administracyjne
+            await self.create_admin_beings()
 
-        # Utwórz lub załaduj Lux Being
-        lux_soul = await self._get_or_create_lux_soul()
-        self.lux_being = await Being.create(
-            soul=lux_soul,
-            data={
-                "role": "ai_assistant",
-                "capabilities": ["conversation", "analysis", "task_management"],
-                "status": "active"
-            },
-            alias="Lux"
-        )
-
-        self.system_status["kernel_active"] = True
-        self.system_status["lux_active"] = True
-        self.system_status["last_heartbeat"] = datetime.now().isoformat()
-
-        print("✅ Admin Kernel Interface zainicjalizowany")
+            print("✅ Admin Kernel Interface zainicjalizowany")
+        except Exception as e:
+            print(f"⚠️ Admin Kernel initialization warning: {e}")
+            # Kontynuuj z ograniczoną funkcjonalnością
+            self.system_status = {
+                'kernel_active': False,
+                'lux_active': False,
+                'error': str(e)
+            }
+            print("🔄 Continuing with limited functionality...")
 
     async def _get_or_create_kernel_soul(self) -> Soul:
         """Tworzy lub ładuje Soul dla Kernel Being"""
@@ -335,6 +317,37 @@ Kernel działa sprawnie, wszystkie systemy są aktywne. W czym mogę pomóc?
             "message": f"📋 Found {len(beings_data)} beings",
             "data": {"beings": beings_data}
         }
+
+    async def create_admin_beings(self):
+        """Tworzy lub ładuje byty administracyjne (Kernel i Lux)"""
+        if not self.kernel_being:
+            kernel_soul = await self._get_or_create_kernel_soul()
+            self.kernel_being = await Being.create(
+                soul=kernel_soul,
+                data={
+                    "role": "system_kernel",
+                    "capabilities": ["system_management", "being_supervision", "resource_monitoring"],
+                    "status": "active"
+                },
+                alias="admin_kernel"
+            )
+
+        if not self.lux_being:
+            lux_soul = await self._get_or_create_lux_soul()
+            self.lux_being = await Being.create(
+                soul=lux_soul,
+                data={
+                    "role": "ai_assistant",
+                    "capabilities": ["conversation", "analysis", "task_management"],
+                    "status": "active"
+                },
+                alias="Lux"
+            )
+
+        self.system_status["kernel_active"] = bool(self.kernel_being)
+        self.system_status["lux_active"] = bool(self.lux_being)
+        self.system_status["last_heartbeat"] = datetime.now().isoformat()
+
 
 # Globalna instancja
 admin_kernel = AdminKernelInterface()

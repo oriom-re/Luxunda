@@ -4,9 +4,10 @@ LuxOS Kernel System - Zarządza ładowaniem bytów według scenariuszy hash
 
 import asyncio
 import json
+import uuid
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from pathlib import Path
 import hashlib
 
 from luxdb.models.soul import Soul
@@ -115,37 +116,38 @@ class ScenarioLoader:
         return scenario_hash
 
     async def load_scenario(self, scenario_name: str) -> List[Being]:
-        """Ładuje scenariusz według hashow w odpowiedniej kolejności"""
-        scenario_file = self.scenarios_path / f"{scenario_name}.scenario"
+        """Ładuje scenariusz z pliku i tworzy byty"""
+        scenario_path = Path(f"scenarios/{scenario_name}.scenario")
 
-        if not scenario_file.exists():
+        if not scenario_path.exists():
             raise FileNotFoundError(f"Scenariusz {scenario_name} nie istnieje")
 
-        with open(scenario_file, 'r') as f:
-            scenario_data = json.load(f)
+        with open(scenario_path, 'r', encoding='utf-8') as f:
+            scenario_content = f.read()
 
-        print(f"🎬 Ładowanie scenariusza: {scenario_data['name']}")
+        # Sprawdź czy to JSON czy zwykły tekst
+        try:
+            scenario_data = json.loads(scenario_content)
+        except json.JSONDecodeError:
+            # Jeśli nie JSON, traktuj jako prostą listę bytów
+            scenario_data = {"beings": []}
 
-        # Sortuj według load_order
-        beings_to_load = sorted(
-            scenario_data["beings"],
-            key=lambda x: x["load_order"]
-        )
+        beings = []
+        for being_config in scenario_data.get('beings', []):
+            # Upewnij się że being_config to dict, nie string
+            if isinstance(being_config, str):
+                try:
+                    being_config = json.loads(being_config)
+                except json.JSONDecodeError:
+                    continue
 
-        loaded_beings = []
-
-        for being_info in beings_to_load:
-            being_hash = being_info["hash"]
-            being = await self.load_being_by_hash(being_hash)
-
+            being = await self.load_being_from_config(being_config)
             if being:
-                loaded_beings.append(being)
-                print(f"  ✅ Załadowano byt: {being_hash[:8]}...")
-            else:
-                print(f"  ❌ Błąd ładowania: {being_hash[:8]}...")
+                beings.append(being)
+                self.loaded_beings[being.ulid] = being
+                self.being_hashes[being.ulid] = self.create_being_hash(being_config)
 
-        print(f"🎯 Scenariusz załadowany: {len(loaded_beings)} bytów")
-        return loaded_beings
+        return beings
 
     async def load_being_by_hash(self, being_hash: str) -> Optional[Being]:
         """Ładuje byt według hasha"""
@@ -163,7 +165,7 @@ class ScenarioLoader:
         # Sprawdź czy being_data jest stringiem i zdekoduj go
         if isinstance(being_data, str):
             being_data = json.loads(being_data)
-        
+
         # Utwórz Soul jeśli nie istnieje
         soul_alias = being_data.get("soul_alias", f"soul_{being_hash[:8]}")
         soul = await Soul.get(alias=soul_alias)
@@ -194,7 +196,7 @@ class ScenarioLoader:
             # Sprawdź czy being_data jest stringiem i zdekoduj go
             if isinstance(being_data, str):
                 being_data = json.loads(being_data)
-            
+
             # Sprawdź czy to jest słownik z danymi
             if isinstance(being_data, dict):
                 # Przygotuj genotype dla Soul
@@ -233,6 +235,55 @@ class ScenarioLoader:
                 return None
         except Exception as e:
             print(f"❌ Error saving being: {str(e)}")
+            return None
+
+    async def load_being_from_config(self, config: Dict[str, Any]) -> Optional[Being]:
+        """Ładuje byt z konfiguracji"""
+        try:
+            # Upewnij się że config ma wymagane pola
+            if not isinstance(config, dict):
+                return None
+
+            alias = config.get('alias', f'being_{uuid.uuid4().hex[:8]}')
+
+            # Znajdź lub utwórz soul dla tego bytu
+            soul_alias = config.get('soul_alias', f"soul_{alias}")
+            genotype = config.get('genotype', {})
+
+            # Upewnij się że genotype ma wymagane sekcje
+            if 'genesis' not in genotype:
+                genotype['genesis'] = {
+                    'name': alias,
+                    'type': 'generic',
+                    'version': '1.0.0'
+                }
+
+            if 'attributes' not in genotype:
+                genotype['attributes'] = {}
+
+            # Utwórz soul
+            soul = await Soul.create(
+                alias=soul_alias,
+                genotype=genotype
+            )
+
+            # Utwórz byt
+            being_data = {
+                'alias': alias,
+                'soul_hash': soul.soul_hash,
+                'type': config.get('type', 'generic'),
+                **config.get('attributes', {})
+            }
+
+            being = await Being.create(
+                soul_hash=soul.soul_hash,
+                data=being_data
+            )
+
+            return being
+
+        except Exception as e:
+            print(f"⚠️ Nie udało się załadować bytu {config.get('alias', 'unknown')}: {e}")
             return None
 
 

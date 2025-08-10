@@ -1,27 +1,82 @@
 
 {
-  "name": "advanced",
-  "created_at": "2024-01-08T10:00:00",
+  "name": "Advanced LuxOS Scenario",
+  "version": "1.0.0", 
+  "description": "Zaawansowany scenariusz z dodatkowymi komponentami",
   "beings": [
     {
-      "hash": "kernel_advanced_01",
-      "load_order": 0,
-      "dependencies": []
+      "alias": "kernel_core",
+      "type": "system_kernel",
+      "soul_alias": "kernel_soul",
+      "genotype": {
+        "genesis": {
+          "name": "advanced_kernel",
+          "type": "system_kernel",
+          "version": "2.0.0",
+          "description": "Zaawansowany kernel systemu LuxOS"
+        },
+        "attributes": {
+          "system_role": "kernel",
+          "priority": 100,
+          "advanced_features": ["ai_integration", "auto_scaling", "predictive_management"]
+        }
+      },
+      "attributes": {
+        "system_role": "kernel",
+        "priority": 100,
+        "mode": "advanced"
+      },
+      "load_order": 0
     },
     {
-      "hash": "comm_advanced_02", 
+      "alias": "ai_assistant",
+      "type": "ai_agent",
+      "soul_alias": "ai_soul",
+      "genotype": {
+        "genesis": {
+          "name": "ai_assistant",
+          "type": "ai_agent",
+          "version": "1.0.0",
+          "description": "Asystent AI systemu"
+        },
+        "attributes": {
+          "system_role": "assistant",
+          "priority": 85,
+          "ai_models": ["gpt-4", "embedding"],
+          "capabilities": ["conversation", "analysis", "decision_support"]
+        }
+      },
+      "attributes": {
+        "system_role": "assistant",
+        "priority": 85
+      },
       "load_order": 1,
-      "dependencies": ["kernel_advanced_01"]
+      "dependencies": ["kernel_core"]
     },
     {
-      "hash": "ai_agent_advanced",
+      "alias": "data_processor",
+      "type": "data_engine",
+      "soul_alias": "data_soul",
+      "genotype": {
+        "genesis": {
+          "name": "data_processor",
+          "type": "data_engine",
+          "version": "1.0.0",
+          "description": "Procesor danych systemu"
+        },
+        "attributes": {
+          "system_role": "data_processing",
+          "priority": 80,
+          "processing_types": ["streaming", "batch", "realtime"],
+          "storage_backends": ["postgresql", "memory"]
+        }
+      },
+      "attributes": {
+        "system_role": "data_processing",
+        "priority": 80
+      },
       "load_order": 2,
-      "dependencies": ["kernel_advanced_01", "comm_advanced_02"]
-    },
-    {
-      "hash": "presentation_web",
-      "load_order": 3,
-      "dependencies": ["comm_advanced_02"]
+      "dependencies": ["kernel_core", "ai_assistant"]
     }
   ]
 }
