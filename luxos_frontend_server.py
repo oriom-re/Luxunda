@@ -15,6 +15,8 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import asyncpg
 import os # Added for os.listdir
+import hashlib # Added for hashlib
+import ulid # Added for ulid
 
 # Database connection pool
 db_pool = None
@@ -63,8 +65,54 @@ async def lifespan(app: FastAPI):
                 """)
                 print("✅ Utworzono tabelę scenarios")
 
+            # Sprawdź czy istnieje tabela beings
+            exists_beings = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'beings'
+                )
+            """)
+            if not exists_beings:
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS beings (
+                        ulid VARCHAR(26) PRIMARY KEY,
+                        alias VARCHAR(255) NOT NULL,
+                        soul_hash VARCHAR(64),
+                        data JSONB,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                print("✅ Utworzono tabelę beings")
+
+            # Sprawdź czy istnieje tabela souls
+            exists_souls = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'souls'
+                )
+            """)
+            if not exists_souls:
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS souls (
+                        id SERIAL PRIMARY KEY,
+                        soul_hash VARCHAR(64) UNIQUE NOT NULL,
+                        global_ulid VARCHAR(26) NOT NULL,
+                        alias VARCHAR(255) UNIQUE NOT NULL,
+                        genotype JSONB NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                print("✅ Utworzono tabelę souls")
+
+
     except Exception as e:
         print(f"❌ Błąd połączenia z bazą: {e}")
+
+    # Tworzenie Lux Soul podczas startu serwera
+    if db_pool:
+        await create_lux_soul()
+        await create_bios_soul_if_not_exists() # Ensure BIOS soul is also created
 
     yield
 
@@ -253,15 +301,17 @@ async def create_being(request: BeingDataRequest):
         async with db_pool.acquire() as conn:
             # Generuj ULID jeśli nie ma
             if 'ulid' not in being_data:
-                import ulid
                 being_data['ulid'] = str(ulid.new())
 
+            # Pobierz soul_hash z danych, jeśli istnieje, lub użyj wartości domyślnej
+            soul_hash_to_insert = being_data.get('soul_hash', 'default_soul_hash')
+            
             await conn.execute("""
                 INSERT INTO beings (ulid, soul_hash, alias, data, created_at, updated_at)
                 VALUES ($1, $2, $3, $4, $5, $6)
             """,
             being_data['ulid'],
-            being_data.get('soul_hash', 'default_soul_hash'),
+            soul_hash_to_insert,
             being_data.get('alias', f"being_{being_data['ulid'][:8]}"),
             json.dumps(being_data.get('data', {})),
             datetime.now(),
@@ -530,109 +580,102 @@ async def serve_dynamic_ui(route: str):
 async def get_bios_scenario():
     """Pobiera główny BIOS systemu jako byt"""
     try:
-        from luxdb.repository.soul_repository import BeingRepository
-        from luxdb.models.soul import Soul
-        from luxdb.models.being import Being
+        # Upewnij się, że mamy połączenie z bazą danych
+        if not db_pool:
+            raise ConnectionError("Brak połączenia z bazą danych.")
 
-        # Szukaj BIOS bytów
-        all_beings = await BeingRepository.get_all_beings()
-        bios_beings = []
+        # Sprawdź, czy BIOS został już utworzony
+        existing_bios_soul = await get_soul_by_alias("luxos_bios_default_soul")
+        existing_bios_being = await get_being_by_alias("luxos_bios_default")
 
-        if all_beings.get('success'):
-            for being in all_beings.get('beings', []):
-                if (being and 
-                    hasattr(being, 'data') and 
-                    being.data.get('system_type') == 'bios'):
-                    bios_beings.append(being)
-
-        # Sortuj: stabilne najpierw, potem według daty
-        bios_beings.sort(key=lambda b: (
-            not b.data.get('stable', False),
-            -(b.created_at.timestamp() if b.created_at else 0)
-        ))
-
-        if bios_beings:
-            # Zwróć najlepszy BIOS
-            bios_being = bios_beings[0]
-            soul = await bios_being.get_soul()
-
+        if existing_bios_soul and existing_bios_being:
             return {
-                "name": bios_being.alias,
-                "ulid": bios_being.ulid,
-                "stable": bios_being.data.get('stable', False),
-                "version": bios_being.data.get('version', '1.0.0'),
-                "genesis": soul.genotype.get('genesis', {}) if soul else {},
+                "name": existing_bios_being.get('alias'),
+                "ulid": existing_bios_being.get('ulid'),
+                "stable": existing_bios_being.get('data', {}).get('stable', False),
+                "version": existing_bios_being.get('data', {}).get('version', '1.0.0'),
+                "genesis": existing_bios_soul.get('genotype', {}).get('genesis', {}),
                 "system_type": "bios"
             }
-        else:
-            # Utwórz domyślny BIOS jako byt
-            bios_genotype = {
-                "genesis": {
-                    "name": "LuxOS_BIOS_Default",
-                    "type": "system_bios",
-                    "version": "1.0.0",
-                    "description": "Domyślny BIOS systemu LuxOS",
-                    "bootstrap_sequence": [
-                        "init_kernel",
-                        "load_communication",
-                        "setup_ui",
-                        "ready_state"
-                    ],
-                    "required_beings": [
-                        {
-                            "alias": "lux_assistant",
-                            "type": "ai_assistant",
-                            "priority": 100,
-                            "critical": False
-                        },
-                        {
-                            "alias": "kernel_core",
-                            "type": "system_kernel",
-                            "priority": 100,
-                            "critical": True
-                        }
-                    ],
-                    "fallback_procedure": {
-                        "max_retries": 3,
-                        "retry_delay": 5,
-                        "emergency_mode": True
+
+        # Genotyp BIOS
+        bios_genotype = {
+            "genesis": {
+                "name": "LuxOS_BIOS_Default",
+                "type": "system_bios",
+                "version": "1.0.0",
+                "description": "Domyślny BIOS systemu LuxOS",
+                "bootstrap_sequence": [
+                    "init_kernel",
+                    "load_communication",
+                    "setup_ui",
+                    "ready_state"
+                ],
+                "required_beings": [
+                    {
+                        "alias": "lux_assistant",
+                        "type": "ai_assistant",
+                        "priority": 100,
+                        "critical": False
+                    },
+                    {
+                        "alias": "kernel_core",
+                        "type": "system_kernel",
+                        "priority": 100,
+                        "critical": True
                     }
-                },
-                "attributes": {
-                    "system_type": {"py_type": "str", "default": "bios"},
-                    "stable": {"py_type": "bool", "default": True},
-                    "version": {"py_type": "str", "default": "1.0.0"}
+                ],
+                "fallback_procedure": {
+                    "max_retries": 3,
+                    "retry_delay": 5,
+                    "emergency_mode": True
                 }
+            },
+            "attributes": {
+                "system_type": {"py_type": "str", "default": "bios"},
+                "stable": {"py_type": "bool", "default": True},
+                "version": {"py_type": "str", "default": "1.0.0"}
             }
+        }
 
-            # Utwórz Soul i Being
-            bios_soul = await Soul.create(
-                genotype=bios_genotype,
-                alias="luxos_bios_default_soul"
-            )
+        # Utwórz Soul dla BIOS
+        bios_soul = await Soul.create(
+            genotype=bios_genotype,
+            alias="luxos_bios_default_soul",
+            soul_hash=hashlib.sha256(json.dumps(bios_genotype, sort_keys=True).encode()).hexdigest()[:16]
+        )
 
-            bios_being = await Being.create(
-                soul=bios_soul,
-                alias="luxos_bios_default",
-                attributes={
-                    "system_type": "bios",
-                    "stable": True,
-                    "version": "1.0.0",
-                    "created_by": "frontend_server"
-                }
-            )
+        if not bios_soul:
+            raise ValueError("Nie udało się utworzyć BIOS Soul.")
 
-            return {
-                "name": bios_being.alias,
-                "ulid": bios_being.ulid,
+        # Utwórz Being dla BIOS
+        bios_being = await Being.create(
+            soul_hash=bios_soul['soul_hash'],
+            alias="luxos_bios_default",
+            attributes={
+                "system_type": "bios",
                 "stable": True,
                 "version": "1.0.0",
-                "genesis": bios_genotype["genesis"],
-                "system_type": "bios",
-                "created": True
+                "created_by": "frontend_server"
             }
+        )
+
+        if not bios_being:
+            raise ValueError("Nie udało się utworzyć BIOS Being.")
+
+        return {
+            "name": bios_being['alias'],
+            "ulid": bios_being['ulid'],
+            "stable": True,
+            "version": "1.0.0",
+            "genesis": bios_genotype["genesis"],
+            "system_type": "bios",
+            "created": True
+        }
 
     except Exception as e:
+        print(f"❌ Błąd ładowania BIOS: {str(e)}")
+        # Fallback response
         return {
             "error": f"Błąd ładowania BIOS: {str(e)}",
             "fallback": True,
@@ -931,6 +974,352 @@ async def chat_with_lux(request: Request):
 
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+# Helper functions for Soul and Being management
+async def get_soul_by_alias(alias: str):
+    """Pobiera soul na podstawie aliasu"""
+    if not db_pool:
+        return None
+    try:
+        async with db_pool.acquire() as conn:
+            return await conn.fetchrow("SELECT * FROM souls WHERE alias = $1", alias)
+    except Exception as e:
+        print(f"❌ Error getting soul by alias '{alias}': {e}")
+        return None
+
+async def get_being_by_alias(alias: str):
+    """Pobiera being na podstawie aliasu"""
+    if not db_pool:
+        return None
+    try:
+        async with db_pool.acquire() as conn:
+            return await conn.fetchrow("SELECT * FROM beings WHERE alias = $1", alias)
+    except Exception as e:
+        print(f"❌ Error getting being by alias '{alias}': {e}")
+        return None
+
+async def create_lux_soul():
+    """Tworzy podstawową Soul dla Lux Assistant"""
+    if not db_pool:
+        return None
+
+    try:
+        # Sprawdź czy Lux już istnieje
+        existing = await get_soul_by_alias("lux_assistant")
+        if existing:
+            print("✅ Lux Soul już istnieje")
+            return existing
+
+        # Genotyp Lux Assistant
+        lux_genotype = {
+            "genesis": {
+                "name": "lux_assistant",
+                "type": "ai_assistant",
+                "version": "1.0.0",
+                "description": "Główny asystent AI systemu LuxOS"
+            },
+            "attributes": {
+                "name": {"py_type": "str", "default": "Lux"},
+                "role": {"py_type": "str", "default": "assistant"},
+                "capabilities": {"py_type": "list", "default": ["chat", "analysis", "help"]},
+                "personality": {"py_type": "dict", "default": {"friendly": True, "helpful": True}},
+                "memory": {"py_type": "dict", "default": {}},
+                "preferences": {"py_type": "dict", "default": {}}
+            },
+            "functions": {
+                "process_message": {
+                    "py_type": "function",
+                    "description": "Przetwarza wiadomości użytkownika",
+                    "signature": {"message": "str", "context": "dict"}
+                },
+                "analyze_request": {
+                    "py_type": "function", 
+                    "description": "Analizuje żądania użytkownika",
+                    "signature": {"request": "str"}
+                }
+            }
+        }
+
+        # Utwórz Soul w bazie - poprawiony INSERT
+        soul_hash = hashlib.sha256(json.dumps(lux_genotype, sort_keys=True).encode()).hexdigest()[:16]
+        global_ulid = str(ulid.new())
+
+        async with db_pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO souls (soul_hash, global_ulid, alias, genotype)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (soul_hash) DO NOTHING
+            """, soul_hash, global_ulid, "lux_assistant", json.dumps(lux_genotype))
+
+            # Zwróć utworzoną Soul
+            return await conn.fetchrow("SELECT * FROM souls WHERE soul_hash = $1", soul_hash)
+
+    except Exception as e:
+        print(f"❌ Błąd tworzenia Soul: {e}")
+        return None
+
+async def create_bios_soul_if_not_exists():
+    """Tworzy domyślną Soul dla BIOS, jeśli jeszcze nie istnieje."""
+    if not db_pool:
+        return
+
+    try:
+        existing_bios_soul = await get_soul_by_alias("luxos_bios_default_soul")
+        if existing_bios_soul:
+            print("✅ BIOS Soul już istnieje.")
+            return
+
+        # Genotyp BIOS
+        bios_genotype = {
+            "genesis": {
+                "name": "LuxOS_BIOS_Default",
+                "type": "system_bios",
+                "version": "1.0.0",
+                "description": "Domyślny BIOS systemu LuxOS",
+                "bootstrap_sequence": [
+                    "init_kernel",
+                    "load_communication",
+                    "setup_ui",
+                    "ready_state"
+                ],
+                "required_beings": [
+                    {
+                        "alias": "lux_assistant",
+                        "type": "ai_assistant",
+                        "priority": 100,
+                        "critical": False
+                    },
+                    {
+                        "alias": "kernel_core",
+                        "type": "system_kernel",
+                        "priority": 100,
+                        "critical": True
+                    }
+                ],
+                "fallback_procedure": {
+                    "max_retries": 3,
+                    "retry_delay": 5,
+                    "emergency_mode": True
+                }
+            },
+            "attributes": {
+                "system_type": {"py_type": "str", "default": "bios"},
+                "stable": {"py_type": "bool", "default": True},
+                "version": {"py_type": "str", "default": "1.0.0"}
+            }
+        }
+        
+        soul_hash = hashlib.sha256(json.dumps(bios_genotype, sort_keys=True).encode()).hexdigest()[:16]
+
+        async with db_pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO souls (soul_hash, global_ulid, alias, genotype)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (soul_hash) DO NOTHING
+            """, soul_hash, str(ulid.new()), "luxos_bios_default_soul", json.dumps(bios_genotype))
+        print("✅ Domyślny BIOS Soul został utworzony.")
+
+    except Exception as e:
+        print(f"❌ Błąd tworzenia domyślnego BIOS Soul: {e}")
+
+# --- Mock LuxDB Models for local execution context ---
+# These are mock classes to allow the script to run without the actual luxdb package.
+# In a real environment, these would be imported from the luxdb package.
+
+class MockSoulRepository:
+    @staticmethod
+    async def get_all_souls():
+        """Mock function to get all souls."""
+        return {"success": True, "souls": []}
+
+    @staticmethod
+    async def get_soul_by_hash(soul_hash: str):
+        """Mock function to get a soul by hash."""
+        return None
+
+    @staticmethod
+    async def create(soul_hash: str, global_ulid: str, alias: str, genotype: dict):
+        """Mock function to create a soul."""
+        print(f"MockSoulRepository.create called with: hash={soul_hash}, alias={alias}")
+        # Simulate database insertion and return a dict representation
+        return {
+            "soul_hash": soul_hash,
+            "global_ulid": global_ulid,
+            "alias": alias,
+            "genotype": genotype,
+            "created_at": datetime.now().isoformat()
+        }
+
+class MockBeingRepository:
+    @staticmethod
+    async def get_all_beings():
+        """Pobiera wszystkich beings z bazy danych"""
+        if not db_pool:
+            return []
+
+        try:
+            async with db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM beings ORDER BY created_at DESC LIMIT 50")
+                beings = []
+                for row in rows:
+                    beings.append({
+                        "ulid": row['ulid'],
+                        "alias": row['alias'],
+                        "soul_hash": row['soul_hash'],
+                        "data": row['data'],
+                        "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                        "updated_at": row['updated_at'].isoformat() if row['updated_at'] else None
+                    })
+                return beings
+        except Exception as e:
+            print(f"❌ Error getting all beings: {e}")
+            return []
+
+    @staticmethod
+    async def get_being_by_ulid(ulid: str):
+        """Mock function to get a being by ULID."""
+        if not db_pool:
+            return None
+        try:
+            async with db_pool.acquire() as conn:
+                return await conn.fetchrow("SELECT * FROM beings WHERE ulid = $1", ulid)
+        except Exception as e:
+            print(f"❌ Error getting being by ULID '{ulid}': {e}")
+            return None
+
+    @staticmethod
+    async def create(ulid: str, soul_hash: str, alias: str, attributes: dict):
+        """Mock function to create a being."""
+        print(f"MockBeingRepository.create called with: ulid={ulid}, alias={alias}, soul_hash={soul_hash}")
+        if not db_pool:
+            raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
+        try:
+            async with db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO beings (ulid, soul_hash, alias, data, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                ulid,
+                soul_hash,
+                alias,
+                json.dumps(attributes),
+                datetime.now(),
+                datetime.now()
+                )
+            return {
+                "ulid": ulid,
+                "alias": alias,
+                "soul_hash": soul_hash,
+                "data": attributes,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat()
+            }
+        except Exception as e:
+            print(f"❌ Error creating being in mock repository: {e}")
+            raise
+
+# Mock classes if luxdb is not available
+try:
+    from luxdb.models.soul import Soul
+    from luxdb.models.being import Being
+    # If imports succeed, use the real classes
+except ImportError:
+    # Define mock classes if imports fail
+    print("LuxDB not found. Using mock classes for Soul and Being.")
+
+    class Soul:
+        def __init__(self, soul_hash: str, global_ulid: str, alias: str, genotype: dict, created_at: Optional[datetime] = None):
+            self.soul_hash = soul_hash
+            self.global_ulid = global_ulid
+            self.alias = alias
+            self.genotype = genotype
+            self.created_at = created_at
+
+        @staticmethod
+        async def create(genotype: dict, alias: str, soul_hash: Optional[str] = None):
+            """Mock create method for Soul."""
+            if not db_pool:
+                raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
+            try:
+                if soul_hash is None:
+                    soul_hash = hashlib.sha256(json.dumps(genotype, sort_keys=True).encode()).hexdigest()[:16]
+                global_ulid = str(ulid.new())
+                
+                async with db_pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO souls (soul_hash, global_ulid, alias, genotype)
+                        VALUES ($1, $2, $3, $4)
+                        ON CONFLICT (soul_hash) DO NOTHING
+                    """, soul_hash, global_ulid, alias, json.dumps(genotype))
+
+                # Fetch the created soul to return
+                created_soul_data = await conn.fetchrow("SELECT * FROM souls WHERE soul_hash = $1", soul_hash)
+                if created_soul_data:
+                    return dict(created_soul_data) # Return as dict matching fetchrow behavior
+                else:
+                    return None # Or raise an error if creation failed but didn't raise exception
+            except Exception as e:
+                print(f"❌ Error in MockSoul.create: {e}")
+                return None
+
+        async def get_soul(self): # This method is expected on a Being instance, but defined here for completeness if needed.
+            """Mock method to retrieve soul from DB based on soul_hash."""
+            if not self.soul_hash:
+                return None
+            return await get_soul_by_hash(self.soul_hash) # Assuming get_soul_by_hash exists
+
+        async def execute_function(self, function_name: str, message: str):
+            """Mock execute_function."""
+            print(f"MockSoul.execute_function called for '{function_name}' with message: '{message}'")
+            # Simulate a successful execution for demonstration
+            return {"success": True, "data": {"result": f"Mock response for {function_name} regarding '{message}'"}}
+
+    class Being:
+        def __init__(self, ulid: str, soul_hash: str, alias: str, data: dict, created_at: Optional[datetime] = None, updated_at: Optional[datetime] = None):
+            self.ulid = ulid
+            self.soul_hash = soul_hash
+            self.alias = alias
+            self.data = data
+            self.created_at = created_at
+            self.updated_at = updated_at
+
+        @staticmethod
+        async def create(soul_hash: str, alias: str, attributes: dict):
+            """Mock create method for Being."""
+            if not db_pool:
+                raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
+            try:
+                ulid = str(ulid.new())
+                async with db_pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO beings (ulid, soul_hash, alias, data, created_at, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                    """,
+                    ulid,
+                    soul_hash,
+                    alias,
+                    json.dumps(attributes),
+                    datetime.now(),
+                    datetime.now()
+                    )
+                return {
+                    "ulid": ulid,
+                    "alias": alias,
+                    "soul_hash": soul_hash,
+                    "data": attributes,
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat()
+                }
+            except Exception as e:
+                print(f"❌ Error in MockBeing.create: {e}")
+                return None
+
+        async def get_soul(self):
+            """Mock method to retrieve the soul associated with this being."""
+            if not self.soul_hash:
+                return None
+            return await get_soul_by_hash(self.soul_hash) # Assuming get_soul_by_hash exists
+
 
 if __name__ == "__main__":
     import uvicorn
