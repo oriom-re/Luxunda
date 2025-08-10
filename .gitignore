@@ -1,3 +1,6 @@
+# LuxOS Archive System
+luxos_archive_*/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
