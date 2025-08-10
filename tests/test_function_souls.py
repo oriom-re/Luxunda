@@ -37,8 +37,8 @@ class TestFunctionSouls:
         assert "test_func" in soul.list_functions()
         assert soul.get_function("test_func") == test_function
 
-    async def test_register_function(self):
-        """Test registering functions in soul"""
+    async def test_immutable_function_loading(self):
+        """Test loading functions in immutable soul"""
         genotype = {
             "genesis": {
                 "name": "test_soul",
@@ -47,12 +47,23 @@ class TestFunctionSouls:
             },
             "attributes": {
                 "name": {"py_type": "str"}
+            },
+            "functions": {
+                "test_func": {
+                    "py_type": "function",
+                    "description": "Test function"
+                },
+                "async_func": {
+                    "py_type": "function", 
+                    "description": "Async test function"
+                }
             }
         }
         
         soul = await Soul.create(genotype, alias="test_soul")
-        soul.register_function("test_func", test_function, "Test function")
-        soul.register_function("async_func", async_test_function, "Async test function")
+        # Funkcje muszą być załadowane, nie dynamicznie dodawane
+        soul._register_immutable_function("test_func", test_function)
+        soul._register_immutable_function("async_func", async_test_function)
         
         assert len(soul.list_functions()) == 2
         assert "test_func" in soul.list_functions()
@@ -196,6 +207,63 @@ class TestFunctionSouls:
         is_valid, errors = validate_genotype(genotype)
         assert is_valid is False
         assert any("must have py_type 'function'" in error for error in errors)
+
+    async def test_soul_versioning(self):
+        """Test Soul versioning and evolution"""
+        # Create initial version
+        soul_v1 = await Soul.create_function_soul(
+            name="test_func",
+            func=test_function,
+            alias="versioned_soul",
+            version="1.0.0"
+        )
+        
+        # Evolve to new version
+        soul_v2 = await Soul.create_evolved_version(
+            original_soul=soul_v1,
+            changes={
+                "attributes.new_field": {"py_type": "str", "default": "new"}
+            },
+            new_version="1.1.0"
+        )
+        
+        # Test versioning
+        assert soul_v1.get_version() == "1.0.0"
+        assert soul_v2.get_version() == "1.1.0"
+        assert soul_v2.is_evolution_of(soul_v1)
+        assert soul_v1.is_compatible_with(soul_v2)
+        
+        # Different hashes for different versions
+        assert soul_v1.soul_hash != soul_v2.soul_hash
+
+    async def test_soul_lineage(self):
+        """Test Soul evolution lineage"""
+        # Create chain of evolution
+        soul_v1 = await Soul.create_function_soul(
+            name="test_func",
+            func=test_function,
+            alias="lineage_test",
+            version="1.0.0"
+        )
+        
+        soul_v2 = await Soul.create_evolved_version(
+            original_soul=soul_v1,
+            changes={"attributes.field2": {"py_type": "int"}},
+            new_version="1.1.0"
+        )
+        
+        soul_v3 = await Soul.create_evolved_version(
+            original_soul=soul_v2,
+            changes={"attributes.field3": {"py_type": "bool"}},
+            new_version="2.0.0"
+        )
+        
+        # Test lineage
+        lineage = await soul_v3.get_lineage()
+        assert len(lineage) == 3
+        assert lineage[0] == soul_v3  # Current
+        assert lineage[1] == soul_v2  # Parent
+        assert lineage[2] == soul_v1  # Grandparent
 
 
 if __name__ == "__main__":

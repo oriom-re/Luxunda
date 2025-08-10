@@ -283,27 +283,12 @@ class Soul:
         """Protokół dla automatycznej serializacji JSON"""
         return self.to_dict()
 
-    def register_function(self, name: str, func: Callable, description: str = None):
+    def _register_immutable_function(self, name: str, func: Callable):
         """
-        Rejestruje funkcję w Soul.
-
-        Args:
-            name: Nazwa funkcji
-            func: Funkcja do zarejestrowania
-            description: Opcjonalny opis funkcji
+        Rejestruje funkcję w niezmiennym rejestrze (tylko wewnętrznie).
+        Ta metoda nie modyfikuje genotypu - funkcje muszą być zdefiniowane przy tworzeniu.
         """
         self._function_registry[name] = func
-        
-        # Dodaj do genotypu w sekcji functions
-        if "functions" not in self.genotype:
-            self.genotype["functions"] = {}
-        
-        self.genotype["functions"][name] = {
-            "py_type": "function",
-            "description": description or f"Function {name}",
-            "signature": self._get_function_signature(func),
-            "is_async": asyncio.iscoroutinefunction(func)
-        }
 
     def _get_function_signature(self, func: Callable) -> Dict[str, Any]:
         """Pobiera sygnaturę funkcji"""
@@ -384,29 +369,32 @@ class Soul:
             )
 
     @classmethod
-    async def create_function_soul(cls, name: str, func: Callable, description: str = None, alias: str = None) -> 'Soul':
+    async def create_function_soul(cls, name: str, func: Callable, description: str = None, alias: str = None, version: str = "1.0.0") -> 'Soul':
         """
-        Tworzy specjalizowany Soul dla pojedynczej funkcji.
+        Tworzy specjalizowany Soul dla pojedynczej funkcji z niezmiennym genotypem.
 
         Args:
             name: Nazwa funkcji
             func: Funkcja
             description: Opis funkcji
             alias: Alias dla soul
+            version: Wersja genotypu
 
         Returns:
             Nowy Soul z funkcją
         """
-        # Genotyp dla funkcji
+        # Genotyp dla funkcji - KOMPLETNY i NIEZMIENNY
         function_genotype = {
             "genesis": {
                 "name": alias or f"function_{name}",
                 "type": "function_soul", 
-                "version": "1.0.0",
-                "description": description or f"Soul for function {name}"
+                "version": version,
+                "description": description or f"Soul for function {name}",
+                "immutable": True,
+                "created_at": datetime.now().isoformat()
             },
             "attributes": {
-                "function_name": {"py_type": "str"},
+                "function_name": {"py_type": "str", "default": name},
                 "last_execution": {"py_type": "str"},
                 "execution_count": {"py_type": "int", "default": 0}
             },
@@ -414,7 +402,9 @@ class Soul:
                 name: {
                     "py_type": "function",
                     "description": description or f"Main function {name}",
-                    "is_primary": True
+                    "is_primary": True,
+                    "signature": cls._get_function_signature_static(func),
+                    "is_async": asyncio.iscoroutinefunction(func)
                 }
             }
         }
@@ -422,10 +412,74 @@ class Soul:
         # Utwórz Soul
         soul = await cls.create(function_genotype, alias or f"function_{name}")
         
-        # Zarejestruj funkcję
-        soul.register_function(name, func, description)
+        # Załaduj funkcję do rejestru (bez modyfikacji genotypu)
+        soul._register_immutable_function(name, func)
         
         return soul
+
+    @classmethod 
+    async def create_evolved_version(cls, original_soul: 'Soul', changes: Dict[str, Any], new_version: str = None) -> 'Soul':
+        """
+        Tworzy nową wersję Soul z ewolucją genotypu.
+        
+        Args:
+            original_soul: Oryginalna Soul
+            changes: Zmiany do wprowadzenia
+            new_version: Nowa wersja (automatyczna jeśli None)
+            
+        Returns:
+            Nowy Soul z nowym hashem
+        """
+        # Skopiuj oryginalny genotyp
+        evolved_genotype = original_soul.genotype.copy()
+        
+        # Automatyczne wersjonowanie
+        if new_version is None:
+            old_version = evolved_genotype.get("genesis", {}).get("version", "1.0.0")
+            parts = old_version.split(".")
+            major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0
+            new_version = f"{major}.{minor}.{patch + 1}"
+        
+        # Aktualizuj genesis
+        if "genesis" not in evolved_genotype:
+            evolved_genotype["genesis"] = {}
+        evolved_genotype["genesis"]["version"] = new_version
+        evolved_genotype["genesis"]["parent_hash"] = original_soul.soul_hash
+        evolved_genotype["genesis"]["evolution_timestamp"] = datetime.now().isoformat()
+        
+        # Zastosuj zmiany
+        for key, value in changes.items():
+            if "." in key:  # Nested path like "attributes.new_field"
+                keys = key.split(".")
+                current = evolved_genotype
+                for k in keys[:-1]:
+                    if k not in current:
+                        current[k] = {}
+                    current = current[k]
+                current[keys[-1]] = value
+            else:
+                evolved_genotype[key] = value
+        
+        # Utwórz nową Soul
+        return await cls.create(evolved_genotype, original_soul.alias)
+
+    @classmethod
+    def _get_function_signature_static(cls, func: Callable) -> Dict[str, Any]:
+        """Statyczna wersja pobierania sygnatury funkcji"""
+        try:
+            sig = inspect.signature(func)
+            return {
+                "parameters": {
+                    param.name: {
+                        "type": str(param.annotation) if param.annotation != param.empty else "Any",
+                        "default": str(param.default) if param.default != param.empty else None
+                    }
+                    for param in sig.parameters.values()
+                },
+                "return_type": str(sig.return_annotation) if sig.return_annotation != sig.empty else "Any"
+            }
+        except Exception as e:
+            return {"error": str(e)}
 
     def validate_function_call(self, name: str, *args, **kwargs) -> List[str]:
         """
@@ -461,6 +515,67 @@ class Soul:
 
         return errors
 
+    def get_version(self) -> str:
+        """Zwraca wersję Soul"""
+        return self.genotype.get("genesis", {}).get("version", "1.0.0")
+    
+    def get_parent_hash(self) -> Optional[str]:
+        """Zwraca hash rodzica (jeśli Soul jest ewolucją)"""
+        return self.genotype.get("genesis", {}).get("parent_hash")
+    
+    def is_evolution_of(self, other_soul: 'Soul') -> bool:
+        """Sprawdza czy ta Soul jest ewolucją innej"""
+        return self.get_parent_hash() == other_soul.soul_hash
+    
+    async def get_lineage(self) -> List['Soul']:
+        """Zwraca pełną linię ewolucji Soul"""
+        lineage = [self]
+        current = self
+        
+        while current.get_parent_hash():
+            parent = await Soul.get_by_hash(current.get_parent_hash())
+            if parent:
+                lineage.append(parent)
+                current = parent
+            else:
+                break
+                
+        return lineage
+    
+    @classmethod
+    async def get_all_versions(cls, base_name: str) -> List['Soul']:
+        """Zwraca wszystkie wersje Soul o danej nazwie"""
+        all_souls = await cls.get_all()
+        versions = []
+        
+        for soul in all_souls:
+            genesis_name = soul.genotype.get("genesis", {}).get("name")
+            if genesis_name and genesis_name.startswith(base_name):
+                versions.append(soul)
+        
+        # Sortuj po wersji
+        versions.sort(key=lambda s: s.get_version())
+        return versions
+    
+    def is_compatible_with(self, other_soul: 'Soul') -> bool:
+        """Sprawdza kompatybilność między wersjami Soul"""
+        # Podstawowa kompatybilność - ten sam typ genesis
+        self_genesis = self.genotype.get("genesis", {})
+        other_genesis = other_soul.genotype.get("genesis", {})
+        
+        if self_genesis.get("name") != other_genesis.get("name"):
+            return False
+            
+        # Sprawdź kompatybilność wersji (uproszczona)
+        self_version = self.get_version().split(".")
+        other_version = other_soul.get_version().split(".")
+        
+        # Kompatybilne jeśli major version jest taka sama
+        return self_version[0] == other_version[0]
+
     def __repr__(self):
         functions_count = len(self._function_registry)
-        return f"Soul(hash={self.soul_hash[:8] if self.soul_hash else 'None'}..., alias={self.alias}, functions={functions_count})"
+        version = self.get_version()
+        parent = self.get_parent_hash()
+        parent_info = f", parent={parent[:8]}..." if parent else ""
+        return f"Soul(hash={self.soul_hash[:8] if self.soul_hash else 'None'}..., alias={self.alias}, v={version}, functions={functions_count}{parent_info})"
