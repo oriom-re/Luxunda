@@ -17,7 +17,7 @@ run = ["python3", "main.py", "--mode=full"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "Simple System Start"
+runButton = "Simple System (Stable)"
 
 [[workflows.workflow]]
 name = "LuxOS Full System"
@@ -193,6 +193,42 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python simple_start.py --diagnostics"
+
+[[workflows.workflow]]
+name = "Simple System (Stable)"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python simple_start.py --web"
+
+[[workflows.workflow]]
+name = "Database Diagnostics"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python simple_start.py --diagnostics"
+
+[[workflows.workflow]]
+name = "Interactive Mode"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python simple_start.py --interactive"
+
+[[workflows.workflow]]
+name = "Quick Database Test"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -c \"import asyncio; from database.postgre_db import Postgre_db; print('Testing DB...'); asyncio.run(Postgre_db.get_db_pool())\""
 
 # === PORTY ===
 
