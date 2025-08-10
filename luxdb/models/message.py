@@ -91,7 +91,8 @@ class Message:
             setattr(message, key, value)
         
         # Zapis do bazy danych
-        await DynamicRepository.insert_data_transaction(message, soul.genotype)
+        from ..repository.soul_repository import BeingRepository
+        await BeingRepository.insert_data_transaction(message, soul.genotype)
         
         # Utwórz relacje
         if author_ulid:
