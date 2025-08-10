@@ -1,38 +1,41 @@
 
 #!/usr/bin/env python3
 """
-LuxOS - Standalone Main System
-Uproszczony system działający bez zewnętrznych modułów
+LuxOS - Main System with PostgreSQL
+Kompletny system z bazą PostgreSQL
 """
 
 import os
 import sys
 import asyncio
 import json
-import sqlite3
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 import uuid
 import logging
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+import uvicorn
+import asyncpg
 
 # Konfiguracja logowania
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-class SimpleDatabase:
-    """Prosta baza danych SQLite"""
+class PostgreSQLDatabase:
+    """Baza danych PostgreSQL"""
     
-    def __init__(self, db_path: str = "luxos_main.db"):
-        self.db_path = db_path
-        self.connection = None
+    def __init__(self):
+        self.pool = None
+        self.database_url = os.environ.get('DATABASE_URL', 'postgresql://user:password@localhost:5432/luxos')
         
     async def connect(self):
         """Połączenie z bazą danych"""
         try:
-            self.connection = sqlite3.connect(self.db_path)
-            self.connection.row_factory = sqlite3.Row
+            self.pool = await asyncpg.create_pool(self.database_url)
             await self.init_tables()
-            logger.info("✅ Połączono z bazą danych SQLite")
+            logger.info("✅ Połączono z bazą PostgreSQL")
             return True
         except Exception as e:
             logger.error(f"❌ Błąd połączenia z bazą: {e}")
@@ -40,56 +43,51 @@ class SimpleDatabase:
     
     async def init_tables(self):
         """Inicjalizacja tabel"""
-        cursor = self.connection.cursor()
-        
-        # Tabela bytów (beings)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS beings (
-                id TEXT PRIMARY KEY,
-                alias TEXT UNIQUE,
-                name TEXT,
-                description TEXT,
-                type TEXT,
-                data TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Tabela dusz (souls)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS souls (
-                id TEXT PRIMARY KEY,
-                name TEXT,
-                being_id TEXT,
-                soul_data TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (being_id) REFERENCES beings (id)
-            )
-        """)
-        
-        self.connection.commit()
-        logger.info("✅ Tabele zainicjalizowane")
+        async with self.pool.acquire() as conn:
+            # Tabela bytów
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS beings (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    alias TEXT UNIQUE,
+                    name TEXT,
+                    description TEXT,
+                    type TEXT,
+                    data JSONB DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Tabela dusz
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS souls (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    name TEXT,
+                    being_id UUID REFERENCES beings(id),
+                    soul_data JSONB DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+        logger.info("✅ Tabele PostgreSQL zainicjalizowane")
 
-    async def execute(self, query: str, params: tuple = ()):
+    async def execute(self, query: str, *params):
         """Wykonanie zapytania"""
         try:
-            cursor = self.connection.cursor()
-            cursor.execute(query, params)
-            self.connection.commit()
-            return cursor.fetchall()
+            async with self.pool.acquire() as conn:
+                return await conn.fetch(query, *params)
         except Exception as e:
             logger.error(f"❌ Błąd zapytania: {e}")
             return []
 
     async def close(self):
         """Zamknięcie połączenia"""
-        if self.connection:
-            self.connection.close()
+        if self.pool:
+            await self.pool.close()
             logger.info("🔄 Zamknięto połączenie z bazą")
 
-class SimpleBeing:
-    """Prosty byt LuxOS"""
+class LuxBeing:
+    """Byt LuxOS"""
     
     def __init__(self, id: str, alias: str, name: str, description: str = "", being_type: str = "basic"):
         self.id = id
@@ -107,7 +105,7 @@ class SimpleBeing:
             'name': self.name,
             'description': self.description,
             'type': self.type,
-            'data': json.dumps(self.data),
+            'data': self.data,
             'created_at': self.created_at.isoformat()
         }
 
@@ -115,13 +113,13 @@ class LuxOSKernel:
     """Główny kernel LuxOS"""
     
     def __init__(self):
-        self.db = SimpleDatabase()
+        self.db = PostgreSQLDatabase()
         self.beings = {}
         self.status = "offline"
-        self.mode = "standalone"
+        self.mode = "main_system"
         
     def log(self, level: str, message: str, category: str = "KERNEL"):
-        """Prosty system logowania"""
+        """System logowania"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         icon = "📡" if category == "KERNEL" else "🤖" if category == "BEINGS" else "💾"
         print(f"{timestamp} {icon} [{level}] {category}: {message}")
@@ -130,14 +128,10 @@ class LuxOSKernel:
         """Inicjalizacja kernela"""
         self.log("INFO", "🚀 Inicjalizacja LuxOS Kernel...")
         
-        # Połączenie z bazą
         if await self.db.connect():
             self.status = "online"
             self.log("SUCCESS", "Kernel zainicjalizowany pomyślnie")
-            
-            # Utworzenie podstawowych bytów
             await self.create_basic_beings()
-            
             return True
         else:
             self.status = "error"
@@ -150,72 +144,62 @@ class LuxOSKernel:
         
         try:
             # BIOS Being
-            bios_being = SimpleBeing(
-                id=str(uuid.uuid4()),
-                alias="bios",
-                name="LuxOS BIOS",
-                description="System BIOS dla LuxOS",
-                being_type="system"
-            )
-            
-            bios_being.data = {
+            bios_id = str(uuid.uuid4())
+            await self.db.execute("""
+                INSERT INTO beings (id, alias, name, description, type, data) 
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (alias) DO NOTHING
+            """, bios_id, "bios", "LuxOS BIOS", "System BIOS", "system", json.dumps({
                 "bootstrap_sequence": ["init_kernel", "load_communication", "setup_ui", "ready_state"],
-                "fallback": {
-                    "max_retries": 3,
-                    "retry_delay": 5000,
-                    "emergency_mode": True
-                }
-            }
+                "fallback": {"max_retries": 3, "retry_delay": 5000, "emergency_mode": True}
+            }))
             
-            await self.save_being(bios_being)
-            self.beings[bios_being.alias] = bios_being
-            self.log("SUCCESS", f"BIOS Being utworzony: {bios_being.id}")
-            
-            # Lux Assistant Being
-            assistant_being = SimpleBeing(
-                id=str(uuid.uuid4()),
-                alias="lux_assistant",
-                name="Lux Assistant",
-                description="Główny asystent LuxOS",
-                being_type="assistant"
-            )
-            
-            assistant_being.data = {
+            # Lux Assistant
+            assistant_id = str(uuid.uuid4())
+            await self.db.execute("""
+                INSERT INTO beings (id, alias, name, description, type, data) 
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (alias) DO NOTHING
+            """, assistant_id, "lux_assistant", "Lux Assistant", "Główny asystent", "assistant", json.dumps({
                 "capabilities": ["chat", "help", "system_info"],
                 "status": "ready"
-            }
+            }))
             
-            await self.save_being(assistant_being)
-            self.beings[assistant_being.alias] = assistant_being
-            self.log("SUCCESS", f"Lux Assistant utworzony: {assistant_being.id}")
+            self.log("SUCCESS", "Podstawowe byty utworzone")
             
         except Exception as e:
             self.log("ERROR", f"Błąd tworzenia bytów: {e}")
     
-    async def save_being(self, being: SimpleBeing):
-        """Zapisanie bytu do bazy"""
-        query = """
-            INSERT OR REPLACE INTO beings 
-            (id, alias, name, description, type, data) 
-            VALUES (?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            being.id, being.alias, being.name, 
-            being.description, being.type, json.dumps(being.data)
-        )
-        await self.db.execute(query, params)
-    
     async def get_status(self) -> Dict[str, Any]:
         """Status systemu"""
-        beings_count = len(self.beings)
+        beings_result = await self.db.execute("SELECT COUNT(*) as count FROM beings")
+        beings_count = beings_result[0]['count'] if beings_result else 0
+        
+        souls_result = await self.db.execute("SELECT COUNT(*) as count FROM souls")
+        souls_count = souls_result[0]['count'] if souls_result else 0
         
         return {
             "status": self.status,
             "mode": self.mode,
             "beings_count": beings_count,
+            "souls_count": souls_count,
             "uptime": datetime.now().isoformat(),
-            "database": "connected" if self.db.connection else "disconnected"
+            "database": "connected" if self.db.pool else "disconnected",
+            "service": "LuxOS Main System",
+            "lux_assistant_ready": True,
+            "specialists_available": True
         }
+    
+    async def get_beings(self):
+        """Pobierz wszystkie byty"""
+        return await self.db.execute("SELECT * FROM beings ORDER BY created_at DESC")
+    
+    async def get_bios_scenario(self):
+        """Pobierz scenariusz BIOS"""
+        result = await self.db.execute("SELECT data FROM beings WHERE alias = 'bios'")
+        if result:
+            return json.loads(result[0]['data'])
+        return {"sequence": ["init_kernel", "load_communication", "setup_ui", "ready_state"]}
     
     async def shutdown(self):
         """Wyłączenie systemu"""
@@ -224,16 +208,22 @@ class LuxOSKernel:
         self.status = "offline"
         self.log("INFO", "✅ LuxOS Kernel wyłączony")
 
-class LuxOSWebServer:
-    """Prosty serwer HTTP dla LuxOS"""
-    
-    def __init__(self, kernel: LuxOSKernel, port: int = 5000):
-        self.kernel = kernel
-        self.port = port
-    
-    def create_html_interface(self) -> str:
-        """Tworzenie prostego interfejsu HTML"""
-        return """
+# FastAPI aplikacja
+app = FastAPI(title="LuxOS Main System")
+kernel = LuxOSKernel()
+
+@app.on_event("startup")
+async def startup_event():
+    await kernel.initialize()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await kernel.shutdown()
+
+@app.get("/")
+async def root():
+    """Główny interfejs"""
+    html_content = """
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -289,11 +279,6 @@ class LuxOSWebServer:
             border-radius: 10px;
             border-left: 4px solid #00ff88;
         }
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            color: #aaa;
-        }
         .pulse {
             animation: pulse 2s infinite;
         }
@@ -302,145 +287,143 @@ class LuxOSWebServer:
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #aaa;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🌟 LuxOS Main System</h1>
-            <p>Standalone Kernel - Simplified Architecture</p>
+            <p>PostgreSQL + Complete Architecture</p>
         </div>
         
         <div class="status-grid">
             <div class="status-card">
                 <h3>📡 System Status</h3>
                 <p>Status: <span class="pulse">🟢 Online</span></p>
-                <p>Mode: Standalone</p>
-                <p>Kernel: Active</p>
+                <p>Mode: Main System</p>
+                <p>Database: PostgreSQL</p>
             </div>
             
-            <div class="status-card">
+            <div class="status-card" id="beings-card">
                 <h3>🤖 Beings</h3>
-                <p>Total: 2</p>
+                <p id="beings-count">Loading...</p>
                 <p>BIOS: ✅ Active</p>
                 <p>Assistant: ✅ Ready</p>
             </div>
             
             <div class="status-card">
                 <h3>💾 Database</h3>
-                <p>Type: SQLite</p>
+                <p>Type: PostgreSQL</p>
                 <p>Status: ✅ Connected</p>
                 <p>Tables: Initialized</p>
             </div>
         </div>
         
         <div class="system-info">
-            <h3>🚀 LuxOS Standalone</h3>
-            <p>Wszystkie komponenty zostały pomyślnie zarchiwizowane. System działa teraz w trybie standalone z uproszczoną architekturą.</p>
+            <h3>🚀 LuxOS Main System</h3>
+            <p>System działa z pełną architekturą PostgreSQL. Wszystkie legacy komponenty zostały zarchiwizowane.</p>
             <p><strong>Aktywne komponenty:</strong></p>
             <ul>
                 <li>✅ Kernel główny (main.py)</li>
-                <li>✅ Baza danych SQLite</li>
+                <li>✅ Baza danych PostgreSQL</li>
+                <li>✅ FastAPI backend</li>
                 <li>✅ Podstawowe byty (BIOS, Assistant)</li>
-                <li>✅ Interfejs webowy</li>
+                <li>✅ REST API endpoints</li>
             </ul>
         </div>
         
         <div class="footer">
-            <p>LuxOS © 2025 - Simplified & Clean Architecture</p>
+            <p>LuxOS © 2025 - Main System with PostgreSQL</p>
             <p>🗃️ Archive: luxos_archive_20250810_180141/</p>
         </div>
     </div>
     
     <script>
-        console.log('🌟 LuxOS Frontend System - Standalone Mode');
-        console.log('📦 All legacy components archived successfully');
-        console.log('🚀 Running clean main.py only');
+        console.log('🌟 LuxOS Main System - PostgreSQL Mode');
         
-        // Proste sprawdzenie statusu
-        setInterval(() => {
-            console.log('💓 LuxOS Heartbeat - System Active');
-        }, 30000);
+        async function updateStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                document.getElementById('beings-count').innerHTML = 
+                    `Total: ${status.beings_count}<br>Souls: ${status.souls_count}`;
+                    
+                console.log('📊 Status systemu:', status);
+            } catch (error) {
+                console.error('❌ Błąd statusu:', error);
+            }
+        }
+        
+        // Aktualizuj status co 5 sekund
+        updateStatus();
+        setInterval(updateStatus, 5000);
+        
+        console.log('💓 LuxOS Main System - Active');
     </script>
 </body>
 </html>
-        """
-    
-    async def start_server(self):
-        """Uruchomienie serwera"""
-        try:
-            # Używamy prostego serwera HTTP
-            from http.server import HTTPServer, BaseHTTPRequestHandler
-            import threading
-            
-            class LuxOSHandler(BaseHTTPRequestHandler):
-                def do_GET(self):
-                    self.send_response(200)
-                    self.send_header('Content-type', 'text/html')
-                    self.end_headers()
-                    html = self.server.luxos_server.create_html_interface()
-                    self.wfile.write(html.encode())
-                
-                def log_message(self, format, *args):
-                    # Wyłączenie domyślnych logów HTTP
-                    pass
-            
-            httpd = HTTPServer(('0.0.0.0', self.port), LuxOSHandler)
-            httpd.luxos_server = self
-            
-            def run_server():
-                httpd.serve_forever()
-            
-            server_thread = threading.Thread(target=run_server, daemon=True)
-            server_thread.start()
-            
-            logger.info(f"🌐 LuxOS Server uruchomiony na porcie {self.port}")
-            logger.info(f"🔗 URL: http://0.0.0.0:{self.port}")
-            
-            return httpd
-            
-        except Exception as e:
-            logger.error(f"❌ Błąd uruchomienia serwera: {e}")
-            return None
+    """
+    return HTMLResponse(content=html_content)
+
+@app.get("/api/status")
+async def get_status():
+    """API status systemu"""
+    return await kernel.get_status()
+
+@app.get("/api/system/status")
+async def get_system_status():
+    """Status systemu - kompatybilność"""
+    return await kernel.get_status()
+
+@app.get("/api/beings")
+async def get_beings():
+    """Lista wszystkich bytów"""
+    beings = await kernel.get_beings()
+    return [dict(being) for being in beings]
+
+@app.get("/api/beings/specialists")
+async def get_specialists():
+    """Lista specjalistów"""
+    beings = await kernel.get_beings()
+    specialists = [dict(being) for being in beings if being['type'] in ['assistant', 'specialist']]
+    return {"specialists": specialists}
+
+@app.get("/api/bios")
+async def get_bios():
+    """BIOS scenariusz"""
+    scenario = await kernel.get_bios_scenario()
+    return {"scenario": scenario}
 
 async def main():
-    """Główna funkcja LuxOS"""
+    """Główna funkcja"""
     print("🌟 LuxOS Main System - Starting...")
-    print("📦 Clean Architecture - Archive Mode")
+    print("🗃️ Archive Mode - PostgreSQL Backend")
     
-    # Inicjalizacja kernela
-    kernel = LuxOSKernel()
+    # Uruchomienie serwera
+    config = uvicorn.Config(
+        app,
+        host="0.0.0.0",
+        port=5000,
+        log_level="info"
+    )
+    server = uvicorn.Server(config)
     
-    if await kernel.initialize():
-        # Uruchomienie serwera web
-        web_server = LuxOSWebServer(kernel)
-        httpd = await web_server.start_server()
-        
-        if httpd:
-            print("\n" + "="*50)
-            print("🚀 LuxOS SYSTEM READY")
-            print("="*50)
-            print(f"🌐 Web Interface: http://0.0.0.0:5000")
-            print(f"📊 Status: {kernel.status}")
-            print(f"🤖 Beings: {len(kernel.beings)}")
-            print(f"🗃️ Archive: luxos_archive_20250810_180141/")
-            print("="*50)
-            print("Press Ctrl+C to stop")
-            
-            try:
-                # Utrzymanie działania
-                while True:
-                    await asyncio.sleep(1)
-                    
-            except KeyboardInterrupt:
-                print("\n🔄 Shutting down LuxOS...")
-                await kernel.shutdown()
-                print("✅ LuxOS stopped cleanly")
-        else:
-            print("❌ Nie udało się uruchomić serwera web")
-            await kernel.shutdown()
-    else:
-        print("❌ Nie udało się zainicjalizować kernela")
+    print("\n" + "="*50)
+    print("🚀 LuxOS MAIN SYSTEM READY")
+    print("="*50)
+    print(f"🌐 Web Interface: http://0.0.0.0:5000")
+    print(f"📡 API: http://0.0.0.0:5000/api/status")
+    print(f"💾 Database: PostgreSQL")
+    print(f"🗃️ Archive: luxos_archive_20250810_180141/")
+    print("="*50)
+    
+    await server.serve()
 
 if __name__ == "__main__":
     asyncio.run(main())
