@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import asyncpg
@@ -317,6 +317,210 @@ async def get_system_status():
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.get("/admin")
+async def admin_panel():
+    """Panel administracyjny systemu"""
+    return FileResponse("static/admin-panel.html")
+
+@app.get("/admin/scenarios")
+async def admin_scenarios():
+    """Interfejs zarządzania scenariuszami UI"""
+    return FileResponse("static/admin-scenarios.html")
+
+@app.get("/api/admin/ui-scenarios")
+async def get_ui_scenarios():
+    """Pobiera wszystkie scenariusze UI z bazy"""
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
+
+    try:
+        async with db_pool.acquire() as conn:
+            ui_scenarios = await conn.fetch("""
+                SELECT * FROM beings 
+                WHERE data->>'type' = 'ui_scenario'
+                ORDER BY created_at DESC
+            """)
+
+            return {
+                "scenarios": [
+                    {
+                        "ulid": s['ulid'],
+                        "alias": s['alias'],
+                        "name": s['data'].get('name', s['alias']),
+                        "route": s['data'].get('route', '/'),
+                        "html_content": s['data'].get('html_content', ''),
+                        "css_content": s['data'].get('css_content', ''),
+                        "js_content": s['data'].get('js_content', ''),
+                        "active": s['data'].get('active', False),
+                        "created_at": s['created_at'].isoformat() if s['created_at'] else None
+                    }
+                    for s in ui_scenarios
+                ]
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/admin/ui-scenarios")
+async def create_ui_scenario(scenario_data: Dict[str, Any]):
+    """Tworzy nowy scenariusz UI jako byt"""
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
+
+    try:
+        import ulid
+        scenario_ulid = str(ulid.new())
+        
+        ui_data = {
+            "type": "ui_scenario",
+            "name": scenario_data.get("name", "New UI Scenario"),
+            "route": scenario_data.get("route", "/"),
+            "html_content": scenario_data.get("html_content", ""),
+            "css_content": scenario_data.get("css_content", ""),
+            "js_content": scenario_data.get("js_content", ""),
+            "active": scenario_data.get("active", False),
+            "description": scenario_data.get("description", ""),
+            "created_by": "admin_panel"
+        }
+
+        async with db_pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO beings (ulid, soul_hash, alias, data, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            """,
+            scenario_ulid,
+            "ui_scenario_soul",
+            scenario_data.get("alias", f"ui_scenario_{scenario_ulid[:8]}"),
+            json.dumps(ui_data),
+            datetime.now(),
+            datetime.now()
+            )
+
+            return {"status": "success", "ulid": scenario_ulid, "message": "Scenariusz UI utworzony"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/admin/ui-scenarios/{scenario_ulid}")
+async def update_ui_scenario(scenario_ulid: str, scenario_data: Dict[str, Any]):
+    """Aktualizuje istniejący scenariusz UI"""
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
+
+    try:
+        async with db_pool.acquire() as conn:
+            # Pobierz istniejący scenariusz
+            existing = await conn.fetchrow("""
+                SELECT data FROM beings WHERE ulid = $1 AND data->>'type' = 'ui_scenario'
+            """, scenario_ulid)
+
+            if not existing:
+                raise HTTPException(status_code=404, detail="Scenariusz UI nie znaleziony")
+
+            # Aktualizuj dane
+            current_data = existing['data']
+            current_data.update({
+                "name": scenario_data.get("name", current_data.get("name")),
+                "route": scenario_data.get("route", current_data.get("route")),
+                "html_content": scenario_data.get("html_content", current_data.get("html_content")),
+                "css_content": scenario_data.get("css_content", current_data.get("css_content")),
+                "js_content": scenario_data.get("js_content", current_data.get("js_content")),
+                "active": scenario_data.get("active", current_data.get("active")),
+                "description": scenario_data.get("description", current_data.get("description")),
+                "updated_by": "admin_panel"
+            })
+
+            await conn.execute("""
+                UPDATE beings 
+                SET data = $1, updated_at = $2 
+                WHERE ulid = $3
+            """, json.dumps(current_data), datetime.now(), scenario_ulid)
+
+            return {"status": "success", "message": "Scenariusz UI zaktualizowany"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/admin/ui-scenarios/{scenario_ulid}")
+async def delete_ui_scenario(scenario_ulid: str):
+    """Usuwa scenariusz UI"""
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
+
+    try:
+        async with db_pool.acquire() as conn:
+            result = await conn.execute("""
+                DELETE FROM beings 
+                WHERE ulid = $1 AND data->>'type' = 'ui_scenario'
+            """, scenario_ulid)
+
+            if result == "DELETE 0":
+                raise HTTPException(status_code=404, detail="Scenariusz UI nie znaleziony")
+
+            return {"status": "success", "message": "Scenariusz UI usunięty"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ui/{route:path}")
+async def serve_dynamic_ui(route: str):
+    """Serwuje dynamiczne UI na podstawie scenariuszy z bazy"""
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
+
+    try:
+        async with db_pool.acquire() as conn:
+            # Znajdź aktywny scenariusz dla tej ścieżki
+            scenario = await conn.fetchrow("""
+                SELECT data FROM beings 
+                WHERE data->>'type' = 'ui_scenario' 
+                AND data->>'route' = $1 
+                AND (data->>'active')::boolean = true
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """, f"/{route}")
+
+            if not scenario:
+                # Spróbuj znaleźć domyślny scenariusz
+                scenario = await conn.fetchrow("""
+                    SELECT data FROM beings 
+                    WHERE data->>'type' = 'ui_scenario' 
+                    AND data->>'route' = '/' 
+                    AND (data->>'active')::boolean = true
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """)
+
+            if not scenario:
+                raise HTTPException(status_code=404, detail="Brak aktywnego scenariusza UI dla tej ścieżki")
+
+            scenario_data = scenario['data']
+            
+            # Generuj pełną stronę HTML
+            html_content = f"""
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{scenario_data.get('name', 'LuxOS UI')}</title>
+    <style>
+        {scenario_data.get('css_content', '')}
+    </style>
+</head>
+<body>
+    {scenario_data.get('html_content', '<h1>Brak zawartości</h1>')}
+    
+    <script>
+        {scenario_data.get('js_content', '')}
+    </script>
+</body>
+</html>"""
+            
+            return HTMLResponse(content=html_content)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/bios")
 async def get_bios_scenario():
