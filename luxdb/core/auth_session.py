@@ -310,8 +310,8 @@ class AuthenticationManager:
         # Pobierz wszystkie byty z kontrolą dostępu
         return await Being.get_all(user_ulid, user_session)
 
-    async def create_secured_being(self, user_ulid: str, soul, data: Dict[str, Any], 
-                                  access_level: str = "authenticated", 
+    async def create_secured_being(self, user_ulid: str, soul, data: Dict[str, Any],
+                                  access_level: str = "authenticated",
                                   alias: str = None, ttl_hours: int = None) -> Being:
         """Tworzy nowy byt z odpowiednimi uprawnieniami"""
         if user_ulid not in self.user_credentials:
@@ -330,7 +330,7 @@ class AuthenticationManager:
         # Znajdź odpowiednią strefę
         zone_mapping = {
             "public": "public_zone",
-            "authenticated": "authenticated_zone", 
+            "authenticated": "authenticated_zone",
             "sensitive": "sensitive_zone"
         }
         access_zone = zone_mapping.get(access_level, "authenticated_zone")

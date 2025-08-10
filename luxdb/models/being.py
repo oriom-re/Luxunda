@@ -48,81 +48,91 @@ class Being:
         self.updated_at = datetime.now()
 
     @classmethod
-    async def set(cls, soul, data: Dict[str, Any], alias: str = None, 
+    async def set(cls, soul, data: Dict[str, Any], alias: str = None,
                   access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
         """
         Metoda set dla Being (standard API).
-        
+
         Args:
             soul: Obiekt Soul (genotyp)
             data: Dane bytu
             alias: Opcjonalny alias
             access_zone: Strefa dostępu
             ttl_hours: TTL w godzinach
-            
+
         Returns:
             Nowy obiekt Being
         """
-        return await cls.create(soul, data, alias, access_zone, ttl_hours)
+        return await cls.create(soul, alias=alias, attributes=data, access_zone=access_zone, ttl_hours=ttl_hours)
 
     @classmethod
     async def get(cls, ulid_value: str) -> Optional['Being']:
         """
         Standardowa metoda get dla Being - szuka po ULID.
-        
+
         Args:
             ulid_value: ULID bytu
-            
+
         Returns:
             Being lub None jeśli nie znaleziono
         """
         return await cls.get_by_ulid(ulid_value)
 
     @classmethod
-    async def create(cls, soul, data: Dict[str, Any], alias: str = None, 
-                    access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
-        """
-        Tworzy nowy Being na podstawie Soul.
+    async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
+        """Tworzy nowy Being na podstawie Soul - z kompatybilnością wsteczną"""
 
-        Args:
-            soul: Obiekt Soul (genotyp)
-            data: Dane bytu
-            alias: Opcjonalny alias
-            access_zone: Strefa dostępu
-            ttl_hours: TTL w godzinach
+        # Backward compatibility handling
+        if soul is not None:
+            # New style: create(soul=soul_object, ...)
+            target_soul = soul
+        elif soul_hash is not None:
+            # Legacy style: create(soul_hash="...", ...)
+            from ..repository.soul_repository import SoulRepository
+            result = await SoulRepository.get_soul_by_hash(soul_hash)
+            if not result or not result.get('success'):
+                raise ValueError(f"Soul with hash {soul_hash} not found")
+            target_soul = result.get('soul')
+        elif isinstance(soul_or_hash, str):
+            # Legacy style: create("hash_string", ...)
+            from ..repository.soul_repository import SoulRepository
+            result = await SoulRepository.get_soul_by_hash(soul_or_hash)
+            if not result or not result.get('success'):
+                raise ValueError(f"Soul with hash {soul_or_hash} not found")
+            target_soul = result.get('soul')
+        else:
+            # New style: create(soul_object, ...)
+            target_soul = soul_or_hash
 
-        Returns:
-            Nowy obiekt Being
-        """
-        from ..repository.soul_repository import BeingRepository
+        if not target_soul:
+             raise ValueError("Soul object or hash must be provided.")
 
-        # Walidacja danych względem Soul
-        if hasattr(soul, 'validate_data'):
-            errors = soul.validate_data(data)
-            if errors:
-                raise ValueError(f"Data validation errors: {'; '.join(errors)}")
-
-        # Tworzenie Being
         being = cls()
-        being.alias = alias
-        being.soul_hash = getattr(soul, 'soul_hash', None)
-        being.data = data
-        being.access_zone = access_zone
-        being._soul_cache = soul  # Cache soul dla wydajności
-        being._soul_cache_ttl = time.time() + 3600  # 1 godzina TTL
+        being.soul_hash = target_soul.soul_hash
+        being.global_ulid = target_soul.global_ulid
+        being.alias = alias or f"being_{being.ulid[:8]}"
 
-        # Ustawienie TTL
-        if ttl_hours:
-            being.ttl_expires = datetime.now() + timedelta(hours=ttl_hours)
+        # Walidacja i serializacja danych
+        if attributes:
+            serialized_data, errors = JSONBSerializer.validate_and_serialize(attributes, target_soul)
+            if errors:
+                raise ValueError(f"Validation errors: {', '.join(errors)}")
+            being.data = serialized_data
+        else:
+            being.data = {}
+
+        # Ustawienie pozostałych atrybutów z metadanych Soul
+        for key, value in target_soul.genotype.items():
+            if key != 'attributes':
+                setattr(being, key, value)
 
         # Zapis do bazy danych
-        result = await BeingRepository.set(being)
-        if not result.get('success'):
-            raise Exception("Failed to create being")
+        from ..repository.soul_repository import BeingRepository
+        await BeingRepository.insert_data_transaction(being, target_soul.genotype)
 
         # Przypisanie do strefy dostępu
         from ..core.access_control import access_controller
-        access_controller.assign_being_to_zone(being.ulid, access_zone)
+        access_controller.assign_being_to_zone(being.ulid, being.access_zone) # Use the being's access_zone
 
         return being
 
@@ -135,7 +145,7 @@ class Being:
         """
         # Sprawdź cache i TTL
         current_time = time.time()
-        if (self._soul_cache and self._soul_cache_ttl and 
+        if (self._soul_cache and self._soul_cache_ttl and
             current_time < self._soul_cache_ttl):
             return self._soul_cache
 
@@ -237,7 +247,7 @@ class Being:
         return access_controller.filter_accessible_beings(beings, user_ulid, user_session)
 
     @classmethod
-    async def get_by_access_zone(cls, zone_id: str, user_ulid: str = None, 
+    async def get_by_access_zone(cls, zone_id: str, user_ulid: str = None,
                                 user_session: Dict[str, Any] = None) -> List['Being']:
         """
         Pobiera byty z określonej strefy dostępu.

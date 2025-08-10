@@ -5,14 +5,24 @@ Database Models Base Module
 Base classes and utilities for database models.
 """
 
-from typing import Any, Dict, List
+import json
+import hashlib
+from typing import Any, Dict, List, Optional
 from datetime import datetime
+from dataclasses import dataclass, field
 
 # Import unified serializer
-from luxdb.utils.serializer import JSONBSerializer
+from luxdb.utils.serializer import JSONBSerializer, JsonbSerializer
+
+# Import globals
+try:
+    from core.globals import Globals
+except ImportError:
+    class Globals:
+        GLOBAL_ULID = "01K29SYSTEM"
 
 # Re-export for compatibility
-__all__ = ['JSONBSerializer']
+__all__ = ['JSONBSerializer', 'JsonbSerializer', 'Soul']
 
 
 @dataclass

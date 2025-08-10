@@ -24,6 +24,11 @@ class CommunicationSystem:
         self.event_handlers: Dict[str, List[Callable]] = {}
         self.main_backend_listener = None
         self.is_active = False
+        self.message_handler = MessageHandler()
+        self.event_listeners = []
+        self.namespace_manager = NamespaceManager()
+        self.is_initialized = True
+        print("💬 Communication System initialized")
 
     async def initialize(self):
         """Inicjalizuje system komunikacji"""

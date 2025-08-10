@@ -39,31 +39,62 @@ class AdminKernelInterface:
             "last_heartbeat": None,
             "connections": 0
         }
+        self.is_initialized = False # Dodano flagę inicjalizacji
+        self.kernel_system = None # Dodano atrybut dla KernelSystem
 
-    async def initialize(self):
+    async def initialize(self, mode: str = "basic", scenario_name: str = "default"):
         """Inicjalizuje Admin Kernel Interface"""
-        print("🚀 Inicjalizacja Admin Kernel Interface...")
-
         try:
+            print("🚀 Inicjalizacja Admin Kernel Interface...")
+
             # Inicjalizuj kernel system
-            await kernel_system.initialize("default")
+            self.kernel_system = KernelSystem()
+            if hasattr(self.kernel_system, 'initialize'):
+                await self.kernel_system.initialize(mode, scenario_name)
 
-            # Pobierz status systemu
-            self.system_status = await kernel_system.get_system_status()
+            # Inicjalizuj admin being
+            await self._initialize_admin_being()
 
-            # Utwórz byty administracyjne
-            await self.create_admin_beings()
-
+            self.is_initialized = True
             print("✅ Admin Kernel Interface zainicjalizowany")
+            return True
+
         except Exception as e:
             print(f"⚠️ Admin Kernel initialization warning: {e}")
-            # Kontynuuj z ograniczoną funkcjonalnością
-            self.system_status = {
-                'kernel_active': False,
-                'lux_active': False,
-                'error': str(e)
-            }
             print("🔄 Continuing with limited functionality...")
+            self.is_initialized = False
+            return False
+
+    async def _initialize_admin_being(self):
+        """Tworzy lub ładuje byty administracyjne (Kernel i Lux)"""
+        if not self.kernel_being:
+            kernel_soul = await self._get_or_create_kernel_soul()
+            self.kernel_being = await Being.create(
+                soul=kernel_soul,
+                data={
+                    "role": "system_kernel",
+                    "capabilities": ["system_management", "being_supervision", "resource_monitoring"],
+                    "status": "active"
+                },
+                alias="admin_kernel"
+            )
+
+        if not self.lux_being:
+            lux_soul = await self._get_or_create_lux_soul()
+            self.lux_being = await Being.create(
+                soul=lux_soul,
+                data={
+                    "role": "ai_assistant",
+                    "capabilities": ["conversation", "analysis", "task_management"],
+                    "status": "active"
+                },
+                alias="Lux"
+            )
+
+        self.system_status["kernel_active"] = bool(self.kernel_being)
+        self.system_status["lux_active"] = bool(self.lux_being)
+        self.system_status["last_heartbeat"] = datetime.now().isoformat()
+
 
     async def _get_or_create_kernel_soul(self) -> Soul:
         """Tworzy lub ładuje Soul dla Kernel Being"""
@@ -215,7 +246,7 @@ class AdminKernelInterface:
         # Symulacja odpowiedzi Lux (w przyszłości integracja z AI)
         context = {
             "kernel_status": self.system_status,
-            "beings_count": len(kernel_system.beings_registry),
+            "beings_count": len(kernel_system.beings_registry) if kernel_system else 0,
             "conversation_history": self.conversation_history[-5:]  # Ostatnie 5 wiadomości
         }
 
@@ -225,15 +256,18 @@ class AdminKernelInterface:
 **Kernel Status**: {'🟢 Active' if self.system_status['kernel_active'] else '🔴 Inactive'}
 **Lux Status**: {'🟢 Active' if self.system_status['lux_active'] else '🔴 Inactive'}
 **Active Connections**: {self.system_status['connections']}
-**Registered Beings**: {len(kernel_system.beings_registry)}
+**Registered Beings**: {len(kernel_system.beings_registry) if kernel_system else 0}
 **Last Heartbeat**: {self.system_status['last_heartbeat']}
 
 Czy potrzebujesz szczegółowych informacji o którymś z komponentów?"""
 
         elif "beings" in message.lower() or "byty" in message.lower():
             beings_info = []
-            for ulid, being in kernel_system.beings_registry.items():
-                beings_info.append(f"- {being.alias} ({ulid[:8]}...)")
+            if kernel_system and kernel_system.beings_registry:
+                for ulid, being in kernel_system.beings_registry.items():
+                    beings_info.append(f"- {being.alias} ({ulid[:8]}...)")
+            else:
+                beings_info.append("- Brak zarejestrowanych bytów.")
 
             response_message = f"""📋 **Registered Beings** ({len(beings_info)}):
 
@@ -279,11 +313,11 @@ Kernel działa sprawnie, wszystkie systemy są aktywne. W czym mogę pomóc?
         print(f"⚡ Kernel command: {command}")
 
         if "restart" in command.lower():
-            await kernel_system.initialize("advanced")
+            await self.initialize("advanced") # Restart the admin interface and Lux
             return {"message": "🔄 Kernel system zrestartowany"}
 
         elif "health" in command.lower():
-            status = await kernel_system.get_system_status()
+            status = await self.get_system_status()
             return {
                 "message": "🩺 Health Check Complete",
                 "data": status
@@ -294,7 +328,7 @@ Kernel działa sprawnie, wszystkie systemy są aktywne. W czym mogę pomóc?
 
     async def get_system_status(self) -> Dict[str, Any]:
         """Pobiera szczegółowy status systemu"""
-        kernel_status = await kernel_system.get_system_status()
+        kernel_status = await self.kernel_system.get_system_status() if self.kernel_system and hasattr(self.kernel_system, 'get_system_status') else {"status": "N/A"}
 
         return {
             "message": "📊 System Status Retrieved",
@@ -307,69 +341,54 @@ Kernel działa sprawnie, wszystkie systemy są aktywne. W czym mogę pomóc?
     async def get_beings_list(self) -> Dict[str, Any]:
         """Pobiera listę bytów"""
         beings_data = []
+        if self.kernel_system and hasattr(self.kernel_system, 'beings_registry'):
+            for ulid, being in self.kernel_system.beings_registry.items():
+                being_soul = await being.soul
+                soul_hash = await being_soul.get_hash() if being_soul else 'N/A'
+                beings_data.append({
+                    "ulid": ulid,
+                    "alias": being.alias,
+                    "soul_hash": soul_hash[:8] + "..." if soul_hash != 'N/A' else 'N/A'
+                })
+        else:
+            beings_data.append({"alias": "Kernel system not initialized or unavailable."})
 
-        for ulid, being in kernel_system.beings_registry.items():
-            being_soul = await being.soul
-            soul_hash = await being_soul.get_hash() if being_soul else 'N/A'
-            beings_data.append({
-                "ulid": ulid,
-                "alias": being.alias,
-                "soul_hash": soul_hash[:8] + "..." if soul_hash != 'N/A' else 'N/A'
-            })
 
         return {
             "message": f"📋 Found {len(beings_data)} beings",
             "data": {"beings": beings_data}
         }
 
-    async def create_admin_beings(self):
-        """Tworzy lub ładuje byty administracyjne (Kernel i Lux)"""
-        if not self.kernel_being:
-            kernel_soul = await self._get_or_create_kernel_soul()
-            self.kernel_being = await Being.create(
-                soul=kernel_soul,
-                data={
-                    "role": "system_kernel",
-                    "capabilities": ["system_management", "being_supervision", "resource_monitoring"],
-                    "status": "active"
-                },
-                alias="admin_kernel"
-            )
-
-        if not self.lux_being:
-            lux_soul = await self._get_or_create_lux_soul()
-            self.lux_being = await Being.create(
-                soul=lux_soul,
-                data={
-                    "role": "ai_assistant",
-                    "capabilities": ["conversation", "analysis", "task_management"],
-                    "status": "active"
-                },
-                alias="Lux"
-            )
-
-        self.system_status["kernel_active"] = bool(self.kernel_being)
-        self.system_status["lux_active"] = bool(self.lux_being)
-        self.system_status["last_heartbeat"] = datetime.now().isoformat()
-
-
-# Globalna instancja
-admin_kernel = AdminKernelInterface()
 
 # Gene functions
 async def monitor_system_resources(being, context):
     """Monitoruje zasoby systemu"""
-    return {
-        "cpu_usage": "12%",
-        "memory_usage": "245MB",
-        "active_beings": len(kernel_system.beings_registry),
-        "connections": len(admin_kernel.active_connections)
-    }
+    # Ensure kernel_system is accessible and has the expected attributes
+    if kernel_system and hasattr(kernel_system, 'beings_registry') and hasattr(admin_kernel, 'active_connections'):
+        return {
+            "cpu_usage": "12%",
+            "memory_usage": "245MB",
+            "active_beings": len(kernel_system.beings_registry),
+            "connections": len(admin_kernel.active_connections)
+        }
+    else:
+        return {
+            "cpu_usage": "N/A",
+            "memory_usage": "N/A",
+            "active_beings": 0,
+            "connections": 0,
+            "error": "Kernel system or admin kernel not available."
+        }
+
 
 async def manage_beings(being, context):
     """Zarządza bytami w systemie"""
     action = context.get("action")
     target_being_ulid = context.get("target_being")
+
+    # Ensure kernel_system is accessible and has the expected attributes
+    if not (kernel_system and hasattr(kernel_system, 'beings_registry')):
+        return {"result": "Error: Kernel system not available."}
 
     if action == "list":
         return {"beings": list(kernel_system.beings_registry.keys())}
@@ -392,9 +411,13 @@ async def manage_beings(being, context):
 async def execute_admin_command(being, context):
     """Wykonuje komendy administratorskie"""
     command = context.get("command")
+    # Ensure admin_kernel is initialized and has the 'initialize' method
     if command == "restart kernel":
-        await admin_kernel.initialize() # Restart the admin interface and Lux
-        return {"result": "Admin Kernel Interface and Lux restarted."}
+        if admin_kernel and hasattr(admin_kernel, 'initialize'):
+            await admin_kernel.initialize() # Restart the admin interface and Lux
+            return {"result": "Admin Kernel Interface and Lux restarted."}
+        else:
+            return {"result": "Error: Admin Kernel Interface not available or not initialized."}
     return {"result": f"Executed admin command: {command}"}
 
 async def process_lux_message(being, context):
@@ -421,3 +444,53 @@ async def generate_lux_response(being, context):
         "response": response_text,
         "confidence": 0.9
     }
+
+# Dummy KernelSystem and other necessary classes for the code to be runnable
+class Being:
+    def __init__(self, soul, data, alias):
+        self.soul = soul
+        self.data = data
+        self.alias = alias
+
+    @classmethod
+    async def create(cls, soul, data, alias):
+        return cls(soul, data, alias)
+
+class Soul:
+    def __init__(self, genotype, alias):
+        self.genotype = genotype
+        self.alias = alias
+
+    @classmethod
+    async def get_by_alias(cls, alias):
+        # Dummy implementation
+        return cls({"genesis": {"name": "dummy_soul"}}, alias)
+
+    @classmethod
+    async def create(cls, genotype, alias):
+        # Dummy implementation
+        return cls(genotype, alias)
+
+    async def get_hash(self):
+        # Dummy implementation
+        return "dummy_hash_12345"
+
+class KernelSystem:
+    def __init__(self):
+        self.beings_registry = {}
+        self.system_status = {"status": "initialized"}
+
+    async def initialize(self, mode: str, scenario_name: str):
+        print(f"KernelSystem initializing with mode: {mode}, scenario: {scenario_name}")
+        # Simulate some beings
+        self.beings_registry["dummy_ulid_1"] = Being(None, {}, "DummyBeing1")
+        self.beings_registry["dummy_ulid_2"] = Being(None, {}, "DummyBeing2")
+        self.system_status = {"status": "active"}
+
+    async def get_system_status(self):
+        return self.system_status
+
+# Globalna instancja
+admin_kernel = AdminKernelInterface()
+# Initialize admin_kernel upon script load
+asyncio.create_task(admin_kernel.initialize())

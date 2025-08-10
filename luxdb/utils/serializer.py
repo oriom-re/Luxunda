@@ -119,7 +119,16 @@ class LuxDBJSONEncoder(json.JSONEncoder):
 # Legacy compatibility aliases
 class JsonbSerializer(JSONBSerializer):
     """Legacy alias for backward compatibility"""
-    pass
+    
+    @staticmethod
+    def serialize_for_jsonb(data: Any) -> str:
+        """Legacy method for backward compatibility"""
+        return JSONBSerializer.serialize(data)
+    
+    @staticmethod
+    def deserialize_from_jsonb(json_data: Union[str, dict]) -> Any:
+        """Legacy method for backward compatibility"""
+        return JSONBSerializer.deserialize(json_data)
 
 
 # Convenience functions
