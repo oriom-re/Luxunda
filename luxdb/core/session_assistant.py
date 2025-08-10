@@ -8,6 +8,7 @@ from typing import Dict, Any, List, Optional, Set
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 import ulid
+import threading
 
 from ..models.being import Being
 from ..models.soul import Soul
@@ -50,6 +51,7 @@ class SessionAssistant:
         self.event_listeners: List[str] = []
         self.is_active = True
         self.offline_mode = False
+        self._message_lock = threading.Lock()  # Lock dla sekwencyjnego tworzenia wiadomości
 
     async def initialize(self):
         """Inicjalizuje asystenta dla sesji"""
@@ -192,14 +194,16 @@ class SessionAssistant:
             return f"Przepraszam, wystąpił błąd podczas przetwarzania wiadomości: {str(e)}"
 
     async def create_contextual_message(self, content: str, role: str = "user") -> Message:
-        """Tworzy wiadomość z kontekstowymi relacjami"""
-        message = await Message.create(
-            content=content,
-            role=role,
-            author_ulid=self.session.user_ulid,
-            fingerprint=self.session.user_fingerprint,
-            conversation_id=self.session.session_id
-        )
+        """Tworzy wiadomość z kontekstowymi relacjami z zachowaniem kolejności"""
+        # Zapewnij sekwencyjne tworzenie wiadomości
+        with self._message_lock:
+            message = await Message.create(
+                content=content,
+                role=role,
+                author_ulid=self.session.user_ulid,
+                fingerprint=self.session.user_fingerprint,
+                conversation_id=self.session.session_id
+            )
 
         # Dodaj relacje do aktywnych projektów
         for project_tag in self.session.project_tags:
