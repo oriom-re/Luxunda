@@ -76,8 +76,8 @@ class SoulRepository:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    async def load_all() -> dict:
-        """Ładuje wszystkie souls z bazy danych"""
+    async def get_all() -> dict:
+        """Pobiera wszystkie souls z bazy danych"""
         try:
             pool = await Postgre_db.get_db_pool()
             if not pool:
@@ -101,7 +101,7 @@ class SoulRepository:
                     souls.append(soul)
             return {"success": True, "souls": souls}
         except Exception as e:
-            print(f"❌ Error loading all souls: {e}")
+            print(f"❌ Error getting all souls: {e}")
             return {"success": False, "error": str(e)}
 
     @staticmethod
@@ -478,8 +478,8 @@ class BeingRepository:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    async def load_all() -> dict:
-        """Ładuje wszystkie beings z bazy danych"""
+    async def get_all() -> dict:
+        """Pobiera wszystkie beings z bazy danych"""
         try:
             pool = await Postgre_db.get_db_pool()
             if not pool:
@@ -503,10 +503,10 @@ class BeingRepository:
                     being.created_at = row['created_at']
                     being.updated_at = row['updated_at']
                     beings.append(being)
-            print(f"✅ BeingRepository.load_all returning {len(beings)} beings")
+            print(f"✅ BeingRepository.get_all returning {len(beings)} beings")
             return {"success": True, "beings": beings}
         except Exception as e:
-            print(f"❌ Error loading all beings: {e}")
+            print(f"❌ Error getting all beings: {e}")
             import traceback
             traceback.print_exc()
             return {"success": False, "error": str(e)}
@@ -530,6 +530,11 @@ class BeingRepository:
         if beings:
             return {"success": True, "beings": [beings[0]]}
         return {"success": False, "beings": []}
+
+    @staticmethod
+    async def load_all() -> dict:
+        """Legacy compatibility - delegates to get_all"""
+        return await BeingRepository.get_all()
 
     @staticmethod
     async def load_all_by_alias(alias: str) -> dict:
@@ -717,8 +722,8 @@ class RelationRepository:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    async def load_all() -> dict:
-        """Ładuje wszystkie relacje z bazy danych"""
+    async def get_all() -> dict:
+        """Pobiera wszystkie relacje z bazy danych"""
         try:
             pool = await Postgre_db.get_db_pool()
             if not pool:
@@ -748,7 +753,7 @@ class RelationRepository:
 
             return {"success": True, "relations": relations}
         except Exception as e:
-            print(f"❌ Error loading all relations: {e}")
+            print(f"❌ Error getting all relations: {e}")
             return {"success": False, "error": str(e)}
 
     @staticmethod

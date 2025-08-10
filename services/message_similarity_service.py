@@ -65,7 +65,7 @@ class MessageSimilarityService:
     async def compare_messages_and_create_relations(self, soul_hash: str) -> Dict[str, Any]:
         """Porównuje wszystkie wiadomości dla danego soul_hash i tworzy relacje"""
         # Get all beings and filter by soul_hash
-        all_beings = await BeingRepository.load_all()
+        all_beings = await BeingRepository.get_all()
         if not all_beings or not all_beings.get('success'):
             return {"message": "Nie można pobrać danych z bazy", "created_relations": 0}
         
@@ -179,7 +179,7 @@ class MessageSimilarityService:
     async def get_similar_messages(self, message_ulid: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Znajduje wiadomości podobne do danej wiadomości"""
         # Pobierz wszystkie relacje podobieństwa dla danej wiadomości
-        relations = await BeingRepository.load_all()
+        relations = await BeingRepository.get_all()
         if not relations or not relations.get('success'):
             relations = {"beings": []}
         if not relations:

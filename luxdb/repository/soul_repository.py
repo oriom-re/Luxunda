@@ -67,7 +67,7 @@ class SoulRepository:
             return {"success": False, "error": str(e)}
 
     @staticmethod
-    async def get_all_souls(limit: int = 100) -> Dict[str, Any]:
+    async def get_all(limit: int = 100) -> Dict[str, Any]:
         """Get all souls"""
         try:
             pool = await Postgre_db.get_db_pool()
@@ -101,6 +101,11 @@ class SoulRepository:
                 'souls': [],
                 'count': 0
             }
+
+    @staticmethod
+    async def get_all_souls(limit: int = 100) -> Dict[str, Any]:
+        """Legacy compatibility - delegates to get_all"""
+        return await SoulRepository.get_all(limit)
 
     @staticmethod
     async def get_by_alias(alias: str) -> dict:
@@ -350,7 +355,7 @@ class BeingRepository:
             return 0
 
     @staticmethod
-    async def get_all_beings(limit: int = 100) -> Dict[str, Any]:
+    async def get_all(limit: int = 100) -> Dict[str, Any]:
         """Get all beings"""
         try:
             pool = await Postgre_db.get_db_pool()
@@ -386,6 +391,11 @@ class BeingRepository:
                 'beings': [],
                 'count': 0
             }
+
+    @staticmethod
+    async def get_all_beings(limit: int = 100) -> Dict[str, Any]:
+        """Legacy compatibility - delegates to get_all"""
+        return await BeingRepository.get_all(limit)
 
     @staticmethod
     async def search_beings(query: str, limit: int = 50) -> Dict[str, Any]:
