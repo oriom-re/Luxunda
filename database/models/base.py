@@ -1,62 +1,18 @@
-from dataclasses import dataclass, field
-import json
-from typing import Dict, Any, List, Optional
+"""
+Database Models Base Module
+===========================
+
+Base classes and utilities for database models.
+"""
+
+from typing import Any, Dict, List
 from datetime import datetime
-import hashlib
-from core.globals import Globals
 
-# Załóżmy, że istnieje klasa JSONBSerializer z odpowiednimi metodami
-# import JSONBSerializer # To jest tylko przykład, rzeczywista ścieżka może być inna
+# Import unified serializer
+from luxdb.utils.serializer import JSONBSerializer
 
-# Przykładowa implementacja JSONBSerializer (jeśli nie jest dostępna)
-class JSONBSerializer:
-    @staticmethod
-    def serialize_being_data(data: Dict[str, Any], soul: 'Soul') -> Dict[str, Any]:
-        """Serializuje dane Being zgodnie ze schematem Soul"""
-        serialized = {}
-        attributes = soul.genotype.get("attributes", {})
-        for attr_name, attr_meta in attributes.items():
-            if attr_name in data:
-                value = data[attr_name]
-                py_type = attr_meta.get("py_type", "str")
-                # Tutaj można dodać bardziej zaawansowaną logikę serializacji w zależności od typów
-                if py_type == "datetime":
-                    serialized[attr_name] = value.isoformat() if isinstance(value, datetime) else value
-                elif py_type == "List[str]":
-                    serialized[attr_name] = list(value) if isinstance(value, (list, set)) else [value]
-                else:
-                    serialized[attr_name] = value
-        return serialized
-
-    @staticmethod
-    def deserialize_being_data(data: Dict[str, Any], soul: 'Soul') -> Dict[str, Any]:
-        """Deserializuje dane Being zgodnie ze schematem Soul"""
-        deserialized = {}
-        attributes = soul.genotype.get("attributes", {})
-        for attr_name, attr_meta in attributes.items():
-            if attr_name in data:
-                value = data[attr_name]
-                py_type = attr_meta.get("py_type", "str")
-                # Tutaj można dodać bardziej zaawansowaną logikę deserializacji
-                if py_type == "datetime":
-                    try:
-                        deserialized[attr_name] = datetime.fromisoformat(value) if isinstance(value, str) else value
-                    except (ValueError, TypeError):
-                        deserialized[attr_name] = value # Zostaw jak jest jeśli nie można zdeserializować
-                elif py_type == "List[str]":
-                    deserialized[attr_name] = list(value) if isinstance(value, (list, set)) else [value]
-                else:
-                    deserialized[attr_name] = value
-        return deserialized
-
-    @staticmethod
-    def validate_and_serialize(data: Dict[str, Any], soul: 'Soul') -> tuple[Dict[str, Any], List[str]]:
-        """Waliduje i serializuje dane, zwracając dane i błędy"""
-        errors = soul.validate_data(data) # Używa istniejącej metody walidacji
-        if not errors:
-            serialized_data = JSONBSerializer.serialize_being_data(data, soul)
-            return serialized_data, []
-        return data, errors
+# Re-export for compatibility
+__all__ = ['JSONBSerializer']
 
 
 @dataclass
@@ -187,8 +143,6 @@ class Soul:
             setattr(soul, key, value)
         return soul
 
-# Zakładając, że klasa Being istnieje gdzie indziej i używa Soul do walidacji i serializacji
-# Poniżej jest przykładowa definicja klasy Being dla kontekstu:
 
 class Being:
     def __init__(self, data: Dict[str, Any] = None, _soul_cache: Soul = None):
@@ -239,10 +193,10 @@ class Being:
             being._soul_cache = soul  # Cache dla późniejszego użycia
         else:
             being.data = data or {}
-        
+
         # Ustawienie aliasu, jeśli podano
         if alias:
-            being.alias = alias # Zakładając, że Being ma atrybut alias
+            being.alias = alias # Zakładając, że Being ma atrybuty alias
 
         return being
 
@@ -263,7 +217,7 @@ class Being:
                 self.data = serialized_data
             else:
                 self.data.update(new_data)
-            
+
             # Tutaj powinien być kod do zapisania zaktualizowanych danych being w bazie danych
             # Np. await BeingRepository.save(self)
             print("Dane Being zaktualizowane.")
