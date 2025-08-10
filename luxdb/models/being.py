@@ -323,156 +323,88 @@ class Being:
                 error_code="BEING_FUNCTION_ERROR"
             )
 
-    async def evolve_soul(self, evolution_trigger: str, new_capabilities: Dict[str, Any] = None, 
-                         access_level_change: str = None) -> Dict[str, Any]:
+    async def request_evolution(self, evolution_trigger: str, new_capabilities: Dict[str, Any] = None, 
+                               access_level_change: str = None) -> Dict[str, Any]:
         """
-        Being może zainicjować ewolucję swojej Soul na podstawie swoich działań i osiągnięć.
+        Being może poprosić system o ewolucję, ale nie może się sam ewoluować.
+        Żądanie ewolucji musi zostać zatwierdzone przez Kernel lub uprawniony byt.
         
         Args:
-            evolution_trigger: Powód ewolucji (np. "access_level_promotion", "new_capability_earned")
-            new_capabilities: Nowe zdolności do dodania do genotypu
-            access_level_change: Zmiana poziomu dostępu ("promote", "grant_admin", etc.)
+            evolution_trigger: Powód ewolucji 
+            new_capabilities: Żądane nowe zdolności
+            access_level_change: Żądana zmiana poziomu dostępu
             
         Returns:
-            Wynik ewolucji w formacie genetycznym
+            Potwierdzenie żądania ewolucji w formacie genetycznym
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        from .soul import Soul
         
         try:
-            current_soul = await self.get_soul()
-            if not current_soul:
+            # Sprawdź czy może żądać ewolucji
+            evolution_potential = await self.can_evolve()
+            if not evolution_potential["can_evolve"]:
                 return GeneticResponseFormat.error_response(
-                    error="Cannot evolve - no current soul found",
-                    error_code="NO_SOUL_FOR_EVOLUTION"
+                    error="Being does not meet evolution requirements",
+                    error_code="EVOLUTION_REQUIREMENTS_NOT_MET",
+                    data={"requirements_not_met": evolution_potential["requirements_not_met"]}
                 )
 
-            # Przygotuj zmiany ewolucyjne
-            evolution_changes = {}
-            
-            # Aktualizuj genesis z informacją o ewolucji
-            evolution_changes["genesis.evolution_trigger"] = evolution_trigger
-            evolution_changes["genesis.evolved_by_being"] = self.ulid
-            evolution_changes["genesis.evolution_timestamp"] = datetime.now().isoformat()
-            evolution_changes["genesis.evolution_reason"] = f"Being {self.alias} initiated evolution: {evolution_trigger}"
-            
-            # Dodaj nowe capabilities jeśli podano
-            if new_capabilities:
-                for capability_name, capability_config in new_capabilities.items():
-                    if capability_name.startswith("functions."):
-                        evolution_changes[capability_name] = capability_config
-                    elif capability_name.startswith("attributes."):
-                        evolution_changes[capability_name] = capability_config
-                    else:
-                        evolution_changes[f"capabilities.{capability_name}"] = capability_config
-
-            # Obsłuż zmianę poziomu dostępu
-            if access_level_change:
-                await self._handle_access_level_evolution(evolution_changes, access_level_change)
-
-            # Dodaj metadane o Being który zainicjował ewolucję
-            evolution_changes["metadata.evolved_by"] = {
-                "being_ulid": self.ulid,
-                "being_alias": self.alias,
-                "being_data_snapshot": self.data.copy(),
-                "execution_count": self.data.get('execution_count', 0),
-                "access_zone": self.access_zone
+            # Przygotuj żądanie ewolucji
+            evolution_request = {
+                "requesting_being_ulid": self.ulid,
+                "requesting_being_alias": self.alias,
+                "evolution_trigger": evolution_trigger,
+                "requested_capabilities": new_capabilities or {},
+                "requested_access_change": access_level_change,
+                "request_timestamp": datetime.now().isoformat(),
+                "being_stats": {
+                    "execution_count": self.data.get('execution_count', 0),
+                    "current_access_zone": self.access_zone,
+                    "age_in_system": (datetime.now() - (self.created_at or datetime.now())).days
+                },
+                "justification": self._generate_evolution_justification(evolution_trigger, evolution_potential)
             }
 
-            # Utwórz nową Soul przez ewolucję
-            evolved_soul = await Soul.create_evolved_version(
-                original_soul=current_soul,
-                changes=evolution_changes,
-                new_version=None  # Automatyczne wersjonowanie
-            )
-
-            # Zaktualizuj Being żeby wskazywał na nową Soul
-            old_soul_hash = self.soul_hash
-            self.soul_hash = evolved_soul.soul_hash
-            self.updated_at = datetime.now()
+            # Dodaj żądanie do danych bytu
+            if 'evolution_requests' not in self.data:
+                self.data['evolution_requests'] = []
             
-            # Dodaj do historii ewolucji bytu
-            if 'evolution_history' not in self.data:
-                self.data['evolution_history'] = []
-            
-            self.data['evolution_history'].append({
-                "timestamp": datetime.now().isoformat(),
-                "trigger": evolution_trigger,
-                "old_soul_hash": old_soul_hash,
-                "new_soul_hash": evolved_soul.soul_hash,
-                "changes_applied": evolution_changes
-            })
-
-            # Zapisz zmiany
+            self.data['evolution_requests'].append(evolution_request)
             await self.save()
-            
-            # Wyczyść cache Soul
-            self._soul_cache = None
-            self._soul_cache_ttl = None
 
             return GeneticResponseFormat.success_response(
                 data={
-                    "evolution_successful": True,
-                    "old_soul_hash": old_soul_hash,
-                    "new_soul_hash": evolved_soul.soul_hash,
-                    "evolved_soul": evolved_soul.to_json_serializable(),
-                    "being_updated": self.to_json_serializable(),
-                    "evolution_trigger": evolution_trigger
+                    "evolution_requested": True,
+                    "request_id": len(self.data['evolution_requests']) - 1,
+                    "evolution_request": evolution_request,
+                    "message": "Evolution request submitted to system. Awaiting Kernel approval."
                 },
                 soul_context={
-                    "soul_hash": evolved_soul.soul_hash,
-                    "genotype": evolved_soul.genotype,
-                    "evolution_info": evolution_changes
+                    "soul_hash": self.soul_hash,
+                    "current_capabilities": await self.get_soul() and (await self.get_soul()).genotype or {}
                 }
             )
 
         except Exception as e:
             return GeneticResponseFormat.error_response(
-                error=f"Soul evolution failed: {str(e)}",
-                error_code="SOUL_EVOLUTION_ERROR"
+                error=f"Evolution request failed: {str(e)}",
+                error_code="EVOLUTION_REQUEST_ERROR"
             )
 
-    async def _handle_access_level_evolution(self, evolution_changes: Dict[str, Any], access_level_change: str):
-        """Obsługuje zmiany poziomu dostępu podczas ewolucji"""
-        from ..core.access_control import access_controller, AccessLevel
+    def _generate_evolution_justification(self, evolution_trigger: str, evolution_potential: Dict[str, Any]) -> str:
+        """Generuje uzasadnienie dla żądania ewolucji"""
+        stats = evolution_potential["current_stats"]
+        justification = f"Being {self.alias} requests evolution based on {evolution_trigger}. "
+        justification += f"Current stats: {stats['execution_count']} executions, "
+        justification += f"{stats['age_in_system']} days in system, "
+        justification += f"access zone: {stats['access_zone']}. "
         
-        if access_level_change == "promote":
-            # Awans z public do authenticated
-            if self.access_zone == "public_zone":
-                evolution_changes["access.promoted_from"] = "public_zone"
-                evolution_changes["access.promoted_to"] = "authenticated_zone"
-                evolution_changes["attributes.access_level"] = {"py_type": "str", "default": "authenticated"}
-                self.access_zone = "authenticated_zone"
-                
-        elif access_level_change == "grant_admin":
-            # Przyznanie uprawnień administratora
-            evolution_changes["access.admin_granted"] = True
-            evolution_changes["access.granted_by_being"] = self.ulid
-            evolution_changes["attributes.admin_capabilities"] = {
-                "py_type": "dict", 
-                "default": {
-                    "can_manage_users": True,
-                    "can_create_souls": True,
-                    "can_modify_access_zones": True
-                }
-            }
-            self.access_zone = "sensitive_zone"
-            
-        elif access_level_change == "grant_creator":
-            # Uprawnienia do tworzenia nowych Soul
-            evolution_changes["capabilities.soul_creation"] = {
-                "can_create_souls": True,
-                "can_evolve_other_beings": True,
-                "creation_quota": 10
-            }
-            evolution_changes["functions.create_soul"] = {
-                "py_type": "function",
-                "description": "Create new Soul genotypes",
-                "access_required": "creator"
-            }
-
-        # Aktualizuj przypisanie do strefy dostępu
-        access_controller.assign_being_to_zone(self.ulid, self.access_zone)
+        if evolution_potential["available_evolutions"]:
+            justification += "Available evolutions: " + ", ".join([
+                evo["type"] for evo in evolution_potential["available_evolutions"]
+            ])
+        
+        return justification
 
     async def can_evolve(self) -> Dict[str, Any]:
         """

@@ -436,8 +436,237 @@ class KernelSystem:
                     "hash": self.scenario_loader.being_hashes.get(ulid, "unknown")[:8] + "..."
                 }
                 for ulid, being in self.beings_registry.items()
-            ]
+            ],
+            "pending_evolution_requests": await self.get_pending_evolution_requests_count()
         }
+
+    async def get_pending_evolution_requests_count(self) -> int:
+        """Zwraca liczbę oczekujących żądań ewolucji"""
+        count = 0
+        for being in self.beings_registry.values():
+            requests = being.data.get('evolution_requests', [])
+            # Policz tylko nieprzetworzone żądania
+            count += len([req for req in requests if not req.get('processed')])
+        return count
+
+    async def process_evolution_request(self, being_ulid: str, request_id: int, approve: bool = True, 
+                                      processed_by: str = "kernel") -> Dict[str, Any]:
+        """
+        Przetwarza żądanie ewolucji od bytu.
+        
+        Args:
+            being_ulid: ULID bytu żądającego ewolucji
+            request_id: ID żądania w tablicy evolution_requests
+            approve: Czy zatwierdzić ewolucję
+            processed_by: Kto przetwarza żądanie
+            
+        Returns:
+            Wynik przetwarzania żądania
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        from luxdb.models.being import Being
+        from luxdb.models.soul import Soul
+        from database.models.relationship import Relationship
+        
+        try:
+            # Znajdź byt
+            being = self.beings_registry.get(being_ulid)
+            if not being:
+                being = await Being.get_by_ulid(being_ulid)
+                
+            if not being:
+                return GeneticResponseFormat.error_response(
+                    error="Being not found",
+                    error_code="BEING_NOT_FOUND"
+                )
+
+            # Znajdź żądanie
+            evolution_requests = being.data.get('evolution_requests', [])
+            if request_id >= len(evolution_requests):
+                return GeneticResponseFormat.error_response(
+                    error="Evolution request not found",
+                    error_code="REQUEST_NOT_FOUND"
+                )
+
+            request = evolution_requests[request_id]
+            if request.get('processed'):
+                return GeneticResponseFormat.error_response(
+                    error="Request already processed",
+                    error_code="REQUEST_ALREADY_PROCESSED"
+                )
+
+            # Oznacz jako przetworzone
+            request['processed'] = True
+            request['processed_at'] = datetime.now().isoformat()
+            request['processed_by'] = processed_by
+            request['approved'] = approve
+
+            if not approve:
+                request['rejection_reason'] = "Evolution request rejected by system"
+                await being.save()
+                return GeneticResponseFormat.success_response(
+                    data={
+                        "evolution_processed": True,
+                        "approved": False,
+                        "message": "Evolution request rejected"
+                    }
+                )
+
+            # Przeprowadź ewolucję
+            evolution_result = await self._execute_evolution(being, request, processed_by)
+            
+            # Zapisz zmiany
+            await being.save()
+            
+            return evolution_result
+
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Evolution processing failed: {str(e)}",
+                error_code="EVOLUTION_PROCESSING_ERROR"
+            )
+
+    async def _execute_evolution(self, being: 'Being', evolution_request: Dict[str, Any], 
+                               processed_by: str) -> Dict[str, Any]:
+        """Wykonuje właściwą ewolucję bytu"""
+        from luxdb.utils.serializer import GeneticResponseFormat
+        from luxdb.models.soul import Soul
+        from database.models.relationship import Relationship
+        
+        try:
+            current_soul = await being.get_soul()
+            if not current_soul:
+                raise ValueError("Being has no current soul")
+
+            # Przygotuj zmiany ewolucyjne
+            evolution_changes = {}
+            
+            # Informacje o ewolucji
+            evolution_changes["genesis.evolution_trigger"] = evolution_request["evolution_trigger"]
+            evolution_changes["genesis.evolved_by_kernel"] = processed_by
+            evolution_changes["genesis.evolution_timestamp"] = datetime.now().isoformat()
+            evolution_changes["genesis.evolution_approved_by"] = processed_by
+            evolution_changes["genesis.original_request_by"] = evolution_request["requesting_being_ulid"]
+
+            # Dodaj żądane capabilities
+            requested_capabilities = evolution_request.get("requested_capabilities", {})
+            for capability_name, capability_config in requested_capabilities.items():
+                if capability_name.startswith("functions."):
+                    evolution_changes[capability_name] = capability_config
+                elif capability_name.startswith("attributes."):
+                    evolution_changes[capability_name] = capability_config
+                else:
+                    evolution_changes[f"capabilities.{capability_name}"] = capability_config
+
+            # Obsłuż zmiany dostępu
+            access_change = evolution_request.get("requested_access_change")
+            if access_change:
+                await self._handle_access_evolution(being, evolution_changes, access_change)
+
+            # Utwórz nową Soul
+            evolved_soul = await Soul.create_evolved_version(
+                original_soul=current_soul,
+                changes=evolution_changes,
+                new_version=None
+            )
+
+            # Zaktualizuj Being
+            old_soul_hash = being.soul_hash
+            being.soul_hash = evolved_soul.soul_hash
+            being.updated_at = datetime.now()
+            
+            # Wyczyść cache Soul
+            being._soul_cache = None
+            being._soul_cache_ttl = None
+
+            # Utwórz relację ewolucji
+            await Relationship.create(
+                source_id=old_soul_hash,
+                target_id=evolved_soul.soul_hash,
+                source_type="soul",
+                target_type="soul",
+                relation_type="evolution",
+                strength=1.0,
+                metadata={
+                    "being_ulid": being.ulid,
+                    "being_alias": being.alias,
+                    "evolution_trigger": evolution_request["evolution_trigger"],
+                    "processed_by": processed_by,
+                    "processed_at": datetime.now().isoformat(),
+                    "changes_applied": evolution_changes
+                }
+            )
+
+            return GeneticResponseFormat.success_response(
+                data={
+                    "evolution_successful": True,
+                    "approved": True,
+                    "old_soul_hash": old_soul_hash,
+                    "new_soul_hash": evolved_soul.soul_hash,
+                    "evolved_soul": evolved_soul.to_json_serializable(),
+                    "evolution_trigger": evolution_request["evolution_trigger"],
+                    "processed_by": processed_by
+                },
+                soul_context={
+                    "soul_hash": evolved_soul.soul_hash,
+                    "genotype": evolved_soul.genotype
+                }
+            )
+
+        except Exception as e:
+            raise Exception(f"Evolution execution failed: {str(e)}")
+
+    async def _handle_access_evolution(self, being: 'Being', evolution_changes: Dict[str, Any], 
+                                     access_level_change: str):
+        """Obsługuje zmiany poziomu dostępu podczas ewolucji"""
+        from ..core.access_control import access_controller
+        
+        if access_level_change == "promote":
+            if being.access_zone == "public_zone":
+                evolution_changes["access.promoted_from"] = "public_zone"
+                evolution_changes["access.promoted_to"] = "authenticated_zone"
+                evolution_changes["attributes.access_level"] = {"py_type": "str", "default": "authenticated"}
+                being.access_zone = "authenticated_zone"
+                
+        elif access_level_change == "grant_admin":
+            evolution_changes["access.admin_granted"] = True
+            evolution_changes["attributes.admin_capabilities"] = {
+                "py_type": "dict", 
+                "default": {
+                    "can_manage_users": True,
+                    "can_create_souls": True,
+                    "can_modify_access_zones": True
+                }
+            }
+            being.access_zone = "sensitive_zone"
+
+        # Aktualizuj przypisanie do strefy
+        access_controller.assign_being_to_zone(being.ulid, being.access_zone)
+
+    async def get_evolution_history_for_being(self, being_ulid: str) -> List[Dict[str, Any]]:
+        """Zwraca pełną historię ewolucji dla bytu na podstawie relacji"""
+        from database.models.relationship import Relationship
+        
+        evolution_relations = []
+        relationships = await Relationship.get_all()
+        
+        for relationship in relationships:
+            if (relationship.relation_type == "evolution" and 
+                relationship.metadata.get("being_ulid") == being_ulid):
+                evolution_relations.append({
+                    "evolution_id": relationship.id,
+                    "old_soul_hash": relationship.source_id,
+                    "new_soul_hash": relationship.target_id,
+                    "evolution_trigger": relationship.metadata.get("evolution_trigger"),
+                    "processed_by": relationship.metadata.get("processed_by"),
+                    "processed_at": relationship.metadata.get("processed_at"),
+                    "changes_applied": relationship.metadata.get("changes_applied", {}),
+                    "created_at": relationship.created_at.isoformat() if relationship.created_at else None
+                })
+        
+        # Sortuj chronologicznie
+        evolution_relations.sort(key=lambda x: x["processed_at"] or "")
+        return evolution_relations
 
     async def create_new_being(self, being_data: Dict[str, Any]) -> str:
         """Tworzy nowy byt (nowy plik = nowy byt)"""
@@ -452,6 +681,30 @@ class KernelSystem:
             print(f"🆕 Utworzono nowy byt: {being.alias} (hash: {being_hash[:8]}...)")
 
         return being_hash
+
+    async def get_pending_evolution_requests(self) -> List[Dict[str, Any]]:
+        """Zwraca listę wszystkich oczekujących żądań ewolucji"""
+        pending_requests = []
+        
+        for being in self.beings_registry.values():
+            evolution_requests = being.data.get('evolution_requests', [])
+            for i, request in enumerate(evolution_requests):
+                if not request.get('processed'):
+                    pending_requests.append({
+                        "being_ulid": being.ulid,
+                        "being_alias": being.alias,
+                        "request_id": i,
+                        "request": request,
+                        "being_stats": {
+                            "execution_count": being.data.get('execution_count', 0),
+                            "access_zone": being.access_zone,
+                            "created_at": being.created_at.isoformat() if being.created_at else None
+                        }
+                    })
+        
+        # Sortuj po czasie żądania
+        pending_requests.sort(key=lambda x: x["request"]["request_timestamp"])
+        return pending_requests
 
 # Globalna instancja
 kernel_system = KernelSystem()

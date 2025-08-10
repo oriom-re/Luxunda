@@ -1,217 +1,217 @@
 
 #!/usr/bin/env python3
 """
-🧬 Przykład ewolucji Being - jak byty mogą ewoluować i tworzyć nowe Soul
+🧬 Przykład ewolucji Being przez system Kernel
+Demonstracja jak Being może żądać ewolucji, a Kernel ją przeprowadzić.
 """
 
 import asyncio
+from datetime import datetime, timedelta
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
+from luxdb.core.kernel_system import kernel_system
 from luxdb.core.access_control import access_controller
+from database.postgre_db import Postgre_db
 
-async def demo_being_evolution():
-    """Demonstracja mechanizmu ewolucji Being"""
-    print("🧬 DEMO: Being Evolution System")
+
+async def main():
+    print("🧬 LUXDB EVOLUTION SYSTEM DEMO")
     print("=" * 50)
+    print("Demonstracja systemu ewolucji Being przez Kernel")
+    print()
 
-    # 1. Utwórz podstawową Soul dla nowego użytkownika
-    print("\n1. Creating basic user Soul...")
+    # 1. Inicjalizacja systemu
+    print("1. Initializing LuxDB system...")
+    await Postgre_db.initialize()
+    await kernel_system.initialize("default")
+
+    # 2. Utworzenie podstawowego genotypu użytkownika
+    print("\n2. Creating basic user soul...")
     user_genotype = {
         "genesis": {
             "name": "basic_user",
+            "type": "user_profile",
             "version": "1.0.0",
-            "description": "Basic user with limited capabilities"
+            "description": "Basic user with learning capabilities"
         },
         "attributes": {
-            "username": {"py_type": "str"},
-            "email": {"py_type": "str"},
-            "join_date": {"py_type": "str"},
-            "activity_level": {"py_type": "int", "default": 0}
+            "name": {"py_type": "str"},
+            "skill_level": {"py_type": "int", "default": 1},
+            "access_level": {"py_type": "str", "default": "basic"}
         },
-        "functions": {
-            "basic_interaction": {
-                "py_type": "function",
-                "description": "Basic system interaction",
-                "access_required": "public"
-            }
+        "capabilities": {
+            "can_learn": True,
+            "can_interact": True
         }
     }
-    
-    basic_soul = await Soul.create(user_genotype, "basic_user_soul")
-    print(f"✅ Basic soul created: {basic_soul.soul_hash[:8]}...")
 
-    # 2. Utwórz Being z podstawową Soul
-    print("\n2. Creating Being with basic soul...")
-    user_being_result = await Being.set(
-        soul=basic_soul,
-        data={
-            "username": "active_contributor",
-            "email": "contributor@example.com",
-            "join_date": "2025-01-01",
-            "activity_level": 1
-        },
-        alias="active_contributor",
-        access_zone="public_zone"
+    user_soul = await Soul.create(user_genotype, alias="basic_user_soul")
+    print(f"✅ Created user soul: {user_soul.soul_hash[:8]}...")
+
+    # 3. Utworzenie bytu użytkownika
+    print("\n3. Creating user being...")
+    user_data = {
+        "name": "Alice Learning",
+        "skill_level": 1,
+        "access_level": "basic"
+    }
+
+    user_being_result = await Being.set(user_soul, user_data, alias="alice_user")
+    user_being = await Being._get_by_ulid_internal(
+        user_being_result["data"]["being"]["ulid"]
     )
-    
-    user_being = user_being_result['data']['being']
-    print(f"✅ Being created: {user_being.alias} in {user_being.access_zone}")
+    print(f"✅ Created user being: {user_being.alias} ({user_being.ulid[:8]}...)")
 
-    # 3. Symuluj aktywność bytu
-    print("\n3. Simulating being activity...")
+    # 4. Symulacja aktywności aby kwalifikować się do ewolucji
+    print("\n4. Simulating user activity...")
     for i in range(15):
-        # Symuluj wykonywanie funkcji
-        if hasattr(user_being, 'execute_soul_function'):
-            result = await user_being.execute_soul_function("basic_interaction", f"action_{i}")
-        else:
-            # Fallback - bezpośrednie aktualizowanie liczników
-            user_being.data['execution_count'] = user_being.data.get('execution_count', 0) + 1
-            user_being.data['last_execution'] = "2025-01-01T12:00:00"
-            user_being.updated_at = user_being.created_at
-    
-    print(f"📊 Activity completed: {user_being.data.get('execution_count', 0)} executions")
+        user_being.data['execution_count'] = user_being.data.get('execution_count', 0) + 1
+        if i % 5 == 0:
+            print(f"   📊 Execution count: {user_being.data['execution_count']}")
 
-    # 4. Sprawdź możliwości ewolucji
-    print("\n4. Checking evolution potential...")
+    await user_being.save()
+    print(f"✅ Final execution count: {user_being.data['execution_count']}")
+
+    # 5. Sprawdzenie możliwości ewolucji
+    print("\n5. Checking evolution potential...")
     evolution_potential = await user_being.can_evolve()
     print(f"🔍 Can evolve: {evolution_potential['can_evolve']}")
-    print(f"📋 Available evolutions: {len(evolution_potential['available_evolutions'])}")
     
-    for evolution in evolution_potential['available_evolutions']:
-        print(f"   - {evolution['type']}: {evolution['description']}")
+    if evolution_potential['available_evolutions']:
+        print("📋 Available evolutions:")
+        for evo in evolution_potential['available_evolutions']:
+            print(f"   - {evo['type']}: {evo['description']}")
 
-    # 5. Wykonaj ewolucję - awans poziomu dostępu
-    if evolution_potential['can_evolve']:
-        print("\n5. Performing access level evolution...")
-        evolution_result = await user_being.evolve_soul(
-            evolution_trigger="access_level_promotion",
-            access_level_change="promote"
-        )
-        
-        if evolution_result.get('success'):
-            print("✅ Evolution successful!")
-            new_soul_hash = evolution_result['data']['new_soul_hash']
-            print(f"🧬 New soul hash: {new_soul_hash[:8]}...")
-            print(f"🔐 New access zone: {user_being.access_zone}")
-        else:
-            print(f"❌ Evolution failed: {evolution_result.get('error')}")
-
-    # 6. Symuluj dalszą aktywność dla następnej ewolucji
-    print("\n6. Simulating extended activity for advanced evolution...")
-    for i in range(100):
-        user_being.data['execution_count'] = user_being.data.get('execution_count', 0) + 1
-    
-    # Symuluj upływ czasu (w prawdziwym systemie to byłby rzeczywisty czas)
-    from datetime import datetime, timedelta
-    user_being.created_at = datetime.now() - timedelta(days=10)
-    
-    # 7. Sprawdź nowe możliwości ewolucji
-    print("\n7. Checking advanced evolution potential...")
-    advanced_potential = await user_being.can_evolve()
-    print(f"🔍 Advanced evolutions available: {len(advanced_potential['available_evolutions'])}")
-    
-    for evolution in advanced_potential['available_evolutions']:
-        print(f"   - {evolution['type']}: {evolution['description']}")
-
-    # 8. Ewolucja do twórcy Soul
-    creator_evolution = next(
-        (evo for evo in advanced_potential['available_evolutions'] 
-         if evo['type'] == 'soul_creator'), None
+    # 6. Being żąda ewolucji (ale nie może się sam ewoluować)
+    print("\n6. Being requests evolution...")
+    evolution_request_result = await user_being.request_evolution(
+        evolution_trigger="learning_milestone_achieved",
+        new_capabilities={
+            "attributes.advanced_skills": {"py_type": "list", "default": []},
+            "functions.analyze_data": {"py_type": "function", "description": "Advanced data analysis"}
+        },
+        access_level_change="promote"
     )
-    
-    if creator_evolution:
-        print("\n8. Evolving to Soul Creator...")
-        creator_result = await user_being.evolve_soul(
-            evolution_trigger="earned_creator_privileges",
-            access_level_change="grant_creator",
-            new_capabilities={
-                "functions.design_soul": {
-                    "py_type": "function",
-                    "description": "Design and propose new Soul genotypes",
-                    "access_required": "creator"
-                }
-            }
-        )
-        
-        if creator_result.get('success'):
-            print("✅ Creator evolution successful!")
-            print(f"🎨 Being can now create new Souls!")
 
-    # 9. Demonstracja tworzenia nowej Soul przez Being
-    print("\n9. Being creating new Soul...")
-    new_soul_concept = {
-        "genesis": {
-            "name": "specialized_analyst",
-            "version": "1.0.0",
-            "description": "Soul for data analysis specialists",
-            "created_by_community": True
-        },
-        "attributes": {
-            "analysis_type": {"py_type": "str"},
-            "expertise_level": {"py_type": "int", "default": 1},
-            "analysis_history": {"py_type": "list", "default": []}
-        },
-        "functions": {
-            "analyze_data": {
-                "py_type": "function",
-                "description": "Perform specialized data analysis",
-                "access_required": "authenticated"
-            },
-            "generate_insights": {
-                "py_type": "function",
-                "description": "Generate insights from analysis",
-                "access_required": "authenticated"
-            }
-        }
-    }
+    if evolution_request_result.get('success'):
+        print("✅ Evolution request submitted successfully")
+        print(f"   Request ID: {evolution_request_result['data']['request_id']}")
+        print(f"   Message: {evolution_request_result['data']['message']}")
+    else:
+        print(f"❌ Evolution request failed: {evolution_request_result.get('error')}")
+        return
+
+    # 7. Kernel sprawdza oczekujące żądania
+    print("\n7. Kernel checking pending evolution requests...")
+    pending_requests = await kernel_system.get_pending_evolution_requests()
+    print(f"📋 Pending requests: {len(pending_requests)}")
     
-    creation_result = await user_being.propose_soul_creation(new_soul_concept)
+    for request in pending_requests:
+        print(f"   - Being: {request['being_alias']} ({request['being_ulid'][:8]}...)")
+        print(f"     Trigger: {request['request']['evolution_trigger']}")
+        print(f"     Requested: {request['request']['request_timestamp']}")
+
+    # 8. Kernel przetwarza żądanie ewolucji
+    print("\n8. Kernel processing evolution request...")
+    if pending_requests:
+        first_request = pending_requests[0]
+        
+        evolution_result = await kernel_system.process_evolution_request(
+            being_ulid=first_request['being_ulid'],
+            request_id=first_request['request_id'],
+            approve=True,
+            processed_by="admin_kernel"
+        )
+
+        if evolution_result.get('success'):
+            print("✅ Evolution approved and executed!")
+            print(f"   Old soul: {evolution_result['data']['old_soul_hash'][:8]}...")
+            print(f"   New soul: {evolution_result['data']['new_soul_hash'][:8]}...")
+            print(f"   Processed by: {evolution_result['data']['processed_by']}")
+        else:
+            print(f"❌ Evolution processing failed: {evolution_result.get('error')}")
+
+    # 9. Sprawdzenie historii ewolucji przez relacje
+    print("\n9. Checking evolution history from relationships...")
+    evolution_history = await kernel_system.get_evolution_history_for_being(user_being.ulid)
     
-    if creation_result.get('success'):
-        new_soul = creation_result['data']['new_soul']
-        print("✅ New Soul created by Being!")
-        print(f"🧬 New Soul: {new_soul['alias']} ({new_soul['soul_hash'][:8]}...)")
-        print(f"👨‍💻 Created by: {user_being.alias}")
+    print(f"📊 Evolution history entries: {len(evolution_history)}")
+    for i, evolution in enumerate(evolution_history):
+        print(f"\n   Evolution #{i+1}:")
+        print(f"   - From soul: {evolution['old_soul_hash'][:8]}...")
+        print(f"   - To soul: {evolution['new_soul_hash'][:8]}...")
+        print(f"   - Trigger: {evolution['evolution_trigger']}")
+        print(f"   - Processed by: {evolution['processed_by']}")
+        print(f"   - Date: {evolution['processed_at']}")
+
+    # 10. Sprawdzenie aktualnego stanu bytu
+    print("\n10. Checking being's current state...")
+    refreshed_being = await Being.get_by_ulid(user_being.ulid)
+    current_soul = await refreshed_being.get_soul()
+    
+    print(f"🔄 Being {refreshed_being.alias}:")
+    print(f"   - Current soul: {refreshed_being.soul_hash[:8]}...")
+    print(f"   - Access zone: {refreshed_being.access_zone}")
+    print(f"   - Soul version: {current_soul.get_version()}")
+    print(f"   - Parent soul: {current_soul.get_parent_hash()[:8] if current_soul.get_parent_hash() else 'None'}...")
+
+    # 11. Test drugiej ewolucji
+    print("\n11. Testing second evolution request...")
+    
+    # Dodaj więcej aktywności
+    for i in range(50):
+        refreshed_being.data['execution_count'] = refreshed_being.data.get('execution_count', 0) + 1
+
+    # Symuluj upływ czasu
+    refreshed_being.created_at = datetime.now() - timedelta(days=10)
+    await refreshed_being.save()
+
+    # Żądaj kolejnej ewolucji
+    second_evolution = await refreshed_being.request_evolution(
+        evolution_trigger="expert_level_achieved",
+        new_capabilities={
+            "attributes.expert_rating": {"py_type": "float", "default": 0.0},
+            "capabilities.can_mentor": True
+        },
+        access_level_change="grant_creator"
+    )
+
+    if second_evolution.get('success'):
+        print("✅ Second evolution request submitted")
         
-        # 10. Utwórz Being z nową Soul
-        print("\n10. Creating Being with community-created Soul...")
-        analyst_soul = await Soul.get_by_hash(new_soul['soul_hash'])
-        
-        if analyst_soul:
-            analyst_being_result = await Being.set(
-                soul=analyst_soul,
-                data={
-                    "analysis_type": "financial",
-                    "expertise_level": 2
-                },
-                alias="financial_analyst",
-                access_zone="authenticated_zone"
+        # Kernel automatycznie przetwarza
+        pending = await kernel_system.get_pending_evolution_requests()
+        if pending:
+            second_result = await kernel_system.process_evolution_request(
+                being_ulid=pending[0]['being_ulid'],
+                request_id=pending[0]['request_id'],
+                approve=True
             )
             
-            if analyst_being_result.get('success'):
-                analyst_being = analyst_being_result['data']['being']
-                print(f"✅ New specialized Being created: {analyst_being['alias']}")
-                print(f"🔬 Specialized for: {analyst_being['data']['analysis_type']} analysis")
-    else:
-        print(f"❌ Soul creation failed: {creation_result.get('error')}")
+            if second_result.get('success'):
+                print("✅ Second evolution completed!")
 
-    # 11. Podsumowanie ewolucji systemu
+    # 12. Finalna historia ewolucji
+    print("\n12. Final evolution history...")
+    final_history = await kernel_system.get_evolution_history_for_being(user_being.ulid)
+    
+    print(f"📈 Total evolutions: {len(final_history)}")
+    print("\n🌟 EVOLUTION TIMELINE:")
+    for i, evo in enumerate(final_history):
+        print(f"   {i+1}. {evo['processed_at'][:19]} - {evo['evolution_trigger']}")
+        print(f"      Soul: {evo['old_soul_hash'][:8]}... → {evo['new_soul_hash'][:8]}...")
+        print(f"      By: {evo['processed_by']}")
+
     print("\n" + "=" * 50)
-    print("📈 EVOLUTION SUMMARY")
+    print("✨ EVOLUTION SYSTEM DEMO COMPLETED")
     print("=" * 50)
-    print(f"👤 Original Being: {user_being.alias}")
-    print(f"🔄 Evolution count: {len(user_being.data.get('evolution_history', []))}")
-    print(f"🎨 Souls created: {len(user_being.data.get('souls_created', []))}")
-    print(f"🔐 Current access: {user_being.access_zone}")
-    
-    evolution_history = access_controller.get_being_evolution_history(user_being.ulid)
-    print(f"📊 System tracked evolutions: {len(evolution_history)}")
-    
-    print("\n✨ System has successfully demonstrated:")
-    print("   - Being-initiated Soul evolution")
-    print("   - Dynamic access level progression")
-    print("   - Community-driven Soul creation")
-    print("   - Backward compatibility maintenance")
+    print("Key concepts demonstrated:")
+    print("• Being can only REQUEST evolution, not execute it")
+    print("• Kernel has authority to approve/reject evolution")
+    print("• Each evolution creates relationship records")
+    print("• Full evolution history is preserved in relationships")
+    print("• Being maintains continuity through ULID despite soul changes")
+
 
 if __name__ == "__main__":
-    asyncio.run(demo_being_evolution())
+    asyncio.run(main())
