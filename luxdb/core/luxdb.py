@@ -29,38 +29,47 @@ class LuxDB:
     
     def __init__(
         self,
-        host: str,
+        host: str = None,
         port: int = 5432,
         user: str = None,
         password: str = None,
         database: str = None,
         min_connections: int = 1,
         max_connections: int = 5,
+        use_existing_pool: bool = True,
         **kwargs
     ):
         """
         Inicjalizuje LuxDB z parametrami połączenia.
         
         Args:
-            host: Adres serwera PostgreSQL
+            host: Adres serwera PostgreSQL (opcjonalny jeśli use_existing_pool=True)
             port: Port serwera PostgreSQL
             user: Nazwa użytkownika
             password: Hasło
             database: Nazwa bazy danych
             min_connections: Minimalna liczba połączeń w puli
             max_connections: Maksymalna liczba połączeń w puli
+            use_existing_pool: Czy użyć istniejącej puli z database.postgre_db
         """
-        self.connection_manager = ConnectionManager(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            database=database,
-            min_connections=min_connections,
-            max_connections=max_connections,
-            **kwargs
-        )
+        self.use_existing_pool = use_existing_pool
+        
+        if not use_existing_pool and host:
+            self.connection_manager = ConnectionManager(
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                database=database,
+                min_connections=min_connections,
+                max_connections=max_connections,
+                **kwargs
+            )
+        else:
+            self.connection_manager = None
+            
         self._initialized = False
+        self.pool = None
         
     async def initialize(self) -> None:
         """
@@ -68,8 +77,16 @@ class LuxDB:
         """
         if self._initialized:
             return
+        
+        if self.use_existing_pool:
+            # Użyj istniejącej puli z database.postgre_db
+            from database.postgre_db import Postgre_db
+            self.pool = await Postgre_db.get_db_pool()
+        else:
+            # Użyj własnego connection manager
+            await self.connection_manager.initialize()
+            self.pool = await self.connection_manager.get_pool()
             
-        await self.connection_manager.initialize()
         await self._setup_core_tables()
         self._initialized = True
         
@@ -77,15 +94,24 @@ class LuxDB:
         """
         Zamyka wszystkie połączenia z bazą danych.
         """
-        await self.connection_manager.close()
+        if self.connection_manager:
+            await self.connection_manager.close()
+        # Nie zamykamy zewnętrznej puli, bo może być używana przez inne komponenty
         self._initialized = False
+        self.pool = None
         
     async def _setup_core_tables(self) -> None:
         """
         Tworzy podstawowe tabele systemu LuxDB.
         """
-        pool = await self.connection_manager.get_pool()
-        async with pool.acquire() as conn:
+        if not self.pool:
+            if self.connection_manager:
+                self.pool = await self.connection_manager.get_pool()
+            else:
+                from database.postgre_db import Postgre_db
+                self.pool = await Postgre_db.get_db_pool()
+                
+        async with self.pool.acquire() as conn:
             # Włącz rozszerzenia PostgreSQL
             await conn.execute("""
                 CREATE EXTENSION IF NOT EXISTS vector;
@@ -156,8 +182,14 @@ class LuxDB:
             Słownik z informacjami o stanie bazy danych
         """
         try:
-            pool = await self.connection_manager.get_pool()
-            async with pool.acquire() as conn:
+            if not self.pool:
+                if self.connection_manager:
+                    self.pool = await self.connection_manager.get_pool()
+                else:
+                    from database.postgre_db import Postgre_db
+                    self.pool = await Postgre_db.get_db_pool()
+                    
+            async with self.pool.acquire() as conn:
                 # Sprawdź połączenie
                 result = await conn.fetchval("SELECT 1")
                 
@@ -172,7 +204,7 @@ class LuxDB:
                     "souls_count": souls_count,
                     "beings_count": beings_count,
                     "relationships_count": relationships_count,
-                    "pool_size": pool.get_size(),
+                    "pool_size": self.pool.get_size() if hasattr(self.pool, 'get_size') else "unknown",
                     "initialized": self._initialized
                 }
         except Exception as e:

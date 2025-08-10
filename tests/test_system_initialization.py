@@ -62,16 +62,20 @@ class TestSystemInitialization:
     async def test_luxdb_initialization(self):
         """Test inicjalizacji głównej klasy LuxDB"""
         try:
-            luxdb = LuxDB(**self.test_db_config)
+            # Używaj istniejącej puli zamiast tworzenia nowej
+            luxdb = LuxDB(use_existing_pool=True)
             await luxdb.initialize()
             
             # Test czy LuxDB jest poprawnie zainicjalizowane
             assert luxdb.pool is not None
+            assert luxdb._initialized is True
             
             # Test podstawowych operacji
-            status = await luxdb.get_system_status()
-            assert isinstance(status, dict)
+            health = await luxdb.health_check()
+            assert isinstance(health, dict)
+            assert health.get('status') in ['healthy', 'error']
             
+            await luxdb.close()
             return True
             
         except Exception as e:
