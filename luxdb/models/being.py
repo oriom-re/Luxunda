@@ -560,7 +560,7 @@ class Being:
     @classmethod
     async def find_function_being(cls, identifier: str, search_type: str = "auto") -> Optional['Being']:
         """
-        Znajduje Being funkcji po hash lub alias.
+        Znajduje Being funkcji - używa zwykłych metod Soul.get().
 
         Args:
             identifier: Hash lub alias funkcji
@@ -569,23 +569,23 @@ class Being:
         Returns:
             Being funkcji lub None
         """
-        from .soul import Soul # Import Soul here to avoid circular dependency if Soul uses Being
+        from .soul import Soul
         soul = None
 
         if search_type == "hash":
-            soul = await Soul.find_function_by_hash(identifier)
+            soul = await Soul.get_by_hash(identifier)
         elif search_type == "alias":
-            soul = await Soul.find_function_by_alias(identifier)
+            soul = await Soul.get_by_alias(identifier)
         else:  # auto
             # Spróbuj najpierw po hash, potem po alias
-            soul = await Soul.find_function_by_hash(identifier)
+            soul = await Soul.get_by_hash(identifier)
             if not soul:
-                soul = await Soul.find_function_by_alias(identifier)
+                soul = await Soul.get_by_alias(identifier)
 
-        if not soul:
+        if not soul or soul.genotype.get("genesis", {}).get("type") != "function":
             return None
 
-        # Utwórz Being z duszy funkcji
+        # Utwórz Being z Soul funkcji
         being_result = await cls.set(
             soul=soul,
             data=soul.get_default_data(),

@@ -88,7 +88,7 @@ class FunctionRegistry:
     
     async def find_function_soul(self, identifier: str, search_type: str = "auto"):
         """
-        Znajduje duszę funkcji po hash lub alias.
+        Znajduje Soul funkcji - używa zwykłych metod Soul.get().
         
         Args:
             identifier: Hash lub alias funkcji  
@@ -100,14 +100,14 @@ class FunctionRegistry:
         from ..models.soul import Soul
         
         if search_type == "hash":
-            return await Soul.find_function_by_hash(identifier)
+            return await Soul.get_by_hash(identifier)
         elif search_type == "alias":
-            return await Soul.find_function_by_alias(identifier)
+            return await Soul.get_by_alias(identifier)
         else:  # auto
             # Spróbuj najpierw po hash, potem po alias
-            soul = await Soul.find_function_by_hash(identifier)
+            soul = await Soul.get_by_hash(identifier)
             if not soul:
-                soul = await Soul.find_function_by_alias(identifier)
+                soul = await Soul.get_by_alias(identifier)
             return soul
     
     async def exec_function_by_soul(self, identifier: str, *args, **kwargs):
