@@ -1,4 +1,3 @@
-
 """
 Communication System - Event-driven communication through database
 """
@@ -18,13 +17,14 @@ class CommunicationSystem:
     """
     System komunikacji oparty na eventach w bazie danych
     """
-    
+
     def __init__(self):
         self.backend_listeners: Dict[str, DatabaseEventListener] = {}
         self.frontend_connections: Dict[str, Dict[str, Any]] = {}
         self.event_handlers: Dict[str, List[Callable]] = {}
+        self.main_backend_listener = None
         self.is_active = False
-        
+
     async def initialize(self):
         """Inicjalizuje system komunikacji"""
         # Sprawdź czy event_bus jest dostępny
@@ -35,7 +35,7 @@ class CommunicationSystem:
             print("⚠️ Event system not available, using basic communication")
             self.is_active = False
             return
-            
+
         # Utwórz główny listener backendu jeśli event_bus jest dostępny
         try:
             # self.main_backend_listener = await event_bus.create_listener("main_backend")
@@ -43,41 +43,41 @@ class CommunicationSystem:
         except Exception as e:
             print(f"⚠️ Event bus initialization failed: {e}")
             self.is_active = False
-        
+
         # Subskrybuj kluczowe eventy
         self.main_backend_listener.subscribe("user_login", self._handle_user_login)
         self.main_backend_listener.subscribe("user_logout", self._handle_user_logout)
         self.main_backend_listener.subscribe("connection_heartbeat", self._handle_heartbeat)
         self.main_backend_listener.subscribe("frontend_event", self._handle_frontend_event)
         self.main_backend_listener.subscribe("lux_response", self._handle_lux_response)
-        
+
         # Uruchom listener
         asyncio.create_task(self.main_backend_listener.start_listening(poll_interval=0.5))
-        
+
         print("📡 Communication System initialized")
-    
+
     async def _handle_user_login(self, event_data: Dict[str, Any]):
         """Obsługuje logowanie użytkownika"""
         user_ulid = event_data.get("user_ulid")
         session_id = event_data.get("session_id")
         connection_ulid = event_data.get("connection_ulid")
-        
+
         if not all([user_ulid, session_id, connection_ulid]):
             return
-        
+
         # Utwórz dedykowany listener dla użytkownika
         user_listener = await event_bus.create_listener(f"user_{user_ulid}")
-        
+
         # Subskrybuj eventy specyficzne dla tego użytkownika
         user_listener.subscribe("stream_data", lambda data: self._handle_user_stream(user_ulid, data))
         user_listener.subscribe("notification", lambda data: self._handle_user_notification(user_ulid, data))
         user_listener.subscribe("being_update", lambda data: self._handle_being_update(user_ulid, data))
-        
+
         # Uruchom listener użytkownika
         asyncio.create_task(user_listener.start_listening(poll_interval=0.3))
-        
+
         self.backend_listeners[user_ulid] = user_listener
-        
+
         # Wyślij potwierdzenie połączenia
         await self.send_to_frontend(connection_ulid, {
             "type": "connection_established",
@@ -86,19 +86,19 @@ class CommunicationSystem:
             "status": "authenticated",
             "timestamp": datetime.now().isoformat()
         })
-        
+
         print(f"🔗 User communication established: {user_ulid[:8]}...")
-    
+
     async def _handle_user_logout(self, event_data: Dict[str, Any]):
         """Obsługuje wylogowanie użytkownika"""
         user_ulid = event_data.get("user_ulid")
         connection_ulid = event_data.get("connection_ulid")
-        
+
         if user_ulid in self.backend_listeners:
             # Zatrzymaj listener użytkownika
             self.backend_listeners[user_ulid].stop_listening()
             del self.backend_listeners[user_ulid]
-        
+
         # Wyślij potwierdzenie rozłączenia
         if connection_ulid:
             await self.send_to_frontend(connection_ulid, {
@@ -107,13 +107,13 @@ class CommunicationSystem:
                 "reason": "logout",
                 "timestamp": datetime.now().isoformat()
             })
-        
+
         print(f"🔌 User communication closed: {user_ulid[:8]}...")
-    
+
     async def _handle_heartbeat(self, event_data: Dict[str, Any]):
         """Obsługuje heartbeat połączeń"""
         connection_ulid = event_data.get("connection_ulid")
-        
+
         if connection_ulid:
             # Aktualizuj status połączenia w bazie
             await Event.create_event(
@@ -124,70 +124,70 @@ class CommunicationSystem:
                     "last_seen": datetime.now().isoformat()
                 }
             )
-    
+
     async def _handle_frontend_event(self, event_data: Dict[str, Any]):
         """Obsługuje eventy z frontendu"""
         event_type = event_data.get("event_type")
         user_ulid = event_data.get("user_ulid")
         payload = event_data.get("payload", {})
-        
+
         if event_type == "lux_message":
             # Przekaż wiadomość do Lux Assistant
             await self._forward_to_lux_assistant(user_ulid, payload)
-        
+
         elif event_type == "being_action":
             # Obsłuż akcję na bycie
             await self._handle_being_action(user_ulid, payload)
-        
+
         elif event_type == "stream_request":
             # Rozpocznij streaming danych
             await self._start_data_stream(user_ulid, payload)
-        
+
         print(f"📥 Frontend event processed: {event_type}")
-    
+
     async def _forward_to_lux_assistant(self, user_ulid: str, payload: Dict[str, Any]):
         """Przekazuje wiadomość do Lux Assistant"""
         from .auth_session import auth_manager
-        
+
         # Znajdź aktywną sesję użytkownika
         user_session = None
         for session_data in auth_manager.active_sessions.values():
             if session_data.get("user_ulid") == user_ulid:
                 user_session = session_data
                 break
-        
+
         if not user_session:
             return
-        
+
         # Pobierz Lux Assistant
         from .session_assistant import session_manager
         lux_assistant = await session_manager.get_session(user_session.get("lux_assistant_id"))
-        
+
         if lux_assistant:
             message_content = payload.get("message", "")
             response = await lux_assistant.process_message(message_content)
-            
+
             # Wyślij odpowiedź z powrotem do frontendu
             await self.send_to_frontend(user_session["connection_ulid"], {
                 "type": "lux_response",
                 "message": response,
                 "timestamp": datetime.now().isoformat()
             })
-    
+
     async def _handle_user_stream(self, user_ulid: str, event_data: Dict[str, Any]):
         """Obsługuje stream danych dla użytkownika"""
         stream_type = event_data.get("stream_type")
         data = event_data.get("data")
-        
+
         # Znajdź connection_ulid dla użytkownika
         from .auth_session import auth_manager
         connection_ulid = None
-        
+
         for session_data in auth_manager.active_sessions.values():
             if session_data.get("user_ulid") == user_ulid:
                 connection_ulid = session_data.get("connection_ulid")
                 break
-        
+
         if connection_ulid:
             await self.send_to_frontend(connection_ulid, {
                 "type": "stream_data",
@@ -195,22 +195,22 @@ class CommunicationSystem:
                 "data": data,
                 "timestamp": datetime.now().isoformat()
             })
-    
+
     async def _handle_user_notification(self, user_ulid: str, event_data: Dict[str, Any]):
         """Obsługuje notyfikacje dla użytkownika"""
         notification_type = event_data.get("notification_type")
         message = event_data.get("message")
         priority = event_data.get("priority", "normal")
-        
+
         # Znajdź connection_ulid dla użytkownika
         from .auth_session import auth_manager
         connection_ulid = None
-        
+
         for session_data in auth_manager.active_sessions.values():
             if session_data.get("user_ulid") == user_ulid:
                 connection_ulid = session_data.get("connection_ulid")
                 break
-        
+
         if connection_ulid:
             await self.send_to_frontend(connection_ulid, {
                 "type": "notification",
@@ -219,22 +219,22 @@ class CommunicationSystem:
                 "priority": priority,
                 "timestamp": datetime.now().isoformat()
             })
-    
+
     async def _handle_being_update(self, user_ulid: str, event_data: Dict[str, Any]):
         """Obsługuje aktualizacje bytów"""
         being_ulid = event_data.get("being_ulid")
         update_type = event_data.get("update_type")
         changes = event_data.get("changes", {})
-        
+
         # Znajdź connection_ulid dla użytkownika
         from .auth_session import auth_manager
         connection_ulid = None
-        
+
         for session_data in auth_manager.active_sessions.values():
             if session_data.get("user_ulid") == user_ulid:
                 connection_ulid = session_data.get("connection_ulid")
                 break
-        
+
         if connection_ulid:
             await self.send_to_frontend(connection_ulid, {
                 "type": "being_update",
@@ -243,7 +243,7 @@ class CommunicationSystem:
                 "changes": changes,
                 "timestamp": datetime.now().isoformat()
             })
-    
+
     async def send_to_frontend(self, connection_ulid: str, data: Dict[str, Any]):
         """Wysyła dane do frontendu przez event w bazie"""
         await Event.create_event(
@@ -254,9 +254,9 @@ class CommunicationSystem:
                 "priority": data.get("priority", "normal")
             }
         )
-        
+
         print(f"📤 Message sent to frontend: {connection_ulid[:8]}... ({data.get('type', 'unknown')})")
-    
+
     async def send_notification_to_user(self, user_ulid: str, notification_type: str, message: str, priority: str = "normal"):
         """Wysyła notyfikację do konkretnego użytkownika"""
         await Event.create_event(
@@ -268,11 +268,11 @@ class CommunicationSystem:
                 "priority": priority
             }
         )
-    
+
     async def broadcast_to_all_users(self, message_type: str, data: Dict[str, Any]):
         """Broadcastuje wiadomość do wszystkich aktywnych użytkowników"""
         from .auth_session import auth_manager
-        
+
         for session_data in auth_manager.active_sessions.values():
             connection_ulid = session_data.get("connection_ulid")
             if connection_ulid:
@@ -281,7 +281,7 @@ class CommunicationSystem:
                     **data,
                     "timestamp": datetime.now().isoformat()
                 })
-    
+
     async def start_data_stream_for_user(self, user_ulid: str, stream_type: str, stream_config: Dict[str, Any]):
         """Rozpoczyna streaming danych dla użytkownika"""
         await Event.create_event(
@@ -293,7 +293,7 @@ class CommunicationSystem:
                 "action": "start"
             }
         )
-    
+
     async def stop_data_stream_for_user(self, user_ulid: str, stream_type: str):
         """Zatrzymuje streaming danych dla użytkownika"""
         await Event.create_event(

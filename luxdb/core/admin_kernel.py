@@ -14,8 +14,12 @@ from contextlib import asynccontextmanager
 from luxdb.models.being import Being
 from luxdb.models.soul import Soul
 
-# Import kernel_system - będzie zaimportowany dynamicznie
-kernel_system = None
+# Import kernel_system
+try:
+    from .kernel_system import kernel_system
+except ImportError:
+    # Fallback if not available
+    kernel_system = None
 
 logger = logging.getLogger(__name__)
 

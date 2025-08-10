@@ -1,7 +1,6 @@
-
 {
   "name": "Advanced LuxOS Scenario",
-  "version": "1.0.0", 
+  "version": "1.0.0",
   "description": "Zaawansowany scenariusz z dodatkowymi komponentami",
   "beings": [
     {
@@ -10,15 +9,13 @@
       "soul_alias": "kernel_soul",
       "genotype": {
         "genesis": {
-          "name": "advanced_kernel",
+          "name": "kernel_system",
           "type": "system_kernel",
-          "version": "2.0.0",
-          "description": "Zaawansowany kernel systemu LuxOS"
+          "version": "1.0.0"
         },
         "attributes": {
-          "system_role": "kernel",
-          "priority": 100,
-          "advanced_features": ["ai_integration", "auto_scaling", "predictive_management"]
+          "system_role": {"py_type": "str"},
+          "priority": {"py_type": "int"}
         }
       },
       "attributes": {
@@ -30,20 +27,17 @@
     },
     {
       "alias": "ai_assistant",
-      "type": "ai_agent",
+      "type": "ai_entity",
       "soul_alias": "ai_soul",
       "genotype": {
         "genesis": {
           "name": "ai_assistant",
-          "type": "ai_agent",
-          "version": "1.0.0",
-          "description": "Asystent AI systemu"
+          "type": "ai_entity",
+          "version": "1.0.0"
         },
         "attributes": {
-          "system_role": "assistant",
-          "priority": 85,
-          "ai_models": ["gpt-4", "embedding"],
-          "capabilities": ["conversation", "analysis", "decision_support"]
+          "capabilities": {"py_type": "list"},
+          "priority": {"py_type": "int"}
         }
       },
       "attributes": {
@@ -55,20 +49,17 @@
     },
     {
       "alias": "data_processor",
-      "type": "data_engine",
+      "type": "data_entity",
       "soul_alias": "data_soul",
       "genotype": {
         "genesis": {
           "name": "data_processor",
-          "type": "data_engine",
-          "version": "1.0.0",
-          "description": "Procesor danych systemu"
+          "type": "data_entity",
+          "version": "1.0.0"
         },
         "attributes": {
-          "system_role": "data_processing",
-          "priority": 80,
-          "processing_types": ["streaming", "batch", "realtime"],
-          "storage_backends": ["postgresql", "memory"]
+          "capabilities": {"py_type": "list"},
+          "priority": {"py_type": "int"}
         }
       },
       "attributes": {
