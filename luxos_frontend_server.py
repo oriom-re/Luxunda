@@ -65,9 +65,9 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         print(f"❌ Błąd połączenia z bazą: {e}")
-    
+
     yield
-    
+
     # Shutdown
     if db_pool:
         await db_pool.close()
@@ -674,25 +674,40 @@ async def get_status():
 @app.get("/api/beings/specialists")
 async def get_specialist_beings():
     """Pobiera listę bytów specjalistów"""
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Brak połączenia z bazą")
+
     try:
-        # Zwróć przykładowych specjalistów - system jest w fazie inicjalizacji
-        specialists = [
-            {
-                "soul_hash": "specialist_technical_001",
-                "alias": "technical_specialist", 
-                "specialization": "technical_support",
-                "functions": ["debug_code", "analyze_error", "suggest_fix"]
-            },
-            {
-                "soul_hash": "specialist_data_001", 
-                "alias": "data_specialist",
-                "specialization": "data_analysis", 
-                "functions": ["analyze_data", "create_report", "visualize_trends"]
-            }
-        ]
-        return specialists
+        async with db_pool.acquire() as conn:
+            # Fetch beings that are marked as specialists (e.g., via data->>'type' = 'specialist')
+            # This is a placeholder logic; the actual method to identify specialists might differ.
+            # For now, we'll use a dummy query and return predefined specialists.
+            # In a real scenario, you'd query your 'beings' table for specialist types.
+
+            # Example query if 'type' is stored in data JSONB:
+            # specialists_db = await conn.fetch("""
+            #     SELECT ulid, alias, data FROM beings WHERE data->>'type' = 'specialist'
+            # """)
+
+            # Dummy data as per the original code's intention
+            specialists = [
+                {
+                    "soul_hash": "specialist_technical_001",
+                    "alias": "technical_specialist", 
+                    "specialization": "technical_support",
+                    "functions": ["debug_code", "analyze_error", "suggest_fix"]
+                },
+                {
+                    "soul_hash": "specialist_data_001", 
+                    "alias": "data_specialist",
+                    "specialization": "data_analysis", 
+                    "functions": ["analyze_data", "create_report", "visualize_trends"]
+                }
+            ]
+            return specialists
     except Exception as e:
         print(f"Error getting specialists: {e}")
+        # Return empty list on error to avoid breaking the frontend
         return []
 
 @app.post("/api/lux/message")
@@ -767,7 +782,7 @@ async def process_with_specialist_chain(message: str, lux_assistant):
         # Get available functions from Lux's genesis
         # The genotype structure might vary, assuming 'functions' is a dict where keys are function names
         available_functions = lux_soul.genotype.get("functions", {})
-        
+
         if not available_functions:
             print("No functions defined for Lux, falling back to direct processing.")
             return await lux_assistant.process_message(message)
