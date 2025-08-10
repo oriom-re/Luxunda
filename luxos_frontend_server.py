@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import asyncpg
+import os # Added for os.listdir
 
 app = FastAPI(title="LuxOS Frontend API")
 
@@ -641,6 +642,221 @@ async def get_bios_scenario():
             ]
         }
 
+@app.get("/api/scenarios")
+async def get_scenarios():
+    """Endpoint do pobierania scenariuszy"""
+    try:
+        scenarios = []
+        for file in os.listdir("scenarios"):
+            if file.endswith(".json"):
+                with open(f"scenarios/{file}", "r", encoding="utf-8") as f:
+                    scenario = json.load(f)
+                    scenario["id"] = file.replace(".json", "")
+                    scenarios.append(scenario)
+
+        return {"scenarios": scenarios}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading scenarios: {str(e)}")
+
+@app.get("/api/status")
+async def get_status():
+    """Status endpoint dla frontendu"""
+    return {
+        "status": "ok",
+        "service": "LuxOS Frontend Server",
+        "lux_assistant_ready": True,
+        "specialists_available": True
+    }
+
+@app.get("/api/beings/specialists")
+async def get_specialist_beings():
+    """Pobiera listę bytów specjalistów"""
+    try:
+        from luxdb.models.soul import Soul
+        from luxdb.models.being import Being
+
+        # Znajdź souls oznaczone jako specjaliści
+        # Assuming Soul.get_all() fetches all souls and we filter here
+        # If Soul.get_all() is not available, this part needs to be adapted
+        # For now, we'll simulate it if it doesn't exist, or assume it works
+        
+        # Placeholder if Soul.get_all() doesn't exist in your setup
+        # You might need to query the database directly for souls with specialist genotype
+        all_souls = []
+        if hasattr(Soul, 'get_all'):
+            all_souls = await Soul.get_all()
+        else:
+            # Mock or direct DB query if get_all is not a method
+            if db_pool:
+                async with db_pool.acquire() as conn:
+                    rows = await conn.fetch("SELECT * FROM souls")
+                    # This part assumes Soul class can be instantiated from DB rows
+                    # You might need a helper function or adapt it
+                    for row in rows:
+                        # Mocking Soul instantiation for demonstration
+                        mock_soul = Soul(soul_hash=row['soul_hash'], alias=row['alias'], genotype=row['genotype'])
+                        all_souls.append(mock_soul)
+            else:
+                print("DB pool not available to fetch souls")
+
+
+        specialists = []
+
+        for soul in all_souls:
+            if soul.genotype.get("genesis", {}).get("type") == "specialist":
+                specialists.append({
+                    "soul_hash": soul.soul_hash,
+                    "alias": soul.alias,
+                    "specialization": soul.genotype.get("specialization", "general"),
+                    "functions": list(soul.genotype.get("functions", {}).keys())
+                })
+
+        return specialists
+    except Exception as e:
+        print(f"Error getting specialists: {e}")
+        return []
+
+@app.post("/api/lux/message")
+async def process_lux_message(request: dict):
+    """Endpoint do przetwarzania wiadomości przez Lux z łańcuchem specjalistów"""
+    try:
+        message = request.get("message", "")
+        use_specialists = request.get("use_specialists", True)
+
+        if not message:
+            raise HTTPException(status_code=400, detail="Message is required")
+
+        # Import locally to avoid circular imports or direct dependency issues
+        # Assuming luxdb.core.session_assistant and luxdb.models.soul, luxdb.models.being are correctly set up
+        try:
+            from luxdb.core.session_assistant import session_manager
+            from luxdb.models.soul import Soul
+            from luxdb.models.being import Being
+        except ImportError as e:
+            print(f"Could not import Lux dependencies: {e}. Ensure luxdb is installed and accessible.")
+            raise HTTPException(status_code=500, detail="Internal Lux dependency error")
+
+
+        # Get or create main Lux assistant
+        # This function needs to be defined or available in session_manager
+        # Assuming it returns an object that has a 'process_message' method and 'get_soul' method
+        lux_assistant = await session_manager.get_or_create_lux_assistant()
+
+        if use_specialists:
+            # Process with specialist chain
+            response = await process_with_specialist_chain(message, lux_assistant)
+        else:
+            # Direct processing
+            response = await lux_assistant.process_message(message)
+
+        return {
+            "response": response,
+            "specialists_used": getattr(lux_assistant, 'last_specialists_used', []),
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        print(f"Error in Lux message processing: {e}")
+        # Provide a more informative error for debugging
+        raise HTTPException(status_code=500, detail=f"Error processing message: {str(e)}")
+
+async def process_with_specialist_chain(message: str, lux_assistant):
+    """Przetwarza wiadomość przez łańcuch specjalistów"""
+    try:
+        # Ensure dependencies are available within this function scope as well
+        from luxdb.models.soul import Soul
+        from luxdb.models.being import Being
+
+        # Reset specialists used for this turn
+        lux_assistant.last_specialists_used = []
+
+        # Get Lux's soul to access its genesis and functions
+        lux_soul = await lux_assistant.get_soul()
+        if not lux_soul:
+            print("Lux soul not found, falling back to direct processing.")
+            return await lux_assistant.process_message(message)
+
+        # Get available functions from Lux's genesis
+        # The genotype structure might vary, assuming 'functions' is a dict where keys are function names
+        available_functions = lux_soul.genotype.get("functions", {})
+        
+        if not available_functions:
+            print("No functions defined for Lux, falling back to direct processing.")
+            return await lux_assistant.process_message(message)
+
+        # Try to match message to appropriate specialist function
+        matched_function_name = await match_message_to_function(message, available_functions)
+
+        if matched_function_name:
+            print(f"Matched message to function: {matched_function_name}")
+            # Execute the function which should delegate to specialist logic
+            # Assuming the Soul object has an `execute_function` method that takes function name and message
+            # and returns a dict like `{"success": True, "data": {"result": "..."}}`
+            result = await lux_soul.execute_function(matched_function_name, message)
+
+            if result.get("success"):
+                # If function succeeded, use its result
+                specialist_response = result["data"]["result"]
+                lux_assistant.last_specialists_used.append(matched_function_name)
+                print(f"Specialist '{matched_function_name}' executed successfully.")
+
+                # Let Lux formulate final response based on specialist input
+                # Assuming `formulate_response` method exists on the assistant
+                final_response = await lux_assistant.formulate_response(message, specialist_response)
+                return final_response
+            else:
+                print(f"Specialist function '{matched_function_name}' failed: {result.get('error', 'Unknown error')}")
+        else:
+            print("No suitable specialist function matched, falling back to direct processing.")
+
+        # Fallback to direct processing if no specialist was matched or if it failed
+        return await lux_assistant.process_message(message)
+
+    except Exception as e:
+        print(f"Error in specialist chain processing: {e}")
+        # Attempt to use the assistant's default message processing if chain fails
+        try:
+            return await lux_assistant.process_message(message)
+        except:
+            return f"An error occurred while processing your request with specialists, and direct processing also failed: {str(e)}"
+
+async def match_message_to_function(message: str, available_functions: dict) -> Optional[str]:
+    """Dopasowuje wiadomość do odpowiedniej funkcji specjalisty"""
+    message_lower = message.lower()
+
+    # Define keywords for different specialist functions
+    # This mapping should ideally be part of the specialist's definition (e.g., in genotype)
+    # For now, we use a hardcoded mapping.
+    function_keywords = {
+        "technical_help": ["kod", "bug", "błąd", "programowanie", "python", "javascript", "debug"],
+        "data_analysis": ["dane", "analiza", "statystyki", "wykres", "raport", "tabela"],
+        "creative_writing": ["napisz", "utwórz", "opowieść", "artykuł", "tekst", "wiersz", "opowiadanie"],
+        "math_help": ["oblicz", "matematyka", "równanie", "procent", "suma", "różnica", "iloczyn"],
+        "general_query": ["co", "jak", "dlaczego", "gdzie", "kiedy", "kim", "czy"] # General questions
+    }
+
+    matched_function = None
+
+    # Iterate through defined specialist functions and their keywords
+    for func_name, keywords in function_keywords.items():
+        # Check if the function name exists in Lux's available functions
+        if func_name in available_functions:
+            # Check if any keyword from the list is present in the user's message
+            if any(keyword in message_lower for keyword in keywords):
+                matched_function = func_name
+                break # Use the first matched function
+
+    # If no specific function matched, try to find a general purpose one or fallback
+    if not matched_function:
+        # If a "general_query" type function is available, use it as a fallback
+        if "general_query" in available_functions:
+            matched_function = "general_query"
+        # As a last resort, if any function is available, return the first one
+        elif available_functions:
+            matched_function = next(iter(available_functions.keys()))
+
+    return matched_function
+
 @app.post("/api/chat")
 async def chat_with_lux(request: Request):
     """Endpoint do komunikacji z asystentem Lux z kontekstem ostatnich 10 wiadomości"""
@@ -655,7 +871,11 @@ async def chat_with_lux(request: Request):
         # Pobierz lub utwórz sesję dla użytkownika
         session_id = request.headers.get("session-id")
 
-        from luxdb.core.session_assistant import session_manager
+        # Import session_manager locally
+        try:
+            from luxdb.core.session_assistant import session_manager
+        except ImportError:
+            return JSONResponse({"error": "Lux session manager not found."}, status_code=500)
 
         try:
             if session_id:
@@ -669,7 +889,7 @@ async def chat_with_lux(request: Request):
                 assistant = await session_manager.create_session(fingerprint)
                 session_id = assistant.session.session_id
 
-            # Przetworz wiadomość z kontekstem
+            # Przetwórz wiadomość z kontekstem
             response = await assistant.process_message(message)
 
             return JSONResponse({
@@ -685,7 +905,7 @@ async def chat_with_lux(request: Request):
             try:
                 global_lux = await session_manager.get_global_lux()
                 if global_lux:
-                    response = await global_lux.chat(message)
+                    response = await global_lux.chat(message) # Assuming global_lux has a 'chat' method
                     return JSONResponse({
                         "response": response,
                         "session_id": None,
@@ -693,8 +913,9 @@ async def chat_with_lux(request: Request):
                         "context_loaded": False,
                         "fallback": True
                     })
-            except:
-                pass
+            except Exception as global_e:
+                print(f"❌ Błąd globalnego asystenta: {global_e}")
+                pass # Continue to ultimate fallback
 
             # Ostateczny fallback
             return JSONResponse({

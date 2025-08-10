@@ -647,3 +647,298 @@ document.addEventListener('DOMContentLoaded', async () => {
         }));
     }
 });
+/**
+ * LuxOS Frontend Kernel - System komunikacji z asystentem Lux
+ */
+class LuxOSKernel {
+    constructor() {
+        this.isInitialized = false;
+        this.assistantReady = false;
+        this.conversationHistory = [];
+        this.specialistBeings = new Map();
+        this.chainProcessing = false;
+    }
+
+    async initialize() {
+        try {
+            console.log('🚀 Initializing LuxOS Kernel...');
+            
+            // Initialize communication with backend
+            await this.setupCommunication();
+            
+            // Initialize specialist beings registry
+            await this.loadSpecialistBeings();
+            
+            // Setup conversation interface
+            this.setupConversationInterface();
+            
+            this.isInitialized = true;
+            this.assistantReady = true;
+            
+            console.log('✅ LuxOS Kernel initialized successfully');
+            this.displayWelcomeMessage();
+            
+        } catch (error) {
+            console.error('❌ Błąd inicjalizacji:', error);
+            this.displayErrorMessage('Initialization failed: ' + error.message);
+        }
+    }
+
+    async setupCommunication() {
+        // Setup WebSocket or fetch-based communication
+        this.apiBase = window.location.origin;
+        
+        // Test connection
+        const response = await fetch(`${this.apiBase}/api/status`);
+        if (!response.ok) {
+            throw new Error('Failed to connect to backend');
+        }
+        
+        const status = await response.json();
+        console.log('📡 Backend connection established:', status);
+    }
+
+    async loadSpecialistBeings() {
+        try {
+            const response = await fetch(`${this.apiBase}/api/beings/specialists`);
+            if (response.ok) {
+                const specialists = await response.json();
+                specialists.forEach(being => {
+                    this.specialistBeings.set(being.alias, being);
+                });
+                console.log(`🧬 Loaded ${specialists.length} specialist beings`);
+            }
+        } catch (error) {
+            console.warn('⚠️ Could not load specialist beings:', error);
+        }
+    }
+
+    setupConversationInterface() {
+        // Create conversation container if it doesn't exist
+        let chatContainer = document.getElementById('lux-chat');
+        if (!chatContainer) {
+            chatContainer = document.createElement('div');
+            chatContainer.id = 'lux-chat';
+            chatContainer.innerHTML = `
+                <div id="lux-messages" class="messages-container"></div>
+                <div class="input-container">
+                    <input type="text" id="lux-input" placeholder="Napisz wiadomość do Lux..." />
+                    <button id="lux-send" onclick="luxKernel.sendMessage()">Wyślij</button>
+                </div>
+            `;
+            document.body.appendChild(chatContainer);
+        }
+
+        // Setup input handler
+        const input = document.getElementById('lux-input');
+        if (input) {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.sendMessage();
+                }
+            });
+        }
+
+        // Add basic styling
+        this.addBasicStyles();
+    }
+
+    addBasicStyles() {
+        if (document.getElementById('lux-styles')) return;
+        
+        const style = document.createElement('style');
+        style.id = 'lux-styles';
+        style.textContent = `
+            #lux-chat {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                width: 400px;
+                height: 500px;
+                background: white;
+                border: 2px solid #0066cc;
+                border-radius: 10px;
+                display: flex;
+                flex-direction: column;
+                font-family: Arial, sans-serif;
+                z-index: 1000;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            }
+            
+            .messages-container {
+                flex: 1;
+                overflow-y: auto;
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+            }
+            
+            .input-container {
+                display: flex;
+                padding: 10px;
+                gap: 10px;
+            }
+            
+            #lux-input {
+                flex: 1;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            
+            #lux-send {
+                padding: 8px 16px;
+                background: #0066cc;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            
+            .message {
+                margin: 10px 0;
+                padding: 8px 12px;
+                border-radius: 8px;
+                max-width: 80%;
+            }
+            
+            .message.user {
+                background: #e3f2fd;
+                margin-left: auto;
+                text-align: right;
+            }
+            
+            .message.assistant {
+                background: #f5f5f5;
+            }
+            
+            .message.system {
+                background: #fff3cd;
+                font-style: italic;
+                text-align: center;
+            }
+            
+            .processing {
+                color: #666;
+                font-style: italic;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    displayWelcomeMessage() {
+        this.addMessage('system', '🌟 Lux Assistant gotowa do rozmowy! Mam dostęp do zespołu specjalistów.');
+    }
+
+    displayErrorMessage(message) {
+        this.addMessage('system', '❌ ' + message);
+    }
+
+    addMessage(type, content) {
+        const messagesContainer = document.getElementById('lux-messages');
+        if (!messagesContainer) return;
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}`;
+        messageDiv.textContent = content;
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    async sendMessage() {
+        const input = document.getElementById('lux-input');
+        if (!input || !input.value.trim()) return;
+
+        const message = input.value.trim();
+        input.value = '';
+
+        // Add user message to chat
+        this.addMessage('user', message);
+        
+        // Show processing
+        this.addMessage('system', '🤖 Lux przetwarza wiadomość...');
+
+        try {
+            // Send to backend for processing
+            const response = await this.processMessageWithSpecialists(message);
+            
+            // Remove processing message
+            const messages = document.querySelectorAll('#lux-messages .message.system');
+            const lastMessage = messages[messages.length - 1];
+            if (lastMessage && lastMessage.textContent.includes('przetwarza')) {
+                lastMessage.remove();
+            }
+            
+            // Add response
+            this.addMessage('assistant', response);
+            
+        } catch (error) {
+            console.error('Error sending message:', error);
+            this.addMessage('system', '❌ Błąd podczas przetwarzania wiadomości');
+        }
+    }
+
+    async processMessageWithSpecialists(message) {
+        try {
+            // Send message to Lux Assistant with specialist chain processing
+            const response = await fetch(`${this.apiBase}/api/lux/message`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    use_specialists: true,
+                    conversation_history: this.conversationHistory.slice(-10)
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            // Store in conversation history
+            this.conversationHistory.push({
+                user: message,
+                assistant: data.response,
+                timestamp: new Date().toISOString(),
+                specialists_used: data.specialists_used || []
+            });
+
+            return data.response || 'Brak odpowiedzi od asystenta';
+            
+        } catch (error) {
+            console.error('Error in specialist processing:', error);
+            return 'Przepraszam, wystąpił błąd podczas przetwarzania Twojej wiadomości.';
+        }
+    }
+
+    // Public API methods
+    isReady() {
+        return this.isInitialized && this.assistantReady;
+    }
+
+    getConversationHistory() {
+        return this.conversationHistory;
+    }
+
+    clearConversation() {
+        this.conversationHistory = [];
+        const messagesContainer = document.getElementById('lux-messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = '';
+        }
+        this.displayWelcomeMessage();
+    }
+}
+
+// Initialize kernel when DOM is ready
+const luxKernel = new LuxOSKernel();
+
+document.addEventListener('DOMContentLoaded', () => {
+    luxKernel.initialize();
+});
+
+// Export for global access
+window.luxKernel = luxKernel;

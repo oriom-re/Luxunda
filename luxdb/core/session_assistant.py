@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 import ulid
 import threading
+import time
+import openai
 
 from ..models.being import Being
 from ..models.soul import Soul
@@ -59,7 +61,7 @@ class SessionAssistant:
 
         # Użyj istniejącego Soul dla asystentów sesji
         soul = await self._get_or_create_session_soul()
-        
+
         # Utwórz Being dla tej konkretnej sesji
         self.assistant_being = await Being.create(
             soul,
@@ -142,47 +144,191 @@ class SessionAssistant:
         # Dodaj więcej reguł...
 
     async def process_message(self, message_content: str) -> str:
-        """Przetwarza wiadomość użytkownika z kontekstem ostatnich 10 wiadomości"""
+        """
+        Przetwarza wiadomość użytkownika i zwraca odpowiedź.
+
+        Args:
+            message_content: Treść wiadomości od użytkownika
+
+        Returns:
+            Odpowiedź asystenta
+        """
         try:
-            # Odśwież aktywność
-            self.session.refresh_activity()
+            # Utwórz wiadomość w bazie
+            user_message = await self.create_contextual_message(
+                content=message_content,
+                message_type="user_input"
+            )
 
-            # Pobierz ostatnie 10 wiadomości z konwersacji
-            conversation_history = await self.get_recent_messages(limit=10)
+            # Pobierz kontekst ostatnich wiadomości dla sesji
+            recent_messages = await self.get_recent_messages(limit=10)
 
-            # Utwórz wiadomość użytkownika jako Being
-            message = await self.create_contextual_message(message_content)
+            # Przygotuj kontekst dla OpenAI
+            conversation_context = []
 
-            # Zbuduj kontekst konwersacji
-            conversation_context = self._format_conversation_history(conversation_history)
+            # Dodaj systemowy prompt
+            conversation_context.append({
+                "role": "system",
+                "content": f"""Jesteś Lux - głównym asystentem systemu LuxDB z dostępem do zespołu specjalistów. 
 
-            # Przetwórz przez Lux z pełnym kontekstem
-            enhanced_prompt = f"""
-            Kontekst sesji użytkownika:
-            - Ostatnie działania: {self.get_recent_actions_summary()}
-            - Aktywne projekty: {', '.join(self.session.project_tags)}
-            - Czas sesji: {self.session.last_activity.strftime('%H:%M')}
+Twoja rola:
+- Koordynujesz pracę z bytami specjalistami
+- Analizujesz wiadomości i przekazujesz je odpowiednim specjalistom
+- Formułujesz finalne odpowiedzi na podstawie wyników specjalistów
+- Jesteś przyjazny, pomocny i profesjonalny
+- Odpowiadasz w języku polskim
 
-            Historia ostatnich 10 wiadomości:
-            {conversation_context}
+Kontekst sesji:
+- Session ID: {self.session.session_id}
+- Aktywne projekty: {', '.join(self.session.project_tags) if self.session.project_tags else 'brak'}
+- Ostatnie eventy: {len(self.session.active_events)} aktywnych
 
-            Aktywne eventy: {len(self.session.active_events)}
+Masz dostęp do następujących specjalistów poprzez funkcje w swoim genesis.
+"""
+            })
 
-            Aktualna wiadomość użytkownika: {message_content}
+            # Dodaj historię rozmowy
+            for msg in recent_messages[-5:]:  # Ostatnie 5 wiadomości
+                role = "user" if msg.message_type == "user_input" else "assistant"
+                conversation_context.append({
+                    "role": role,
+                    "content": msg.content
+                })
 
-            Odpowiedz jako Lux, uwzględniając pełną historię konwersacji i aktualny kontekst.
-            """
+            # Dodaj aktualną wiadomość
+            conversation_context.append({
+                "role": "user", 
+                "content": message_content
+            })
 
-            response = await self.lux_core.chat(enhanced_prompt)
+            # Wywołaj OpenAI
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=conversation_context,
+                    max_tokens=500,
+                    temperature=0.7
+                )
 
-            # Zapisz odpowiedź jako kolejną wiadomość
-            await self.create_contextual_message(response, role="assistant")
+                assistant_response = response.choices[0].message.content.strip()
 
-            return response
+            except Exception as openai_error:
+                print(f"⚠️ OpenAI error: {openai_error}")
+                assistant_response = f"Przepraszam, nie mogę obecnie przetworzyć Twojej wiadomości. Czy możesz spróbować ponownie? (Błąd: problem z AI)"
+
+            # Utwórz wiadomość odpowiedzi
+            await self.create_contextual_message(
+                content=assistant_response,
+                message_type="assistant_response"
+            )
+
+            return assistant_response
 
         except Exception as e:
-            print(f"❌ Błąd przetwarzania wiadomości: {e}")
-            return f"Przepraszam, wystąpił błąd podczas przetwarzania wiadomości: {str(e)}"
+            print(f"❌ Error processing message: {e}")
+            return f"Przepraszam, wystąpił błąd podczas przetwarzania Twojej wiadomości: {str(e)}"
+
+    async def formulate_response(self, original_message: str, specialist_input: str) -> str:
+        """
+        Formułuje finalną odpowiedź na podstawie wyniku specjalisty.
+
+        Args:
+            original_message: Oryginalna wiadomość użytkownika
+            specialist_input: Wynik pracy specjalisty
+
+        Returns:
+            Sformułowana odpowiedź
+        """
+        try:
+            prompt = f"""Na podstawie poniższych informacji sformułuj naturalną i pomocną odpowiedź:
+
+Pytanie użytkownika: {original_message}
+
+Wynik analizy specjalisty: {specialist_input}
+
+Sformułuj odpowiedź która:
+- Bezpośrednio odpowiada na pytanie użytkownika
+- Wykorzystuje informacje od specjalisty
+- Jest napisana w przyjaznym, pomocnym tonie
+- Jest w języku polskim
+"""
+
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=400,
+                temperature=0.7
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            print(f"Error formulating response: {e}")
+            return f"Na podstawie analizy: {specialist_input}"
+
+    async def get_soul(self):
+        """Pobiera Soul dla tego asystenta"""
+        if not hasattr(self, '_cached_soul'):
+            # Try to get existing Lux assistant soul or create default
+            soul = await Soul.get_by_alias("lux_assistant")
+            if not soul:
+                # Create basic Lux assistant soul with specialist functions
+                await self.create_lux_assistant_soul()
+                soul = await Soul.get_by_alias("lux_assistant")
+            self._cached_soul = soul
+        return self._cached_soul
+
+    async def create_lux_assistant_soul(self):
+        """Tworzy Soul dla głównego asystenta Lux z funkcjami specjalistów"""
+        lux_genotype = {
+            "genesis": {
+                "name": "lux_assistant",
+                "type": "main_assistant",
+                "version": "1.0.0",
+                "description": "Główny asystent Lux z dostępem do zespołu specjalistów"
+            },
+            "attributes": {
+                "name": {"py_type": "str", "default": "Lux"},
+                "personality": {"py_type": "str", "default": "helpful_coordinator"},
+                "active_specialists": {"py_type": "list", "default": []},
+                "conversation_count": {"py_type": "int", "default": 0}
+            },
+            "functions": {
+                "technical_help": {
+                    "py_type": "function",
+                    "description": "Deleguje pytania techniczne do specjalisty programowania",
+                    "specialist_type": "technical"
+                },
+                "data_analysis": {
+                    "py_type": "function", 
+                    "description": "Deleguje zadania analizy danych do specjalisty danych",
+                    "specialist_type": "data"
+                },
+                "creative_writing": {
+                    "py_type": "function",
+                    "description": "Deleguje zadania pisarskie do specjalisty kreatywnego",
+                    "specialist_type": "creative"
+                },
+                "math_help": {
+                    "py_type": "function",
+                    "description": "Deleguje zadania matematyczne do specjalisty matematycznego", 
+                    "specialist_type": "math"
+                },
+                "general_query": {
+                    "py_type": "function",
+                    "description": "Obsługuje ogólne pytania bezpośrednio",
+                    "specialist_type": "general"
+                }
+            }
+        }
+
+        try:
+            soul = await Soul.create(lux_genotype, alias="lux_assistant")
+            print(f"✅ Created Lux assistant soul: {soul.soul_hash}")
+            return soul
+        except Exception as e:
+            print(f"❌ Error creating Lux assistant soul: {e}")
+            return None
 
     async def _get_or_create_session_soul(self) -> Soul:
         """Pobiera lub tworzy standardowy Soul dla asystentów sesji"""
@@ -245,7 +391,7 @@ class SessionAssistant:
             }
         )
 
-    async def create_contextual_message(self, content: str, role: str = "user") -> Message:
+    async def create_contextual_message(self, content: str, role: str = "user", message_type: str = "user_input") -> Message:
         """Tworzy wiadomość z relacjami do sesji"""
         # Zapewnij sekwencyjne tworzenie wiadomości
         with self._message_lock:
@@ -254,7 +400,8 @@ class SessionAssistant:
                 role=role,
                 author_ulid=self.session.user_ulid,
                 fingerprint=self.session.user_fingerprint,
-                conversation_id=self.session.session_id
+                conversation_id=self.session.session_id,
+                message_type=message_type
             )
 
         # Główna relacja: wiadomość należy do sesji
@@ -302,26 +449,24 @@ class SessionAssistant:
     async def get_recent_messages(self, limit: int = 10, author_ulid: str = None) -> List:
         """
         Pobiera ostatnie wiadomości z sesji przez relacje.
-        
+
         Args:
             limit: Maksymalna liczba wiadomości
             author_ulid: Opcjonalny filtr po autorze
-            
+
         Returns:
             Lista wiadomości posortowana chronologicznie
         """
         try:
-            from ..models.message import Message
-            
             # Znajdź wszystkie wiadomości powiązane z tą sesją
             relationships = await Relationship.get_all()
             session_message_ulids = []
-            
+
             for rel in relationships:
                 if (rel.source_ulid == self.assistant_being.ulid and 
                     rel.relation_type == "contains_message"):
                     session_message_ulids.append(rel.target_ulid)
-            
+
             # Opcjonalnie filtruj po autorze
             if author_ulid:
                 filtered_ulids = []
@@ -331,19 +476,19 @@ class SessionAssistant:
                         rel.target_ulid in session_message_ulids):
                         filtered_ulids.append(rel.target_ulid)
                 session_message_ulids = filtered_ulids
-            
+
             # Pobierz wiadomości
             messages = []
             for message_ulid in session_message_ulids:
                 message = await Message.load_by_ulid(message_ulid)
                 if message:
                     messages.append(message)
-            
+
             # Sortuj chronologicznie po sequence_number
             messages.sort(key=lambda m: getattr(m, 'sequence_number', 0))
-            
+
             return messages[-limit:] if len(messages) > limit else messages
-            
+
         except Exception as e:
             print(f"⚠️ Błąd pobierania historii wiadomości przez relacje: {e}")
             return []
@@ -351,17 +496,17 @@ class SessionAssistant:
     async def get_user_last_active_session(self, user_identifier: str) -> Optional['SessionAssistant']:
         """
         Znajduje ostatnią aktywną sesję użytkownika przez relacje.
-        
+
         Args:
             user_identifier: ULID użytkownika lub fingerprint
-            
+
         Returns:
             Ostatni aktywny SessionAssistant lub None
         """
         try:
             relationships = await Relationship.get_all()
             user_sessions = []
-            
+
             # Znajdź wszystkie sesje użytkownika
             for rel in relationships:
                 if (rel.source_ulid == user_identifier and 
@@ -374,18 +519,18 @@ class SessionAssistant:
                             'created_at': getattr(session_being, 'created_at', ''),
                             'session_id': getattr(session_being, 'session_id', '')
                         })
-            
+
             if not user_sessions:
                 return None
-            
+
             # Znajdź najnowszą sesję
             latest_session = max(user_sessions, key=lambda s: s['created_at'])
-            
+
             # Sprawdź czy sesja istnieje w session_manager
             # Tu można dodać logikę pobierania z session_manager
-            
+
             return None  # Placeholder - można rozbudować
-            
+
         except Exception as e:
             print(f"⚠️ Błąd wyszukiwania ostatniej sesji użytkownika: {e}")
             return None
@@ -393,27 +538,27 @@ class SessionAssistant:
     async def get_conversation_context_for_ai(self, limit: int = 10) -> str:
         """
         Pobiera kontekst konwersacji sformatowany dla AI.
-        
+
         Args:
             limit: Maksymalna liczba wiadomości
-            
+
         Returns:
             Sformatowany kontekst konwersacji
         """
         try:
             # Pobierz ostatnie wiadomości (wszystkich autorów)
             messages = await self.get_recent_messages(limit=limit)
-            
+
             if not messages:
                 return "Brak historii konwersacji."
-            
+
             context_lines = []
             for message in messages:
                 context_line = message.get_conversation_context()
                 context_lines.append(context_line)
-            
+
             return "\n".join(context_lines)
-            
+
         except Exception as e:
             print(f"⚠️ Błąd formatowania kontekstu: {e}")
             return "Błąd podczas pobierania kontekstu konwersacji."
@@ -421,16 +566,16 @@ class SessionAssistant:
     def _format_conversation_history(self, messages: List) -> str:
         """
         Formatuje historię konwersacji do kontekstu GPT.
-        
+
         Args:
             messages: Lista wiadomości
-            
+
         Returns:
             Sformatowany kontekst konwersacji
         """
         if not messages:
             return "Brak historii konwersacji."
-        
+
         context_lines = []
         for message in messages:
             try:
@@ -439,8 +584,19 @@ class SessionAssistant:
             except Exception as e:
                 print(f"⚠️ Błąd formatowania wiadomości {getattr(message, 'ulid', 'unknown')}: {e}")
                 continue
-        
-        return "\n".join(context_lines) if context_lines else "Błąd formatowania historii konwersacji."tekstu"""
+
+        return "\n".join(context_lines) if context_lines else "Błąd formatowania historii konwersacji."
+    
+    def _format_conversation_history_for_chat(self, messages: List) -> str:
+        """
+        Formatuje historię konwersacji do kontekstu czatu.
+
+        Args:
+            messages: Lista wiadomości
+
+        Returns:
+            Sformatowany kontekst konwersacji
+        """
         if not messages:
             return "Brak poprzednich wiadomości w tej sesji."
 
@@ -449,18 +605,17 @@ class SessionAssistant:
             role = getattr(message, 'role', 'user')
             content = getattr(message, 'content', '')
             timestamp = getattr(message, 'timestamp', '')
-            
+
             # Formatuj timestamp jeśli istnieje
             time_str = ""
             if timestamp:
                 try:
-                    from datetime import datetime
                     if isinstance(timestamp, str):
                         dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
                         time_str = f" ({dt.strftime('%H:%M')})"
                 except:
                     pass
-            
+
             if role == 'assistant':
                 context_lines.append(f"Assistant{time_str}: {content}")
             else:
@@ -600,129 +755,108 @@ class SessionAssistant:
         # Można dodać logikę zapisywania ważnych eventów do odtworzenia przy ponownym logowaniu
 
 class SessionManager:
-    """Manager sesji dla asystentów AI"""
+    """Zarządca sesji asystenta"""
 
     def __init__(self):
-        self.sessions: Dict[str, 'SessionAssistant'] = {}
-        self.cleanup_interval = 3600  # 1 godzina
-        self.global_lux_assistant = None  # Globalna instancja Lux Assistant
+        self.active_sessions: Dict[str, SessionAssistant] = {}
+        self.session_timeout = 3600  # 1 godzina
+        self._main_lux_assistant = None
 
-    async def initialize_global_lux(self, openai_api_key: str = None):
-        """Inicjalizuje globalną instancję Lux Assistant"""
-        self.global_lux_assistant = LuxAssistant(openai_api_key or "demo-key")
-        await self.global_lux_assistant.initialize()
-        print("Lux Assistant globalnie zainicjalizowany.")
+    async def create_session(self, session_id: str = None, user_context: Dict[str, Any] = None) -> SessionAssistant:
+        """
+        Tworzy nową sesję asystenta.
 
-    async def create_session(self, user_fingerprint: str, user_ulid: str = None, ttl_minutes: int = 30) -> SessionAssistant:
-        """Tworzy nową sesję asystenta"""
-        session_id = str(ulid.ulid())
+        Args:
+            session_id: ID sesji (wygenerowane automatycznie jeśli None)
+            user_context: Kontekst użytkownika
 
-        context = SessionContext(
+        Returns:
+            Obiekt SessionAssistant
+        """
+        if not session_id:
+            session_id = str(ulid.ulid())
+
+        # Utwórz sesję
+        session_context = SessionContext(
             session_id=session_id,
-            user_fingerprint=user_fingerprint,
-            user_ulid=user_ulid,
-            ttl_minutes=ttl_minutes
+            user_fingerprint=user_context.get("fingerprint", str(ulid.ulid())), # Fallback fingerprint
+            user_ulid=user_context.get("user_ulid"),
+            ttl_minutes=user_context.get("ttl_minutes", 30)
         )
+        session = SessionAssistant(session_context)
+        await session.initialize()
 
-        assistant = SessionAssistant(context)
-        await assistant.initialize()
+        # Zapisz w aktywnych sesjach
+        self.active_sessions[session_id] = session
 
-        self.sessions[session_id] = assistant
-
-        # Uruchom cleanup task jeśli nie działa
-        if not self.cleanup_task or self.cleanup_task.done():
-            self.cleanup_task = asyncio.create_task(self.cleanup_expired_sessions())
-
-        print(f"🎯 Utworzono sesję {session_id} dla użytkownika {user_fingerprint}")
-        return assistant
-
-    async def get_session(self, session_id: str) -> Optional[SessionAssistant]:
-        """Pobiera sesję asystenta"""
-        session = self.sessions.get(session_id)
-        if session and not session.is_active:
-            print(f"⚠️ Sesja {session_id} jest nieaktywna (offline).")
-            return None
+        print(f"📋 Created session: {session_id}")
         return session
 
-    async def get_user_active_session(self, user_identifier: str) -> Optional[SessionAssistant]:
+    async def get_or_create_lux_assistant(self) -> SessionAssistant:
         """
-        Znajdź aktywną sesję użytkownika przez relacje.
-        
-        Args:
-            user_identifier: ULID użytkownika lub browser fingerprint
-            
-        Returns:
-            Aktywna sesja użytkownika lub None
-        """
-        try:
-            relationships = await Relationship.get_all()
-            
-            # Znajdź sesje powiązane z użytkownikiem
-            for rel in relationships:
-                if (rel.source_ulid == user_identifier and 
-                    rel.relation_type in ["owns_session", "browser_session"]):
-                    
-                    session_being_ulid = rel.target_ulid
-                    session_being = await Being.load_by_ulid(session_being_ulid)
-                    
-                    if session_being:
-                        session_id = getattr(session_being, 'session_id', None)
-                        if session_id and session_id in self.sessions:
-                            active_session = self.sessions[session_id]
-                            if active_session.is_active:
-                                return active_session
-            
-            return None
-            
-        except Exception as e:
-            print(f"⚠️ Błąd wyszukiwania aktywnej sesji użytkownika: {e}")
-            return None
+        Pobiera lub tworzy głównego asystenta Lux.
 
-    async def get_session_messages_chronologically(self, session_id: str, limit: int = 50) -> List:
+        Returns:
+            Główny asystent Lux
         """
-        Pobiera wszystkie wiadomości sesji uporządkowane chronologicznie.
-        
+        if not self._main_lux_assistant:
+            # Utwórz główną sesję dla Lux
+            lux_context = {
+                "type": "main_assistant",
+                "capabilities": ["specialist_coordination", "conversation_management"],
+                "access_level": "system",
+                "fingerprint": "lux_system_fingerprint"
+            }
+
+            self._main_lux_assistant = await self.create_session(
+                session_id="lux_main_assistant",
+                user_context=lux_context
+            )
+
+            # Ensure Lux has proper soul
+            await self._main_lux_assistant.get_soul()
+
+            print("✅ Main Lux assistant ready")
+
+        return self._main_lux_assistant
+
+    async def get_session(self, session_id: str) -> Optional[SessionAssistant]:
+        """
+        Pobiera sesję po ID.
+
         Args:
             session_id: ID sesji
-            limit: Maksymalna liczba wiadomości
-            
+
         Returns:
-            Lista wiadomości user + AI chronologicznie
+            SessionAssistant lub None jeśli nie znaleziono
         """
-        session = await self.get_session(session_id)
-        if not session:
-            return []
-        
-        return await session.get_recent_messages(limit=limit)
+        session = self.active_sessions.get(session_id)
+        if session and not session.is_active:
+            print(f"⚠️ Session {session_id} is inactive (offline).")
+            return None
+        return session
 
     async def cleanup_expired_sessions(self):
         """Usuwa wygasłe sesje"""
         current_time = datetime.now()
-        expired_sessions = [
-            session_id for session_id, session in self.sessions.items()
-            if (current_time - session.last_activity).total_seconds() > self.cleanup_interval
-        ]
+        expired_sessions = []
+
+        for session_id, session in self.active_sessions.items():
+            # Don't expire main Lux assistant
+            if session_id == "lux_main_assistant":
+                continue
+
+            if session.session.is_expired():
+                expired_sessions.append(session_id)
 
         for session_id in expired_sessions:
-            del self.sessions[session_id]
-            print(f"🗑️ Usunięto wygasłą sesję: {session_id}")
+            if session_id in self.active_sessions:
+                del self.active_sessions[session_id]
+                print(f"🗑️ Cleaned up expired session: {session_id}")
 
-        return len(expired_sessions)
-
-    async def get_global_lux(self):
-        """Zwraca globalną instancję Lux Assistant"""
-        return self.global_lux_assistant
-
-    async def chat_with_global_lux(self, message: str) -> str:
-        """Komunikacja z globalnym Lux Assistant"""
-        if self.global_lux_assistant:
-            try:
-                response = await self.global_lux_assistant.chat(message)
-                return response
-            except Exception as e:
-                return f"❌ Błąd komunikacji z Lux: {e}"
-        else:
-            return "❌ Lux Assistant nie jest dostępny"
+    def get_active_sessions_count(self) -> int:
+        """Zwraca liczbę aktywnych sesji"""
+        return len(self.active_sessions)
 
 # Globalna instancja
 session_manager = SessionManager()
