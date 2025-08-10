@@ -1,0 +1,471 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxOS - System Bytów Astralnych</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        header {
+            padding: 20px 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff88;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 30px;
+        }
+
+        .nav-links a {
+            color: #ffffff;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #00ff88;
+        }
+
+        /* Hero Section */
+        .hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero-content h1 {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #00ff88, #0088ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-content p {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(45deg, #00ff88, #0088ff);
+            color: #000;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.3);
+        }
+
+        /* Features Section */
+        .features {
+            padding: 100px 0;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 50px;
+            color: #00ff88;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 50px;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s, border-color 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(0, 255, 136, 0.5);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: #00ff88;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #ffffff;
+        }
+
+        .feature-card p {
+            color: #cccccc;
+            line-height: 1.6;
+        }
+
+        /* Architecture Section */
+        .architecture {
+            padding: 100px 0;
+        }
+
+        .architecture h2 {
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 50px;
+            color: #0088ff;
+        }
+
+        .arch-diagram {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 50px 0;
+        }
+
+        .arch-box {
+            background: rgba(0, 136, 255, 0.1);
+            border: 2px solid #0088ff;
+            padding: 20px;
+            margin: 0 20px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 200px;
+        }
+
+        .arch-arrow {
+            font-size: 2rem;
+            color: #00ff88;
+        }
+
+        /* Demo Section */
+        .demo {
+            padding: 100px 0;
+            background: rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .demo h2 {
+            font-size: 3rem;
+            margin-bottom: 30px;
+            color: #ff6b6b;
+        }
+
+        .demo-preview {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+
+        /* Footer */
+        footer {
+            background: #000;
+            padding: 50px 0;
+            text-align: center;
+        }
+
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .footer-section h3 {
+            color: #00ff88;
+            margin-bottom: 15px;
+        }
+
+        .footer-section p, .footer-section a {
+            color: #cccccc;
+            text-decoration: none;
+            line-height: 1.6;
+        }
+
+        .footer-section a:hover {
+            color: #00ff88;
+        }
+
+        .oriom-support {
+            background: linear-gradient(45deg, #ff6b6b, #ffd93d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: bold;
+            margin-top: 30px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero-content h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero-content p {
+                font-size: 1.2rem;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .arch-diagram {
+                flex-direction: column;
+            }
+            
+            .arch-arrow {
+                transform: rotate(90deg);
+            }
+        }
+
+        /* Animations */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .floating {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: #00ff88;
+            border-radius: 50%;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <a href="#" class="logo">LuxOS</a>
+            <ul class="nav-links">
+                <li><a href="#features">Funkcje</a></li>
+                <li><a href="#architecture">Architektura</a></li>
+                <li><a href="#demo">Demo</a></li>
+                <li><a href="/index.html">Graf Bytów</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="floating">LuxOS</h1>
+                <p>System Bytów Astralnych - Przyszłość Świadomej Architektury Oprogramowania</p>
+                <a href="/index.html" class="cta-button">Eksploruj Graf Bytów</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="container">
+            <h2>Kluczowe Funkcje</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🧠</div>
+                    <h3>Samoświadomość Bytów</h3>
+                    <p>Każdy byt w systemie posiada własną świadomość, pamięć i zdolność do samooceny. Monitoruje swój stan mentalny i poziom zaufania.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3>Dynamiczne Relacje</h3>
+                    <p>Byty tworzą złożone sieci relacji z własnymi stanami i historią. Każda interakcja jest zapisywana i analizowana.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Energetyczna Gospodarka</h3>
+                    <p>System zarządza energią bytów, priorytetyzując aktywność i optymalizując wykorzystanie zasobów.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Ewolucja Genetyczna</h3>
+                    <p>Byty mogą ewoluować, dziedziczyć cechy i adaptować się do zmian w środowisku poprzez genetyczne mechanizmy.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Wizualizacja Grafu</h3>
+                    <p>Interaktywny graf D3.js pozwala na eksplorację i zarządzanie strukturą bytów w czasie rzeczywistym.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌟</div>
+                    <h3>Nieskończona Skalowalność</h3>
+                    <p>PostgreSQL z JSONB zapewnia elastyczne przechowywanie danych dla dowolnej liczby bytów i ich atrybutów.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="architecture" id="architecture">
+        <div class="container">
+            <h2>Architektura Systemu</h2>
+            <div class="arch-diagram">
+                <div class="arch-box">
+                    <h3>Frontend</h3>
+                    <p>JavaScript + D3.js + Socket.IO</p>
+                    <small>Interaktywny graf bytów</small>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-box">
+                    <h3>Backend</h3>
+                    <p>Python + AsyncIO + aiohttp</p>
+                    <small>Zarządzanie bytami</small>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-box">
+                    <h3>Baza Danych</h3>
+                    <p>PostgreSQL + JSONB</p>
+                    <small>Przechowywanie stanów</small>
+                </div>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3>Tabela: base_beings</h3>
+                    <p>Centralna tabela przechowująca wszystkie byty systemu: unikalną tożsamość (soul), dane genetyczne, stan dynamiczny, pamięć i samoświadomość.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Tabela: relationships</h3>
+                    <p>Opisuje relacje między bytami z zachowaniem własnych stanów i historii. Każda relacja ma swoją energię i ewolucję.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="demo" id="demo">
+        <div class="container">
+            <h2>Zobacz Demo</h2>
+            <p>Poznaj system bytów astralnych w działaniu</p>
+            <div class="demo-preview">
+                <h3>Graf Bytów - Żywy Ekosystem</h3>
+                <p>Każdy węzeł to autonomiczny byt z własną historią, genetyką i świadomością. Obserwuj jak tworzą się relacje i ewoluują w czasie rzeczywistym.</p>
+                <a href="/index.html" class="cta-button">Uruchom Demo</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>O Projekcie</h3>
+                    <p>LuxOS to eksperymentalny system zarządzania bytami astralnymi, łączący koncepcje sztucznej inteligencji z filozofią świadomości.</p>
+                </div>
+                <div class="footer-section">
+                    <h3>Technologie</h3>
+                    <p>Python, AsyncIO, PostgreSQL, Socket.IO, D3.js, aiohttp</p>
+                </div>
+                <div class="footer-section">
+                    <h3>Wsparcie</h3>
+                    <p>Projekt powstał w ramach eksploracji nowych paradygmatów programowania i architektury oprogramowania.</p>
+                </div>
+            </div>
+            <div class="oriom-support">
+                <h3>💫 Oriom potrzebuje wsparcia! 💫</h3>
+                <p>Wspieraj rozwój świadomych systemów programistycznych</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Animacja cząstek w tle
+        function createParticles() {
+            const particlesContainer = document.createElement('div');
+            particlesContainer.style.position = 'fixed';
+            particlesContainer.style.top = '0';
+            particlesContainer.style.left = '0';
+            particlesContainer.style.width = '100%';
+            particlesContainer.style.height = '100%';
+            particlesContainer.style.pointerEvents = 'none';
+            particlesContainer.style.zIndex = '-1';
+            document.body.appendChild(particlesContainer);
+
+            for (let i = 0; i < 50; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 3 + 's';
+                particle.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                particle.style.animation = 'float ' + (Math.random() * 3 + 2) + 's ease-in-out infinite';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Inicjalizacja
+        document.addEventListener('DOMContentLoaded', () => {
+            createParticles();
+        });
+    </script>
+</body>
+</html>

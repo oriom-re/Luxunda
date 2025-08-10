@@ -1,0 +1,30 @@
+
+{
+  "alias": "advanced_kernel",
+  "soul_alias": "kernel_advanced_soul",
+  "genotype": {
+    "genesis": {
+      "name": "advanced_kernel",
+      "type": "system_core_advanced",
+      "version": "1.0.0",
+      "doc": "Zaawansowany kernel z rozszerzoną funkcjonalnością"
+    },
+    "attributes": {
+      "memory_management": {"py_type": "dict", "table_name": "_jsonb"},
+      "process_scheduling": {"py_type": "dict", "table_name": "_jsonb"},
+      "resource_monitoring": {"py_type": "dict", "table_name": "_jsonb"}
+    }
+  },
+  "attributes": {
+    "system_role": "advanced_kernel",
+    "priority": 100,
+    "memory_limit": "unlimited",
+    "process_limit": 1000,
+    "resource_monitoring": {
+      "cpu_usage": 0.0,
+      "memory_usage": 0.0,
+      "disk_usage": 0.0
+    }
+  },
+  "load_order": 0
+}

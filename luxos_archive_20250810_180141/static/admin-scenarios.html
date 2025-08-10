@@ -1,0 +1,566 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxOS - UI Scenarios Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #00ff88;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(26, 26, 46, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 10px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            text-shadow: 0 0 10px #00ff88;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: #00ff88;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background: #00ff88;
+            color: #000;
+            transform: translateY(-2px);
+        }
+
+        .btn.danger {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .btn.danger:hover {
+            background: #ff4444;
+            color: white;
+        }
+
+        .scenarios-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .scenario-card {
+            background: rgba(26, 26, 46, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .scenario-card:hover {
+            border-color: #00ff88;
+            transform: translateY(-5px);
+        }
+
+        .scenario-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .scenario-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .scenario-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-active {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .status-inactive {
+            background: rgba(255, 68, 68, 0.2);
+            color: #ff4444;
+            border: 1px solid #ff4444;
+        }
+
+        .scenario-route {
+            color: #ccc;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .scenario-description {
+            color: #aaa;
+            font-size: 13px;
+            line-height: 1.4;
+            margin-bottom: 15px;
+        }
+
+        .scenario-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .editor-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+        }
+
+        .editor-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 1200px;
+            height: 90%;
+            background: #1a1a2e;
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: #ff4444;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .editor-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto 1fr;
+            gap: 20px;
+            height: calc(100% - 80px);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            color: #00ff88;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 5px;
+            padding: 10px;
+            color: #00ff88;
+            font-family: 'Courier New', monospace;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 200px;
+            font-size: 12px;
+        }
+
+        .code-editor {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            height: 300px;
+        }
+
+        .editor-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .preview-btn {
+            background: rgba(0, 136, 255, 0.1);
+            border-color: #0088ff;
+            color: #0088ff;
+        }
+
+        .preview-btn:hover {
+            background: #0088ff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 UI Scenarios Management</h1>
+            <div>
+                <a href="/admin" class="btn">⬅️ Back to Dashboard</a>
+                <button class="btn" onclick="createNewScenario()">➕ New Scenario</button>
+            </div>
+        </div>
+
+        <div id="scenarios-container" class="scenarios-grid">
+            <!-- Scenarios will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Editor Modal -->
+    <div id="editor-modal" class="editor-modal">
+        <div class="editor-content">
+            <div class="editor-header">
+                <h2 id="editor-title">Edit UI Scenario</h2>
+                <button class="close-btn" onclick="closeEditor()">&times;</button>
+            </div>
+
+            <form id="scenario-form" class="editor-form">
+                <div class="form-group">
+                    <label for="scenario-name">Scenario Name:</label>
+                    <input type="text" id="scenario-name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="scenario-alias">Alias:</label>
+                    <input type="text" id="scenario-alias" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="scenario-route">Route Path:</label>
+                    <input type="text" id="scenario-route" placeholder="/example-page" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="scenario-active">Status:</label>
+                    <select id="scenario-active">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="scenario-description">Description:</label>
+                    <textarea id="scenario-description" rows="3"></textarea>
+                </div>
+
+                <div class="code-editor">
+                    <div class="form-group">
+                        <label for="html-content">HTML Content:</label>
+                        <textarea id="html-content" placeholder="<h1>Your HTML here</h1>"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="css-content">CSS Content:</label>
+                        <textarea id="css-content" placeholder="body { color: #00ff88; }"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="js-content">JavaScript Content:</label>
+                        <textarea id="js-content" placeholder="console.log('Hello LuxOS!');"></textarea>
+                    </div>
+                </div>
+
+                <div class="editor-actions">
+                    <button type="button" class="btn preview-btn" onclick="previewScenario()">👁️ Preview</button>
+                    <button type="button" class="btn danger" onclick="closeEditor()">❌ Cancel</button>
+                    <button type="submit" class="btn">💾 Save Scenario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentScenarioUlid = null;
+        let scenarios = [];
+
+        // Load all scenarios
+        async function loadScenarios() {
+            try {
+                const response = await fetch('/api/admin/ui-scenarios');
+                const data = await response.json();
+                scenarios = data.scenarios || [];
+                renderScenarios();
+            } catch (error) {
+                console.error('Error loading scenarios:', error);
+                alert('Error loading scenarios');
+            }
+        }
+
+        // Render scenarios grid
+        function renderScenarios() {
+            const container = document.getElementById('scenarios-container');
+            
+            if (scenarios.length === 0) {
+                container.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #ccc;">
+                        <h3>No UI scenarios found</h3>
+                        <p>Create your first scenario to start building dynamic interfaces!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = scenarios.map(scenario => `
+                <div class="scenario-card">
+                    <div class="scenario-header">
+                        <div class="scenario-title">${scenario.name}</div>
+                        <div class="scenario-status ${scenario.active ? 'status-active' : 'status-inactive'}">
+                            ${scenario.active ? 'ACTIVE' : 'INACTIVE'}
+                        </div>
+                    </div>
+                    
+                    <div class="scenario-route">🛤️ ${scenario.route}</div>
+                    
+                    <div class="scenario-description">
+                        ${scenario.description || 'No description provided'}
+                    </div>
+                    
+                    <div class="scenario-actions">
+                        <button class="btn btn-small" onclick="editScenario('${scenario.ulid}')">✏️ Edit</button>
+                        <button class="btn btn-small preview-btn" onclick="previewScenarioRoute('${scenario.route}')">👁️ Preview</button>
+                        <button class="btn btn-small ${scenario.active ? 'danger' : ''}" onclick="toggleScenario('${scenario.ulid}', ${!scenario.active})">
+                            ${scenario.active ? '⏸️ Deactivate' : '▶️ Activate'}
+                        </button>
+                        <button class="btn btn-small danger" onclick="deleteScenario('${scenario.ulid}')">🗑️ Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Create new scenario
+        function createNewScenario() {
+            currentScenarioUlid = null;
+            document.getElementById('editor-title').textContent = 'Create New UI Scenario';
+            
+            // Clear form
+            document.getElementById('scenario-form').reset();
+            document.getElementById('scenario-route').value = '/';
+            document.getElementById('scenario-active').value = 'true';
+            
+            document.getElementById('editor-modal').style.display = 'block';
+        }
+
+        // Edit existing scenario
+        function editScenario(ulid) {
+            const scenario = scenarios.find(s => s.ulid === ulid);
+            if (!scenario) return;
+
+            currentScenarioUlid = ulid;
+            document.getElementById('editor-title').textContent = 'Edit UI Scenario';
+            
+            // Fill form
+            document.getElementById('scenario-name').value = scenario.name;
+            document.getElementById('scenario-alias').value = scenario.alias;
+            document.getElementById('scenario-route').value = scenario.route;
+            document.getElementById('scenario-active').value = scenario.active.toString();
+            document.getElementById('scenario-description').value = scenario.description || '';
+            document.getElementById('html-content').value = scenario.html_content || '';
+            document.getElementById('css-content').value = scenario.css_content || '';
+            document.getElementById('js-content').value = scenario.js_content || '';
+            
+            document.getElementById('editor-modal').style.display = 'block';
+        }
+
+        // Close editor
+        function closeEditor() {
+            document.getElementById('editor-modal').style.display = 'none';
+            currentScenarioUlid = null;
+        }
+
+        // Save scenario
+        document.getElementById('scenario-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('scenario-name').value,
+                alias: document.getElementById('scenario-alias').value,
+                route: document.getElementById('scenario-route').value,
+                active: document.getElementById('scenario-active').value === 'true',
+                description: document.getElementById('scenario-description').value,
+                html_content: document.getElementById('html-content').value,
+                css_content: document.getElementById('css-content').value,
+                js_content: document.getElementById('js-content').value
+            };
+
+            try {
+                let response;
+                if (currentScenarioUlid) {
+                    // Update existing
+                    response = await fetch(`/api/admin/ui-scenarios/${currentScenarioUlid}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+                } else {
+                    // Create new
+                    response = await fetch('/api/admin/ui-scenarios', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+                }
+
+                if (response.ok) {
+                    closeEditor();
+                    loadScenarios();
+                    alert('Scenario saved successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(`Error: ${error.detail}`);
+                }
+            } catch (error) {
+                console.error('Error saving scenario:', error);
+                alert('Error saving scenario');
+            }
+        });
+
+        // Toggle scenario active status
+        async function toggleScenario(ulid, newStatus) {
+            try {
+                const response = await fetch(`/api/admin/ui-scenarios/${ulid}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ active: newStatus })
+                });
+
+                if (response.ok) {
+                    loadScenarios();
+                } else {
+                    alert('Error updating scenario status');
+                }
+            } catch (error) {
+                console.error('Error toggling scenario:', error);
+                alert('Error updating scenario');
+            }
+        }
+
+        // Delete scenario
+        async function deleteScenario(ulid) {
+            if (!confirm('Are you sure you want to delete this scenario?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/admin/ui-scenarios/${ulid}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadScenarios();
+                    alert('Scenario deleted successfully!');
+                } else {
+                    alert('Error deleting scenario');
+                }
+            } catch (error) {
+                console.error('Error deleting scenario:', error);
+                alert('Error deleting scenario');
+            }
+        }
+
+        // Preview scenario
+        function previewScenario() {
+            const html = document.getElementById('html-content').value || '<h1>No content</h1>';
+            const css = document.getElementById('css-content').value || '';
+            const js = document.getElementById('js-content').value || '';
+            
+            const previewWindow = window.open('', '_blank');
+            previewWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Preview</title>
+                    <style>${css}</style>
+                </head>
+                <body>
+                    ${html}
+                    <script>${js}</script>
+                </body>
+                </html>
+            `);
+            previewWindow.document.close();
+        }
+
+        // Preview scenario route
+        function previewScenarioRoute(route) {
+            window.open(`/ui${route}`, '_blank');
+        }
+
+        // Handle hash navigation
+        if (window.location.hash === '#new') {
+            createNewScenario();
+        }
+
+        // Load initial data
+        loadScenarios();
+    </script>
+</body>
+</html>

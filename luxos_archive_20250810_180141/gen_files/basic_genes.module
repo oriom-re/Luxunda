@@ -1,0 +1,56 @@
+# app_v2/gen_files/basic_genes.module
+# Podstawowe geny systemowe
+
+from app_v2.genetics import gene, requires, capability
+import datetime
+
+@gene(name="basic_log", description="Podstawowa funkcja logowania", provides=["logging"])
+def log(message, level="INFO"):
+    """Podstawowa funkcja logowania"""
+    timestamp = datetime.datetime.now().isoformat()
+    print(f"[{timestamp}] [{level}] {message}")
+    return {"logged": True, "message": message, "level": level, "timestamp": timestamp}
+
+@gene(name="memory_store", description="Przechowywanie danych w pamięci", provides=["storage", "memory"])
+def store_in_memory(key, value):
+    """Przechowuje dane w pamięci"""
+    if not hasattr(store_in_memory, '_storage'):
+        store_in_memory._storage = {}
+    store_in_memory._storage[key] = value
+    return {"stored": True, "key": key}
+
+@gene(name="memory_retrieve", description="Odczytywanie danych z pamięci")
+@requires("memory")
+def get_from_memory(key):
+    """Odczytuje dane z pamięci"""
+    if hasattr(store_in_memory, '_storage'):
+        return store_in_memory._storage.get(key)
+    return None
+
+@requires("logging", "storage")
+@gene(name="audit_log", description="Logowanie z zapisem do storage", provides=["auditing"])
+def audit_log(action, user_id, details=None):
+    """Loguje akcje użytkowników z zapisem"""
+    log_entry = {
+        "action": action,
+        "user_id": user_id,
+        "details": details or {},
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+    
+    # Użyj genu storage
+    store_in_memory(f"audit_{user_id}_{action}", log_entry)
+    
+    # Użyj genu logging  
+    log(f"AUDIT: {user_id} performed {action}", "AUDIT")
+    
+    return log_entry
+
+@gene(name="health_check", description="Sprawdza status systemu", provides=["monitoring"])
+def health_check():
+    """Sprawdza podstawowy status systemu"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "uptime": "unknown"
+    }
