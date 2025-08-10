@@ -26,6 +26,7 @@ class LuxOSSystem:
             'advanced_systems': False
         }
         self.logs = []
+        self.app = None  # Inicjalizacja zmiennej dla aplikacji FastAPI
 
     def log(self, level: str, message: str, component: str = "MAIN"):
         """Centralized logging"""
@@ -76,15 +77,15 @@ class LuxOSSystem:
             from fastapi.staticfiles import StaticFiles
             import uvicorn
 
-            app = FastAPI(title="LuxOS System Interface")
+            self.app = FastAPI(title="LuxOS System Interface") # Przypisanie do self.app
 
             # Obsługa plików statycznych
             try:
-                app.mount("/static", StaticFiles(directory="static"), name="static")
+                self.app.mount("/static", StaticFiles(directory="static"), name="static")
             except Exception as e:
                 self.log("WARN", f"Katalog static: {e}", "WEB")
 
-            @app.get("/", response_class=HTMLResponse)
+            @self.app.get("/", response_class=HTMLResponse)
             async def root():
                 return f"""
                 <html>
@@ -113,24 +114,61 @@ class LuxOSSystem:
                 </html>
                 """
 
-            @app.get("/status")
+            @self.app.get("/status")
             async def status():
-                return {
-                    "status": "running",
-                    "startup_time": self.startup_time.isoformat(),
-                    "system": "LuxOS",
-                    "components": self.components_active,
-                    "uptime_seconds": (datetime.now() - self.startup_time).total_seconds()
-                }
+                try:
+                    # Sprawdź połączenie z bazą danych bezpośrednio
+                    from database.postgre_db import Postgre_db
 
-            @app.get("/health")
+                    db_status = "disconnected"
+                    beings_count = 0
+                    souls_count = 0
+
+                    try:
+                        db_pool = await Postgre_db.get_db_pool()
+                        if db_pool:
+                            async with db_pool.acquire() as conn:
+                                # Sprawdź połączenie i pobierz statystyki
+                                souls_result = await conn.fetch("SELECT COUNT(*) as count FROM souls")
+                                beings_result = await conn.fetch("SELECT COUNT(*) as count FROM beings")
+
+                                souls_count = souls_result[0]['count'] if souls_result else 0
+                                beings_count = beings_result[0]['count'] if beings_result else 0
+                                db_status = "connected"
+                    except Exception as e:
+                        self.log("WARNING", f"Database status check failed: {str(e)}", "WEB")
+                        db_status = "disconnected"
+
+                    return {
+                        "status": "running" if db_status == "connected" else "error",
+                        "mode": "main_system",
+                        "beings_count": beings_count,
+                        "souls_count": souls_count,
+                        "uptime": datetime.now().isoformat(),
+                        "database": db_status,
+                        "service": "LuxOS Main System",
+                        "lux_assistant_ready": True,
+                        "specialists_available": True
+                    }
+                except Exception as e:
+                    self.log("ERROR", f"Status endpoint error: {str(e)}", "WEB")
+                    return {
+                        "status": "error",
+                        "error": str(e),
+                        "uptime": datetime.now().isoformat(),
+                        "database": "disconnected",
+                        "beings_count": 0,
+                        "souls_count": 0
+                    }
+
+            @self.app.get("/health")
             async def health():
                 if self.components_active['database']:
                     return {"status": "healthy", "database": "connected"}
                 else:
                     return {"status": "degraded", "database": "disconnected"}
 
-            @app.get("/beings")
+            @self.app.get("/beings")
             async def list_beings():
                 if not self.components_active['database']:
                     return {"error": "Database not connected"}
@@ -138,11 +176,11 @@ class LuxOSSystem:
                 try:
                     # Bezpośrednie połączenie z bazą danych bez używania BeingRepository
                     from database.postgre_db import Postgre_db
-                    
+
                     db_pool = await Postgre_db.get_db_pool()
                     if not db_pool:
                         return {"error": "Database pool not available"}
-                    
+
                     async with db_pool.acquire() as conn:
                         # Pobierz beings z bazy danych
                         beings_data = await conn.fetch("""
@@ -152,7 +190,7 @@ class LuxOSSystem:
                             ORDER BY b.created_at DESC
                             LIMIT 20
                         """)
-                        
+
                         beings_list = []
                         for row in beings_data:
                             being_data = dict(row['data']) if row['data'] else {}
@@ -164,7 +202,7 @@ class LuxOSSystem:
                                 "name": being_data.get('name', 'Unnamed'),
                                 "created_at": row['created_at'].isoformat() if row['created_at'] else None
                             })
-                        
+
                         return {"beings": beings_list, "count": len(beings_list)}
 
                 except Exception as e:
@@ -172,7 +210,7 @@ class LuxOSSystem:
                     return {"error": f"Error fetching beings: {str(e)}"}
 
             def run_server():
-                uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+                uvicorn.run(self.app, host="0.0.0.0", port=port, log_level="info")
 
             server_thread = threading.Thread(target=run_server, daemon=True)
             server_thread.start()
