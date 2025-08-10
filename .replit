@@ -16,7 +16,7 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS Start"
+runButton = "Simple LuxOS"
 
 [[workflows.workflow]]
 name = "Start LuxOS Server"
@@ -260,6 +260,15 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python luxos_frontend_server.py"
+
+[[workflows.workflow]]
+name = "Simple LuxOS"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python luxos_simple_system.py"
 
 [[ports]]
 localPort = 3000
