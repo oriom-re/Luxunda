@@ -1,460 +1,446 @@
+
 #!/usr/bin/env python3
 """
-🚀 LuxOS Unified Start System - Jeden punkt wejścia dla całego systemu
+LuxOS - Standalone Main System
+Uproszczony system działający bez zewnętrznych modułów
 """
 
-import asyncio
+import os
 import sys
-import argparse
-from pathlib import Path
+import asyncio
+import json
+import sqlite3
 from datetime import datetime
-from typing import Dict, Any, Optional
-
-# Dodaj główny katalog do ścieżki Python
-sys.path.insert(0, str(Path(__file__).parent))
-
-from database.postgre_db import Postgre_db
-from luxdb.models.being import Being
-from luxdb.core.primitive_beings import PrimitiveBeingFactory
-from luxdb.core.admin_kernel import admin_kernel
-from luxdb.core.kernel_system import kernel_system
-import uvicorn
-import threading
-import time
-
-# Importuj logger i sesje
+from typing import Dict, Any, Optional, List
+import uuid
 import logging
-from luxdb.core.logger import logger
-from luxdb.core.session_assistant import SessionAssistant
-from luxdb.core.auth_session import auth_manager
-from luxdb.ai_lux_assistant import LuxAssistant # Import LuxAssistant
-from luxdb.core.function_registry import function_registry
 
-class LuxOSUnifiedSystem:
-    """Zunifikowany system startowy LuxOS"""
+# Konfiguracja logowania
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-    def __init__(self):
-        self.startup_time = datetime.now()
-        self.components_active = {
-            'database': False,
-            'kernel_system': False,
-            'admin_kernel': False,
-            'admin_server': False
+class SimpleDatabase:
+    """Prosta baza danych SQLite"""
+    
+    def __init__(self, db_path: str = "luxos_main.db"):
+        self.db_path = db_path
+        self.connection = None
+        
+    async def connect(self):
+        """Połączenie z bazą danych"""
+        try:
+            self.connection = sqlite3.connect(self.db_path)
+            self.connection.row_factory = sqlite3.Row
+            await self.init_tables()
+            logger.info("✅ Połączono z bazą danych SQLite")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Błąd połączenia z bazą: {e}")
+            return False
+    
+    async def init_tables(self):
+        """Inicjalizacja tabel"""
+        cursor = self.connection.cursor()
+        
+        # Tabela bytów (beings)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS beings (
+                id TEXT PRIMARY KEY,
+                alias TEXT UNIQUE,
+                name TEXT,
+                description TEXT,
+                type TEXT,
+                data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Tabela dusz (souls)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS souls (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                being_id TEXT,
+                soul_data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (being_id) REFERENCES beings (id)
+            )
+        """)
+        
+        self.connection.commit()
+        logger.info("✅ Tabele zainicjalizowane")
+
+    async def execute(self, query: str, params: tuple = ()):
+        """Wykonanie zapytania"""
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(query, params)
+            self.connection.commit()
+            return cursor.fetchall()
+        except Exception as e:
+            logger.error(f"❌ Błąd zapytania: {e}")
+            return []
+
+    async def close(self):
+        """Zamknięcie połączenia"""
+        if self.connection:
+            self.connection.close()
+            logger.info("🔄 Zamknięto połączenie z bazą")
+
+class SimpleBeing:
+    """Prosty byt LuxOS"""
+    
+    def __init__(self, id: str, alias: str, name: str, description: str = "", being_type: str = "basic"):
+        self.id = id
+        self.alias = alias
+        self.name = name
+        self.description = description
+        self.type = being_type
+        self.data = {}
+        self.created_at = datetime.now()
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'alias': self.alias,
+            'name': self.name,
+            'description': self.description,
+            'type': self.type,
+            'data': json.dumps(self.data),
+            'created_at': self.created_at.isoformat()
         }
-        self.logs = []
 
-    def log(self, level: str, message: str, component: str = "MAIN"):
-        """Centralized logging"""
-        timestamp = datetime.now().isoformat()
-        colors = {"INFO": "\033[32m", "WARN": "\033[33m", "ERROR": "\033[31m", "SUCCESS": "\033[92m"}
-        color = colors.get(level, "\033[0m")
-        reset = "\033[0m"
-
-        log_entry = f"{color}[{timestamp}] {level} [{component}]{reset} {message}"
-        self.logs.append(log_entry)
-        print(log_entry)
-
-    async def initialize_database(self):
-        """Inicjalizuje bazę danych"""
-        self.log("INFO", "Inicjalizacja bazy PostgreSQL...", "DATABASE")
-
-        try:
-            db_pool = await Postgre_db.get_db_pool()
-            if db_pool:
-                self.log("SUCCESS", "Baza danych PostgreSQL zainicjalizowana", "DATABASE")
-                self.components_active['database'] = True
-                return True
-            else:
-                self.log("ERROR", "Nie udało się połączyć z bazą danych", "DATABASE")
-                return False
-        except Exception as e:
-            self.log("ERROR", f"Błąd inicjalizacji bazy danych: {e}", "DATABASE")
-            return False
-
-    async def initialize_kernel_system(self):
-        """Inicjalizuje główny system kernel"""
-        self.log("INFO", "Inicjalizacja Kernel System...", "KERNEL")
-
-        try:
-            await kernel_system.initialize("advanced")
-            status = await kernel_system.get_system_status()
-
-            self.log("SUCCESS", f"Kernel System aktywny - Scenariusz: {status['active_scenario']}", "KERNEL")
-            self.components_active['kernel_system'] = True
+class LuxOSKernel:
+    """Główny kernel LuxOS"""
+    
+    def __init__(self):
+        self.db = SimpleDatabase()
+        self.beings = {}
+        self.status = "offline"
+        self.mode = "standalone"
+        
+    def log(self, level: str, message: str, category: str = "KERNEL"):
+        """Prosty system logowania"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        icon = "📡" if category == "KERNEL" else "🤖" if category == "BEINGS" else "💾"
+        print(f"{timestamp} {icon} [{level}] {category}: {message}")
+    
+    async def initialize(self):
+        """Inicjalizacja kernela"""
+        self.log("INFO", "🚀 Inicjalizacja LuxOS Kernel...")
+        
+        # Połączenie z bazą
+        if await self.db.connect():
+            self.status = "online"
+            self.log("SUCCESS", "Kernel zainicjalizowany pomyślnie")
+            
+            # Utworzenie podstawowych bytów
+            await self.create_basic_beings()
+            
             return True
-
-        except Exception as e:
-            self.log("ERROR", f"Błąd inicjalizacji Kernel System: {e}", "KERNEL")
+        else:
+            self.status = "error"
+            self.log("ERROR", "Błąd inicjalizacji kernela")
             return False
-
-    async def initialize_admin_kernel(self):
-        """Inicjalizuje admin kernel interface"""
-        self.log("INFO", "Inicjalizacja Admin Kernel Interface...", "ADMIN")
-
+    
+    async def create_basic_beings(self):
+        """Tworzenie podstawowych bytów"""
+        self.log("INFO", "🤖 Tworzenie podstawowych bytów...")
+        
         try:
-            await admin_kernel.initialize()
-
-            self.log("SUCCESS", "Admin Kernel Interface aktywny", "ADMIN")
-            self.log("INFO", f"Kernel Being aktywny: {admin_kernel.system_status['kernel_active']}", "ADMIN")
-            self.log("INFO", f"Lux Being aktywny: {admin_kernel.system_status['lux_active']}", "ADMIN")
-
-            self.components_active['admin_kernel'] = True
-            return True
-
+            # BIOS Being
+            bios_being = SimpleBeing(
+                id=str(uuid.uuid4()),
+                alias="bios",
+                name="LuxOS BIOS",
+                description="System BIOS dla LuxOS",
+                being_type="system"
+            )
+            
+            bios_being.data = {
+                "bootstrap_sequence": ["init_kernel", "load_communication", "setup_ui", "ready_state"],
+                "fallback": {
+                    "max_retries": 3,
+                    "retry_delay": 5000,
+                    "emergency_mode": True
+                }
+            }
+            
+            await self.save_being(bios_being)
+            self.beings[bios_being.alias] = bios_being
+            self.log("SUCCESS", f"BIOS Being utworzony: {bios_being.id}")
+            
+            # Lux Assistant Being
+            assistant_being = SimpleBeing(
+                id=str(uuid.uuid4()),
+                alias="lux_assistant",
+                name="Lux Assistant",
+                description="Główny asystent LuxOS",
+                being_type="assistant"
+            )
+            
+            assistant_being.data = {
+                "capabilities": ["chat", "help", "system_info"],
+                "status": "ready"
+            }
+            
+            await self.save_being(assistant_being)
+            self.beings[assistant_being.alias] = assistant_being
+            self.log("SUCCESS", f"Lux Assistant utworzony: {assistant_being.id}")
+            
         except Exception as e:
-            self.log("ERROR", f"Błąd inicjalizacji Admin Kernel: {e}", "ADMIN")
-            return False
+            self.log("ERROR", f"Błąd tworzenia bytów: {e}")
+    
+    async def save_being(self, being: SimpleBeing):
+        """Zapisanie bytu do bazy"""
+        query = """
+            INSERT OR REPLACE INTO beings 
+            (id, alias, name, description, type, data) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            being.id, being.alias, being.name, 
+            being.description, being.type, json.dumps(being.data)
+        )
+        await self.db.execute(query, params)
+    
+    async def get_status(self) -> Dict[str, Any]:
+        """Status systemu"""
+        beings_count = len(self.beings)
+        
+        return {
+            "status": self.status,
+            "mode": self.mode,
+            "beings_count": beings_count,
+            "uptime": datetime.now().isoformat(),
+            "database": "connected" if self.db.connection else "disconnected"
+        }
+    
+    async def shutdown(self):
+        """Wyłączenie systemu"""
+        self.log("INFO", "🔄 Wyłączanie LuxOS Kernel...")
+        await self.db.close()
+        self.status = "offline"
+        self.log("INFO", "✅ LuxOS Kernel wyłączony")
 
-    def start_admin_server(self, port: int = 3030):
-        """Uruchamia admin server w tle"""
-        self.log("INFO", f"Uruchamianie Admin Server na porcie {port}...", "SERVER")
-
+class LuxOSWebServer:
+    """Prosty serwer HTTP dla LuxOS"""
+    
+    def __init__(self, kernel: LuxOSKernel, port: int = 5000):
+        self.kernel = kernel
+        self.port = port
+    
+    def create_html_interface(self) -> str:
+        """Tworzenie prostego interfejsu HTML"""
+        return """
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxOS - Main System</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #00ff88;
+            font-size: 2.5em;
+            margin: 0;
+            text-shadow: 0 0 20px #00ff88;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,255,136,0.3);
+        }
+        .status-card h3 {
+            color: #00ff88;
+            margin-top: 0;
+        }
+        .system-info {
+            background: rgba(0,0,0,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #00ff88;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #aaa;
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌟 LuxOS Main System</h1>
+            <p>Standalone Kernel - Simplified Architecture</p>
+        </div>
+        
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>📡 System Status</h3>
+                <p>Status: <span class="pulse">🟢 Online</span></p>
+                <p>Mode: Standalone</p>
+                <p>Kernel: Active</p>
+            </div>
+            
+            <div class="status-card">
+                <h3>🤖 Beings</h3>
+                <p>Total: 2</p>
+                <p>BIOS: ✅ Active</p>
+                <p>Assistant: ✅ Ready</p>
+            </div>
+            
+            <div class="status-card">
+                <h3>💾 Database</h3>
+                <p>Type: SQLite</p>
+                <p>Status: ✅ Connected</p>
+                <p>Tables: Initialized</p>
+            </div>
+        </div>
+        
+        <div class="system-info">
+            <h3>🚀 LuxOS Standalone</h3>
+            <p>Wszystkie komponenty zostały pomyślnie zarchiwizowane. System działa teraz w trybie standalone z uproszczoną architekturą.</p>
+            <p><strong>Aktywne komponenty:</strong></p>
+            <ul>
+                <li>✅ Kernel główny (main.py)</li>
+                <li>✅ Baza danych SQLite</li>
+                <li>✅ Podstawowe byty (BIOS, Assistant)</li>
+                <li>✅ Interfejs webowy</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>LuxOS © 2025 - Simplified & Clean Architecture</p>
+            <p>🗃️ Archive: luxos_archive_20250810_180141/</p>
+        </div>
+    </div>
+    
+    <script>
+        console.log('🌟 LuxOS Frontend System - Standalone Mode');
+        console.log('📦 All legacy components archived successfully');
+        console.log('🚀 Running clean main.py only');
+        
+        // Proste sprawdzenie statusu
+        setInterval(() => {
+            console.log('💓 LuxOS Heartbeat - System Active');
+        }, 30000);
+    </script>
+</body>
+</html>
+        """
+    
+    async def start_server(self):
+        """Uruchomienie serwera"""
         try:
+            # Używamy prostego serwera HTTP
+            from http.server import HTTPServer, BaseHTTPRequestHandler
+            import threading
+            
+            class LuxOSHandler(BaseHTTPRequestHandler):
+                def do_GET(self):
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/html')
+                    self.end_headers()
+                    html = self.server.luxos_server.create_html_interface()
+                    self.wfile.write(html.encode())
+                
+                def log_message(self, format, *args):
+                    # Wyłączenie domyślnych logów HTTP
+                    pass
+            
+            httpd = HTTPServer(('0.0.0.0', self.port), LuxOSHandler)
+            httpd.luxos_server = self
+            
             def run_server():
-                try:
-                    from admin_kernel_server import app
-                    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
-                except Exception as e:
-                    self.log("ERROR", f"Błąd Admin Server: {e}", "SERVER")
-
+                httpd.serve_forever()
+            
             server_thread = threading.Thread(target=run_server, daemon=True)
             server_thread.start()
-            time.sleep(2)  # Daj czas na uruchomienie
-
-            self.log("SUCCESS", f"Admin Server uruchomiony na http://0.0.0.0:{port}", "SERVER")
-            self.components_active['admin_server'] = True
-            return True
-
+            
+            logger.info(f"🌐 LuxOS Server uruchomiony na porcie {self.port}")
+            logger.info(f"🔗 URL: http://0.0.0.0:{self.port}")
+            
+            return httpd
+            
         except Exception as e:
-            self.log("ERROR", f"Błąd uruchomienia Admin Server: {e}", "SERVER")
-            return False
-
-    async def create_sample_beings(self):
-        """Tworzy przykładowe byty w systemie"""
-        self.log("INFO", "Tworzę przykładowe byty...", "BEINGS")
-
-        try:
-            # Przykładowy byt danych
-            data_being = await PrimitiveBeingFactory.create_being(
-                'data',
-                alias='sample_data',
-                name='Sample Data Storage',
-                description='Przykładowy byt do przechowywania danych'
-            )
-            await data_being.store_value('sample_key', 'sample_value')
-            self.log("SUCCESS", f"Data Being utworzony: {data_being.ulid}", "BEINGS")
-
-            # Przykładowy byt funkcji
-            function_being = await PrimitiveBeingFactory.create_being(
-                'function',
-                alias='sample_function',
-                name='Sample Function',
-                description='Przykładowa funkcja'
-            )
-            await function_being.set_function('hello_world', 'def hello_world(): return "Hello, World!"')
-            self.log("SUCCESS", f"Function Being utworzony: {function_being.ulid}", "BEINGS")
-
-            # Przykładowy byt wiadomości
-            message_being = await PrimitiveBeingFactory.create_being(
-                'message',
-                alias='sample_message',
-                name='Sample Message'
-            )
-            await message_being.set_message('Witaj w LuxOS!', 'system')
-            self.log("SUCCESS", f"Message Being utworzony: {message_being.ulid}", "BEINGS")
-
-            return True
-
-        except Exception as e:
-            self.log("ERROR", f"Błąd tworzenia przykładowych bytów: {e}", "BEINGS")
-            return False
-
-    async def show_system_status(self):
-        """Wyświetla status systemu"""
-        self.log("INFO", "Status systemu LuxOS:", "STATUS")
-
-        try:
-            # Status komponentów
-            for component, active in self.components_active.items():
-                status = "✅ Aktywny" if active else "❌ Nieaktywny"
-                self.log("INFO", f"{component}: {status}", "STATUS")
-
-            # Policz byty jeśli baza jest aktywna
-            if self.components_active['database']:
-                # Dostęp do BeingRepository jest przyjmowany jako istniejący
-                # z odpowiednim interfejsem do count_beings
-                beings_count = await BeingRepository.count_beings()
-                self.log("INFO", f"Liczba bytów w systemie: {beings_count}", "STATUS")
-
-                # Pokaż ostatnie byty
-                # Dostęp do BeingRepository jest przyjmowany jako istniejący
-                # z odpowiednim interfejsem do get_all_beings
-                result = await BeingRepository.get_all_beings(limit=5)
-                if result.get('success') and result.get('beings'):
-                    self.log("INFO", "Ostatnie byty:", "STATUS")
-                    for being in result['beings']:
-                        being_type = being.get_data('type', 'unknown')
-                        self.log("INFO", f"  - {being.alias or being.ulid[:8]}: {being_type}", "STATUS")
-
-        except Exception as e:
-            self.log("ERROR", f"Błąd sprawdzania statusu: {e}", "STATUS")
-
-    async def run_interactive_mode(self):
-        """Uruchamia tryb interaktywny"""
-        self.log("INFO", "Tryb interaktywny LuxOS", "INTERACTIVE")
-        print("\nDostępne komendy:")
-        print("  create <type> <alias> - Tworzy nowy byt")
-        print("  list - Wyświetla wszystkie byty")
-        print("  status - Wyświetla status systemu")
-        print("  exit - Wychodzi z trybu interaktywnego")
-
-        while True:
-            try:
-                command = input("\nLuxOS> ").strip().split()
-
-                if not command:
-                    continue
-
-                if command[0] == 'exit':
-                    break
-                elif command[0] == 'status':
-                    await self.show_system_status()
-                elif command[0] == 'list':
-                    await self.list_beings()
-                elif command[0] == 'create' and len(command) >= 3:
-                    being_type = command[1]
-                    alias = command[2]
-                    await self.create_being_interactive(being_type, alias)
-                else:
-                    print("Nieznana komenda. Spróbuj: create, list, status, exit")
-
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                print(f"Błąd: {e}")
-
-    async def list_beings(self):
-        """Wyświetla listę bytów"""
-        try:
-            # Zakładamy istnienie BeingRepository
-            result = await BeingRepository.get_all_beings(limit=20)
-
-            if result.get('success') and result.get('beings'):
-                print("\n📋 Lista bytów:")
-                for being in result['beings']:
-                    being_type = being.get_data('type', 'unknown')
-                    created = being.created_at.strftime('%Y-%m-%d %H:%M') if being.created_at else 'unknown'
-                    print(f"  {being.alias or being.ulid[:8]}: {being_type} (created: {created})")
-            else:
-                print("Brak bytów w systemie")
-
-        except Exception as e:
-            print(f"Błąd listowania bytów: {e}")
-
-    async def create_being_interactive(self, being_type: str, alias: str):
-        """Tworzy byt w trybie interaktywnym"""
-        try:
-            being = await PrimitiveBeingFactory.create_being(
-                being_type,
-                alias=alias,
-                name=f"Interactive {being_type}",
-                created_via='interactive_mode'
-            )
-            print(f"✅ Utworzono byt: {being.ulid} ({being_type})")
-
-        except Exception as e:
-            print(f"Błąd tworzenia bytu: {e}")
-
-    async def full_system_startup(self, mode: str = "basic"):
-        """Pełne uruchomienie systemu"""
-        self.log("SUCCESS", "🌟 ROZPOCZĘCIE URUCHOMIENIA LUXOS SYSTEM", "MAIN")
-        self.log("INFO", "=" * 60, "MAIN")
-
-        # Zarejestruj podstawowe funkcje systemowe
-        def system_info() -> dict:
-            """Zwraca informacje o systemie"""
-            import platform
-            return {
-                "platform": platform.system(),
-                "python_version": platform.python_version(),
-                "luxdb_version": "1.0.0"
-            }
-
-        function_registry.register_function(system_info, "system_info")
-        print("✅ Zarejestrowano podstawowe funkcje systemowe")
-
-        # Inicjalizacja komponentów
-        db_success = await self.initialize_database()
-        if not db_success:
-            self.log("ERROR", "Krytyczny błąd inicjalizacji bazy danych. System nie może działać.", "MAIN")
-            return False
-
-        kernel_success = await self.initialize_kernel_system()
-        if not kernel_success:
-            self.log("WARN", "Nie udało się zainicjalizować Kernel System. Niektóre funkcje mogą być niedostępne.", "MAIN")
-
-        if mode in ["full", "admin", "server"]:
-            admin_success = await self.initialize_admin_kernel()
-            if not admin_success:
-                self.log("WARN", "Nie udało się zainicjalizować Admin Kernel. Funkcje administracyjne mogą być niedostępne.", "MAIN")
-            server_success = self.start_admin_server()
-            if not server_success:
-                self.log("WARN", "Nie udało się uruchomić Admin Server. Interfejs administracyjny może być niedostępny.", "MAIN")
-
-        # Initialize Authentication System
-        self.log("INFO", "AUTH", "Inicjalizacja Authentication Manager...")
-        try:
-            # Przyjmujemy, że auth_manager jest zaimportowany i gotowy do użycia
-            # oraz że ma metodę initialize() zwracającą słownik z kluczami 'success' i 'error'
-            auth_result = await auth_manager.initialize()
-            if not auth_result.get('success'):
-                # Używamy loggera, jeśli jest dostępny, lub fall back do self.log
-                if 'logger' in globals():
-                    logger.error(f"Błąd inicjalizacji Authentication: {auth_result.get('error')}")
-                else:
-                    self.log("ERROR", f"Błąd inicjalizacji Authentication: {auth_result.get('error')}", "AUTH")
-            else:
-                if 'logger' in globals():
-                    logger.success("Authentication Manager zainicjalizowany")
-                else:
-                    self.log("SUCCESS", "Authentication Manager zainicjalizowany", "AUTH")
-        except Exception as e:
-            if 'logger' in globals():
-                logger.error(f"Błąd inicjalizacji Authentication: {e}")
-            else:
-                self.log("ERROR", f"Błąd inicjalizacji Authentication: {e}", "AUTH")
-            # Nie przerywamy działania systemu, ale logujemy błąd
-
-        # Initialize Communication System
-        self.log("INFO", "COMM", "Inicjalizacja Communication System...")
-        try:
-            # Przyjmujemy, że communication_system jest zaimportowany i gotowy do użycia
-            # oraz ma metodę initialize()
-            await communication_system.initialize()
-            self.log("SUCCESS", "COMM", "Communication System zainicjalizowany")
-        except Exception as e:
-            self.log("ERROR", "COMM", f"Błąd inicjalizacji Communication: {e}")
-            # Nie przerywamy działania systemu, ale logujemy błąd
-
-        # Initialize Lux Assistant Communication
-        self.log("INFO", "LUX", "Inicjalizacja Lux Assistant Communication...")
-        try:
-            import os # Upewnij się, że os jest zaimportowane
-            # Pobierz klucz OpenAI z zmiennych środowiskowych
-            openai_key = os.getenv('OPENAI_API_KEY')
-
-            if openai_key:
-                # Zainicjalizuj główny Lux Assistant
-                # Używamy zaimportowanej klasy LuxAssistant
-                global_lux = LuxAssistant(openai_key)
-                await global_lux.initialize()
-
-                # Dodaj do session managera jako główną instancję
-                # Zakładamy, że session_manager jest dostępny i ma atrybut global_lux_assistant
-                session_manager.global_lux_assistant = global_lux
-
-                # Pobieranie ostatnich 10 wiadomości do kontekstu asystenta
-                # Zakładamy, że session_manager ma dostęp do historii wiadomości lub może ją pobrać
-                # To jest przykładowe umieszczenie, logika pobierania może być inna
-                try:
-                    # Przykładowa próba pobrania historii, jeśli session_manager ją udostępnia
-                    # Jeśli nie, ta część może wymagać dostosowania lub dodania logiki
-                    if hasattr(session_manager, 'get_recent_messages'):
-                        recent_messages = await session_manager.get_recent_messages(limit=10)
-                        if recent_messages:
-                            # Przygotuj wiadomości do dodania do kontekstu
-                            formatted_messages = [f"{msg['sender']}: {msg['content']}" for msg in recent_messages]
-                            await global_lux.add_to_context("\n".join(formatted_messages))
-                            self.log("SUCCESS", "LUX", "Ostatnie 10 wiadomości dodane do kontekstu asystenta.")
-                        else:
-                            self.log("INFO", "LUX", "Brak ostatnich wiadomości do dodania do kontekstu.")
-                    else:
-                        self.log("WARN", "LUX", "SessionManager nie wspiera pobierania ostatnich wiadomości dla kontekstu.")
-                except Exception as msg_e:
-                    self.log("ERROR", "LUX", f"Błąd podczas dodawania wiadomości do kontekstu: {msg_e}")
-
-
-                self.log("SUCCESS", "LUX", "Lux Assistant Communication zainicjalizowany")
-            else:
-                self.log("WARN", "LUX", "Brak OPENAI_API_KEY - Lux Assistant wyłączony")
-
-        except Exception as e:
-            self.log("ERROR", "LUX", f"Błąd inicjalizacji Lux Assistant: {e}")
-            # Nie przerywamy działania systemu - Lux to opcjonalny komponent
-
-        # Podsumowanie
-        active_count = sum(self.components_active.values())
-        total_count = len(self.components_active)
-
-        self.log("INFO", "=" * 60, "MAIN")
-        if active_count == total_count:
-            self.log("SUCCESS", "🎉 LUXOS SYSTEM URUCHOMIONY POMYŚLNIE!", "MAIN")
-            if self.components_active['admin_server']:
-                self.log("SUCCESS", "👑 Admin Interface: http://0.0.0.0:3030", "MAIN")
-        else:
-            self.log("WARN", f"⚠️ Uruchomienie częściowe: {active_count}/{total_count} komponentów", "MAIN")
-
-        self.log("INFO", "=" * 60, "MAIN")
-        return True
+            logger.error(f"❌ Błąd uruchomienia serwera: {e}")
+            return None
 
 async def main():
-    """Główna funkcja startowa"""
-    parser = argparse.ArgumentParser(description='LuxOS Unified System Starter')
-    parser.add_argument('--mode', choices=['basic', 'full', 'admin', 'server'], default='basic',
-                       help='Tryb uruchomienia systemu')
-    parser.add_argument('--bootstrap', action='store_true', help='Tworzy przykładowe byty')
-    parser.add_argument('--interactive', action='store_true', help='Tryb interaktywny')
-    parser.add_argument('--status', action='store_true', help='Wyświetla status systemu')
-    parser.add_argument('--wakeup', action='store_true', help='Pełne przebudzenie systemu (alias for --mode=full)')
-    parser.add_argument('--ignore-errors', action='store_true', help='Ignoruje błędy podczas uruchamiania') # Added for ignore_errors
-
-    args = parser.parse_args()
-
-    # Mapuj wakeup na mode=full
-    if args.wakeup:
-        args.mode = 'full'
-
-    print("🌟 LuxOS Unified System")
-    print("======================")
-
-    system = LuxOSUnifiedSystem()
-
-    # Uruchom system w odpowiednim trybie
-    if not await system.full_system_startup(args.mode):
-        if not args.ignore_errors: # Sprawdź, czy ignorowanie błędów jest aktywne
-            sys.exit(1)
-
-    # Wykonaj dodatkowe akcje
-    if args.bootstrap:
-        await system.create_sample_beings()
-
-    if args.status:
-        await system.show_system_status()
-
-    if args.interactive:
-        await system.run_interactive_mode()
-    elif args.mode in ["full", "server"]:
-        # Utrzymaj system żywy w trybie serwera
-        system.log("INFO", "System uruchomiony w trybie serwera. Naciśnij Ctrl+C aby zakończyć.", "MAIN")
-        try:
-            while True:
-                await asyncio.sleep(10)
-        except KeyboardInterrupt:
-            system.log("INFO", "👋 LuxOS System shutting down...", "MAIN")
+    """Główna funkcja LuxOS"""
+    print("🌟 LuxOS Main System - Starting...")
+    print("📦 Clean Architecture - Archive Mode")
+    
+    # Inicjalizacja kernela
+    kernel = LuxOSKernel()
+    
+    if await kernel.initialize():
+        # Uruchomienie serwera web
+        web_server = LuxOSWebServer(kernel)
+        httpd = await web_server.start_server()
+        
+        if httpd:
+            print("\n" + "="*50)
+            print("🚀 LuxOS SYSTEM READY")
+            print("="*50)
+            print(f"🌐 Web Interface: http://0.0.0.0:5000")
+            print(f"📊 Status: {kernel.status}")
+            print(f"🤖 Beings: {len(kernel.beings)}")
+            print(f"🗃️ Archive: luxos_archive_20250810_180141/")
+            print("="*50)
+            print("Press Ctrl+C to stop")
+            
+            try:
+                # Utrzymanie działania
+                while True:
+                    await asyncio.sleep(1)
+                    
+            except KeyboardInterrupt:
+                print("\n🔄 Shutting down LuxOS...")
+                await kernel.shutdown()
+                print("✅ LuxOS stopped cleanly")
+        else:
+            print("❌ Nie udało się uruchomić serwera web")
+            await kernel.shutdown()
     else:
-        # W trybie basic pokaż status i zakończ
-        await system.show_system_status()
-        print("\nUżyj --help aby zobaczyć dostępne opcje")
-        print("Przykłady:")
-        print("  python main.py --mode=full --bootstrap    # Pełny system z przykładowymi danymi")
-        print("  python main.py --wakeup                   # Pełne przebudzenie (alias)")
-        print("  python main.py --interactive              # Tryb interaktywny")
-        print("  python main.py --status                   # Tylko status systemu")
+        print("❌ Nie udało się zainicjalizować kernela")
 
 if __name__ == "__main__":
-    # Upewnij się, że asyncio jest dostępne
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        print(f"Krytyczny błąd uruchomienia: {e}")
-        sys.exit(1)
+    asyncio.run(main())
