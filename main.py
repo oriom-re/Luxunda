@@ -22,14 +22,6 @@ import uvicorn
 import threading
 import time
 
-# Importuj logger i sesje
-import logging
-from luxdb.core.logger import logger
-from luxdb.core.session_assistant import SessionAssistant
-from luxdb.core.auth_session import auth_manager
-from luxdb.ai_lux_assistant import LuxAssistant # Import LuxAssistant
-from luxdb.core.function_registry import function_registry
-
 class LuxOSUnifiedSystem:
     """Zunifikowany system startowy LuxOS"""
 
@@ -181,14 +173,10 @@ class LuxOSUnifiedSystem:
 
             # Policz byty jeśli baza jest aktywna
             if self.components_active['database']:
-                # Dostęp do BeingRepository jest przyjmowany jako istniejący
-                # z odpowiednim interfejsem do count_beings
                 beings_count = await BeingRepository.count_beings()
                 self.log("INFO", f"Liczba bytów w systemie: {beings_count}", "STATUS")
 
                 # Pokaż ostatnie byty
-                # Dostęp do BeingRepository jest przyjmowany jako istniejący
-                # z odpowiednim interfejsem do get_all_beings
                 result = await BeingRepository.get_all_beings(limit=5)
                 if result.get('success') and result.get('beings'):
                     self.log("INFO", "Ostatnie byty:", "STATUS")
@@ -236,7 +224,6 @@ class LuxOSUnifiedSystem:
     async def list_beings(self):
         """Wyświetla listę bytów"""
         try:
-            # Zakładamy istnienie BeingRepository
             result = await BeingRepository.get_all_beings(limit=20)
 
             if result.get('success') and result.get('beings'):
@@ -270,117 +257,36 @@ class LuxOSUnifiedSystem:
         self.log("SUCCESS", "🌟 ROZPOCZĘCIE URUCHOMIENIA LUXOS SYSTEM", "MAIN")
         self.log("INFO", "=" * 60, "MAIN")
 
-        # Zarejestruj podstawowe funkcje systemowe
-        def system_info() -> dict:
-            """Zwraca informacje o systemie"""
-            import platform
-            return {
-                "platform": platform.system(),
-                "python_version": platform.python_version(),
-                "luxdb_version": "1.0.0"
-            }
-
-        function_registry.register_function(system_info, "system_info")
-        print("✅ Zarejestrowano podstawowe funkcje systemowe")
-
         # Inicjalizacja komponentów
         db_success = await self.initialize_database()
         if not db_success:
-            self.log("ERROR", "Krytyczny błąd inicjalizacji bazy danych. System nie może działać.", "MAIN")
             return False
 
         kernel_success = await self.initialize_kernel_system()
-        if not kernel_success:
-            self.log("WARN", "Nie udało się zainicjalizować Kernel System. Niektóre funkcje mogą być niedostępne.", "MAIN")
 
         if mode in ["full", "admin", "server"]:
             admin_success = await self.initialize_admin_kernel()
-            if not admin_success:
-                self.log("WARN", "Nie udało się zainicjalizować Admin Kernel. Funkcje administracyjne mogą być niedostępne.", "MAIN")
             server_success = self.start_admin_server()
-            if not server_success:
-                self.log("WARN", "Nie udało się uruchomić Admin Server. Interfejs administracyjny może być niedostępny.", "MAIN")
 
         # Initialize Authentication System
         self.log("INFO", "AUTH", "Inicjalizacja Authentication Manager...")
         try:
-            # Przyjmujemy, że auth_manager jest zaimportowany i gotowy do użycia
-            # oraz że ma metodę initialize() zwracającą słownik z kluczami 'success' i 'error'
-            auth_result = await auth_manager.initialize()
-            if not auth_result.get('success'):
-                # Używamy loggera, jeśli jest dostępny, lub fall back do self.log
-                if 'logger' in globals():
-                    logger.error(f"Błąd inicjalizacji Authentication: {auth_result.get('error')}")
-                else:
-                    self.log("ERROR", f"Błąd inicjalizacji Authentication: {auth_result.get('error')}", "AUTH")
-            else:
-                if 'logger' in globals():
-                    logger.success("Authentication Manager zainicjalizowany")
-                else:
-                    self.log("SUCCESS", "Authentication Manager zainicjalizowany", "AUTH")
+            from luxdb.core.auth_session import auth_manager
+            await auth_manager.initialize()
+            self.log("SUCCESS", "AUTH", "Authentication Manager zainicjalizowany")
         except Exception as e:
-            if 'logger' in globals():
-                logger.error(f"Błąd inicjalizacji Authentication: {e}")
-            else:
-                self.log("ERROR", f"Błąd inicjalizacji Authentication: {e}", "AUTH")
-            # Nie przerywamy działania systemu, ale logujemy błąd
+            self.log("ERROR", "AUTH", f"Błąd inicjalizacji Authentication: {e}")
+            return False
 
         # Initialize Communication System
         self.log("INFO", "COMM", "Inicjalizacja Communication System...")
         try:
-            # Przyjmujemy, że communication_system jest zaimportowany i gotowy do użycia
-            # oraz ma metodę initialize()
+            from luxdb.core.communication_system import communication_system
             await communication_system.initialize()
             self.log("SUCCESS", "COMM", "Communication System zainicjalizowany")
         except Exception as e:
             self.log("ERROR", "COMM", f"Błąd inicjalizacji Communication: {e}")
-            # Nie przerywamy działania systemu, ale logujemy błąd
-
-        # Initialize Lux Assistant Communication
-        self.log("INFO", "LUX", "Inicjalizacja Lux Assistant Communication...")
-        try:
-            import os # Upewnij się, że os jest zaimportowane
-            # Pobierz klucz OpenAI z zmiennych środowiskowych
-            openai_key = os.getenv('OPENAI_API_KEY')
-
-            if openai_key:
-                # Zainicjalizuj główny Lux Assistant
-                # Używamy zaimportowanej klasy LuxAssistant
-                global_lux = LuxAssistant(openai_key)
-                await global_lux.initialize()
-
-                # Dodaj do session managera jako główną instancję
-                # Zakładamy, że session_manager jest dostępny i ma atrybut global_lux_assistant
-                session_manager.global_lux_assistant = global_lux
-
-                # Pobieranie ostatnich 10 wiadomości do kontekstu asystenta
-                # Zakładamy, że session_manager ma dostęp do historii wiadomości lub może ją pobrać
-                # To jest przykładowe umieszczenie, logika pobierania może być inna
-                try:
-                    # Przykładowa próba pobrania historii, jeśli session_manager ją udostępnia
-                    # Jeśli nie, ta część może wymagać dostosowania lub dodania logiki
-                    if hasattr(session_manager, 'get_recent_messages'):
-                        recent_messages = await session_manager.get_recent_messages(limit=10)
-                        if recent_messages:
-                            # Przygotuj wiadomości do dodania do kontekstu
-                            formatted_messages = [f"{msg['sender']}: {msg['content']}" for msg in recent_messages]
-                            await global_lux.add_to_context("\n".join(formatted_messages))
-                            self.log("SUCCESS", "LUX", "Ostatnie 10 wiadomości dodane do kontekstu asystenta.")
-                        else:
-                            self.log("INFO", "LUX", "Brak ostatnich wiadomości do dodania do kontekstu.")
-                    else:
-                        self.log("WARN", "LUX", "SessionManager nie wspiera pobierania ostatnich wiadomości dla kontekstu.")
-                except Exception as msg_e:
-                    self.log("ERROR", "LUX", f"Błąd podczas dodawania wiadomości do kontekstu: {msg_e}")
-
-
-                self.log("SUCCESS", "LUX", "Lux Assistant Communication zainicjalizowany")
-            else:
-                self.log("WARN", "LUX", "Brak OPENAI_API_KEY - Lux Assistant wyłączony")
-
-        except Exception as e:
-            self.log("ERROR", "LUX", f"Błąd inicjalizacji Lux Assistant: {e}")
-            # Nie przerywamy działania systemu - Lux to opcjonalny komponent
+            return False
 
         # Podsumowanie
         active_count = sum(self.components_active.values())
@@ -421,8 +327,7 @@ async def main():
 
     # Uruchom system w odpowiednim trybie
     if not await system.full_system_startup(args.mode):
-        if not args.ignore_errors: # Sprawdź, czy ignorowanie błędów jest aktywne
-            sys.exit(1)
+        sys.exit(1)
 
     # Wykonaj dodatkowe akcje
     if args.bootstrap:
@@ -452,9 +357,4 @@ async def main():
         print("  python main.py --status                   # Tylko status systemu")
 
 if __name__ == "__main__":
-    # Upewnij się, że asyncio jest dostępne
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        print(f"Krytyczny błąd uruchomienia: {e}")
-        sys.exit(1)
+    asyncio.run(main())

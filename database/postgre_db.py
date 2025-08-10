@@ -68,12 +68,12 @@ class Postgre_db:
                     await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
                 except:
                     print("⚠️ Vector extension not available, skipping...")
-
+                    
                 try:
                     await conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
                 except:
                     print("⚠️ Pgcrypto extension not available, skipping...")
-
+                    
                 try:
                     await conn.execute("CREATE EXTENSION IF NOT EXISTS btree_gin;")
                 except:

@@ -86,10 +86,10 @@ async def demo_function_souls():
 
     multi_soul = await Soul.create(multi_genotype, alias="utility_soul")
     
-    # Zarejestruj funkcje i zapisz zmiany
-    await multi_soul.register_function_and_save("greet", greeting_generator, "Generate greetings")
-    await multi_soul.register_function_and_save("process_data", async_data_processor, "Process data asynchronously")
-    await multi_soul.register_function_and_save("calculate", simple_calculator, "Calculator function")
+    # Zarejestruj funkcje
+    multi_soul.register_function("greet", greeting_generator, "Generate greetings")
+    multi_soul.register_function("process_data", async_data_processor, "Process data asynchronously")
+    multi_soul.register_function("calculate", simple_calculator, "Calculator function")
 
     print(f"✅ Created multi-function soul: {multi_soul}")
     print(f"📋 Functions: {', '.join(multi_soul.list_functions())}")

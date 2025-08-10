@@ -16,7 +16,7 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS Frontend Server"
+runButton = "LuxOS Full System"
 
 [[workflows.workflow]]
 name = "Start LuxOS Server"
@@ -224,15 +224,6 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python run_tests.py --evolution-only"
-
-[[workflows.workflow]]
-name = "LuxOS Frontend Server"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python luxos_frontend_server.py"
 
 [[ports]]
 localPort = 3000

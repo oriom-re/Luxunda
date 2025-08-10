@@ -149,139 +149,6 @@ class ScenarioLoader:
 
         return beings
 
-    async def load_bios_being(self) -> Optional[Being]:
-        """Ładuje BIOS jako byt - najnowszy stabilny lub poprzedni jeśli awaria"""
-        from luxdb.repository.soul_repository import BeingRepository
-        
-        # Szukaj BIOS bytów posortowanych według daty, stabilne najpierw
-        all_beings = await BeingRepository.get_all_beings()
-        bios_beings = []
-        
-        if all_beings.get('success'):
-            for being in all_beings.get('beings', []):
-                if (being and 
-                    hasattr(being, 'data') and 
-                    being.data.get('system_type') == 'bios'):
-                    bios_beings.append(being)
-        
-        # Sortuj: stabilne najpierw, potem według daty (najnowsze pierwsze)
-        bios_beings.sort(key=lambda b: (
-            not b.data.get('stable', False),  # False dla stabilnych (wyższy priorytet)
-            -(b.created_at.timestamp() if b.created_at else 0)  # Najnowsze pierwsze
-        ))
-        
-        # Próbuj załadować pierwszy dostępny BIOS
-        for bios_being in bios_beings:
-            try:
-                # Sprawdź czy BIOS jest funkcjonalny
-                if await self._test_bios_functionality(bios_being):
-                    print(f"✅ Załadowano BIOS: {bios_being.alias} (stabilny: {bios_being.data.get('stable', False)})")
-                    return bios_being
-                else:
-                    print(f"⚠️ BIOS {bios_being.alias} niefunkcjonalny, próbuję następny...")
-            except Exception as e:
-                print(f"❌ Błąd przy testowaniu BIOS {bios_being.alias}: {e}")
-                continue
-        
-        print("⚠️ Nie znaleziono funkcjonalnego BIOS, tworzę domyślny...")
-        return await self._create_default_bios_being()
-    
-    async def _test_bios_functionality(self, bios_being: Being) -> bool:
-        """Testuje czy BIOS jest funkcjonalny"""
-        try:
-            # Sprawdź czy ma wymagane instrukcje w genesis
-            soul = await bios_being.get_soul()
-            if not soul:
-                return False
-                
-            genesis = soul.genotype.get('genesis', {})
-            required_instructions = [
-                'bootstrap_sequence',
-                'required_beings',
-                'fallback_procedure'
-            ]
-            
-            for instruction in required_instructions:
-                if instruction not in genesis:
-                    return False
-            
-            # Sprawdź czy bootstrap_sequence nie jest pustą
-            bootstrap_seq = genesis.get('bootstrap_sequence', [])
-            if not bootstrap_seq or len(bootstrap_seq) == 0:
-                return False
-                
-            return True
-            
-        except Exception:
-            return False
-    
-    async def _create_default_bios_being(self) -> Being:
-        """Tworzy domyślny BIOS jako byt"""
-        from luxdb.models.soul import Soul
-        
-        # Utwórz Soul dla BIOS
-        bios_genotype = {
-            "genesis": {
-                "name": "LuxOS_BIOS_Fallback",
-                "type": "system_bios",
-                "version": "1.0.0",
-                "description": "Domyślny BIOS systemu LuxOS",
-                "created_method": "fallback_creation",
-                "bootstrap_sequence": [
-                    "init_kernel",
-                    "load_communication",
-                    "setup_ui",
-                    "ready_state"
-                ],
-                "required_beings": [
-                    {
-                        "alias": "kernel_core",
-                        "type": "system_kernel",
-                        "priority": 100,
-                        "critical": True
-                    },
-                    {
-                        "alias": "lux_assistant",
-                        "type": "ai_assistant", 
-                        "priority": 90,
-                        "critical": False
-                    }
-                ],
-                "fallback_procedure": {
-                    "max_retries": 3,
-                    "retry_delay": 5,
-                    "emergency_mode": True
-                }
-            },
-            "attributes": {
-                "system_type": {"py_type": "str", "default": "bios"},
-                "stable": {"py_type": "bool", "default": True},
-                "version": {"py_type": "str", "default": "1.0.0"},
-                "last_boot_success": {"py_type": "bool", "default": True}
-            }
-        }
-        
-        bios_soul = await Soul.create(
-            genotype=bios_genotype,
-            alias="bios_fallback_soul"
-        )
-        
-        # Utwórz Being dla BIOS
-        bios_being = await Being.create(
-            soul=bios_soul,
-            alias="luxos_bios_fallback",
-            attributes={
-                "system_type": "bios",
-                "stable": True,
-                "version": "1.0.0",
-                "last_boot_success": True,
-                "creation_reason": "fallback_creation"
-            }
-        )
-        
-        print(f"🆕 Utworzono domyślny BIOS: {bios_being.alias}")
-        return bios_being
-
     async def load_being_by_hash(self, being_hash: str) -> Optional[Being]:
         """Ładuje byt według hasha"""
         if being_hash in self.loaded_beings:
@@ -428,8 +295,6 @@ class KernelSystem:
         self.scenario_loader = ScenarioLoader()
         self.active_scenario = None
         self.beings_registry = {}
-        self.bios_being = None
-        self.system_ready = False
         self.load_sequence = [
             "kernel",
             "communication",
@@ -440,166 +305,26 @@ class KernelSystem:
         ]
 
     async def initialize(self, scenario_name: str = "default"):
-        """Inicjalizuje system według scenariusza BIOS"""
+        """Inicjalizuje system według scenariusza"""
         print("🚀 Inicjalizacja LuxOS Kernel System...")
 
         # Aktywuj Kernel Being
         self.kernel_being.active = True
 
-        # 1. Załaduj BIOS jako byt
-        bios_being = await self.load_bios_being()
-        if bios_being:
-            await self.register_being(bios_being)
-            self.bios_being = bios_being
-            
-            # Pobierz instrukcje z BIOS genesis
-            soul = await bios_being.get_soul()
-            if soul:
-                genesis = soul.genotype.get('genesis', {})
-                bootstrap_sequence = genesis.get('bootstrap_sequence', [])
-                required_beings = genesis.get('required_beings', [])
-                
-                print(f"📋 BIOS załadowany: {bios_being.alias}")
-                print(f"🔄 Sekwencja bootstrap: {bootstrap_sequence}")
-                
-                # 2. Wykonaj sekwencję bootstrap zgodnie z BIOS
-                await self._execute_bootstrap_sequence(bootstrap_sequence, required_beings)
-            else:
-                print("⚠️ BIOS bez Soul, przełączam na tryb awaryjny")
-                await self.create_default_scenario()
-        else:
-            print("❌ Nie udało się załadować BIOS, tryb awaryjny")
+        # Załaduj scenariusz
+        try:
+            beings = await self.scenario_loader.load_scenario(scenario_name)
+            self.active_scenario = scenario_name
+
+            # Zarejestruj byty w kernel
+            for being in beings:
+                await self.register_being(being)
+
+        except FileNotFoundError:
+            print(f"⚠️ Scenariusz {scenario_name} nie istnieje, tworzę domyślny...")
             await self.create_default_scenario()
 
         print("✅ LuxOS Kernel System zainicjalizowany")
-
-    async def _execute_bootstrap_sequence(self, bootstrap_sequence: List[str], required_beings: List[Dict]):
-        """Wykonuje sekwencję bootstrap zgodnie z instrukcjami BIOS"""
-        print("🔄 Wykonywanie sekwencji bootstrap...")
-        
-        for step in bootstrap_sequence:
-            print(f"   ⏳ Krok: {step}")
-            
-            if step == "init_kernel":
-                # Kernel już zainicjalizowany
-                print("     ✅ Kernel zainicjalizowany")
-                
-            elif step == "load_communication":
-                # Załaduj systemy komunikacji
-                await self._load_communication_systems()
-                
-            elif step == "setup_ui":
-                # Przygotuj interfejsy użytkownika
-                await self._setup_user_interfaces()
-                
-            elif step == "ready_state":
-                # Przejdź w stan gotowości
-                await self._set_ready_state()
-                
-            else:
-                print(f"     ⚠️ Nieznany krok bootstrap: {step}")
-        
-        # Załaduj wymagane byty zgodnie z BIOS
-        for being_config in required_beings:
-            await self._load_required_being(being_config)
-    
-    async def _load_communication_systems(self):
-        """Ładuje systemy komunikacji"""
-        print("     🔗 Ładowanie systemów komunikacji...")
-        # Tutaj można załadować konkretne byty komunikacji
-        
-    async def _setup_user_interfaces(self):
-        """Przygotowuje interfejsy użytkownika"""
-        print("     🖥️ Przygotowywanie interfejsów...")
-        # Tutaj można przygotować UI komponenty
-        
-    async def _set_ready_state(self):
-        """Ustawia system w stan gotowości"""
-        print("     ✅ System w stanie gotowości")
-        self.system_ready = True
-        
-    async def _load_required_being(self, being_config: Dict):
-        """Ładuje wymagany byt zgodnie z konfiguracją BIOS"""
-        alias = being_config.get('alias', 'unknown')
-        being_type = being_config.get('type', 'generic')
-        priority = being_config.get('priority', 50)
-        critical = being_config.get('critical', False)
-        
-        print(f"     📦 Ładowanie bytu: {alias} (typ: {being_type}, priorytet: {priority})")
-        
-        try:
-            # Spróbuj załadować byt z bazy
-            from luxdb.repository.soul_repository import BeingRepository
-            result = await BeingRepository.get_by_alias(alias)
-            
-            if result.get('success') and result.get('beings'):
-                being = result['beings'][0]
-                await self.register_being(being)
-                print(f"     ✅ Załadowano: {alias}")
-            else:
-                # Jeśli byt nie istnieje i jest krytyczny, utwórz go
-                if critical:
-                    being = await self._create_critical_being(being_config)
-                    if being:
-                        await self.register_being(being)
-                        print(f"     🆕 Utworzono krytyczny byt: {alias}")
-                    else:
-                        print(f"     ❌ Nie udało się utworzyć krytycznego bytu: {alias}")
-                else:
-                    print(f"     ⚠️ Opcjonalny byt {alias} niedostępny")
-                    
-        except Exception as e:
-            if critical:
-                print(f"     ❌ BŁĄD KRYTYCZNY: Nie można załadować {alias}: {e}")
-                # Można tutaj dodać logikę awaryjną
-            else:
-                print(f"     ⚠️ Błąd ładowania opcjonalnego bytu {alias}: {e}")
-
-    async def _create_critical_being(self, being_config: Dict) -> Optional[Being]:
-        """Tworzy krytyczny byt jeśli nie istnieje"""
-        from luxdb.models.soul import Soul
-        
-        alias = being_config.get('alias')
-        being_type = being_config.get('type')
-        
-        # Podstawowy genotype dla krytycznego bytu
-        critical_genotype = {
-            "genesis": {
-                "name": alias,
-                "type": being_type,
-                "version": "1.0.0",
-                "created_method": "bios_critical_creation",
-                "description": f"Krytyczny byt {being_type} utworzony przez BIOS"
-            },
-            "attributes": {
-                "system_role": {"py_type": "str", "default": being_type},
-                "priority": {"py_type": "int", "default": being_config.get('priority', 50)},
-                "critical": {"py_type": "bool", "default": True}
-            }
-        }
-        
-        try:
-            soul = await Soul.create(
-                genotype=critical_genotype,
-                alias=f"{alias}_soul"
-            )
-            
-            being = await Being.create(
-                soul=soul,
-                alias=alias,
-                attributes={
-                    "system_role": being_type,
-                    "priority": being_config.get('priority', 50),
-                    "critical": True,
-                    "created_by_bios": True
-                }
-            )
-            
-            return being
-            
-        except Exception as e:
-            print(f"     ❌ Nie udało się utworzyć krytycznego bytu {alias}: {e}")
-            return None
 
     async def register_being(self, being: Being):
         """Rejestruje byt w systemie"""

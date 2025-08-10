@@ -55,32 +55,27 @@ class Soul:
             soul = await Soul.create(genotype, alias="user_profile")
             ```
         """
-        try:
-            from ..utils.validators import validate_genotype
-            from ..repository.soul_repository import SoulRepository
+        from ..utils.validators import validate_genotype
+        from ..repository.soul_repository import SoulRepository
 
-            # Walidacja genotypu
-            validate_genotype(genotype)
+        # Walidacja genotypu
+        validate_genotype(genotype)
 
-            # Tworzenie Soul
-            soul = cls()
-            soul.alias = alias
-            soul.genotype = genotype
-            soul.soul_hash = hashlib.sha256(
-                json.dumps(genotype, sort_keys=True).encode()
-            ).hexdigest()
-            soul.created_at = datetime.now()
+        # Tworzenie Soul
+        soul = cls()
+        soul.alias = alias
+        soul.genotype = genotype
+        soul.soul_hash = hashlib.sha256(
+            json.dumps(genotype, sort_keys=True).encode()
+        ).hexdigest()
 
-            # Zapis do bazy danych
-            result = await SoulRepository.set(soul)
-            if not result.get('success'):
-                raise Exception(f"Failed to create soul: {result.get('error', 'Unknown error')}")
+        # Zapis do bazy danych
+        result = await SoulRepository.set(soul)
+        if not result.get('success'):
+            raise Exception("Failed to create soul")
 
-            return soul
-
-        except Exception as e:
-            print(f"❌ Błąd tworzenia Soul: {e}")
-            raise Exception(f"Failed to create soul: {str(e)}")
+        # Zwróć zgodnie z formatem genetycznym
+        return await cls.set(genotype, alias)
 
     @classmethod
     async def get(cls, **kwargs) -> Optional['Soul']:
@@ -138,13 +133,7 @@ class Soul:
         from ..repository.soul_repository import SoulRepository
 
         result = await SoulRepository.get_by_hash(hash)
-        soul = result.get('soul') if result.get('success') else None
-        
-        if soul:
-            # Załaduj funkcje z genotypu
-            await soul.load_functions_from_genotype()
-        
-        return soul
+        return result.get('soul') if result.get('success') else None
 
     @classmethod
     async def get_by_alias(cls, alias: str) -> Optional['Soul']:
@@ -160,13 +149,7 @@ class Soul:
         from ..repository.soul_repository import SoulRepository
 
         result = await SoulRepository.get_by_alias(alias)
-        soul = result.get('soul') if result.get('success') else None
-        
-        if soul:
-            # Załaduj funkcje z genotypu
-            await soul.load_functions_from_genotype()
-        
-        return soul
+        return result.get('soul') if result.get('success') else None
 
     @classmethod
     async def get_all(cls) -> List['Soul']:
@@ -239,66 +222,29 @@ class Soul:
 
         for attr_name, attr_config in attributes.items():
             py_type = attr_config.get("py_type", "str")
-            required = attr_config.get("required", False)
             value = data.get(attr_name)
 
             # Sprawdź wymagane pola
-            if required and value is None and "default" not in attr_config:
+            if value is None and not attr_config.get("default"):
                 errors.append(f"Missing required attribute: {attr_name}")
                 continue
-
-            # Użyj domyślnej wartości jeśli nie podano
-            if value is None and "default" in attr_config:
-                data[attr_name] = attr_config["default"]
-                value = data[attr_name]
 
             # Sprawdź typ
             if value is not None:
                 if py_type == "str" and not isinstance(value, str):
-                    errors.append(f"Attribute {attr_name} must be string, got {type(value).__name__}")
+                    errors.append(f"Attribute {attr_name} must be string")
                 elif py_type == "int" and not isinstance(value, int):
-                    errors.append(f"Attribute {attr_name} must be integer, got {type(value).__name__}")
+                    errors.append(f"Attribute {attr_name} must be integer")
                 elif py_type == "float" and not isinstance(value, (int, float)):
-                    errors.append(f"Attribute {attr_name} must be float, got {type(value).__name__}")
+                    errors.append(f"Attribute {attr_name} must be float")
                 elif py_type == "bool" and not isinstance(value, bool):
-                    errors.append(f"Attribute {attr_name} must be boolean, got {type(value).__name__}")
+                    errors.append(f"Attribute {attr_name} must be boolean")
                 elif py_type == "dict" and not isinstance(value, dict):
-                    errors.append(f"Attribute {attr_name} must be dict, got {type(value).__name__}")
+                    errors.append(f"Attribute {attr_name} must be dict")
                 elif py_type.startswith("List[") and not isinstance(value, list):
-                    errors.append(f"Attribute {attr_name} must be list, got {type(value).__name__}")
+                    errors.append(f"Attribute {attr_name} must be list")
 
         return errors
-
-    def get_default_data(self) -> Dict[str, Any]:
-        """
-        Zwraca domyślne dane na podstawie definicji atrybutów w genotypie.
-
-        Returns:
-            Słownik z domyślnymi wartościami
-        """
-        default_data = {}
-        attributes = self.genotype.get("attributes", {})
-
-        for attr_name, attr_config in attributes.items():
-            if "default" in attr_config:
-                default_data[attr_name] = attr_config["default"]
-            elif not attr_config.get("required", False):
-                # Ustaw domyślne wartości na podstawie typu
-                py_type = attr_config.get("py_type", "str")
-                if py_type == "str":
-                    default_data[attr_name] = ""
-                elif py_type == "int":
-                    default_data[attr_name] = 0
-                elif py_type == "float":
-                    default_data[attr_name] = 0.0
-                elif py_type == "bool":
-                    default_data[attr_name] = False
-                elif py_type == "dict":
-                    default_data[attr_name] = {}
-                elif py_type.startswith("List["):
-                    default_data[attr_name] = []
-
-        return default_data
 
     async def get_hash(self) -> str:
         """Zwraca hash Soul"""
@@ -343,88 +289,6 @@ class Soul:
         Ta metoda nie modyfikuje genotypu - funkcje muszą być zdefiniowane przy tworzeniu.
         """
         self._function_registry[name] = func
-
-    def register_function(self, name: str, func: Callable, description: str = None):
-        """
-        Rejestruje funkcję w genotypie i w lokalnym rejestrze.
-        
-        Args:
-            name: Nazwa funkcji
-            func: Funkcja do zarejestrowania
-            description: Opis funkcji
-        """
-        from ..core.function_registry import function_registry
-        
-        # Zarejestruj w globalnym rejestrze
-        func_hash = function_registry.register_function(func, name)
-        
-        # Dodaj do genotypu
-        if "functions" not in self.genotype:
-            self.genotype["functions"] = {}
-        
-        self.genotype["functions"][name] = {
-            "py_type": "function",
-            "description": description or f"Function {name}",
-            "signature": self._get_function_signature(func),
-            "is_async": asyncio.iscoroutinefunction(func),
-            "function_hash": func_hash
-        }
-        
-        # Dodaj do lokalnego rejestru
-        self._function_registry[name] = func
-
-    async def register_function_and_save(self, name: str, func: Callable, description: str = None):
-        """
-        Rejestruje funkcję i zapisuje zmiany w bazie danych.
-        
-        Args:
-            name: Nazwa funkcji
-            func: Funkcja do zarejestrowania
-            description: Opis funkcji
-        """
-        self.register_function(name, func, description)
-        await self.save()
-
-    def _calculate_function_hash(self, func: Callable) -> str:
-        """Oblicza hash funkcji na podstawie jej kodu"""
-        import inspect
-        import hashlib
-        
-        try:
-            source = inspect.getsource(func)
-            return hashlib.sha256(source.encode()).hexdigest()[:16]
-        except:
-            # Fallback dla built-in functions
-            return hashlib.sha256(str(func).encode()).hexdigest()[:16]
-
-    async def load_functions_from_genotype(self):
-        """
-        Ładuje funkcje z genotypu do lokalnego rejestru.
-        Ta metoda musi być wywołana po załadowaniu Soul z bazy danych.
-        """
-        functions_def = self.genotype.get("functions", {})
-        
-        for func_name, func_info in functions_def.items():
-            if func_name not in self._function_registry:
-                # Funkcja nie jest załadowana - próbuj znaleźć ją w globalnym rejestrze
-                loaded_func = await self._load_function_by_hash(func_info.get("function_hash"))
-                if loaded_func:
-                    self._function_registry[func_name] = loaded_func
-                else:
-                    print(f"⚠️ Warning: Function '{func_name}' from genotype not found in registry")
-
-    async def _load_function_by_hash(self, function_hash: str) -> Optional[Callable]:
-        """
-        Ładuje funkcję na podstawie jej hash z globalnego rejestru funkcji.
-        
-        Args:
-            function_hash: Hash funkcji
-            
-        Returns:
-            Funkcja lub None jeśli nie znaleziono
-        """
-        from ..core.function_registry import function_registry
-        return function_registry.get_function(function_hash)
 
     def _get_function_signature(self, func: Callable) -> Dict[str, Any]:
         """Pobiera sygnaturę funkcji"""
@@ -507,7 +371,7 @@ class Soul:
     @classmethod
     async def create_function_soul(cls, name: str, func: Callable, description: str = None, alias: str = None, version: str = "1.0.0") -> 'Soul':
         """
-        Tworzy Soul dla funkcji - funkcja to zwykła Soul z typem "function".
+        Tworzy specjalizowany Soul dla pojedynczej funkcji z niezmiennym genotypem.
 
         Args:
             name: Nazwa funkcji
@@ -519,41 +383,36 @@ class Soul:
         Returns:
             Nowy Soul z funkcją
         """
-        import inspect
-        
-        try:
-            source_code = inspect.getsource(func)
-        except:
-            source_code = str(func)
-        
-        # Genotyp dla funkcji - zwykła Soul z typem "function"
+        # Genotyp dla funkcji - KOMPLETNY i NIEZMIENNY
         function_genotype = {
             "genesis": {
                 "name": alias or f"function_{name}",
-                "type": "function",
+                "type": "function_soul", 
                 "version": version,
-                "description": description or f"Function {name}",
+                "description": description or f"Soul for function {name}",
+                "immutable": True,
                 "created_at": datetime.now().isoformat()
             },
             "attributes": {
                 "function_name": {"py_type": "str", "default": name},
-                "source_code": {"py_type": "str", "default": source_code},
-                "language": {"py_type": "str", "default": "python"},
-                "signature": {"py_type": "dict", "default": cls._get_function_signature_static(func)},
-                "is_async": {"py_type": "bool", "default": asyncio.iscoroutinefunction(func)},
-                "usage_count": {"py_type": "int", "default": 0},
-                "last_used": {"py_type": "str", "default": ""}
+                "last_execution": {"py_type": "str"},
+                "execution_count": {"py_type": "int", "default": 0}
+            },
+            "functions": {
+                name: {
+                    "py_type": "function",
+                    "description": description or f"Main function {name}",
+                    "is_primary": True,
+                    "signature": cls._get_function_signature_static(func),
+                    "is_async": asyncio.iscoroutinefunction(func)
+                }
             }
         }
 
-        # Utwórz zwykłą Soul
+        # Utwórz Soul
         soul = await cls.create(function_genotype, alias or f"function_{name}")
         
-        # Zarejestruj w globalnym rejestrze
-        from ..core.function_registry import function_registry
-        function_registry.register_function(func, name)
-        
-        # Załaduj funkcję do lokalnego rejestru
+        # Załaduj funkcję do rejestru (bez modyfikacji genotypu)
         soul._register_immutable_function(name, func)
         
         return soul
@@ -621,113 +480,6 @@ class Soul:
             }
         except Exception as e:
             return {"error": str(e)}
-    
-    @classmethod
-    async def find_function_by_hash(cls, func_hash: str) -> Optional['Soul']:
-        """
-        Znajdź funkcję po hash - używa zwykłej metody get().
-        """
-        return await cls.get_by_hash(func_hash)
-    
-    @classmethod
-    async def find_function_by_alias(cls, alias: str) -> Optional['Soul']:
-        """
-        Znajdź funkcję po alias - używa zwykłej metody get().
-        """
-        return await cls.get_by_alias(alias)
-    
-    @classmethod
-    async def get_function_souls(cls) -> List['Soul']:
-        """
-        Zwraca wszystkie Soul typu "function".
-        """
-        all_souls = await cls.get_all()
-        return [soul for soul in all_souls 
-                if soul.genotype.get("genesis", {}).get("type") == "function"]
-    
-    async def execute_function_from_soul(self, *args, **kwargs) -> Dict[str, Any]:
-        """
-        Wykonuje funkcję z Soul typu "function".
-        """
-        from luxdb.utils.serializer import GeneticResponseFormat
-        
-        try:
-            # Sprawdź czy to funkcja
-            if self.genotype.get("genesis", {}).get("type") != "function":
-                return GeneticResponseFormat.error_response(
-                    error="Soul is not a function type",
-                    error_code="NOT_FUNCTION_SOUL"
-                )
-            
-            # Pobierz informacje o funkcji
-            default_data = self.get_default_data()
-            source_code = default_data.get("source_code", "")
-            function_name = default_data.get("function_name", "")
-            
-            if not source_code:
-                return GeneticResponseFormat.error_response(
-                    error="No source code in function soul",
-                    error_code="NO_SOURCE_CODE"
-                )
-            
-            # Wykonaj kod funkcji
-            exec_globals = {}
-            exec(source_code, exec_globals)
-            
-            if function_name not in exec_globals:
-                return GeneticResponseFormat.error_response(
-                    error=f"Function '{function_name}' not found",
-                    error_code="FUNCTION_NOT_FOUND"
-                )
-            
-            func = exec_globals[function_name]
-            
-            # Wywołaj funkcję
-            if asyncio.iscoroutinefunction(func):
-                result = await func(*args, **kwargs)
-            else:
-                result = func(*args, **kwargs)
-            
-            return GeneticResponseFormat.success_response(
-                data={
-                    "function_name": function_name,
-                    "result": result,
-                    "executed_at": datetime.now().isoformat()
-                },
-                soul_context={"soul_hash": self.soul_hash}
-            )
-            
-        except Exception as e:
-            return GeneticResponseFormat.error_response(
-                error=f"Function execution error: {str(e)}",
-                error_code="FUNCTION_EXECUTION_ERROR",
-                soul_context={"soul_hash": self.soul_hash}
-            )
-    
-    async def _update_usage_stats(self):
-        """Aktualizuje statystyki użycia funkcji"""
-        try:
-            # Tworzy being i aktualizuje statystyki
-            from ..models.being import Being
-            
-            # Uzyskaj dostęp do danych duszy
-            current_data = self.get_default_data()
-            current_data["usage_count"] = current_data.get("usage_count", 0) + 1
-            current_data["last_used"] = datetime.now().isoformat()
-            
-            # Utwórz tymczasowe being dla aktualizacji
-            being_result = await Being.set(
-                soul=self,
-                data=current_data,
-                alias=f"temp_stats_{self.soul_hash[:8]}"
-            )
-            
-            if being_result.get("success"):
-                # Zaktualizuj being
-                being = being_result["data"]["being"]
-                await being.save()
-        except Exception as e:
-            print(f"⚠️ Warning: Failed to update function usage stats: {e}")
 
     def validate_function_call(self, name: str, *args, **kwargs) -> List[str]:
         """

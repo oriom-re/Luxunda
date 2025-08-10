@@ -58,57 +58,6 @@ class OpenAIFunctionCaller:
         except Exception as e:
             print(f"❌ Error registering gene {gene_name}: {e}")
             return False
-
-    async def register_soul_functions_for_openai(self, soul) -> int:
-        """
-        Rejestruje wszystkie funkcje z Soul (na podstawie hash) dla OpenAI.
-        
-        Args:
-            soul: Soul z funkcjami do zarejestrowania
-            
-        Returns:
-            Liczba zarejestrowanych funkcji
-        """
-        registered_count = 0
-        
-        # Pobierz funkcje z genotypu Soul
-        functions_def = soul.genotype.get("functions", {})
-        
-        for func_name, func_info in functions_def.items():
-            try:
-                # Pobierz funkcję z lokalnego rejestru Soul (już załadowana)
-                func = soul.get_function(func_name)
-                
-                if not func:
-                    print(f"⚠️ Warning: Function '{func_name}' not found in soul registry")
-                    continue
-                
-                # Przygotuj schemat dla OpenAI
-                function_schema = {
-                    "type": "function",
-                    "function": {
-                        "name": func_name,
-                        "description": func_info.get("description", f"Function {func_name}"),
-                        "parameters": self._extract_parameters_from_soul_function(func_info, func)
-                    }
-                }
-                
-                # Zarejestruj w dostępnych funkcjach
-                self.available_functions[func_name] = {
-                    "schema": function_schema,
-                    "soul": soul,
-                    "function_name": func_name,
-                    "function_hash": func_info.get("function_hash"),
-                    "type": "soul_function"
-                }
-                
-                registered_count += 1
-                print(f"🎯 Registered soul function: {func_name} (hash: {func_info.get('function_hash', 'N/A')[:8]}...)")
-                
-            except Exception as e:
-                print(f"❌ Error registering soul function {func_name}: {e}")
-        
-        return registered_count
     
     async def register_database_function(self, func_name: str, func, description: str, parameters: Dict[str, Any]) -> bool:
         """Rejestruje funkcję bazodanową"""
@@ -135,102 +84,6 @@ class OpenAIFunctionCaller:
             print(f"❌ Error registering function {func_name}: {e}")
             return False
     
-    def _extract_parameters_from_soul_function(self, func_info: Dict[str, Any], func: Callable) -> Dict[str, Any]:
-        """Ekstraktuje parametry z funkcji Soul"""
-        # Jeśli mamy zapisaną sygnaturę w func_info, użyj jej
-        if "signature" in func_info and isinstance(func_info["signature"], dict):
-            signature = func_info["signature"]
-            if "parameters" in signature:
-                # Konwertuj na format OpenAI
-                openai_params = {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-                
-                for param_name, param_info in signature["parameters"].items():
-                    if param_name in ['self', 'cls']:
-                        continue
-                        
-                    # Mapuj typy Python na typy OpenAI
-                    param_type = "string"  # default
-                    if "int" in param_info.get("type", ""):
-                        param_type = "integer"
-                    elif "float" in param_info.get("type", ""):
-                        param_type = "number"
-                    elif "bool" in param_info.get("type", ""):
-                        param_type = "boolean"
-                    elif "dict" in param_info.get("type", ""):
-                        param_type = "object"
-                    elif "list" in param_info.get("type", ""):
-                        param_type = "array"
-                    
-                    openai_params["properties"][param_name] = {
-                        "type": param_type,
-                        "description": f"Parameter {param_name} for function"
-                    }
-                    
-                    # Dodaj do required jeśli nie ma default
-                    if param_info.get("default") is None:
-                        openai_params["required"].append(param_name)
-                
-                return openai_params
-        
-        # Fallback - użyj standardowej metody
-        return self._extract_function_parameters_from_gene_fallback(func)
-    
-    def _extract_function_parameters_from_gene_fallback(self, func: Callable) -> Dict[str, Any]:
-        """Fallback metoda do ekstraktowania parametrów funkcji"""
-        try:
-            import inspect
-            
-            sig = inspect.signature(func)
-            
-            parameters = {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-            
-            for param_name, param in sig.parameters.items():
-                if param_name in ['self', 'cls']:
-                    continue
-                
-                # Określ typ
-                param_type = "string"  # default
-                if param.annotation != inspect.Parameter.empty:
-                    if param.annotation == str:
-                        param_type = "string"
-                    elif param.annotation == int:
-                        param_type = "integer"
-                    elif param.annotation == float:
-                        param_type = "number"
-                    elif param.annotation == bool:
-                        param_type = "boolean"
-                    elif param.annotation == dict:
-                        param_type = "object"
-                    elif param.annotation == list:
-                        param_type = "array"
-                
-                parameters["properties"][param_name] = {
-                    "type": param_type,
-                    "description": f"Parameter {param_name}"
-                }
-                
-                # Required jeśli nie ma default
-                if param.default == inspect.Parameter.empty:
-                    parameters["required"].append(param_name)
-            
-            return parameters
-            
-        except Exception as e:
-            print(f"⚠️ Could not extract parameters: {e}")
-            return {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-
     def _extract_function_parameters_from_gene(self, gene) -> Dict[str, Any]:
         """Ekstraktuje parametry z genu używając inspection"""
         type_map = {
@@ -387,7 +240,7 @@ class OpenAIFunctionCaller:
             }
     
     async def _execute_function(self, function_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Wykonuje funkcję (gen, database lub soul_function)"""
+        """Wykonuje funkcję (gen lub database)"""
         if function_name not in self.available_functions:
             return {"error": f"Function {function_name} not available"}
         
@@ -422,24 +275,6 @@ class OpenAIFunctionCaller:
                     "result": result,
                     "function_name": function_name,
                     "type": "database_operation"
-                }
-                
-            elif func_type == "soul_function":
-                # Wykonaj funkcję z Soul (na podstawie hash)
-                soul = func_info["soul"]
-                func_name = func_info["function_name"]
-                func_hash = func_info["function_hash"]
-                
-                # Wykonaj funkcję przez Soul
-                result = await soul.execute_function(func_name, **arguments)
-                
-                return {
-                    "success": True,
-                    "result": result,
-                    "function_name": function_name,
-                    "type": "soul_function_execution",
-                    "soul_hash": soul.soul_hash,
-                    "function_hash": func_hash
                 }
             
         except Exception as e:
