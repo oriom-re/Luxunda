@@ -49,9 +49,9 @@ class Being:
 
     @classmethod
     async def set(cls, soul, data: Dict[str, Any], alias: str = None,
-                  access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
+                  access_zone: str = "public_zone", ttl_hours: int = None) -> Dict[str, Any]:
         """
-        Metoda set dla Being (standard API).
+        Metoda set dla Being zgodna z formatem genetycznym.
 
         Args:
             soul: Obiekt Soul (genotyp)
@@ -61,22 +61,80 @@ class Being:
             ttl_hours: TTL w godzinach
 
         Returns:
-            Nowy obiekt Being
+            Standardowy słownik odpowiedzi z nowym Being
         """
-        return await cls.create(soul, alias=alias, attributes=data, access_zone=access_zone, ttl_hours=ttl_hours)
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            being = await cls._create_internal(soul, alias=alias, attributes=data, access_zone=access_zone, ttl_hours=ttl_hours)
+            
+            soul_context = {
+                "soul_hash": being.soul_hash,
+                "genotype": soul.genotype if hasattr(soul, 'genotype') else {}
+            }
+            
+            return GeneticResponseFormat.success_response(
+                data={"being": being.to_json_serializable()},
+                soul_context=soul_context
+            )
+            
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=str(e),
+                error_code="BEING_SET_ERROR"
+            )
+    
+    @classmethod
+    async def _get_by_ulid_internal(cls, ulid_value: str) -> Optional['Being']:
+        """Wewnętrzna metoda get_by_ulid zwracająca obiekt Being"""
+        from ..repository.soul_repository import BeingRepository
+
+        result = await BeingRepository.get_by_ulid(ulid_value)
+        return result.get('being') if result.get('success') else None
+    
+    @classmethod
+    async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, **kwargs) -> 'Being':
+        """Wewnętrzna metoda create zwracająca obiekt Being"""
 
     @classmethod
-    async def get(cls, ulid_value: str) -> Optional['Being']:
+    async def get(cls, ulid_value: str) -> Dict[str, Any]:
         """
-        Standardowa metoda get dla Being - szuka po ULID.
+        Standardowa metoda get dla Being zgodna z formatem genetycznym.
 
         Args:
             ulid_value: ULID bytu
 
         Returns:
-            Being lub None jeśli nie znaleziono
+            Standardowy słownik odpowiedzi z Being lub błędem
         """
-        return await cls.get_by_ulid(ulid_value)
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            being = await cls._get_by_ulid_internal(ulid_value)
+            
+            if being:
+                # Pobierz kontekst Soul
+                soul = await being.get_soul()
+                soul_context = {
+                    "soul_hash": being.soul_hash,
+                    "genotype": soul.genotype if soul else {}
+                }
+                
+                return GeneticResponseFormat.success_response(
+                    data={"being": being.to_json_serializable()},
+                    soul_context=soul_context
+                )
+            else:
+                return GeneticResponseFormat.error_response(
+                    error="Being not found",
+                    error_code="BEING_NOT_FOUND"
+                )
+                
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=str(e),
+                error_code="BEING_GET_ERROR"
+            )
 
     @classmethod
     async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
@@ -133,6 +191,60 @@ class Being:
         # Przypisanie do strefy dostępu
         from ..core.access_control import access_controller
         access_controller.assign_being_to_zone(being.ulid, being.access_zone) # Use the being's access_zone
+
+        return being
+    
+    async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
+        """Wewnętrzna metoda create - kopia oryginalnej logiki"""
+        # Backward compatibility handling
+        if soul is not None:
+            target_soul = soul
+        elif soul_hash is not None:
+            from ..repository.soul_repository import SoulRepository
+            result = await SoulRepository.get_soul_by_hash(soul_hash)
+            if not result or not result.get('success'):
+                raise ValueError(f"Soul with hash {soul_hash} not found")
+            target_soul = result.get('soul')
+        elif isinstance(soul_or_hash, str):
+            from ..repository.soul_repository import SoulRepository
+            result = await SoulRepository.get_soul_by_hash(soul_or_hash)
+            if not result or not result.get('success'):
+                raise ValueError(f"Soul with hash {soul_or_hash} not found")
+            target_soul = result.get('soul')
+        else:
+            target_soul = soul_or_hash
+
+        if not target_soul:
+             raise ValueError("Soul object or hash must be provided.")
+
+        being = cls()
+        being.soul_hash = target_soul.soul_hash
+        being.global_ulid = target_soul.global_ulid
+        being.alias = alias or f"being_{being.ulid[:8]}"
+        being.access_zone = access_zone
+
+        # Walidacja i serializacja danych
+        if attributes:
+            from luxdb.utils.serializer import JSONBSerializer
+            serialized_data, errors = JSONBSerializer.validate_and_serialize(attributes, target_soul)
+            if errors:
+                raise ValueError(f"Validation errors: {', '.join(errors)}")
+            being.data = serialized_data
+        else:
+            being.data = {}
+
+        # TTL
+        if ttl_hours:
+            from datetime import timedelta
+            being.ttl_expires = datetime.now() + timedelta(hours=ttl_hours)
+
+        # Zapis do bazy danych
+        from ..repository.soul_repository import BeingRepository
+        await BeingRepository.insert_data_transaction(being, target_soul.genotype)
+
+        # Przypisanie do strefy dostępu
+        from ..core.access_control import access_controller
+        access_controller.assign_being_to_zone(being.ulid, being.access_zone)
 
         return being
 

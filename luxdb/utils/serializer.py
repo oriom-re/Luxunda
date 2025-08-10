@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 LuxDB Unified Serialization System
@@ -12,6 +11,90 @@ import datetime
 from typing import Any, Dict, Union, List, Tuple
 from decimal import Decimal
 
+
+class GeneticResponseFormat:
+    """
+    Standardowy format odpowiedzi zgodny z zapisem genetycznym Soul.
+    Zapewnia spójność między różnymi wersjami systemu.
+    """
+
+    @staticmethod
+    def success_response(data: Any, soul_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Tworzy standardową odpowiedź sukcesu z kontekstem genetycznym.
+
+        Args:
+            data: Dane do zwrócenia
+            soul_context: Kontekst Soul (genotyp, hash, itp.)
+
+        Returns:
+            Standardowy słownik odpowiedzi
+        """
+        response = {
+            "success": True,
+            "genetic_version": "1.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "data": data
+        }
+
+        if soul_context:
+            response["soul_context"] = {
+                "soul_hash": soul_context.get("soul_hash"),
+                "genotype_name": soul_context.get("genotype", {}).get("genesis", {}).get("name"),
+                "genotype_version": soul_context.get("genotype", {}).get("genesis", {}).get("version"),
+                "compatibility": soul_context.get("genotype", {}).get("genesis", {}).get("compatibility", ["1.0.0"])
+            }
+
+        return response
+
+    @staticmethod
+    def error_response(error: str, error_code: str = "GENERIC_ERROR", soul_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Tworzy standardową odpowiedź błędu z kontekstem genetycznym.
+        """
+        response = {
+            "success": False,
+            "genetic_version": "1.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "error": error,
+            "error_code": error_code
+        }
+
+        if soul_context:
+            response["soul_context"] = {
+                "soul_hash": soul_context.get("soul_hash"),
+                "genotype_name": soul_context.get("genotype", {}).get("genesis", {}).get("name"),
+                "genotype_version": soul_context.get("genotype", {}).get("genesis", {}).get("version")
+            }
+
+        return response
+
+    @staticmethod
+    def collection_response(items: List[Any], total_count: int = None, soul_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Tworzy standardową odpowiedź dla kolekcji danych.
+        """
+        if total_count is None:
+            total_count = len(items) if items else 0
+
+        response = {
+            "success": True,
+            "genetic_version": "1.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "data": {
+                "items": items,
+                "count": total_count,
+                "has_more": False  # Można rozszerzyć o paginację
+            }
+        }
+
+        if soul_context:
+            response["soul_context"] = {
+                "collection_type": soul_context.get("genotype", {}).get("genesis", {}).get("name"),
+                "item_compatibility": soul_context.get("genotype", {}).get("genesis", {}).get("compatibility", ["1.0.0"])
+            }
+
+        return response
 
 class JSONBSerializer:
     """Unified JSONB Serializer for LuxDB - handles all serialization needs"""
@@ -51,19 +134,19 @@ class JSONBSerializer:
         """Serialize Being data according to Soul schema"""
         serialized = {}
         attributes = soul.genotype.get("attributes", {})
-        
+
         for attr_name, attr_meta in attributes.items():
             if attr_name in data:
                 value = data[attr_name]
                 py_type = attr_meta.get("py_type", "str")
-                
+
                 if py_type == "datetime":
                     serialized[attr_name] = value.isoformat() if isinstance(value, datetime.datetime) else value
                 elif py_type == "List[str]":
                     serialized[attr_name] = list(value) if isinstance(value, (list, set)) else [value]
                 else:
                     serialized[attr_name] = JSONBSerializer.prepare_for_jsonb(value)
-            
+
         return serialized
 
     @staticmethod
@@ -71,12 +154,12 @@ class JSONBSerializer:
         """Deserialize Being data according to Soul schema"""
         deserialized = {}
         attributes = soul.genotype.get("attributes", {})
-        
+
         for attr_name, attr_meta in attributes.items():
             if attr_name in data:
                 value = data[attr_name]
                 py_type = attr_meta.get("py_type", "str")
-                
+
                 if py_type == "datetime":
                     try:
                         deserialized[attr_name] = datetime.datetime.fromisoformat(value) if isinstance(value, str) else value
@@ -86,7 +169,7 @@ class JSONBSerializer:
                     deserialized[attr_name] = list(value) if isinstance(value, (list, set)) else [value]
                 else:
                     deserialized[attr_name] = value
-                    
+
         return deserialized
 
     @staticmethod
@@ -119,12 +202,12 @@ class LuxDBJSONEncoder(json.JSONEncoder):
 # Legacy compatibility aliases
 class JsonbSerializer(JSONBSerializer):
     """Legacy alias for backward compatibility"""
-    
+
     @staticmethod
     def serialize_for_jsonb(data: Any) -> str:
         """Legacy method for backward compatibility"""
         return JSONBSerializer.serialize(data)
-    
+
     @staticmethod
     def deserialize_from_jsonb(json_data: Union[str, dict]) -> Any:
         """Legacy method for backward compatibility"""

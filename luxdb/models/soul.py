@@ -69,16 +69,17 @@ class Soul:
         if not result.get('success'):
             raise Exception("Failed to create soul")
 
-        return soul
+        # Zwróć zgodnie z formatem genetycznym
+        return await cls.set(genotype, alias)
 
     @classmethod
     async def get(cls, **kwargs) -> Optional['Soul']:
         """
         Uniwersalna metoda get dla Soul.
-        
+
         Args:
             **kwargs: Parametry wyszukiwania (alias, hash, itp.)
-            
+
         Returns:
             Soul lub None jeśli nie znaleziono
         """
@@ -103,11 +104,11 @@ class Soul:
     async def set(cls, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
         """
         Metoda set dla Soul (alias dla create).
-        
+
         Args:
             genotype: Definicja struktury danych
             alias: Opcjonalny alias
-            
+
         Returns:
             Nowy obiekt Soul
         """
@@ -197,7 +198,7 @@ class Soul:
         """
         attributes = self.genotype.get("attributes", {})
         return {
-            name: attr.get("py_type", "str") 
+            name: attr.get("py_type", "str")
             for name, attr in attributes.items()
         }
 
