@@ -223,15 +223,18 @@ class Being:
         being.alias = alias or f"being_{being.ulid[:8]}"
         being.access_zone = access_zone
 
-        # Walidacja i serializacja danych
+        # Przygotuj dane - połącz domyślne z podanymi
+        default_data = target_soul.get_default_data()
         if attributes:
-            from luxdb.utils.serializer import JSONBSerializer
-            serialized_data, errors = JSONBSerializer.validate_and_serialize(attributes, target_soul)
-            if errors:
-                raise ValueError(f"Validation errors: {', '.join(errors)}")
-            being.data = serialized_data
+            # Waliduj podane dane
+            validation_errors = target_soul.validate_data(attributes)
+            if validation_errors:
+                raise ValueError(f"Validation errors: {', '.join(validation_errors)}")
+            
+            # Połącz domyślne z podanymi danymi
+            being.data = {**default_data, **attributes}
         else:
-            being.data = {}
+            being.data = default_data
 
         # TTL
         if ttl_hours:

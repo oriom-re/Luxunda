@@ -222,29 +222,66 @@ class Soul:
 
         for attr_name, attr_config in attributes.items():
             py_type = attr_config.get("py_type", "str")
+            required = attr_config.get("required", False)
             value = data.get(attr_name)
 
             # Sprawdź wymagane pola
-            if value is None and not attr_config.get("default"):
+            if required and value is None and "default" not in attr_config:
                 errors.append(f"Missing required attribute: {attr_name}")
                 continue
+
+            # Użyj domyślnej wartości jeśli nie podano
+            if value is None and "default" in attr_config:
+                data[attr_name] = attr_config["default"]
+                value = data[attr_name]
 
             # Sprawdź typ
             if value is not None:
                 if py_type == "str" and not isinstance(value, str):
-                    errors.append(f"Attribute {attr_name} must be string")
+                    errors.append(f"Attribute {attr_name} must be string, got {type(value).__name__}")
                 elif py_type == "int" and not isinstance(value, int):
-                    errors.append(f"Attribute {attr_name} must be integer")
+                    errors.append(f"Attribute {attr_name} must be integer, got {type(value).__name__}")
                 elif py_type == "float" and not isinstance(value, (int, float)):
-                    errors.append(f"Attribute {attr_name} must be float")
+                    errors.append(f"Attribute {attr_name} must be float, got {type(value).__name__}")
                 elif py_type == "bool" and not isinstance(value, bool):
-                    errors.append(f"Attribute {attr_name} must be boolean")
+                    errors.append(f"Attribute {attr_name} must be boolean, got {type(value).__name__}")
                 elif py_type == "dict" and not isinstance(value, dict):
-                    errors.append(f"Attribute {attr_name} must be dict")
+                    errors.append(f"Attribute {attr_name} must be dict, got {type(value).__name__}")
                 elif py_type.startswith("List[") and not isinstance(value, list):
-                    errors.append(f"Attribute {attr_name} must be list")
+                    errors.append(f"Attribute {attr_name} must be list, got {type(value).__name__}")
 
         return errors
+
+    def get_default_data(self) -> Dict[str, Any]:
+        """
+        Zwraca domyślne dane na podstawie definicji atrybutów w genotypie.
+
+        Returns:
+            Słownik z domyślnymi wartościami
+        """
+        default_data = {}
+        attributes = self.genotype.get("attributes", {})
+
+        for attr_name, attr_config in attributes.items():
+            if "default" in attr_config:
+                default_data[attr_name] = attr_config["default"]
+            elif not attr_config.get("required", False):
+                # Ustaw domyślne wartości na podstawie typu
+                py_type = attr_config.get("py_type", "str")
+                if py_type == "str":
+                    default_data[attr_name] = ""
+                elif py_type == "int":
+                    default_data[attr_name] = 0
+                elif py_type == "float":
+                    default_data[attr_name] = 0.0
+                elif py_type == "bool":
+                    default_data[attr_name] = False
+                elif py_type == "dict":
+                    default_data[attr_name] = {}
+                elif py_type.startswith("List["):
+                    default_data[attr_name] = []
+
+        return default_data
 
     async def get_hash(self) -> str:
         """Zwraca hash Soul"""
