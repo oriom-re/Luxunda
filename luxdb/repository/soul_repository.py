@@ -149,7 +149,7 @@ class SoulRepository:
             async with pool.acquire() as conn:
                 query = """
                     INSERT INTO souls (soul_hash, global_ulid, alias, genotype, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
+                    VALUES ($1, $2, $3, $4, $5, $6)
                     ON CONFLICT (soul_hash) DO UPDATE SET
                         alias = EXCLUDED.alias,
                         genotype = EXCLUDED.genotype
@@ -158,7 +158,8 @@ class SoulRepository:
                     soul.soul_hash,
                     soul.global_ulid,
                     soul.alias,
-                    json.dumps(soul.genotype)
+                    json.dumps(soul.genotype),
+                    soul.created_at
                 )
                 return {"success": True}
         except Exception as e:
@@ -191,7 +192,7 @@ class BeingRepository:
 
             async with pool.acquire() as conn:
                 query = """
-                    SELECT ulid, soul_hash, alias, data, created_at, updated_at
+                    SELECT ulid, soul_hash, alias, data, created_at, updated_at, global_ulid
                     FROM beings
                     WHERE ulid = $1
                 """
@@ -225,7 +226,17 @@ class BeingRepository:
                 }
 
                 Being = get_being_class()
-                being = Being.from_dict(being_dict)
+                # Utwórz obiekt Being z prawidłowymi atrybutami
+                being = Being(
+                    ulid=row.get('ulid'),
+                    global_ulid=row.get('global_ulid', Globals.GLOBAL_ULID),
+                    soul_hash=row.get('soul_hash'),
+                    alias=row.get('alias'),
+                    data=row.get('data') or {},
+                    access_zone=row.get('access_zone', 'public_zone'),
+                    created_at=row.get('created_at'),
+                    updated_at=row.get('updated_at')
+                )
 
                 return {
                     "success": True,
@@ -285,8 +296,8 @@ class BeingRepository:
 
             async with pool.acquire() as conn:
                 query = """
-                    INSERT INTO beings (ulid, soul_hash, alias, data, vector_embedding, table_type)
-                    VALUES ($1, $2, $3, $4, $5, $6)
+                    INSERT INTO beings (ulid, soul_hash, alias, data, vector_embedding, table_type, global_ulid)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     ON CONFLICT (ulid) DO UPDATE SET
                         alias = EXCLUDED.alias,
                         data = EXCLUDED.data,
@@ -326,7 +337,8 @@ class BeingRepository:
                     being.alias,
                     json.dumps(being.data),
                     getattr(being, 'vector_embedding', None),
-                    table_type
+                    table_type,
+                    being.global_ulid
                 )
 
                 if result:

@@ -93,7 +93,7 @@ class Being:
         return result.get('being') if result.get('success') else None
 
     @classmethod
-    async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, **kwargs) -> 'Being':
+    async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
         """Wewnętrzna metoda create zwracająca obiekt Being"""
 
     @classmethod
@@ -326,14 +326,14 @@ class Being:
                 error_code="BEING_FUNCTION_ERROR"
             )
 
-    async def request_evolution(self, evolution_trigger: str, new_capabilities: Dict[str, Any] = None, 
+    async def request_evolution(self, evolution_trigger: str, new_capabilities: Dict[str, Any] = None,
                                access_level_change: str = None) -> Dict[str, Any]:
         """
         Being może poprosić system o ewolucję, ale nie może się sam ewoluować.
         Żądanie ewolucji musi zostać zatwierdzone przez Kernel lub uprawniony byt.
 
         Args:
-            evolution_trigger: Powód ewolucji 
+            evolution_trigger: Powód ewolucji
             new_capabilities: Żądane nowe zdolności
             access_level_change: Żądana zmiana poziomu dostępu
 
@@ -441,8 +441,8 @@ class Being:
             evolution_potential["can_evolve"] = True
 
         # Sprawdź możliwość otrzymania uprawnień administratora
-        if (self.access_zone == "authenticated_zone" and 
-            execution_count >= 100 and 
+        if (self.access_zone == "authenticated_zone" and
+            execution_count >= 100 and
             system_age >= 7):
             evolution_potential["available_evolutions"].append({
                 "type": "admin_privileges",
@@ -452,7 +452,7 @@ class Being:
             evolution_potential["can_evolve"] = True
 
         # Sprawdź możliwość zostania twórcą Soul
-        if (execution_count >= 50 and 
+        if (execution_count >= 50 and
             len(self.data.get('evolution_history', [])) >= 1):
             evolution_potential["available_evolutions"].append({
                 "type": "soul_creator",
@@ -491,7 +491,7 @@ class Being:
             # Sprawdź uprawnienia
             can_evolve_info = await self.can_evolve()
             has_creator_rights = any(
-                evo["type"] == "soul_creator" and evo["requirements_met"] 
+                evo["type"] == "soul_creator" and evo["requirements_met"]
                 for evo in can_evolve_info["available_evolutions"]
             )
 

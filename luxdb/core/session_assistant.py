@@ -585,8 +585,8 @@ Sformułuj odpowiedź która:
                 print(f"⚠️ Błąd formatowania wiadomości {getattr(message, 'ulid', 'unknown')}: {e}")
                 continue
 
-        return "\n".join(context_lines) if context_lines else "Błąd formatowania historii konwersacji."
-    
+        return '\n'.join(context_lines) if context_lines else "Błąd formatowania historii konwersacji."
+
     def _format_conversation_history_for_chat(self, messages: List) -> str:
         """
         Formatuje historię konwersacji do kontekstu czatu.
@@ -808,10 +808,26 @@ class SessionManager:
                 "fingerprint": "lux_system_fingerprint"
             }
 
+            # Utwórz Being dla Lux Kernel
+            lux_being = await Being.create(
+                soul=await self.get_lux_assistant_soul_instance(),
+                alias="lux_kernel_assistant",
+                attributes={
+                    "version": "2.0.0",
+                    "environment": "session",
+                    "created_by": "session_manager"
+                }
+            )
+
             self._main_lux_assistant = await self.create_session(
                 session_id="lux_main_assistant",
-                user_context=lux_context
+                user_context={
+                    "fingerprint": lux_being.ulid, # Use ULID of the Being as fingerprint for Lux assistant
+                    "user_ulid": lux_being.ulid, # Use ULID of the Being as user_ulid
+                    "ttl_minutes": 720 # Long TTL for system assistant
+                }
             )
+            self._main_lux_assistant.assistant_being = lux_being # Assign the created Being to the session assistant
 
             # Ensure Lux has proper soul
             await self._main_lux_assistant.get_soul()
@@ -819,6 +835,15 @@ class SessionManager:
             print("✅ Main Lux assistant ready")
 
         return self._main_lux_assistant
+
+    async def get_lux_assistant_soul_instance(self) -> Soul:
+        """Helper to get or create the Soul for the main Lux assistant."""
+        soul = await Soul.get_by_alias("lux_assistant")
+        if not soul:
+            # Re-use the logic from SessionAssistant to create the Soul
+            temp_session_assistant = SessionAssistant(SessionContext(session_id="temp", user_fingerprint="temp"))
+            soul = await temp_session_assistant.create_lux_assistant_soul()
+        return soul
 
     async def get_session(self, session_id: str) -> Optional[SessionAssistant]:
         """
