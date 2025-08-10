@@ -14,6 +14,9 @@ from datetime import datetime, timedelta
 from luxdb import LuxDB, Soul, Being, Relationship
 from ai.hybrid_ai_system import HybridAISystem
 from services.message_similarity_service import MessageSimilarityService
+from luxdb.models.message import Message
+from luxdb.models.soul import Soul
+from luxdb.models.being import Being
 
 
 class IntegrationTester:

@@ -1,8 +1,10 @@
 
 from typing import List, Dict, Any, Optional
 import numpy as np
-from database.models.base import Soul, Being, Message
-from database.soul_repository import BeingRepository
+from luxdb.models.soul import Soul
+from luxdb.models.being import Being
+from luxdb.models.message import Message
+from luxdb.repository.soul_repository import BeingRepository
 from ai.embendding import create_embedding
 import asyncio
 

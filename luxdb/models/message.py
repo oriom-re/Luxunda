@@ -68,8 +68,7 @@ class Message:
             "metadata": metadata or {}
         }
         
-        from ..repository.being_repository import BeingRepository
-        from ..repository.dynamic_repository import DynamicRepository
+        from ..repository.soul_repository import BeingRepository
         
         # Walidacja danych względem genotypu
         errors = soul.validate_data(message_data)
@@ -250,9 +249,9 @@ class Message:
     @classmethod
     async def load_by_ulid(cls, ulid: str) -> Optional['Message']:
         """Ładuje Message po ULID"""
-        from ..repository.being_repository import BeingRepository
+        from ..repository.soul_repository import BeingRepository
         
-        result = await BeingRepository.load_by_ulid(ulid)
+        result = await BeingRepository.get_by_ulid(ulid)
         return result.get('being') if result.get('success') else None
 
     @classmethod
