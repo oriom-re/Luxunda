@@ -1,8 +1,15 @@
 
 #!/usr/bin/env python3
 """
+⚠️  UWAGA: Ten plik jest przestarzały!
+Użyj głównego punktu wejścia: python main.py
+
 🚀 LuxOS Simple Start - Prosty punkt wejścia bez problemów z rekursją
 """
+
+print("⚠️  UWAGA: simple_start.py jest przestarzały!")
+print("✅ Użyj głównego punktu wejścia: python main.py --mode=web")
+exit(1)
 
 import asyncio
 import sys

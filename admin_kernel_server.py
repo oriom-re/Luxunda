@@ -1,9 +1,16 @@
 
 #!/usr/bin/env python3
 """
+⚠️  UWAGA: Ten plik jest przestarzały!
+Użyj głównego punktu wejścia: python main.py
+
 🚀 LuxOS Admin Kernel Server
 Unified LuxOS System - Administrator Interface
 """
+
+print("⚠️  UWAGA: admin_kernel_server.py jest przestarzały!")
+print("✅ Użyj głównego punktu wejścia: python main.py --mode=web")
+exit(1)
 
 import asyncio
 import sys

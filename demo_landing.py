@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """
+⚠️  UWAGA: Ten plik jest przestarzały!
+Użyj głównego punktu wejścia: python main.py
+
 🚀 LuxOS Landing Server
 Unified LuxOS System - Landing & Development Interface
 Enhanced with reactive system and proper lifespan management
 """
+
+print("⚠️  UWAGA: demo_landing.py jest przestarzały!")
+print("✅ Użyj głównego punktu wejścia: python main.py --mode=web")
+exit(1)
 
 import asyncio
 import os

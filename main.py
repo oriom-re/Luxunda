@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 🚀 LuxOS - Jedyny punkt wejścia dla całego systemu
@@ -42,27 +41,27 @@ class LuxOSSystem:
     async def initialize_database(self):
         """Inicjalizuje bazę danych PostgreSQL"""
         self.log("INFO", "Inicjalizacja bazy PostgreSQL...", "DATABASE")
-        
+
         try:
             from database.postgre_db import Postgre_db
             db_pool = await Postgre_db.get_db_pool()
-            
+
             if db_pool:
                 self.log("SUCCESS", "✅ Baza danych PostgreSQL zainicjalizowana", "DATABASE")
-                
+
                 # Test połączenia i wyświetl statystyki
                 async with db_pool.acquire() as conn:
                     souls_count = await conn.fetchval("SELECT COUNT(*) FROM souls")
                     beings_count = await conn.fetchval("SELECT COUNT(*) FROM beings")
                     self.log("INFO", f"Souls w bazie: {souls_count}", "DATABASE")
                     self.log("INFO", f"Beings w bazie: {beings_count}", "DATABASE")
-                
+
                 self.components_active['database'] = True
                 return True
             else:
                 self.log("ERROR", "❌ Nie udało się połączyć z bazą danych", "DATABASE")
                 return False
-                
+
         except Exception as e:
             self.log("ERROR", f"❌ Błąd inicjalizacji bazy danych: {e}", "DATABASE")
             return False
@@ -70,21 +69,21 @@ class LuxOSSystem:
     async def start_web_server(self, port: int = 5000):
         """Uruchomienie serwera web"""
         self.log("INFO", f"Uruchamianie serwera web na porcie {port}...", "WEB")
-        
+
         try:
             from fastapi import FastAPI
             from fastapi.responses import HTMLResponse, JSONResponse
             from fastapi.staticfiles import StaticFiles
             import uvicorn
-            
+
             app = FastAPI(title="LuxOS System Interface")
-            
+
             # Obsługa plików statycznych
             try:
                 app.mount("/static", StaticFiles(directory="static"), name="static")
-            except:
-                self.log("WARN", "Katalog static nie znaleziony", "WEB")
-            
+            except Exception as e:
+                self.log("WARN", f"Katalog static: {e}", "WEB")
+
             @app.get("/", response_class=HTMLResponse)
             async def root():
                 return f"""
@@ -95,7 +94,7 @@ class LuxOSSystem:
                         <p>Status: <span style="color: green;">✅ System działa!</span></p>
                         <p>Czas uruchomienia: {self.startup_time.isoformat()}</p>
                         <p>Baza danych: {'✅ Połączona' if self.components_active['database'] else '❌ Rozłączona'}</p>
-                        
+
                         <h2>Dostępne endpointy:</h2>
                         <ul>
                             <li><a href="/status">/status</a> - Status systemu</li>
@@ -103,7 +102,7 @@ class LuxOSSystem:
                             <li><a href="/beings">/beings</a> - Lista bytów</li>
                             <li><a href="/health">/health</a> - Sprawdzenie zdrowia systemu</li>
                         </ul>
-                        
+
                         <h2>Interfejsy:</h2>
                         <ul>
                             <li><a href="/static/landing.html">Landing Page</a></li>
@@ -113,7 +112,7 @@ class LuxOSSystem:
                     </body>
                 </html>
                 """
-            
+
             @app.get("/status")
             async def status():
                 return {
@@ -123,23 +122,23 @@ class LuxOSSystem:
                     "components": self.components_active,
                     "uptime_seconds": (datetime.now() - self.startup_time).total_seconds()
                 }
-            
+
             @app.get("/health")
             async def health():
                 if self.components_active['database']:
                     return {"status": "healthy", "database": "connected"}
                 else:
                     return {"status": "degraded", "database": "disconnected"}
-            
+
             @app.get("/beings")
             async def list_beings():
                 if not self.components_active['database']:
                     return {"error": "Database not connected"}
-                
+
                 try:
                     from luxdb.repository.soul_repository import BeingRepository
                     result = await BeingRepository.get_all_beings(limit=20)
-                    
+
                     if result.get('success'):
                         beings_list = []
                         for being in result.get('beings', []):
@@ -152,21 +151,21 @@ class LuxOSSystem:
                         return {"beings": beings_list, "count": len(beings_list)}
                     else:
                         return {"error": "Failed to fetch beings", "details": result.get('error')}
-                        
+
                 except Exception as e:
                     return {"error": f"Error fetching beings: {str(e)}"}
-            
+
             def run_server():
                 uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
-            
+
             server_thread = threading.Thread(target=run_server, daemon=True)
             server_thread.start()
             time.sleep(2)  # Daj czas na uruchomienie
-            
+
             self.log("SUCCESS", f"✅ Serwer web uruchomiony na http://0.0.0.0:{port}", "WEB")
             self.components_active['web_server'] = True
             return True
-            
+
         except Exception as e:
             self.log("ERROR", f"❌ Błąd serwera web: {e}", "WEB")
             return False
@@ -174,12 +173,12 @@ class LuxOSSystem:
     async def initialize_advanced_systems(self):
         """Inicjalizuje zaawansowane systemy (opcjonalne)"""
         self.log("INFO", "Inicjalizacja zaawansowanych systemów...", "ADVANCED")
-        
+
         try:
             # Próba inicjalizacji kernel system bez problemowych zależności
             try:
                 from luxdb.core.primitive_beings import PrimitiveBeingFactory
-                
+
                 # Test tworzenia prostego bytu
                 test_being = await PrimitiveBeingFactory.create_being(
                     'message',
@@ -188,14 +187,14 @@ class LuxOSSystem:
                 )
                 await test_being.set_message('System uruchomiony poprawnie!', 'system')
                 self.log("SUCCESS", f"✅ Test being utworzony: {test_being.ulid[:8]}", "ADVANCED")
-                
+
             except Exception as e:
                 self.log("WARN", f"Zaawansowane systemy niedostępne: {e}", "ADVANCED")
                 return False
-            
+
             self.components_active['advanced_systems'] = True
             return True
-            
+
         except Exception as e:
             self.log("ERROR", f"❌ Błąd inicjalizacji zaawansowanych systemów: {e}", "ADVANCED")
             return False
@@ -203,21 +202,21 @@ class LuxOSSystem:
     async def run_diagnostics(self):
         """Uruchom pełną diagnostykę systemu"""
         self.log("INFO", "🔍 Rozpoczęcie diagnostyki LuxOS...", "DIAG")
-        
+
         # Test bazy danych
         db_ok = await self.initialize_database()
-        
+
         # Test zaawansowanych systemów (jeśli baza działa)
         advanced_ok = False
         if db_ok:
             advanced_ok = await self.initialize_advanced_systems()
-        
+
         # Podsumowanie
         self.log("INFO", "=" * 60, "DIAG")
         self.log("INFO", "📊 Wyniki diagnostyki:", "DIAG")
         self.log("SUCCESS" if db_ok else "ERROR", f"Baza danych: {'✅ OK' if db_ok else '❌ BŁĄD'}", "DIAG")
         self.log("SUCCESS" if advanced_ok else "WARN", f"Zaawansowane systemy: {'✅ OK' if advanced_ok else '⚠️ OGRANICZONE'}", "DIAG")
-        
+
         if db_ok:
             self.log("SUCCESS", "🎉 System podstawowo działa!", "DIAG")
             return True
@@ -236,14 +235,14 @@ class LuxOSSystem:
         print("  create     - Utwórz nowy byt")
         print("  help       - Pomoc")
         print("  exit       - Wyjście")
-        
+
         while True:
             try:
                 cmd = input("\nLuxOS> ").strip().lower().split()
-                
+
                 if not cmd:
                     continue
-                
+
                 if cmd[0] == 'exit':
                     break
                 elif cmd[0] == 'status':
@@ -261,7 +260,7 @@ class LuxOSSystem:
                     print("Dostępne komendy: status, db, web, beings, create, exit")
                 else:
                     print("Nieznana komenda. Wpisz 'help' aby zobaczyć dostępne komendy.")
-                    
+
             except KeyboardInterrupt:
                 break
             except Exception as e:
@@ -270,11 +269,11 @@ class LuxOSSystem:
     async def show_status(self):
         """Pokaż status systemu"""
         self.log("INFO", "📊 Status systemu LuxOS:", "STATUS")
-        
+
         for component, active in self.components_active.items():
             status = "✅ Aktywny" if active else "❌ Nieaktywny"
             self.log("INFO", f"{component}: {status}", "STATUS")
-        
+
         uptime = datetime.now() - self.startup_time
         self.log("INFO", f"Czas działania: {uptime}", "STATUS")
 
@@ -283,11 +282,11 @@ class LuxOSSystem:
         if not self.components_active['database']:
             print("Baza danych nie jest połączona")
             return
-        
+
         try:
             from luxdb.repository.soul_repository import BeingRepository
             result = await BeingRepository.get_all_beings(limit=10)
-            
+
             if result.get('success') and result.get('beings'):
                 print("\n📋 Lista bytów:")
                 for being in result['beings']:
@@ -304,11 +303,11 @@ class LuxOSSystem:
         if not self.components_active['database']:
             print("Baza danych nie jest połączona")
             return
-        
+
         try:
             being_type = input("Typ bytu (message/data/function): ").strip()
             alias = input("Alias: ").strip()
-            
+
             from luxdb.core.primitive_beings import PrimitiveBeingFactory
             being = await PrimitiveBeingFactory.create_being(
                 being_type,
@@ -317,7 +316,7 @@ class LuxOSSystem:
                 created_via='interactive_mode'
             )
             print(f"✅ Utworzono byt: {being.ulid} ({being_type})")
-            
+
         except Exception as e:
             print(f"Błąd tworzenia bytu: {e}")
 
@@ -326,26 +325,26 @@ class LuxOSSystem:
         self.log("SUCCESS", "🌟 ROZPOCZĘCIE URUCHOMIENIA LUXOS SYSTEM", "MAIN")
         self.log("INFO", f"Tryb: {mode}", "MAIN")
         self.log("INFO", "=" * 60, "MAIN")
-        
+
         # Zawsze inicjalizuj bazę danych
         db_success = await self.initialize_database()
-        
+
         if not db_success and mode not in ["basic", "diagnostics"]:
             self.log("ERROR", "❌ Nie można kontynuować bez bazy danych", "MAIN")
             return False
-        
+
         # W trybie full lub web uruchom serwer
         if mode in ["full", "web", "server"]:
             await self.start_web_server()
-        
+
         # W trybie full spróbuj uruchomić zaawansowane systemy
         if mode == "full":
             await self.initialize_advanced_systems()
-        
+
         # Podsumowanie
         active_count = sum(self.components_active.values())
         total_count = len(self.components_active)
-        
+
         self.log("INFO", "=" * 60, "MAIN")
         if active_count == total_count:
             self.log("SUCCESS", "🎉 LUXOS SYSTEM URUCHOMIONY POMYŚLNIE!", "MAIN")
@@ -354,10 +353,10 @@ class LuxOSSystem:
         else:
             self.log("ERROR", "❌ LUXOS SYSTEM NIE URUCHOMIŁ SIĘ POPRAWNIE", "MAIN")
             return False
-        
+
         if self.components_active['web_server']:
             self.log("SUCCESS", "🌐 Interfejs web: http://0.0.0.0:5000", "MAIN")
-        
+
         self.log("INFO", "=" * 60, "MAIN")
         return True
 
@@ -369,37 +368,37 @@ async def main():
     parser.add_argument('--diagnostics', action='store_true', help='Uruchom diagnostykę systemu')
     parser.add_argument('--interactive', action='store_true', help='Tryb interaktywny')
     parser.add_argument('--status', action='store_true', help='Pokaż tylko status')
-    
+
     args = parser.parse_args()
-    
+
     print("🌟 LuxOS - Unified System")
     print("=========================")
-    
+
     system = LuxOSSystem()
-    
+
     # Tryb diagnostyczny
     if args.diagnostics:
         success = await system.run_diagnostics()
         sys.exit(0 if success else 1)
-    
+
     # Tryb tylko status
     if args.status:
         await system.initialize_database()
         await system.show_status()
         return
-    
+
     # Tryb interaktywny
     if args.interactive:
         await system.initialize_database()
         await system.interactive_mode()
         return
-    
+
     # Standardowe uruchomienie systemu
     success = await system.start_system(args.mode)
-    
+
     if not success:
         sys.exit(1)
-    
+
     # W trybach z serwerem, utrzymaj system żywy
     if args.mode in ["web", "full", "server"]:
         system.log("INFO", "System uruchomiony. Naciśnij Ctrl+C aby zakończyć.", "MAIN")
