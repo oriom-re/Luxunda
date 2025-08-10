@@ -55,27 +55,32 @@ class Soul:
             soul = await Soul.create(genotype, alias="user_profile")
             ```
         """
-        from ..utils.validators import validate_genotype
-        from ..repository.soul_repository import SoulRepository
+        try:
+            from ..utils.validators import validate_genotype
+            from ..repository.soul_repository import SoulRepository
 
-        # Walidacja genotypu
-        validate_genotype(genotype)
+            # Walidacja genotypu
+            validate_genotype(genotype)
 
-        # Tworzenie Soul
-        soul = cls()
-        soul.alias = alias
-        soul.genotype = genotype
-        soul.soul_hash = hashlib.sha256(
-            json.dumps(genotype, sort_keys=True).encode()
-        ).hexdigest()
+            # Tworzenie Soul
+            soul = cls()
+            soul.alias = alias
+            soul.genotype = genotype
+            soul.soul_hash = hashlib.sha256(
+                json.dumps(genotype, sort_keys=True).encode()
+            ).hexdigest()
+            soul.created_at = datetime.now()
 
-        # Zapis do bazy danych
-        result = await SoulRepository.set(soul)
-        if not result.get('success'):
-            raise Exception("Failed to create soul")
+            # Zapis do bazy danych
+            result = await SoulRepository.set(soul)
+            if not result.get('success'):
+                raise Exception(f"Failed to create soul: {result.get('error', 'Unknown error')}")
 
-        # Zwróć zgodnie z formatem genetycznym
-        return await cls.set(genotype, alias)
+            return soul
+
+        except Exception as e:
+            print(f"❌ Błąd tworzenia Soul: {e}")
+            raise Exception(f"Failed to create soul: {str(e)}")
 
     @classmethod
     async def get(cls, **kwargs) -> Optional['Soul']:

@@ -7,9 +7,9 @@ Tylko połączenie z bazą + API do scenariuszy
 import asyncio
 import json
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import asyncpg
@@ -370,7 +370,7 @@ async def create_ui_scenario(scenario_data: Dict[str, Any]):
     try:
         import ulid
         scenario_ulid = str(ulid.new())
-        
+
         ui_data = {
             "type": "ui_scenario",
             "name": scenario_data.get("name", "New UI Scenario"),
@@ -495,7 +495,7 @@ async def serve_dynamic_ui(route: str):
                 raise HTTPException(status_code=404, detail="Brak aktywnego scenariusza UI dla tej ścieżki")
 
             scenario_data = scenario['data']
-            
+
             # Generuj pełną stronę HTML
             html_content = f"""
 <!DOCTYPE html>
@@ -510,13 +510,13 @@ async def serve_dynamic_ui(route: str):
 </head>
 <body>
     {scenario_data.get('html_content', '<h1>Brak zawartości</h1>')}
-    
+
     <script>
         {scenario_data.get('js_content', '')}
     </script>
 </body>
 </html>"""
-            
+
             return HTMLResponse(content=html_content)
 
     except Exception as e:
@@ -641,31 +641,72 @@ async def get_bios_scenario():
             ]
         }
 
-@app.post("/api/lux/chat")
-async def chat_with_lux(request: dict):
-    """Komunikacja z Lux Assistant"""
+@app.post("/api/chat")
+async def chat_with_lux(request: Request):
+    """Endpoint do komunikacji z asystentem Lux z kontekstem ostatnich 10 wiadomości"""
     try:
+        data = await request.json()
+        message = data.get("message", "")
+        fingerprint = data.get("fingerprint", "anonymous")
+
+        if not message:
+            return JSONResponse({"error": "Message is required"}, status_code=400)
+
+        # Pobierz lub utwórz sesję dla użytkownika
+        session_id = request.headers.get("session-id")
+
         from luxdb.core.session_assistant import session_manager
 
-        message = request.get("message", "")
-        if not message:
-            raise HTTPException(status_code=400, detail="Brak wiadomości")
+        try:
+            if session_id:
+                assistant = await session_manager.get_session(session_id)
+                if not assistant:
+                    # Utwórz nową sesję jeśli nie istnieje
+                    assistant = await session_manager.create_session(fingerprint)
+                    session_id = assistant.session.session_id
+            else:
+                # Utwórz nową sesję
+                assistant = await session_manager.create_session(fingerprint)
+                session_id = assistant.session.session_id
 
-        # Użyj globalnego Lux Assistant
-        response = await session_manager.chat_with_global_lux(message)
+            # Przetworz wiadomość z kontekstem
+            response = await assistant.process_message(message)
 
-        return {
-            "status": "success",
-            "response": response,
-            "timestamp": datetime.now().isoformat()
-        }
+            return JSONResponse({
+                "response": response,
+                "session_id": session_id,
+                "timestamp": datetime.now().isoformat(),
+                "context_loaded": True
+            })
+
+        except Exception as e:
+            print(f"❌ Błąd sesji asystenta: {e}")
+            # Fallback - użyj globalnego asystenta
+            try:
+                global_lux = await session_manager.get_global_lux()
+                if global_lux:
+                    response = await global_lux.chat(message)
+                    return JSONResponse({
+                        "response": response,
+                        "session_id": None,
+                        "timestamp": datetime.now().isoformat(),
+                        "context_loaded": False,
+                        "fallback": True
+                    })
+            except:
+                pass
+
+            # Ostateczny fallback
+            return JSONResponse({
+                "response": f"Cześć! Otrzymałem twoją wiadomość: '{message}'. System jest w trybie ograniczonym.",
+                "session_id": None,
+                "timestamp": datetime.now().isoformat(),
+                "context_loaded": False,
+                "fallback": True
+            })
 
     except Exception as e:
-        return {
-            "status": "error",
-            "response": f"❌ Błąd: {str(e)}",
-            "timestamp": datetime.now().isoformat()
-        }
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     import uvicorn

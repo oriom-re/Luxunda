@@ -149,31 +149,36 @@ class Message:
     async def _get_or_create_message_soul(cls) -> Soul:
         """Pobiera lub tworzy Soul dla wiadomości"""
         try:
-            soul = await Soul.load_by_alias("lux_message")
+            soul = await Soul.get_by_alias("lux_message")
             if soul:
                 return soul
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ Nie można załadować istniejącej Soul: {e}")
         
         # Utwórz nowy soul
         message_genotype = {
             "genesis": {
                 "name": "lux_message",
                 "type": "message",
+                "version": "1.0.0",
                 "doc": "Wiadomość w rozmowie z asystentem Lux"
             },
             "attributes": {
-                "content": {"py_type": "str", "table_name": "_text"},
-                "role": {"py_type": "str", "table_name": "_text"},
-                "author_ulid": {"py_type": "str", "table_name": "_text"},
-                "fingerprint": {"py_type": "str", "table_name": "_text"},
-                "conversation_id": {"py_type": "str", "table_name": "_text"},
-                "timestamp": {"py_type": "str", "table_name": "_text"},
-                "metadata": {"py_type": "dict", "table_name": "_jsonb"}
+                "content": {"py_type": "str", "required": True},
+                "role": {"py_type": "str", "default": "user"},
+                "author_ulid": {"py_type": "str", "required": False},
+                "fingerprint": {"py_type": "str", "required": False},
+                "conversation_id": {"py_type": "str", "required": False},
+                "timestamp": {"py_type": "str", "required": False},
+                "metadata": {"py_type": "dict", "default": {}}
             }
         }
         
-        return await Soul.create(message_genotype, alias="lux_message")
+        try:
+            return await Soul.create(message_genotype, alias="lux_message")
+        except Exception as e:
+            print(f"❌ Błąd tworzenia Soul dla wiadomości: {e}")
+            raise e
 
     @classmethod
     async def _create_author_relation(cls, message_ulid: str, author_ulid: str):

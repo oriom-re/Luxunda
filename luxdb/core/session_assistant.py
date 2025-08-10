@@ -149,76 +149,47 @@ class SessionAssistant:
         # Dodaj więcej reguł...
 
     async def process_message(self, message_content: str) -> str:
-        """Przetwarza wiadomość użytkownika z fragmentami i pamięcią"""
-        from ..models.message_fragment import MessageFragment
-        from ..models.memory_cache import MemoryCache
+        """Przetwarza wiadomość użytkownika z kontekstem ostatnich 10 wiadomości"""
+        try:
+            # Odśwież aktywność
+            self.session.refresh_activity()
 
-        # Odśwież aktywność
-        self.session.refresh_activity()
+            # Pobierz ostatnie 10 wiadomości z konwersacji
+            conversation_history = await self.get_recent_messages(limit=10)
 
-        # Utwórz wiadomość jako Being z relacjami
-        message = await self.create_contextual_message(message_content)
+            # Utwórz wiadomość użytkownika jako Being
+            message = await self.create_contextual_message(message_content)
 
-        # Fragmentacja wiadomości na części
-        fragments = await MessageFragment.create_from_message(
-            message_content=message_content,
-            message_ulid=message.ulid,
-            author_ulid=self.session.user_ulid,
-            fingerprint=self.session.user_fingerprint,
-            conversation_id=self.session.session_id
-        )
+            # Zbuduj kontekst konwersacji
+            conversation_context = self._format_conversation_history(conversation_history)
 
-        # Pobierz istotne wspomnienia
-        relevant_memories = await MemoryCache.get_relevant_memories(
-            conversation_id=self.session.session_id,
-            author_ulid=self.session.user_ulid,
-            tags=list(self.session.project_tags),
-            min_importance=0.4,
-            time_limit_hours=12,
-            limit=8
-        )
+            # Przetwórz przez Lux z pełnym kontekstem
+            enhanced_prompt = f"""
+            Kontekst sesji użytkownika:
+            - Ostatnie działania: {self.get_recent_actions_summary()}
+            - Aktywne projekty: {', '.join(self.session.project_tags)}
+            - Czas sesji: {self.session.last_activity.strftime('%H:%M')}
 
-        # Zbuduj kontekst z fragmentów i pamięci
-        context = await self.build_enhanced_conversation_context(fragments, relevant_memories)
+            Historia ostatnich 10 wiadomości:
+            {conversation_context}
 
-        # Przetwórz przez Lux z rozbudowanym kontekstem
-        enhanced_prompt = f"""
-        Kontekst sesji użytkownika:
-        - Ostatnie działania: {self.get_recent_actions_summary()}
-        - Aktywne projekty: {', '.join(self.session.project_tags)}
-        - Czas sesji: {self.session.last_activity.strftime('%H:%M')}
+            Aktywne eventy: {len(self.session.active_events)}
 
-        Pamięć istotnych wydarzeń:
-        {self._format_memory_context(relevant_memories)}
+            Aktualna wiadomość użytkownika: {message_content}
 
-        Fragmenty aktualnej wiadomości:
-        {self._format_fragments_context(fragments)}
+            Odpowiedz jako Lux, uwzględniając pełną historię konwersacji i aktualny kontekst.
+            """
 
-        Aktywne eventy: {len(self.session.active_events)}
+            response = await self.lux_core.chat(enhanced_prompt)
 
-        Wiadomość użytkownika: {message_content}
+            # Zapisz odpowiedź jako kolejną wiadomość
+            await self.create_contextual_message(response, role="assistant")
 
-        Odpowiedz jako Lux, uwzględniając pełną historię fragmentów, pamięć wydarzeń i aktualny kontekst.
-        """
+            return response
 
-        response = await self.lux_core.chat(enhanced_prompt)
-
-        # Zapisz odpowiedź jako kolejną wiadomość z fragmentami
-        response_message = await self.create_contextual_message(response, role="assistant")
-        response_fragments = await MessageFragment.create_from_message(
-            message_content=response,
-            message_ulid=response_message.ulid,
-            author_ulid=None,  # Assistant
-            fingerprint=self.session.user_fingerprint,
-            conversation_id=self.session.session_id
-        )
-
-        # Analizuj odpowiedź pod kątem nowych faktów do zapamiętania
-        await self.extract_and_store_insights(
-            message_content, response, fragments + response_fragments
-        )
-
-        return response
+        except Exception as e:
+            print(f"❌ Błąd przetwarzania wiadomości: {e}")
+            return f"Przepraszam, wystąpił błąd podczas przetwarzania wiadomości: {str(e)}"
 
     async def create_contextual_message(self, content: str, role: str = "user") -> Message:
         """Tworzy wiadomość z kontekstowymi relacjami"""
@@ -258,6 +229,51 @@ class SessionAssistant:
             )
 
         return message
+
+    async def get_recent_messages(self, limit: int = 10) -> List:
+        """Pobiera ostatnie wiadomości z konwersacji"""
+        try:
+            from ..models.message import Message
+            
+            # Pobierz historię konwersacji dla tego fingerprint
+            messages = await Message.get_conversation_history(
+                fingerprint=self.session.user_fingerprint,
+                limit=limit
+            )
+            
+            return messages
+        except Exception as e:
+            print(f"⚠️ Błąd pobierania historii wiadomości: {e}")
+            return []
+
+    def _format_conversation_history(self, messages: List) -> str:
+        """Formatuje historię konwersacji do kontekstu"""
+        if not messages:
+            return "Brak poprzednich wiadomości w tej sesji."
+
+        context_lines = []
+        for i, message in enumerate(messages[-10:]):  # Ostatnie 10 wiadomości
+            role = getattr(message, 'role', 'user')
+            content = getattr(message, 'content', '')
+            timestamp = getattr(message, 'timestamp', '')
+            
+            # Formatuj timestamp jeśli istnieje
+            time_str = ""
+            if timestamp:
+                try:
+                    from datetime import datetime
+                    if isinstance(timestamp, str):
+                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        time_str = f" ({dt.strftime('%H:%M')})"
+                except:
+                    pass
+            
+            if role == 'assistant':
+                context_lines.append(f"Assistant{time_str}: {content}")
+            else:
+                context_lines.append(f"User{time_str}: {content}")
+
+        return '\n'.join(context_lines)
 
     def get_recent_actions_summary(self) -> str:
         """Zwraca podsumowanie ostatnich działań"""
