@@ -16,7 +16,7 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS Main Only"
+runButton = "LuxOS Frontend Server"
 
 [[workflows.workflow]]
 name = "Start LuxOS Server"
@@ -233,51 +233,6 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python luxos_frontend_server.py"
-
-[[workflows.workflow]]
-name = "LuxOS Main System"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py --mode=full"
-
-[[workflows.workflow]]
-name = "LuxOS Full Backend"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py --mode=full --bootstrap"
-
-[[workflows.workflow]]
-name = "LuxOS Start"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python luxos_frontend_server.py"
-
-[[workflows.workflow]]
-name = "Simple LuxOS"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python luxos_simple_system.py"
-
-[[workflows.workflow]]
-name = "LuxOS Main Only"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py"
 
 [[ports]]
 localPort = 3000

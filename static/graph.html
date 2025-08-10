@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxDB MVP - Genotypowy System Danych</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid #00ff88;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .session-info {
+            display: flex;
+            gap: 15px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .user-info {
+            padding: 4px 12px;
+            background: rgba(76, 175, 80, 0.2);
+            border-radius: 12px;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .connection-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .connection-status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        #graph-container {
+            position: relative;
+            margin-top: 60px;
+            height: calc(100vh - 60px - 120px);
+        }
+
+        /* Animated Neural Background */
+        #neuralBackground {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.3;
+        }
+
+        #graph-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .node {
+            cursor: pointer;
+            stroke: #00ff88;
+            stroke-width: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover {
+            stroke-width: 3px;
+            filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.8));
+        }
+
+        .node.selected {
+            stroke: #ffff00;
+            stroke-width: 4px;
+            filter: drop-shadow(0 0 15px rgba(255, 255, 0, 0.8));
+        }
+
+        .link {
+            stroke: #555;
+            stroke-width: 2px;
+            marker-end: url(#arrowhead);
+        }
+
+        .link.highlighted {
+            stroke: #00ff88;
+            stroke-width: 3px;
+        }
+
+        .node-label {
+            font-size: 12px;
+            fill: white;
+            text-anchor: middle;
+            pointer-events: none;
+            font-weight: bold;
+        }
+
+        .stats-overlay {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            background: rgba(26, 26, 26, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #555;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-item {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .zoom-controls {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(26, 26, 26, 0.9);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .zoom-btn:hover {
+            background: #00ff88;
+            color: #1a1a1a;
+            transform: scale(1.1);
+        }
+
+        .intention-system {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 26, 0.95);
+            border-top: 2px solid #00ff88;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            min-height: 120px;
+        }
+
+        .intention-input {
+            width: 100%;
+            min-height: 40px;
+            max-height: 200px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 8px;
+            color: white;
+            padding: 12px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            resize: none;
+            overflow-y: auto;
+            line-height: 1.4;
+        }
+
+        .intention-input:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+
+        .intention-input::placeholder {
+            color: #888;
+        }
+
+        .intention-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .intention-counter {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .btn {
+            background: #00ff88;
+            color: #1a1a1a;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #00cc66;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            font-weight: 500;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification-success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .notification-error {
+            background: #f44336;
+            color: white;
+        }
+
+        .notification-info {
+            background: #2196F3;
+            color: white;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .loading {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top-bar">
+            <div class="logo">🧬 LuxDB - Genotypowy System Danych</div>
+            <div id="sessionInfo" class="session-info">
+                <span class="user-info">👤 LuxDB Developer</span>
+                <span class="connection-status connected">connected</span>
+            </div>
+            <div class="controls">
+                <button onclick="zoomIn()" class="control-btn">🔍+</button>
+                <button onclick="zoomOut()" class="control-btn">🔍-</button>
+                <button onclick="resetZoom()" class="control-btn">⌂</button>
+                <button onclick="clearGraph()" class="control-btn">🗑️</button>
+                <button onclick="loadTestData()" class="control-btn">🧪</button>
+                <button onclick="showSessionInfo()" class="control-btn">👤</button>
+            </div>
+        </div>
+
+        <div id="graph-container">
+            <!-- Animated Neural Background -->
+            <canvas id="neuralBackground"></canvas>
+            <svg id="graph-svg"></svg>
+        </div>
+
+        <div class="stats-overlay">
+            <div class="stat-item">
+                <div class="stat-value" id="nodesCount">0</div>
+                <div class="stat-label">Byty</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="linksCount">0</div>
+                <div class="stat-label">Relacje</div>
+            </div>
+        </div>
+
+        <div class="zoom-controls">
+            <button class="zoom-btn" onclick="zoomIn()">+</button>
+            <button class="zoom-btn" onclick="zoomOut()">-</button>
+            <button class="zoom-btn" onclick="resetZoom()">⌂</button>
+            <button class="zoom-btn" onclick="exportData()" title="Export">💾</button>
+        </div>
+
+        <div class="intention-system">
+            <textarea 
+                class="intention-input" 
+                id="intentionInput" 
+                placeholder="🌀 Wyraź swoją intencję w uniwersum LuxDB... (Dane są reprezentacją intencji)"
+                maxlength="500"
+            ></textarea>
+            <div class="intention-controls">
+                <div class="intention-counter">
+                    <span id="charCounter">0</span>/500
+                </div>
+                <button class="btn" onclick="processIntention()">🌀 Manifestuj w LuxDB</button>
+                <button class="btn" onclick="createRandomBeing()">🎲 Losowy Byt</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let graphData = { beings: [], relationships: [] };
+        let simulation;
+        let svg, g, zoom;
+        let isConnected = false;
+        let websocket = null;
+        let graphManager; // To hold the GraphManager instance
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Inicjalizacja LuxDB Graf...');
+            // Initialize GraphManager first, as other components depend on it
+            graphManager = new GraphManager();
+            initializeGraph();
+            initializeWebSocket();
+            initializeNeuralBackground();
+            loadInitialData();
+            setupIntentionInput();
+
+            // Initialize components after graphManager is ready
+            window.intentionComponent = new IntentionComponent(graphManager);
+            window.intentionSystem = new IntentionAnalysisSystem(graphManager);
+            window.chatComponent = new ChatComponent(graphManager);
+            window.similarityComponent = new SimilarityComponent(graphManager);
+        });
+
+        // GraphManager class (placeholder, actual implementation might be in separate files)
+        class GraphManager {
+            constructor() {
+                this.graphData = { beings: [], relationships: [] };
+                this.simulation = null;
+                this.svg = null;
+                this.g = null;
+                this.zoom = null;
+            }
+
+            setSimulation(sim) { this.simulation = sim; }
+            setSvg(svgElement) { this.svg = svgElement; }
+            setGroup(groupElement) { this.g = groupElement; }
+            setZoom(zoomBehavior) { this.zoom = zoomBehavior; }
+
+            getGraphData() { return this.graphData; }
+            updateGraphData(data) {
+                this.graphData = data;
+                updateGraph(); // Call the global updateGraph function
+                updateStats(); // Call the global updateStats function
+            }
+            
+            addBeing(being) {
+                if (!this.graphData.beings.find(b => b.id === being.id)) {
+                    this.graphData.beings.push(being);
+                    if (this.simulation) {
+                        this.simulation.nodes(this.graphData.beings);
+                        this.simulation.restart();
+                    }
+                    updateGraph();
+                    updateStats();
+                    showNotification(`🆕 Nowy byt dodany: ${being.name}`, 'success');
+                }
+            }
+
+            addRelationship(rel) {
+                 if (!this.graphData.relationships.find(r => r.id === rel.id)) {
+                    this.graphData.relationships.push(rel);
+                    if (this.simulation) {
+                        this.simulation.force('link').links(this.graphData.relationships);
+                        this.simulation.restart();
+                    }
+                    updateGraph();
+                    updateStats();
+                    showNotification(`🔗 Nowa relacja dodana: ${rel.type}`, 'success');
+                }
+            }
+        }
+
+        // Initialize D3 graph
+        function initializeGraph() {
+            const container = document.getElementById('graph-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            svg = d3.select('#graph-svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            // Add arrow marker
+            svg.append('defs').append('marker')
+                .attr('id', 'arrowhead')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 15)
+                .attr('refY', 0)
+                .attr('markerWidth', 6)
+                .attr('markerHeight', 6)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M0,-5L10,0L0,5')
+                .attr('fill', '#555');
+
+            // Create zoom behavior
+            zoom = d3.zoom()
+                .scaleExtent([0.1, 4])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+
+            svg.call(zoom);
+
+            // Create main group
+            g = svg.append('g');
+
+            // Create force simulation
+            simulation = d3.forceSimulation()
+                .force('link', d3.forceLink().id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(30));
+            
+            // Pass simulation and SVG elements to GraphManager
+            graphManager.setSimulation(simulation);
+            graphManager.setSvg(svg);
+            graphManager.setGroup(g);
+            graphManager.setZoom(zoom);
+        }
+
+        // Initialize WebSocket connection
+        function initializeWebSocket() {
+            try {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+                websocket = new WebSocket(wsUrl);
+
+                websocket.onopen = function() {
+                    console.log('✅ WebSocket połączony');
+                    isConnected = true;
+                    updateConnectionStatus(true);
+
+                    // Request initial data
+                    websocket.send(JSON.stringify({
+                        type: 'request_graph_data'
+                    }));
+                };
+
+                websocket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (error) {
+                        console.error('❌ Error parsing WebSocket message:', error);
+                    }
+                };
+
+                websocket.onclose = function() {
+                    console.log('❌ WebSocket rozłączony');
+                    isConnected = false;
+                    updateConnectionStatus(false);
+
+                    // Try to reconnect after 3 seconds
+                    setTimeout(initializeWebSocket, 3000);
+                };
+
+                websocket.onerror = function(error) {
+                    console.error('❌ WebSocket error:', error);
+                };
+
+            } catch (error) {
+                console.error('❌ Failed to initialize WebSocket:', error);
+                // Fallback to HTTP polling
+                setTimeout(loadInitialData, 1000);
+            }
+        }
+
+        // Handle WebSocket messages
+        function handleWebSocketMessage(data) {
+            switch (data.type) {
+                case 'graph_data':
+                    console.log('📊 Otrzymano dane grafu:', data);
+                    graphManager.updateGraphData(data); // Use GraphManager
+                    break;
+                case 'being_created':
+                    if (data.being) {
+                        graphManager.addBeing(data.being); // Use GraphManager
+                    }
+                    break;
+                case 'initial_state':
+                    if (data.page_state && data.page_state.graph_data) {
+                        graphManager.updateGraphData(data.page_state.graph_data); // Use GraphManager
+                    }
+                    break;
+                default:
+                    console.log('📨 Otrzymano wiadomość:', data);
+            }
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const statusElement = document.querySelector('.connection-status');
+            if (statusElement) {
+                statusElement.textContent = connected ? 'connected' : 'disconnected';
+                statusElement.className = `connection-status ${connected ? 'connected' : 'disconnected'}`;
+            }
+        }
+
+        // Load initial data via HTTP
+        async function loadInitialData() {
+            try {
+                const response = await fetch('/api/graph-data');
+                const data = await response.json();
+                console.log('📊 Ładowanie danych HTTP:', data);
+                graphManager.updateGraphData(data); // Use GraphManager
+            } catch (error) {
+                console.error('❌ Error loading initial data:', error);
+                // Create some demo data
+                createDemoData();
+            }
+        }
+
+        // Create demo data if no data available
+        function createDemoData() {
+            const demoData = {
+                beings: [
+                    {id: 'demo1', name: 'LuxDB Core', type: 'system', x: 300, y: 200, data: {}},
+                    {id: 'demo2', name: 'AI Assistant', type: 'ai', x: 500, y: 200, data: {}},
+                    {id: 'demo3', name: 'Data Store', type: 'storage', x: 400, y: 350, data: {}}
+                ],
+                relationships: [
+                    {id: 'rel1', source: 'demo1', target: 'demo2', type: 'communicates'},
+                    {id: 'rel2', source: 'demo1', target: 'demo3', type: 'stores'}
+                ]
+            };
+            graphManager.updateGraphData(demoData); // Use GraphManager
+        }
+
+        // Update graph visualization
+        function updateGraph() {
+            const currentGraphData = graphManager.getGraphData();
+
+            // Update links
+            const link = g.selectAll('.link')
+                .data(currentGraphData.relationships || [], d => d.id);
+
+            link.exit().remove();
+
+            const linkEnter = link.enter().append('line')
+                .attr('class', 'link');
+
+            link.merge(linkEnter);
+
+            // Update nodes
+            const node = g.selectAll('.node-group')
+                .data(currentGraphData.beings, d => d.id);
+
+            node.exit().remove();
+
+            const nodeEnter = node.enter().append('g')
+                .attr('class', 'node-group');
+
+            nodeEnter.append('circle')
+                .attr('class', 'node')
+                .attr('r', 20)
+                .attr('fill', d => getNodeColor(d.type))
+                .on('click', handleNodeClick)
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            nodeEnter.append('text')
+                .attr('class', 'node-label')
+                .attr('dy', 5)
+                .text(d => d.name || d.id);
+
+            // Restart simulation
+            if (simulation) {
+                simulation.nodes(currentGraphData.beings);
+                simulation.force('link').links(currentGraphData.relationships || []);
+                simulation.alpha(1).restart();
+
+                simulation.on('tick', () => {
+                    g.selectAll('.link')
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+
+                    g.selectAll('.node-group')
+                        .attr('transform', d => `translate(${d.x},${d.y})`);
+                });
+            }
+        }
+
+        // Get node color based on type
+        function getNodeColor(type) {
+            const colors = {
+                'entity': '#00ff88',
+                'ai': '#ff6b35',
+                'system': '#4285f4',
+                'storage': '#9c27b0',
+                'test_entity': '#ffeb3b',
+                'intention': '#00bcd4' // Color for intention entities
+            };
+            return colors[type] || '#00ff88';
+        }
+
+        // Handle node click
+        function handleNodeClick(event, d) {
+            console.log('🖱️ Clicked node:', d);
+
+            // Toggle selection
+            d3.select(event.currentTarget).classed('selected', !d3.select(event.currentTarget).classed('selected'));
+
+            showNotification(`Wybrano: ${d.name || d.id}`, 'info');
+        }
+
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        // Update statistics
+        function updateStats() {
+            const currentGraphData = graphManager.getGraphData();
+            document.getElementById('nodesCount').textContent = currentGraphData.beings.length;
+            document.getElementById('linksCount').textContent = (currentGraphData.relationships || []).length;
+        }
+
+        // Control functions
+        function zoomIn() {
+            if (zoom) {
+                svg.transition().duration(300).call(
+                    zoom.scaleBy, 1.5
+                );
+            }
+        }
+
+        function zoomOut() {
+            if (zoom) {
+                svg.transition().duration(300).call(
+                    zoom.scaleBy, 1 / 1.5
+                );
+            }
+        }
+
+        function resetZoom() {
+            if (zoom) {
+                svg.transition().duration(500).call(
+                    zoom.transform,
+                    d3.zoomIdentity
+                );
+            }
+        }
+
+        function clearGraph() {
+            if (confirm('Czy na pewno chcesz wyczyścić graf?')) {
+                graphManager.updateGraphData({ beings: [], relationships: [] });
+                showNotification('Graf wyczyszczony', 'info');
+            }
+        }
+
+        async function loadTestData() {
+            try {
+                const response = await fetch('/test-data');
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification(`Dodano ${data.beings.length} bytów testowych`, 'success');
+                    // Reload graph data
+                    loadInitialData();
+                } else {
+                    showNotification('Błąd ładowania danych testowych', 'error');
+                }
+            } catch (error) {
+                console.error('❌ Error loading test data:', error);
+                showNotification('Błąd ładowania danych testowych', 'error');
+            }
+        }
+
+        async function showSessionInfo() {
+            try {
+                const response = await fetch('/api/session');
+                const sessionData = await response.json();
+
+                const info = `
+Sesja: ${sessionData.session_id}
+Użytkownik: ${sessionData.user_name}
+Admin: ${sessionData.is_admin ? 'Tak' : 'Nie'}
+Status: ${sessionData.connected ? 'Połączony' : 'Rozłączony'}
+                `.trim();
+
+                alert(info);
+            } catch (error) {
+                console.error('❌ Error fetching session info:', error);
+                alert('Błąd pobierania informacji o sesji');
+            }
+        }
+
+        function exportData() {
+            const data = {
+                graphData: graphManager.getGraphData(), // Use GraphManager
+                timestamp: new Date().toISOString(),
+                stats: {
+                    beings: graphData.beings.length,
+                    relationships: (graphData.relationships || []).length
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `luxdb-graph-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showNotification('📁 Graf wyeksportowany', 'success');
+        }
+
+        // Intention system
+        function setupIntentionInput() {
+            const input = document.getElementById('intentionInput');
+            const counter = document.getElementById('charCounter');
+
+            input.addEventListener('input', function() {
+                counter.textContent = this.value.length;
+            });
+        }
+
+        async function processIntention() {
+            const intentionInput = document.getElementById('intentionInput');
+            const intention = intentionInput.value.trim();
+
+            if (!intention) {
+                showNotification('Wprowadź swoją intencję', 'error');
+                return;
+            }
+            
+            // Call the intention system to process and potentially create entities
+            if (window.intentionSystem && window.intentionSystem.processIntention) {
+                await window.intentionSystem.processIntention(intention);
+                intentionInput.value = ''; // Clear input after processing
+                document.getElementById('charCounter').textContent = '0';
+            } else {
+                console.error("IntentionSystem not initialized or processIntention method not found.");
+                showNotification('System analizy intencji nie jest gotowy.', 'error');
+            }
+        }
+
+        async function createRandomBeing() {
+            const names = ['Quantum Entity', 'Neural Node', 'Data Crystal', 'AI Spark', 'Cosmic Being', 'Abstract Concept'];
+            const types = ['entity', 'ai', 'storage', 'system', 'intention']; // Added 'intention' type
+
+            const randomName = names[Math.floor(Math.random() * names.length)];
+            const randomType = types[Math.floor(Math.random() * types.length)];
+
+            const newBeing = {
+                id: `being_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: `${randomName} ${Math.floor(Math.random() * 1000)}`,
+                type: randomType,
+                data: {} // Add any other relevant properties
+            };
+
+            try {
+                // Send to backend to create the being (or handle creation logic here if client-side only)
+                const response = await fetch('/api/create-being', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(newBeing)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // If backend creates it, it will be sent via WebSocket.
+                    // If we want to show it immediately (client-side creation):
+                    // graphManager.addBeing(newBeing);
+                    showNotification(`🎲 Losowy byt utworzony: ${newBeing.name}`, 'success');
+                } else {
+                    showNotification('Błąd tworzenia bytu', 'error');
+                }
+            } catch (error) {
+                console.error('❌ Error creating random being:', error);
+                showNotification('Błąd tworzenia bytu', 'error');
+            }
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.textContent = message;
+
+            document.body.appendChild(notification);
+
+            // Animate in
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+
+            // Auto remove
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // Neural background animation
+        function initializeNeuralBackground() {
+            const canvas = document.getElementById('neuralBackground');
+            if (!canvas) return; // Exit if canvas is not found
+            const ctx = canvas.getContext('2d');
+
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // Neural network particles
+            const particles = [];
+            const particleCount = 50;
+            const connectionDistance = 150;
+
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.vx = (Math.random() - 0.5) * 0.5;
+                    this.vy = (Math.random() - 0.5) * 0.5;
+                    this.radius = Math.random() * 2 + 1;
+                }
+
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Keep particles within canvas bounds
+                    if (this.x < 0) { this.x = 0; this.vx *= -1; }
+                    if (this.x > canvas.width) { this.x = canvas.width; this.vx *= -1; }
+                    if (this.y < 0) { this.y = 0; this.vy *= -1; }
+                    if (this.y > canvas.height) { this.y = canvas.height; this.vy *= -1; }
+                }
+
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(0, 255, 136, 0.6)';
+                    ctx.fill();
+                }
+            }
+
+            // Initialize particles
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Update and draw particles
+                particles.forEach(particle => {
+                    particle.update();
+                    particle.draw();
+                });
+
+                // Draw connections
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < connectionDistance) {
+                            const opacity = 1 - (distance / connectionDistance);
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.strokeStyle = `rgba(0, 255, 136, ${opacity * 0.3})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                requestAnimationFrame(animate);
+            }
+
+            animate();
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            const container = document.getElementById('graph-container');
+            if (!container) return;
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            svg.attr('width', width).attr('height', height);
+
+            if (simulation) {
+                simulation.force('center', d3.forceCenter(width / 2, height / 2));
+                simulation.alpha(1).restart();
+            }
+        });
+    </script>
+</body>
+</html>

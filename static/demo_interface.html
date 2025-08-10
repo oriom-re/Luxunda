@@ -1,0 +1,904 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>🌟 LuxOS Demo Interface</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --header-height: 120px;
+            --mobile-header-height: 100px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            height: 100vh;
+            overflow: hidden;
+            position: fixed;
+            width: 100vw;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .header {
+            background: rgba(0,0,0,0.2);
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            height: var(--header-height);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .demo-container {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        .input-panel {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            width: 350px;
+            min-width: 300px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .graph-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            position: relative;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .graph-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 15px;
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+        }
+
+        .graph-container svg {
+            max-width: 100%;
+            max-height: 100%;
+            height: auto;
+            width: auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            font-size: 16px;
+        }
+
+        .form-group textarea {
+            height: 80px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 10px;
+            touch-action: manipulation;
+        }
+
+        .btn:hover, .btn:focus {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            outline: none;
+        }
+
+        .stats-panel {
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 8px 16px;
+            background: rgba(76, 175, 80, 0.8);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 10;
+        }
+
+        .connection-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 250px;
+            font-size: 12px;
+            z-index: 10;
+            display: none;
+        }
+
+        .intention-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin: 2px;
+            display: inline-block;
+        }
+
+        .node {
+            cursor: pointer;
+            stroke-width: 2px;
+        }
+
+        .node.message {
+            fill: #4CAF50;
+            stroke: #2E7D32;
+        }
+
+        .node.interaction {
+            fill: #FF9800;
+            stroke: #E65100;
+        }
+
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
+        }
+
+        .node-label {
+            fill: white;
+            font-size: 10px;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .processing {
+            animation: pulse 1.5s infinite;
+        }
+
+        /* MOBILE STYLES - Prioritet mobilny */
+        @media screen and (max-width: 768px) {
+            :root {
+                --header-height: var(--mobile-header-height);
+            }
+
+            body {
+                font-size: 14px;
+            }
+
+            .header {
+                height: var(--mobile-header-height);
+                padding: 15px 10px;
+            }
+
+            .header h1 {
+                font-size: 1.8rem;
+                margin-bottom: 5px;
+            }
+
+            .header p {
+                font-size: 0.95rem;
+            }
+
+            .demo-container {
+                flex-direction: column;
+                gap: 10px;
+                padding: 10px;
+                top: var(--mobile-header-height);
+            }
+
+            .input-panel {
+                width: 100%;
+                min-width: unset;
+                height: auto;
+                max-height: 40vh;
+                padding: 15px;
+                order: 2;
+                flex-shrink: 0;
+            }
+
+            .graph-panel {
+                width: 100%;
+                height: 55vh;
+                padding: 15px;
+                order: 1;
+                min-height: 300px;
+            }
+
+            .graph-container {
+                padding: 10px;
+                min-height: 250px;
+                height: calc(55vh - 60px);
+            }
+
+            .form-group {
+                margin-bottom: 15px;
+            }
+
+            .form-group input,
+            .form-group textarea {
+                padding: 10px;
+                font-size: 16px; /* Zapobiega zoom na iOS */
+                border-radius: 8px;
+            }
+
+            .form-group textarea {
+                height: 60px;
+            }
+
+            .btn {
+                padding: 10px 20px;
+                font-size: 15px;
+            }
+
+            .stats-panel {
+                padding: 12px;
+                margin-top: 15px;
+            }
+
+            .stat-item {
+                padding: 6px;
+                font-size: 13px;
+            }
+
+            .status-indicator {
+                top: 5px;
+                left: 5px;
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+
+            .connection-info {
+                top: 5px;
+                right: 5px;
+                left: 5px;
+                max-width: none;
+                font-size: 11px;
+                position: fixed;
+                z-index: 1000;
+            }
+
+            .node-label {
+                font-size: 9px;
+            }
+        }
+
+        /* BARDZO MAŁE EKRANY */
+        @media screen and (max-width: 480px) {
+            .header h1 {
+                font-size: 1.6rem;
+            }
+
+            .header p {
+                font-size: 0.9rem;
+            }
+
+            .demo-container {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .input-panel {
+                padding: 12px;
+                max-height: 35vh;
+            }
+
+            .graph-panel {
+                padding: 12px;
+                height: 60vh;
+            }
+
+            .graph-container {
+                padding: 8px;
+                min-height: 220px;
+                height: calc(60vh - 50px);
+            }
+
+            .form-group textarea {
+                height: 50px;
+            }
+
+            .btn {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+        }
+
+        /* LANDSCAPE MODE NA MOBILE */
+        @media screen and (max-width: 768px) and (orientation: landscape) {
+            .demo-container {
+                flex-direction: row;
+            }
+
+            .input-panel {
+                width: 40%;
+                max-height: none;
+                height: 100%;
+                order: 1;
+            }
+
+            .graph-panel {
+                width: 60%;
+                height: 100%;
+                order: 2;
+            }
+
+            .graph-container {
+                height: calc(100% - 40px);
+            }
+        }
+
+        /* TABLET STYLES */
+        @media screen and (min-width: 769px) and (max-width: 1024px) {
+            .input-panel {
+                width: 320px;
+                min-width: 280px;
+            }
+
+            .header h1 {
+                font-size: 2.0rem;
+            }
+
+            .demo-container {
+                gap: 12px;
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌟 LuxOS Demo System</h1>
+        <p>Inteligentny System Analizy Intencji i Tworzenia Połączeń</p>
+    </div>
+
+    <div class="demo-container">
+        <div class="input-panel">
+            <h3>💬 Nowa Wiadomość</h3>
+
+            <div class="form-group">
+                <label>Autor:</label>
+                <input type="text" id="author" placeholder="Twoje imię" value="Demo User">
+            </div>
+
+            <div class="form-group">
+                <label>Treść wiadomości:</label>
+                <textarea id="message-text" placeholder="Opisz swoją intencję, pomysł lub problem..."></textarea>
+            </div>
+
+            <button class="btn" onclick="sendMessage()">🚀 Wyślij i Analizuj</button>
+
+            <div class="form-group">
+                <h4>🎯 Przykładowe wiadomości:</h4>
+                <button class="btn" onclick="loadExample('Mam pomysł na rewolucyjny system AI')">Pomysł</button>
+                <button class="btn" onclick="loadExample('Jak można zoptymalizować wydajność systemu?')">Pytanie</button>
+                <button class="btn" onclick="loadExample('Chciałbym współpracować przy tym projekcie')">Współpraca</button>
+                <button class="btn" onclick="loadExample('System nie działa poprawnie, potrzebuję pomocy')">Problem</button>
+            </div>
+
+            <div class="stats-panel">
+                <h4>📊 Statystyki Systemu</h4>
+                <div class="stat-item">
+                    <span>Wiadomości:</span>
+                    <span id="stat-messages">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Połączenia:</span>
+                    <span id="stat-connections">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Średnia siła:</span>
+                    <span id="stat-strength">0.0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Skuteczność AI:</span>
+                    <span id="aiAccuracy">94.2%</span>
+                </div>
+                <div class="stat-item">
+                    <span>Czas odpowiedzi:</span>
+                    <span id="responseTime">247ms</span>
+                </div>
+                <div class="stat-item">
+                    <span>Relacje wykryte:</span>
+                    <span id="relationsFound">156</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="graph-panel">
+            <div class="status-indicator" id="status">🟢 Połączono</div>
+            <div class="graph-container">
+                <svg id="graph-svg"></svg>
+            </div>
+            <div class="connection-info" id="connection-info">
+                <h4>🔗 Informacje o połączeniu</h4>
+                <div id="connection-details"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== WEBSOCKET KOMUNIKACJA =====
+        let ws;
+        let graphData = { messages: [], connections: [] };
+        let simulation;
+        let currentContainer = null;
+
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+            ws.onopen = () => {
+                document.getElementById('status').innerHTML = '🟢 Połączono';
+                console.log('🌐 Połączono z serwerem');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleServerMessage(data);
+            };
+
+            ws.onclose = () => {
+                document.getElementById('status').innerHTML = '🔴 Rozłączono';
+                setTimeout(initWebSocket, 3000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+                document.getElementById('status').innerHTML = '⚠️ Błąd połączenia';
+            };
+        }
+
+        function handleServerMessage(data) {
+            switch(data.type) {
+                case 'initial_data':
+                    graphData.messages = data.messages;
+                    graphData.connections = data.connections;
+                    updateGraph();
+                    updateStats();
+                    break;
+
+                case 'new_message_processed':
+                    graphData.messages.push(data.message);
+                    graphData.connections.push(...data.new_connections);
+                    updateGraph();
+                    updateStats();
+                    showNotification(`📨 Dodano wiadomość z ${data.connections_count} połączeniami`);
+                    document.getElementById('message-text').value = '';
+                    break;
+
+                case 'new_interaction':
+                    showNotification('👍 Zarejestrowano interakcję');
+                    break;
+            }
+        }
+
+        // ===== INTERFEJS UŻYTKOWNIKA =====
+
+        function sendMessage() {
+            const author = document.getElementById('author').value.trim();
+            const text = document.getElementById('message-text').value.trim();
+
+            if (!author || !text) {
+                alert('Proszę wypełnić wszystkie pola');
+                return;
+            }
+
+            const messageData = {
+                type: 'new_message',
+                content: { author, text }
+            };
+
+            ws.send(JSON.stringify(messageData));
+            showNotification('🔄 Analizuję wiadomość...');
+        }
+
+        function loadExample(text) {
+            document.getElementById('message-text').value = text;
+        }
+
+        function showNotification(message) {
+            const status = document.getElementById('status');
+            const originalText = status.innerHTML;
+            status.innerHTML = message;
+            status.classList.add('processing');
+
+            setTimeout(() => {
+                status.innerHTML = originalText;
+                status.classList.remove('processing');
+            }, 3000);
+        }
+
+        function updateStats() {
+            document.getElementById('stat-messages').textContent = graphData.messages.length;
+            document.getElementById('stat-connections').textContent = graphData.connections.length;
+
+            const avgStrength = graphData.connections.length > 0
+                ? (graphData.connections.reduce((sum, conn) => sum + conn.strength, 0) / graphData.connections.length).toFixed(2)
+                : '0.00';
+            document.getElementById('stat-strength').textContent = avgStrength;
+        }
+
+        // ===== GRAF D3.JS =====
+
+        function updateGraph() {
+            const svg = d3.select('#graph-svg');
+            const container = document.querySelector('.graph-container');
+            
+            if (!container || !graphData.messages) return;
+
+            // Sprawdź czy kontener się zmienił (orientacja, resize)
+            const containerRect = container.getBoundingClientRect();
+            if (currentContainer && 
+                currentContainer.width === containerRect.width && 
+                currentContainer.height === containerRect.height) {
+                return; // Nie ma zmian w wymiarach
+            }
+            
+            currentContainer = containerRect;
+
+            // Wykryj typ urządzenia
+            const isMobile = window.innerWidth <= 768;
+            const isTablet = window.innerWidth > 768 && window.innerWidth <= 1024;
+            
+            // Oblicz wymiary z bezpiecznymi marginami
+            const margin = isMobile ? 10 : 20;
+            let width = Math.max(containerRect.width - (margin * 2), 200);
+            let height = Math.max(containerRect.height - (margin * 2), 150);
+
+            // Ustaw responsive SVG
+            svg.attr('viewBox', `0 0 ${width} ${height}`)
+               .style('width', '100%')
+               .style('height', '100%')
+               .style('max-width', '100%')
+               .style('max-height', '100%');
+
+            svg.selectAll('*').remove();
+
+            // Limit danych dla performance
+            const maxNodes = isMobile ? 8 : isTablet ? 12 : 20;
+            const maxLinks = isMobile ? 10 : isTablet ? 15 : 30;
+
+            const nodes = graphData.messages.slice(0, maxNodes).map(msg => ({
+                id: msg.id,
+                type: 'message',
+                label: isMobile ? msg.author.substring(0, 6) : msg.author.substring(0, 10),
+                intention: msg.intention_type,
+                text: msg.text.substring(0, isMobile ? 25 : 40) + '...',
+                confidence: msg.intention_confidence,
+                sentiment: msg.sentiment
+            }));
+
+            const links = graphData.connections.slice(0, maxLinks).map(conn => ({
+                source: conn.source_id,
+                target: conn.target_id,
+                strength: conn.strength,
+                reason: conn.reason,
+                type: conn.connection_type
+            }));
+
+            // Filtruj prawidłowe linki
+            const nodeIds = new Set(nodes.map(n => n.id));
+            const validLinks = links.filter(link =>
+                nodeIds.has(link.source) && nodeIds.has(link.target)
+            );
+
+            if (nodes.length === 0) return;
+
+            // Responsive parametry
+            const linkDistance = isMobile ? 50 : isTablet ? 70 : 100;
+            const chargeStrength = isMobile ? -100 : isTablet ? -200 : -300;
+            const nodeRadius = isMobile ? 15 : isTablet ? 18 : 25;
+
+            // Force simulation
+            simulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(validLinks).id(d => d.id).distance(linkDistance))
+                .force('charge', d3.forceManyBody().strength(chargeStrength))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(nodeRadius + 5))
+                .force('boundary', () => {
+                    nodes.forEach(d => {
+                        d.x = Math.max(nodeRadius, Math.min(width - nodeRadius, d.x || width/2));
+                        d.y = Math.max(nodeRadius, Math.min(height - nodeRadius, d.y || height/2));
+                    });
+                });
+
+            // Rysuj linki
+            const link = svg.append('g')
+                .selectAll('line')
+                .data(validLinks)
+                .enter().append('line')
+                .attr('class', 'link')
+                .style('stroke-width', d => Math.max(1, d.strength * (isMobile ? 2 : 3)))
+                .style('stroke-opacity', d => d.strength * 0.8);
+
+            // Rysuj węzły
+            const node = svg.append('g')
+                .selectAll('circle')
+                .data(nodes)
+                .enter().append('circle')
+                .attr('class', d => `node ${d.type}`)
+                .attr('r', d => {
+                    const baseRadius = isMobile ? 12 : isTablet ? 15 : 18;
+                    return baseRadius + (d.confidence || 0) * (isMobile ? 3 : 8);
+                })
+                .style('fill', d => getIntentionColor(d.intention))
+                .style('stroke-width', isMobile ? 1 : 2)
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended))
+                .on('click', showNodeInfo)
+                .on('touchend', showNodeInfo);
+
+            // Labels tylko jeśli mało węzłów lub większy ekran
+            if (!isMobile || nodes.length <= 5) {
+                const labels = svg.append('g')
+                    .selectAll('text')
+                    .data(nodes)
+                    .enter().append('text')
+                    .attr('class', 'node-label')
+                    .style('font-size', isMobile ? '8px' : '10px')
+                    .text(d => d.label)
+                    .attr('dy', isMobile ? -12 : -15);
+
+                simulation.on('tick', () => {
+                    link
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+
+                    node
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y);
+
+                    labels
+                        .attr('x', d => d.x)
+                        .attr('y', d => d.y);
+                });
+            } else {
+                simulation.on('tick', () => {
+                    link
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+
+                    node
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y);
+                });
+            }
+
+            // Auto-stop simulation na mobile (battery saving)
+            if (isMobile) {
+                setTimeout(() => {
+                    if (simulation) simulation.stop();
+                }, 2000);
+            }
+        }
+
+        function getIntentionColor(intention) {
+            const colors = {
+                'question': '#2196F3',
+                'suggestion': '#4CAF50',
+                'problem': '#F44336',
+                'idea': '#FF9800',
+                'collaboration': '#9C27B0',
+                'general': '#607D8B'
+            };
+            return colors[intention] || '#607D8B';
+        }
+
+        function showNodeInfo(event, d) {
+            const info = document.getElementById('connection-info');
+            const details = document.getElementById('connection-details');
+            
+            details.innerHTML = `
+                <strong>${d.label}</strong><br>
+                <span class="intention-badge">${d.intention}</span><br>
+                <small>Pewność: ${(d.confidence * 100).toFixed(1)}%</small><br>
+                <small>Sentyment: ${d.sentiment}</small><br>
+                <em>"${d.text}"</em>
+            `;
+
+            info.style.display = 'block';
+
+            // Auto-hide na mobile
+            if (window.innerWidth <= 768) {
+                setTimeout(() => {
+                    info.style.display = 'none';
+                }, 4000);
+            }
+        }
+
+        function hideNodeInfo() {
+            if (window.innerWidth > 768) {
+                document.getElementById('connection-info').style.display = 'none';
+            }
+        }
+
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        // ===== INICJALIZACJA I EVENT HANDLERS =====
+
+        window.addEventListener('load', () => {
+            initWebSocket();
+            
+            // Optimized resize handler
+            let resizeTimeout;
+            const handleResize = () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    currentContainer = null; // Force recalculation
+                    if (graphData.messages.length > 0) {
+                        updateGraph();
+                    }
+                }, 100);
+            };
+
+            window.addEventListener('resize', handleResize);
+            window.addEventListener('orientationchange', () => {
+                setTimeout(handleResize, 300);
+            });
+
+            // Enter key handler
+            document.getElementById('message-text').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    sendMessage();
+                }
+            });
+
+            // Prevent zoom on input focus (iOS)
+            document.querySelectorAll('input, textarea').forEach(input => {
+                input.addEventListener('focus', () => {
+                    if (window.innerWidth <= 768) {
+                        document.querySelector('meta[name=viewport]')
+                            .setAttribute('content', 
+                                'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+                    }
+                });
+
+                input.addEventListener('blur', () => {
+                    if (window.innerWidth <= 768) {
+                        document.querySelector('meta[name=viewport]')
+                            .setAttribute('content', 
+                                'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+                    }
+                });
+            });
+
+            // Touch gestures dla info panel
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.connection-info') && !e.target.closest('.node')) {
+                    hideNodeInfo();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

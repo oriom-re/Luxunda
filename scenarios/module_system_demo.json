@@ -1,0 +1,93 @@
+
+{
+  "name": "LuxOS Module System Demo",
+  "version": "1.0.0",
+  "description": "Demonstracja systemu automatycznej rejestracji modułów jako bytów",
+  
+  "kernel": {
+    "scenario": "advanced",
+    "load_order": ["kernel", "modules", "communication", "platform"]
+  },
+  
+  "modules": [
+    {
+      "path": "luxdb/core/module_system.py",
+      "alias": "module_watcher",
+      "config": {
+        "auto_scan": true,
+        "watch_intervals": 5
+      }
+    },
+    {
+      "path": "luxdb/models/being.py", 
+      "alias": "being_model",
+      "config": {
+        "cache_enabled": true
+      }
+    },
+    {
+      "path": "luxdb/models/soul.py",
+      "alias": "soul_model"
+    },
+    {
+      "path": "ai/ai_brain.py",
+      "alias": "ai_brain",
+      "config": {
+        "model": "gpt-4",
+        "temperature": 0.7
+      }
+    },
+    {
+      "path": "static/intention-system.js",
+      "alias": "intention_ui",
+      "config": {
+        "ui_theme": "dark"
+      }
+    }
+  ],
+  
+  "startup": [
+    {
+      "action": "scan_modules",
+      "params": {
+        "paths": ["luxdb", "ai", "core", "static"]
+      }
+    },
+    {
+      "action": "create_relationships",
+      "params": {}
+    },
+    {
+      "action": "load_scenario", 
+      "params": {
+        "name": "advanced"
+      }
+    },
+    {
+      "action": "wait",
+      "params": {
+        "seconds": 2
+      }
+    },
+    {
+      "action": "execute_module_function",
+      "params": {
+        "module": "module_watcher",
+        "function": "get_module_stats",
+        "args": []
+      }
+    }
+  ],
+  
+  "monitoring": {
+    "change_tracking": true,
+    "hash_validation": true,
+    "relationship_updates": true
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "modules": ["kernel", "modules", "relationships"],
+    "save_to_db": true
+  }
+}

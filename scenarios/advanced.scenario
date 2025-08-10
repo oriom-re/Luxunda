@@ -1,0 +1,73 @@
+{
+  "name": "Advanced LuxOS Scenario",
+  "version": "1.0.0",
+  "description": "Zaawansowany scenariusz z dodatkowymi komponentami",
+  "beings": [
+    {
+      "alias": "kernel_core",
+      "type": "system_kernel",
+      "soul_alias": "kernel_soul",
+      "genotype": {
+        "genesis": {
+          "name": "kernel_system",
+          "type": "system_kernel",
+          "version": "1.0.0"
+        },
+        "attributes": {
+          "system_role": {"py_type": "str"},
+          "priority": {"py_type": "int"}
+        }
+      },
+      "attributes": {
+        "system_role": "kernel",
+        "priority": 100,
+        "mode": "advanced"
+      },
+      "load_order": 0
+    },
+    {
+      "alias": "ai_assistant",
+      "type": "ai_entity",
+      "soul_alias": "ai_soul",
+      "genotype": {
+        "genesis": {
+          "name": "ai_assistant",
+          "type": "ai_entity",
+          "version": "1.0.0"
+        },
+        "attributes": {
+          "capabilities": {"py_type": "list"},
+          "priority": {"py_type": "int"}
+        }
+      },
+      "attributes": {
+        "system_role": "assistant",
+        "priority": 85
+      },
+      "load_order": 1,
+      "dependencies": ["kernel_core"]
+    },
+    {
+      "alias": "data_processor",
+      "type": "data_entity",
+      "soul_alias": "data_soul",
+      "genotype": {
+        "genesis": {
+          "name": "data_processor",
+          "type": "data_entity",
+          "version": "1.0.0"
+        },
+        "attributes": {
+          "capabilities": {"py_type": "list"},
+          "priority": {"py_type": "int"}
+        }
+      },
+      "attributes": {
+        "system_role": "data_processing",
+        "priority": 80
+      },
+      "load_order": 2,
+      "dependencies": ["kernel_core", "ai_assistant"]
+    }
+  ]
+}

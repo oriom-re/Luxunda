@@ -1,0 +1,351 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxOS - System Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 40px;
+            width: 400px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            color: white;
+            font-size: 2.5em;
+            font-weight: 300;
+            margin-bottom: 10px;
+        }
+
+        .logo p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: white;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+        }
+
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin-top: 10px;
+        }
+
+        .login-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .login-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status-info {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            text-align: center;
+            display: none;
+        }
+
+        .status-info.success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid rgba(76, 175, 80, 0.5);
+            color: #4CAF50;
+        }
+
+        .status-info.error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid rgba(244, 67, 54, 0.5);
+            color: #f44336;
+        }
+
+        .status-info.info {
+            background: rgba(33, 150, 243, 0.2);
+            border: 1px solid rgba(33, 150, 243, 0.5);
+            color: #2196F3;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .connection-status.connected {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .connection-status.disconnected {
+            background: #f44336;
+            color: white;
+        }
+
+        .connection-status.connecting {
+            background: #ff9800;
+            color: white;
+        }
+
+        .demo-credentials {
+            margin-top: 30px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .demo-credentials h4 {
+            color: white;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+
+        .demo-credentials p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8em;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">Disconnected</div>
+    
+    <div class="login-container">
+        <div class="logo">
+            <h1>🌟 LuxOS</h1>
+            <p>Advanced Communication System</p>
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+            
+            <button type="submit" class="login-button" id="loginButton">
+                🔐 Login to LuxOS
+            </button>
+        </form>
+        
+        <div class="status-info" id="statusInfo"></div>
+        
+        <div class="demo-credentials">
+            <h4>Demo Credentials:</h4>
+            <p><strong>Username:</strong> admin</p>
+            <p><strong>Password:</strong> luxos2025</p>
+        </div>
+    </div>
+
+    <script src="/static/communication-client.js"></script>
+    <script>
+        class LoginInterface {
+            constructor() {
+                this.loginForm = document.getElementById('loginForm');
+                this.loginButton = document.getElementById('loginButton');
+                this.statusInfo = document.getElementById('statusInfo');
+                this.connectionStatus = document.getElementById('connectionStatus');
+                this.fingerprint = this.generateFingerprint();
+                
+                this.setupEventListeners();
+                this.updateConnectionStatus('disconnected');
+                
+                console.log('🔐 Login Interface initialized');
+            }
+            
+            generateFingerprint() {
+                // Prosty fingerprint na podstawie przeglądarki
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.textBaseline = 'top';
+                ctx.font = '14px Arial';
+                ctx.fillText('LuxOS fingerprint', 2, 2);
+                
+                const fingerprint = [
+                    navigator.userAgent,
+                    navigator.language,
+                    screen.width + 'x' + screen.height,
+                    new Date().getTimezoneOffset(),
+                    canvas.toDataURL()
+                ].join('|');
+                
+                // Prosty hash
+                let hash = 0;
+                for (let i = 0; i < fingerprint.length; i++) {
+                    const char = fingerprint.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash; // Convert to 32bit integer
+                }
+                
+                return Math.abs(hash).toString(16);
+            }
+            
+            setupEventListeners() {
+                this.loginForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleLogin();
+                });
+                
+                // Communication client events
+                window.commClient.on('authenticated', (data) => {
+                    this.handleAuthenticationSuccess(data);
+                });
+                
+                window.commClient.on('auth_error', (error) => {
+                    this.handleAuthenticationError(error);
+                });
+                
+                window.commClient.on('connection_status', (status) => {
+                    this.updateConnectionStatus(status);
+                });
+                
+                window.commClient.on('disconnected', () => {
+                    this.updateConnectionStatus('disconnected');
+                });
+            }
+            
+            async handleLogin() {
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                if (!username || !password) {
+                    this.showStatus('Please fill in all fields', 'error');
+                    return;
+                }
+                
+                this.loginButton.disabled = true;
+                this.loginButton.textContent = '🔄 Logging in...';
+                this.showStatus('Connecting to LuxOS...', 'info');
+                this.updateConnectionStatus('connecting');
+                
+                try {
+                    const success = await window.commClient.authenticate(username, password, this.fingerprint);
+                    
+                    if (!success) {
+                        this.handleAuthenticationError(new Error('Invalid credentials'));
+                    }
+                    
+                } catch (error) {
+                    this.handleAuthenticationError(error);
+                }
+            }
+            
+            handleAuthenticationSuccess(data) {
+                this.showStatus('Authentication successful! Redirecting...', 'success');
+                this.updateConnectionStatus('connected');
+                
+                // Przekieruj do głównego interfejsu po krótkiej pauzie
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1500);
+            }
+            
+            handleAuthenticationError(error) {
+                console.error('Authentication error:', error);
+                this.showStatus(`Login failed: ${error.message || 'Unknown error'}`, 'error');
+                this.updateConnectionStatus('disconnected');
+                
+                this.loginButton.disabled = false;
+                this.loginButton.textContent = '🔐 Login to LuxOS';
+            }
+            
+            showStatus(message, type) {
+                this.statusInfo.textContent = message;
+                this.statusInfo.className = `status-info ${type}`;
+                this.statusInfo.style.display = 'block';
+                
+                if (type === 'success') {
+                    setTimeout(() => {
+                        this.statusInfo.style.display = 'none';
+                    }, 3000);
+                }
+            }
+            
+            updateConnectionStatus(status) {
+                this.connectionStatus.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                this.connectionStatus.className = `connection-status ${status}`;
+            }
+        }
+        
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new LoginInterface();
+        });
+    </script>
+</body>
+</html>
