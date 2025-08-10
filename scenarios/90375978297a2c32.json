@@ -5,7 +5,6 @@
     "genesis": {
       "name": "platform",
       "type": "system_platform",
-      "version": "1.0.0",
       "doc": "Manager platformy LuxOS"
     }
   },
