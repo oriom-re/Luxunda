@@ -216,19 +216,21 @@ class Message:
     async def get_conversation_history(
         cls, 
         fingerprint: str, 
-        limit: int = 10
+        limit: int = 10,
+        author_ulid: str = None
     ) -> List['Message']:
         """
-        Pobiera historię rozmowy dla danego fingerprint.
+        Pobiera historię rozmowy dla danego fingerprint i opcjonalnie autora.
         
         Args:
             fingerprint: Browser fingerprint
             limit: Maksymalna liczba wiadomości (domyślnie 10)
+            author_ulid: Opcjonalny filtr po autorze
             
         Returns:
             Lista wiadomości posortowana chronologicznie
         """
-        from ..repository.being_repository import BeingRepository
+        from ..repository.soul_repository import BeingRepository
         from .relationship import Relationship
         
         # Znajdź wszystkie relacje dla tego fingerprint
@@ -239,6 +241,16 @@ class Message:
             if (rel.source_ulid == fingerprint and 
                 rel.relation_type == "browser_session"):
                 message_ulids.append(rel.target_ulid)
+        
+        # Jeśli podano autora, dodatkowo filtruj po relacjach authored
+        if author_ulid:
+            author_message_ulids = []
+            for rel in relationships:
+                if (rel.source_ulid == author_ulid and 
+                    rel.relation_type == "authored" and
+                    rel.target_ulid in message_ulids):
+                    author_message_ulids.append(rel.target_ulid)
+            message_ulids = author_message_ulids
         
         # Pobierz wiadomości
         messages = []
@@ -278,6 +290,57 @@ class Message:
             message = await cls.load_by_ulid(message_ulid)
             if message:
                 messages.append(message)
+        
+        return messages
+
+    @classmethod
+    async def get_by_author_in_session(
+        cls, 
+        author_ulid: str, 
+        fingerprint: str = None, 
+        limit: int = 10
+    ) -> List['Message']:
+        """
+        Pobiera wiadomości danego autora w kontekście sesji (fingerprint).
+        
+        Args:
+            author_ulid: ULID autora
+            fingerprint: Browser fingerprint (opcjonalny)
+            limit: Maksymalna liczba wiadomości
+            
+        Returns:
+            Lista wiadomości autora posortowana chronologicznie
+        """
+        from .relationship import Relationship
+        
+        relationships = await Relationship.get_all()
+        
+        # Znajdź wiadomości autora
+        author_message_ulids = []
+        for rel in relationships:
+            if (rel.source_ulid == author_ulid and 
+                rel.relation_type == "authored"):
+                author_message_ulids.append(rel.target_ulid)
+        
+        # Jeśli podano fingerprint, dodatkowo filtruj po sesji
+        if fingerprint:
+            session_message_ulids = []
+            for rel in relationships:
+                if (rel.source_ulid == fingerprint and 
+                    rel.relation_type == "browser_session" and
+                    rel.target_ulid in author_message_ulids):
+                    session_message_ulids.append(rel.target_ulid)
+            author_message_ulids = session_message_ulids
+        
+        # Pobierz wiadomości
+        messages = []
+        for message_ulid in author_message_ulids[-limit:]:
+            message = await cls.load_by_ulid(message_ulid)
+            if message:
+                messages.append(message)
+        
+        # Sortuj chronologicznie
+        messages.sort(key=lambda m: getattr(m, 'timestamp', ''), reverse=False)
         
         return messages
 

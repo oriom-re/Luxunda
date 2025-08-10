@@ -230,24 +230,90 @@ class SessionAssistant:
 
         return message
 
-    async def get_recent_messages(self, limit: int = 10) -> List:
-        """Pobiera ostatnie wiadomości z konwersacji"""
+    async def get_recent_messages(self, limit: int = 10, author_ulid: str = None) -> List:
+        """
+        Pobiera ostatnie wiadomości z konwersacji.
+        
+        Args:
+            limit: Maksymalna liczba wiadomości
+            author_ulid: Opcjonalny filtr po autorze
+            
+        Returns:
+            Lista wiadomości posortowana chronologicznie
+        """
         try:
             from ..models.message import Message
             
-            # Pobierz historię konwersacji dla tego fingerprint
-            messages = await Message.get_conversation_history(
-                fingerprint=self.session.user_fingerprint,
-                limit=limit
-            )
+            if author_ulid:
+                # Pobierz wiadomości konkretnego autora w tej sesji
+                messages = await Message.get_by_author_in_session(
+                    author_ulid=author_ulid,
+                    fingerprint=self.session.user_fingerprint,
+                    limit=limit
+                )
+            else:
+                # Pobierz całą historię konwersacji dla tego fingerprint
+                messages = await Message.get_conversation_history(
+                    fingerprint=self.session.user_fingerprint,
+                    limit=limit
+                )
             
             return messages
         except Exception as e:
             print(f"⚠️ Błąd pobierania historii wiadomości: {e}")
             return []
 
+    async def get_conversation_context_for_ai(self, limit: int = 10) -> str:
+        """
+        Pobiera kontekst konwersacji sformatowany dla AI.
+        
+        Args:
+            limit: Maksymalna liczba wiadomości
+            
+        Returns:
+            Sformatowany kontekst konwersacji
+        """
+        try:
+            # Pobierz ostatnie wiadomości (wszystkich autorów)
+            messages = await self.get_recent_messages(limit=limit)
+            
+            if not messages:
+                return "Brak historii konwersacji."
+            
+            context_lines = []
+            for message in messages:
+                context_line = message.get_conversation_context()
+                context_lines.append(context_line)
+            
+            return "\n".join(context_lines)
+            
+        except Exception as e:
+            print(f"⚠️ Błąd formatowania kontekstu: {e}")
+            return "Błąd podczas pobierania kontekstu konwersacji."
+
     def _format_conversation_history(self, messages: List) -> str:
-        """Formatuje historię konwersacji do kontekstu"""
+        """
+        Formatuje historię konwersacji do kontekstu GPT.
+        
+        Args:
+            messages: Lista wiadomości
+            
+        Returns:
+            Sformatowany kontekst konwersacji
+        """
+        if not messages:
+            return "Brak historii konwersacji."
+        
+        context_lines = []
+        for message in messages:
+            try:
+                context_line = message.get_conversation_context()
+                context_lines.append(context_line)
+            except Exception as e:
+                print(f"⚠️ Błąd formatowania wiadomości {getattr(message, 'ulid', 'unknown')}: {e}")
+                continue
+        
+        return "\n".join(context_lines) if context_lines else "Błąd formatowania historii konwersacji."tekstu"""
         if not messages:
             return "Brak poprzednich wiadomości w tej sesji."
 
