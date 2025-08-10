@@ -45,26 +45,41 @@ class LuxOSSystem:
 
         try:
             from database.postgre_db import Postgre_db
+            
+            # Dodaj więcej szczegółów debugowania
+            self.log("INFO", "Importowanie modułu bazy danych...", "DATABASE")
+            
             db_pool = await Postgre_db.get_db_pool()
+            self.log("INFO", f"Otrzymano pool bazy danych: {db_pool is not None}", "DATABASE")
 
             if db_pool:
                 self.log("SUCCESS", "✅ Baza danych PostgreSQL zainicjalizowana", "DATABASE")
 
-                # Test połączenia i wyświetl statystyki
-                async with db_pool.acquire() as conn:
-                    souls_count = await conn.fetchval("SELECT COUNT(*) FROM souls")
-                    beings_count = await conn.fetchval("SELECT COUNT(*) FROM beings")
-                    self.log("INFO", f"Souls w bazie: {souls_count}", "DATABASE")
-                    self.log("INFO", f"Beings w bazie: {beings_count}", "DATABASE")
+                # Test połączenia i wyświetl statystyki z retry mechanism
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        async with db_pool.acquire() as conn:
+                            souls_count = await conn.fetchval("SELECT COUNT(*) FROM souls")
+                            beings_count = await conn.fetchval("SELECT COUNT(*) FROM beings")
+                            self.log("INFO", f"Souls w bazie: {souls_count}", "DATABASE")
+                            self.log("INFO", f"Beings w bazie: {beings_count}", "DATABASE")
+                            break
+                    except Exception as retry_error:
+                        self.log("WARN", f"Próba {attempt + 1}/{max_retries}: {retry_error}", "DATABASE")
+                        if attempt == max_retries - 1:
+                            self.log("WARN", "Nie udało się pobrać statystyk, ale pool działa", "DATABASE")
 
                 self.components_active['database'] = True
                 return True
             else:
-                self.log("ERROR", "❌ Nie udało się połączyć z bazą danych", "DATABASE")
+                self.log("ERROR", "❌ Nie udało się utworzyć puli połączeń", "DATABASE")
                 return False
 
         except Exception as e:
             self.log("ERROR", f"❌ Błąd inicjalizacji bazy danych: {e}", "DATABASE")
+            import traceback
+            self.log("ERROR", f"Traceback: {traceback.format_exc()}", "DATABASE")
             return False
 
     async def start_web_server(self, port: int = 5000):
@@ -125,16 +140,24 @@ class LuxOSSystem:
                     souls_count = 0
 
                     try:
-                        db_pool = await Postgre_db.get_db_pool()
-                        if db_pool:
-                            async with db_pool.acquire() as conn:
-                                # Sprawdź połączenie i pobierz statystyki
-                                souls_result = await conn.fetch("SELECT COUNT(*) as count FROM souls")
-                                beings_result = await conn.fetch("SELECT COUNT(*) as count FROM beings")
+                        # Sprawdź czy komponent jest aktywny
+                        if self.components_active.get('database', False):
+                            db_pool = await Postgre_db.get_db_pool()
+                            if db_pool:
+                                async with db_pool.acquire() as conn:
+                                    # Sprawdź połączenie i pobierz statystyki
+                                    souls_result = await conn.fetch("SELECT COUNT(*) as count FROM souls")
+                                    beings_result = await conn.fetch("SELECT COUNT(*) as count FROM beings")
 
-                                souls_count = souls_result[0]['count'] if souls_result else 0
-                                beings_count = beings_result[0]['count'] if beings_result else 0
-                                db_status = "connected"
+                                    souls_count = souls_result[0]['count'] if souls_result else 0
+                                    beings_count = beings_result[0]['count'] if beings_result else 0
+                                    db_status = "connected"
+                            else:
+                                self.log("WARNING", "Database pool is None", "WEB")
+                                db_status = "disconnected"
+                        else:
+                            self.log("INFO", "Database component not marked as active", "WEB")
+                            db_status = "disconnected"
                     except Exception as e:
                         self.log("WARNING", f"Database status check failed: {str(e)}", "WEB")
                         db_status = "disconnected"
