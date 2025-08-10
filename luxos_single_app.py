@@ -516,153 +516,405 @@ async def root():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LuxOS Single App</title>
+    <title>🌟 LuxOS Single App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', roboto, sans-serif;
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            --glass-bg: rgba(255,255,255,0.1);
+            --glass-border: rgba(255,255,255,0.2);
+            --gold: #ffd700;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255,255,255,0.8);
+            --shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: white;
         }
-        
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--primary-gradient);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
+            position: relative;
+            z-index: 2;
         }
-        
+
         .header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
+            animation: slideInDown 1s ease-out;
         }
-        
+
         .header h1 {
-            font-size: 3rem;
-            margin: 0;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 700;
+            background: linear-gradient(45deg, #ffd700, #ffed4e, #ffd700);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+            margin-bottom: 15px;
+            position: relative;
         }
-        
+
+        .header h1::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 3px;
+            background: var(--gold);
+            border-radius: 2px;
+        }
+
         .subtitle {
-            font-size: 1.2rem;
+            font-size: 1.3rem;
+            font-weight: 300;
             opacity: 0.9;
-            margin-top: 10px;
+            margin-top: 15px;
+            letter-spacing: 0.5px;
         }
-        
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px 0;
+            flex-wrap: wrap;
         }
-        
-        .feature {
-            background: rgba(255,255,255,0.1);
-            border-radius: 10px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        
-        .feature h3 {
-            margin-top: 0;
-            color: #ffd700;
-        }
-        
-        .chat-section {
-            background: rgba(255,255,255,0.1);
+
+        .stat-item {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
             border-radius: 15px;
             padding: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
+            text-align: center;
+            min-width: 150px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-        
-        .chat-messages {
-            height: 300px;
-            overflow-y: auto;
-            background: rgba(0,0,0,0.2);
-            border-radius: 10px;
-            padding: 15px;
+
+        .stat-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(31, 38, 135, 0.5);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gold);
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .feature {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--gold), #ff6b6b, #4ecdc4, var(--gold));
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .feature:hover::before {
+            transform: translateX(0);
+        }
+
+        .feature:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 60px rgba(31, 38, 135, 0.6);
+        }
+
+        .feature h3 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--gold);
             margin-bottom: 15px;
-        }
-        
-        .message {
-            margin-bottom: 10px;
-            padding: 8px 12px;
-            border-radius: 8px;
-        }
-        
-        .message.user {
-            background: rgba(102, 126, 234, 0.3);
-            margin-left: 20px;
-        }
-        
-        .message.assistant {
-            background: rgba(118, 75, 162, 0.3);
-            margin-right: 20px;
-        }
-        
-        .chat-input {
             display: flex;
+            align-items: center;
             gap: 10px;
         }
-        
+
+        .feature p {
+            line-height: 1.6;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+
+        .chat-section {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 25px;
+            padding: 30px;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .chat-header h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gold);
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--gold);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: scale(1); opacity: 0.3; }
+            30% { transform: scale(1.2); opacity: 1; }
+        }
+
+        .chat-messages {
+            height: 350px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: var(--gold);
+            border-radius: 3px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 80%;
+            animation: messageSlide 0.3s ease-out;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        @keyframes messageSlide {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.assistant {
+            background: linear-gradient(135deg, #ffecd2, #fcb69f);
+            color: #333;
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            opacity: 0.6;
+            margin-top: 5px;
+            text-align: right;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 15px;
+            align-items: stretch;
+        }
+
         .chat-input input {
             flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.2);
+            padding: 15px 20px;
+            border: 2px solid var(--glass-border);
+            border-radius: 25px;
+            background: rgba(255,255,255,0.1);
             color: white;
             font-size: 16px;
+            font-family: inherit;
+            transition: all 0.3s ease;
         }
-        
+
+        .chat-input input:focus {
+            outline: none;
+            border-color: var(--gold);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
         .chat-input input::placeholder {
-            color: rgba(255,255,255,0.7);
+            color: var(--text-secondary);
         }
-        
+
         .chat-input button {
-            padding: 12px 20px;
+            padding: 15px 25px;
             border: none;
-            border-radius: 8px;
-            background: #ffd700;
+            border-radius: 25px;
+            background: linear-gradient(135deg, var(--gold), #ffed4e);
             color: #333;
-            font-weight: bold;
+            font-weight: 600;
+            font-family: inherit;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: all 0.3s ease;
+            white-space: nowrap;
         }
-        
+
         .chat-input button:hover {
-            transform: scale(1.05);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.4);
         }
-        
+
+        .chat-input button:active {
+            transform: translateY(0);
+        }
+
         .status {
             text-align: center;
-            margin-top: 20px;
-            padding: 10px;
-            background: rgba(0,255,0,0.2);
-            border-radius: 8px;
+            margin: 30px 0;
+            padding: 15px;
+            background: rgba(0,255,100,0.2);
+            border: 1px solid rgba(0,255,100,0.3);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
         }
-        
+
         .api-links {
-            margin-top: 30px;
-            text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 40px;
+            flex-wrap: wrap;
         }
-        
+
         .api-links a {
-            color: #ffd700;
+            color: var(--gold);
             text-decoration: none;
-            margin: 0 15px;
-            padding: 8px 16px;
-            border: 1px solid #ffd700;
-            border-radius: 5px;
-            transition: all 0.3s;
+            padding: 12px 20px;
+            border: 2px solid var(--gold);
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+            background: var(--glass-bg);
         }
-        
+
         .api-links a:hover {
-            background: #ffd700;
+            background: var(--gold);
             color: #333;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.4);
+        }
+
+        @keyframes slideInDown {
+            from { opacity: 0; transform: translateY(-50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 15px; }
+            .stats-row { gap: 15px; }
+            .stat-item { min-width: 120px; padding: 15px; }
+            .features { grid-template-columns: 1fr; gap: 20px; }
+            .feature { padding: 20px; }
+            .chat-section { padding: 20px; }
+            .api-links { gap: 10px; }
+            .api-links a { padding: 10px 15px; font-size: 0.9rem; }
         }
     </style>
 </head>
@@ -671,6 +923,21 @@ async def root():
         <div class="header">
             <h1>🌟 LuxOS Single App</h1>
             <div class="subtitle">Kompletny system w jednym pliku</div>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-item">
+                <span class="stat-number beings-count">0</span>
+                <div class="stat-label">Byty</div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number souls-count">0</span>
+                <div class="stat-label">Dusze</div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number messages-count">0</span>
+                <div class="stat-label">Wiadomości</div>
+            </div>
         </div>
         
         <div class="features">
@@ -696,7 +963,9 @@ async def root():
         </div>
         
         <div class="chat-section">
-            <h3>💬 Porozmawiaj z Lux</h3>
+            <div class="chat-header">
+                <h3>💬 Porozmawiaj z Lux</h3>
+            </div>
             <div class="chat-messages" id="chatMessages">
                 <div class="message assistant">
                     🌟 Witaj! Jestem Lux - asystent systemu LuxOS. Jak mogę Ci pomóc?
@@ -721,17 +990,50 @@ async def root():
     </div>
 
     <script>
+        // Particle System
+        function createParticles() {
+            const particlesContainer = document.createElement('div');
+            particlesContainer.className = 'particles';
+            document.body.appendChild(particlesContainer);
+
+            for (let i = 0; i < 50; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                
+                const size = Math.random() * 4 + 1;
+                const x = Math.random() * window.innerWidth;
+                const y = Math.random() * window.innerHeight;
+                const delay = Math.random() * 6;
+                
+                particle.style.width = size + 'px';
+                particle.style.height = size + 'px';
+                particle.style.left = x + 'px';
+                particle.style.top = y + 'px';
+                particle.style.animationDelay = delay + 's';
+                particle.style.animationDuration = (6 + Math.random() * 4) + 's';
+                
+                particlesContainer.appendChild(particle);
+            }
+        }
+
         let sessionId = null;
+        let isTyping = false;
         
         async function sendMessage() {
             const input = document.getElementById('messageInput');
+            const button = input.nextElementSibling;
             const message = input.value.trim();
             
-            if (!message) return;
+            if (!message || isTyping) return;
             
             // Dodaj wiadomość użytkownika
             addMessage(message, 'user');
             input.value = '';
+            
+            // Pokaż wskaźnik pisania
+            showTyping();
+            button.disabled = true;
+            button.textContent = 'Wysyłanie...';
             
             try {
                 const response = await fetch('/api/chat', {
@@ -752,12 +1054,62 @@ async def root():
                     sessionId = data.session_id;
                 }
                 
-                // Dodaj odpowiedź asystenta
-                addMessage(data.response, 'assistant');
+                // Ukryj wskaźnik pisania i dodaj odpowiedź
+                hideTyping();
+                await typeMessage(data.response, 'assistant');
                 
             } catch (error) {
+                hideTyping();
                 addMessage('❌ Błąd komunikacji z serwerem', 'assistant');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Wyślij';
+                isTyping = false;
             }
+        }
+        
+        function showTyping() {
+            const typingIndicator = document.querySelector('.typing-indicator');
+            typingIndicator.style.display = 'flex';
+            isTyping = true;
+        }
+        
+        function hideTyping() {
+            const typingIndicator = document.querySelector('.typing-indicator');
+            typingIndicator.style.display = 'none';
+            isTyping = false;
+        }
+        
+        async function typeMessage(content, type) {
+            return new Promise((resolve) => {
+                const messagesDiv = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}`;
+                
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'message-time';
+                timeDiv.textContent = new Date().toLocaleTimeString('pl-PL', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                messagesDiv.appendChild(messageDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                
+                let index = 0;
+                const typeChar = () => {
+                    if (index < content.length) {
+                        messageDiv.textContent += content.charAt(index);
+                        index++;
+                        setTimeout(typeChar, 30);
+                    } else {
+                        messageDiv.appendChild(timeDiv);
+                        resolve();
+                    }
+                };
+                
+                typeChar();
+            });
         }
         
         function addMessage(content, type) {
@@ -765,12 +1117,22 @@ async def root():
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}`;
             messageDiv.textContent = content;
+            
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'message-time';
+            timeDiv.textContent = new Date().toLocaleTimeString('pl-PL', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            messageDiv.appendChild(timeDiv);
             messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
         
         function handleKeyPress(event) {
-            if (event.key === 'Enter') {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
                 sendMessage();
             }
         }
@@ -781,20 +1143,64 @@ async def root():
                 const response = await fetch('/api/status');
                 const data = await response.json();
                 
+                // Aktualizuj statystyki w headerze
+                updateStats(data);
+                
                 const statusDiv = document.getElementById('status');
                 if (data.status === 'ok') {
-                    statusDiv.innerHTML = `✅ System działa | Byty: ${data.beings_count || 0} | Dusze: ${data.souls_count || 0}`;
+                    statusDiv.innerHTML = `
+                        ✅ System działa sprawnie | 
+                        Połączenie: ${data.database} | 
+                        OpenAI: ${data.openai}
+                    `;
+                    statusDiv.style.background = 'rgba(0,255,100,0.2)';
+                    statusDiv.style.borderColor = 'rgba(0,255,100,0.3)';
                 } else {
                     statusDiv.innerHTML = '⚠️ Problem z systemem';
+                    statusDiv.style.background = 'rgba(255,100,0,0.2)';
+                    statusDiv.style.borderColor = 'rgba(255,100,0,0.3)';
                 }
             } catch (error) {
-                document.getElementById('status').innerHTML = '❌ Brak połączenia';
+                const statusDiv = document.getElementById('status');
+                statusDiv.innerHTML = '❌ Brak połączenia z serwerem';
+                statusDiv.style.background = 'rgba(255,0,0,0.2)';
+                statusDiv.style.borderColor = 'rgba(255,0,0,0.3)';
             }
         }
         
+        function updateStats(data) {
+            const beingsCount = document.querySelector('.beings-count');
+            const soulsCount = document.querySelector('.souls-count');
+            const messagesCount = document.querySelector('.messages-count');
+            
+            if (beingsCount) beingsCount.textContent = data.beings_count || 0;
+            if (soulsCount) soulsCount.textContent = data.souls_count || 0;
+            if (messagesCount) messagesCount.textContent = data.messages_count || 0;
+        }
+        
+        // Inicjalizacja
+        document.addEventListener('DOMContentLoaded', function() {
+            createParticles();
+            checkStatus();
+            
+            // Dodaj wskaźnik pisania do chat header
+            const chatHeader = document.querySelector('.chat-header');
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'typing-indicator';
+            typingIndicator.innerHTML = `
+                <span>Lux pisze</span>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            `;
+            chatHeader.appendChild(typingIndicator);
+            
+            // Dodaj powitalną wiadomość
+            addMessage('🌟 Witaj w LuxOS Single App! Jestem Lux - Twój asystent AI. Jak mogę Ci pomóc?', 'assistant');
+        });
+        
         // Sprawdź status co 30 sekund
         setInterval(checkStatus, 30000);
-        checkStatus();
     </script>
 </body>
 </html>
