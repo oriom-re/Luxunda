@@ -17,7 +17,7 @@ run = ["python3", "main.py", "--mode=full"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "Simple System (Stable)"
+runButton = "LuxOS Main System"
 
 [[workflows.workflow]]
 name = "LuxOS Full System"
@@ -229,6 +229,15 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python -c \"import asyncio; from database.postgre_db import Postgre_db; print('Testing DB...'); asyncio.run(Postgre_db.get_db_pool())\""
+
+[[workflows.workflow]]
+name = "LuxOS Main System"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py --mode=web"
 
 # === PORTY ===
 
