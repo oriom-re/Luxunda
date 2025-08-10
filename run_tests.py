@@ -30,6 +30,7 @@ async def main():
     parser = argparse.ArgumentParser(description="LuxDB Test Runner")
     parser.add_argument("--core-only", action="store_true", help="Run only core functionality tests")
     parser.add_argument("--integration-only", action="store_true", help="Run only integration tests")
+    parser.add_argument("--init-only", action="store_true", help="Run only initialization tests")
     parser.add_argument("--save-report", action="store_true", help="Save detailed report to file")
     parser.add_argument("--quick", action="store_true", help="Run quick test subset")
 
@@ -58,6 +59,18 @@ async def main():
             return 0
         else:
             print("\n❌ Integration tests FAILED")
+            return 1
+
+    elif args.init_only:
+        print("Running initialization tests only...")
+        from tests.test_system_initialization import run_initialization_tests
+        results = await run_initialization_tests()
+
+        if results.get('overall_success'):
+            print("\n✅ Initialization tests PASSED")
+            return 0
+        else:
+            print("\n❌ Initialization tests FAILED")
             return 1
 
     else:
