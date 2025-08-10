@@ -7,6 +7,7 @@ Tylko połączenie z bazą + API do scenariuszy
 import asyncio
 import json
 from datetime import datetime
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -14,11 +15,6 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import asyncpg
 import os # Added for os.listdir
-
-app = FastAPI(title="LuxOS Frontend API")
-
-# Serve static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Database connection pool
 db_pool = None
@@ -29,8 +25,9 @@ class ScenarioRequest(BaseModel):
 class BeingDataRequest(BaseModel):
     being_data: Dict[str, Any]
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     global db_pool
     try:
         db_pool = await asyncpg.create_pool(
@@ -68,12 +65,18 @@ async def startup():
 
     except Exception as e:
         print(f"❌ Błąd połączenia z bazą: {e}")
-
-@app.on_event("shutdown")
-async def shutdown():
-    global db_pool
+    
+    yield
+    
+    # Shutdown
     if db_pool:
         await db_pool.close()
+        print("🔄 Zamknięto połączenie z bazą")
+
+app = FastAPI(title="LuxOS Frontend API", lifespan=lifespan)
+
+# Serve static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def serve_frontend():
