@@ -136,23 +136,39 @@ class LuxOSSystem:
                     return {"error": "Database not connected"}
 
                 try:
-                    from luxdb.repository.soul_repository import BeingRepository
-                    result = await BeingRepository.get_all_beings(limit=20)
-
-                    if result.get('success'):
+                    # Bezpośrednie połączenie z bazą danych bez używania BeingRepository
+                    from database.postgre_db import Postgre_db
+                    
+                    db_pool = await Postgre_db.get_db_pool()
+                    if not db_pool:
+                        return {"error": "Database pool not available"}
+                    
+                    async with db_pool.acquire() as conn:
+                        # Pobierz beings z bazy danych
+                        beings_data = await conn.fetch("""
+                            SELECT b.ulid, b.alias, b.data, b.created_at, s.alias as soul_alias
+                            FROM beings b
+                            LEFT JOIN souls s ON b.soul_hash = s.soul_hash
+                            ORDER BY b.created_at DESC
+                            LIMIT 20
+                        """)
+                        
                         beings_list = []
-                        for being in result.get('beings', []):
+                        for row in beings_data:
+                            being_data = dict(row['data']) if row['data'] else {}
                             beings_list.append({
-                                "ulid": being.ulid,
-                                "alias": being.alias,
-                                "type": being.get_data('type', 'unknown'),
-                                "created_at": being.created_at.isoformat() if being.created_at else None
+                                "ulid": row['ulid'],
+                                "alias": row['alias'],
+                                "soul_alias": row['soul_alias'],
+                                "type": being_data.get('type', 'unknown'),
+                                "name": being_data.get('name', 'Unnamed'),
+                                "created_at": row['created_at'].isoformat() if row['created_at'] else None
                             })
+                        
                         return {"beings": beings_list, "count": len(beings_list)}
-                    else:
-                        return {"error": "Failed to fetch beings", "details": result.get('error')}
 
                 except Exception as e:
+                    self.log("ERROR", f"Error fetching beings: {str(e)}", "WEB")
                     return {"error": f"Error fetching beings: {str(e)}"}
 
             def run_server():
