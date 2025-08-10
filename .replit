@@ -17,9 +17,7 @@ run = ["python3", "main.py", "--mode=full"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS Full System"
-
-# === GŁÓWNE WORKFLOW'Y SYSTEMU ===
+runButton = "Simple System Start"
 
 [[workflows.workflow]]
 name = "LuxOS Full System"
@@ -48,8 +46,6 @@ mode = "sequential"
 task = "shell.exec"
 args = "python main.py --interactive"
 
-# === SERWERY I INTERFEJSY ===
-
 [[workflows.workflow]]
 name = "Admin Kernel Server"
 author = 43346420
@@ -67,8 +63,6 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python -m luxdb.web_lux_interface"
-
-# === DEMO I PREZENTACJE ===
 
 [[workflows.workflow]]
 name = "Demo Lux Assistant"
@@ -106,8 +100,6 @@ mode = "sequential"
 task = "shell.exec"
 args = "python demo_lux_onboarding.py"
 
-# === TESTY I DIAGNOSTYKA ===
-
 [[workflows.workflow]]
 name = "Run Complete Tests"
 author = 43346420
@@ -144,8 +136,6 @@ mode = "sequential"
 task = "shell.exec"
 args = "python luxos_status.py"
 
-# === ZARZĄDZANIE BAZĄ DANYCH ===
-
 [[workflows.workflow]]
 name = "Database Cleanup"
 author = 43346420
@@ -154,8 +144,6 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python database_cleanup.py"
-
-# === LEGACY SYSTEMY ===
 
 [[workflows.workflow]]
 name = "Legacy Kernel System"
@@ -174,6 +162,37 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python start.py --bootstrap"
+
+[[workflows.workflow]]
+name = "System Diagnostics"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python luxos_status.py"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -c \"import asyncio; from database.postgre_db import Postgre_db; asyncio.run(Postgre_db.get_db_pool())\""
+
+[[workflows.workflow]]
+name = "Simple System Start"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python simple_start.py --web"
+
+[[workflows.workflow]]
+name = "Simple Diagnostics"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python simple_start.py --diagnostics"
 
 # === PORTY ===
 
