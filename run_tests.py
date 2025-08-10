@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 LuxDB Test Runner Script
@@ -33,34 +32,34 @@ async def main():
     parser.add_argument("--integration-only", action="store_true", help="Run only integration tests")
     parser.add_argument("--save-report", action="store_true", help="Save detailed report to file")
     parser.add_argument("--quick", action="store_true", help="Run quick test subset")
-    
+
     args = parser.parse_args()
-    
+
     print("🚀 LuxDB Test Suite")
     print("=" * 50)
-    
+
     if args.core_only:
         print("Running core functionality tests only...")
         results = await run_luxdb_tests()
-        
+
         if results.get('overall_success'):
             print("\n✅ Core tests PASSED")
             return 0
         else:
             print("\n❌ Core tests FAILED")
             return 1
-    
+
     elif args.integration_only:
         print("Running integration tests only...")
         results = await run_integration_tests()
-        
+
         if results.get('overall_success'):
             print("\n✅ Integration tests PASSED")
             return 0
         else:
             print("\n❌ Integration tests FAILED")
             return 1
-    
+
     else:
         # Run complete test suite
         return await run_all_tests()

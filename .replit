@@ -198,6 +198,24 @@ mode = "sequential"
 task = "shell.exec"
 args = "python main.py --interactive"
 
+[[workflows.workflow]]
+name = "Run Complete Test Certification"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python run_tests.py --complete"
+
+[[workflows.workflow]]
+name = "Run Initialization Tests"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python run_tests.py --init-only"
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
