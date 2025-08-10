@@ -1,83 +1,243 @@
 
 /**
- * LuxOS Frontend Kernel - Samowystarczalny system działający w przeglądarce
+ * LuxOS Frontend Kernel - Samowystarczalny system z obsługą scenariuszy
  */
 
 class FrontendKernel {
     constructor() {
         this.beings = new Map();
         this.souls = new Map();
+        this.scenarios = new Map();
         this.lux = null;
+        this.scenarioManager = null;
         this.dbConnection = null;
-        this.eventListeners = new Map();
+        this.biosScenario = null;
         this.initialized = false;
+        this.bootstrapState = 'init';
     }
 
     async initialize() {
-        console.log('🚀 Inicjalizacja LuxOS Frontend Kernel...');
+        console.log('🚀 LuxOS Frontend Kernel - Inicjalizacja...');
         
-        // Połączenie z bazą danych
-        await this.connectToDatabase();
-        
-        // Inicjalizacja Lux Assistant
-        await this.initializeLux();
-        
-        // Ładowanie bytów z bazy
-        await this.loadBeingsFromDatabase();
-        
-        // Start event listeners
-        this.startEventListeners();
-        
-        this.initialized = true;
-        console.log('✅ LuxOS Frontend Kernel zainicjalizowany');
-        
-        return this;
+        try {
+            // 1. Połączenie z bazą danych
+            await this.connectToDatabase();
+            
+            // 2. Ładowanie BIOS scenariusza
+            await this.loadBiosScenario();
+            
+            // 3. Wykonanie sekwencji bootstrap
+            await this.executeBootstrapSequence();
+            
+            // 4. Inicjalizacja podstawowych bytów
+            await this.initializeCoreBeing();
+            
+            // 5. Uruchomienie event listenerów
+            this.startEventListeners();
+            
+            this.initialized = true;
+            this.bootstrapState = 'ready';
+            
+            console.log('✅ LuxOS Frontend Kernel zainicjalizowany');
+            this.emit('kernel:ready', this);
+            
+            return this;
+            
+        } catch (error) {
+            console.error('❌ Błąd inicjalizacji kernela:', error);
+            this.bootstrapState = 'error';
+            throw error;
+        }
     }
 
     async connectToDatabase() {
-        // Symulacja połączenia z PostgreSQL przez API
+        console.log('📡 Łączenie z bazą danych...');
+        
         this.dbConnection = {
-            async query(sql, params = []) {
-                const response = await fetch('/api/db/query', {
-                    method: 'POST',
+            async query(endpoint, options = {}) {
+                const response = await fetch(`/api/${endpoint}`, {
+                    method: options.method || 'GET',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sql, params })
+                    body: options.body ? JSON.stringify(options.body) : undefined
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status}`);
+                }
+                
                 return await response.json();
             },
             
-            async save(table, data) {
-                const response = await fetch(`/api/db/${table}`, {
+            async getScenario(name) {
+                return await this.query(`scenarios/${name}`);
+            },
+            
+            async saveScenario(name, data) {
+                return await this.query(`scenarios/${name}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    body: data
                 });
-                return await response.json();
+            },
+            
+            async getMinimalBeings() {
+                return await this.query('beings/minimal');
+            },
+            
+            async getBeing(ulid) {
+                return await this.query(`beings/${ulid}`);
+            },
+            
+            async createBeing(beingData) {
+                return await this.query('beings', {
+                    method: 'POST',
+                    body: { being_data: beingData }
+                });
+            },
+            
+            async getSoul(soulHash) {
+                return await this.query(`souls/${soulHash}`);
+            },
+            
+            async getSystemStatus() {
+                return await this.query('system/status');
             }
         };
         
-        console.log('📡 Połączono z bazą danych');
+        // Test połączenia
+        const status = await this.dbConnection.getSystemStatus();
+        console.log('📊 Status systemu:', status);
     }
 
-    async initializeLux() {
-        // Tworzenie Lux Assistant jako bytu
+    async loadBiosScenario() {
+        console.log('🔧 Ładowanie BIOS scenariusza...');
+        this.bootstrapState = 'loading_bios';
+        
+        try {
+            const biosResponse = await this.dbConnection.query('bios');
+            this.biosScenario = biosResponse.data;
+            
+            console.log('✅ BIOS załadowany:', this.biosScenario.name);
+            this.scenarios.set('bios', this.biosScenario);
+            
+        } catch (error) {
+            console.error('❌ Błąd ładowania BIOS:', error);
+            // Fallback do lokalnego BIOS
+            this.biosScenario = this.createFallbackBios();
+        }
+    }
+
+    createFallbackBios() {
+        return {
+            name: "LuxOS BIOS Fallback",
+            version: "1.0.0",
+            description: "Lokalny scenariusz rozruchowy",
+            bootstrap_sequence: [
+                "init_kernel",
+                "load_communication", 
+                "setup_ui",
+                "ready_state"
+            ],
+            required_beings: [
+                {
+                    alias: "lux_assistant",
+                    type: "ai_assistant",
+                    priority: 100
+                }
+            ]
+        };
+    }
+
+    async executeBootstrapSequence() {
+        console.log('⚙️ Wykonywanie sekwencji bootstrap...');
+        
+        const sequence = this.biosScenario.bootstrap_sequence || [];
+        
+        for (const step of sequence) {
+            this.bootstrapState = step;
+            console.log(`🔄 Bootstrap step: ${step}`);
+            
+            switch (step) {
+                case 'init_kernel':
+                    await this.initKernel();
+                    break;
+                case 'load_communication':
+                    await this.loadCommunication();
+                    break;
+                case 'setup_ui':
+                    await this.setupUI();
+                    break;
+                case 'ready_state':
+                    await this.enterReadyState();
+                    break;
+                default:
+                    console.warn(`⚠️ Nieznany krok bootstrap: ${step}`);
+            }
+        }
+    }
+
+    async initKernel() {
+        // Inicjalizacja podstawowych struktur
+        this.beings.clear();
+        this.souls.clear();
+        
+        // Utwórz scenario manager
+        this.scenarioManager = new ScenarioManager(this);
+    }
+
+    async loadCommunication() {
+        // Przygotowanie systemu komunikacji
+        this.eventHub = new EventTarget();
+    }
+
+    async setupUI() {
+        // Przygotowanie interfejsu
+        this.emit('ui:setup_required');
+    }
+
+    async enterReadyState() {
+        // System gotowy do pracy
+        this.emit('kernel:bootstrap_complete');
+    }
+
+    async initializeCoreBeing() {
+        console.log('🤖 Inicjalizacja podstawowych bytów...');
+        
+        const requiredBeings = this.biosScenario.required_beings || [];
+        
+        for (const beingConfig of requiredBeings) {
+            switch (beingConfig.type) {
+                case 'ai_assistant':
+                    await this.createLuxAssistant(beingConfig);
+                    break;
+                case 'system_manager':
+                    await this.createSystemManager(beingConfig);
+                    break;
+                default:
+                    console.log(`📦 Tworzenie bytu: ${beingConfig.alias}`);
+                    await this.createGenericBeing(beingConfig);
+            }
+        }
+    }
+
+    async createLuxAssistant(config) {
         const luxSoul = {
-            soul_hash: 'lux_kernel_hash_001',
+            soul_hash: 'lux_frontend_soul_001',
             genotype: {
                 genesis: {
-                    name: 'lux_assistant',
+                    name: 'lux_assistant_frontend',
                     type: 'ai_assistant',
-                    version: '1.0.0'
+                    version: '2.0.0',
+                    environment: 'browser'
                 },
                 attributes: {
                     conversation_history: { py_type: 'list' },
-                    user_context: { py_type: 'dict' },
-                    active_tools: { py_type: 'list' }
+                    scenario_awareness: { py_type: 'dict' },
+                    kernel_access: { py_type: 'bool', default: true }
                 },
-                genes: {
+                capabilities: {
                     process_message: 'lux.processMessage',
-                    save_to_database: 'lux.saveToDatabase',
-                    create_being: 'lux.createBeing'
+                    manage_scenarios: 'lux.manageScenarios',
+                    create_beings: 'lux.createBeings'
                 }
             }
         };
@@ -88,34 +248,25 @@ class FrontendKernel {
         console.log('🌟 Lux Assistant zainicjalizowany');
     }
 
-    async loadBeingsFromDatabase() {
-        try {
-            // Ładowanie souls z bazy
-            const souls = await this.dbConnection.query('SELECT * FROM souls');
-            souls.forEach(soul => {
-                this.souls.set(soul.soul_hash, soul);
-            });
+    async createSystemManager(config) {
+        // Placeholder dla system managera
+        const manager = new SystemManager(config, this);
+        this.beings.set(config.alias, manager);
+    }
 
-            // Ładowanie beings z bazy
-            const beings = await this.dbConnection.query('SELECT * FROM beings');
-            beings.forEach(beingData => {
-                const being = new FrontendBeing(beingData, this);
-                this.beings.set(being.ulid, being);
-            });
-
-            console.log(`📋 Załadowano ${souls.length} souls i ${beings.length} beings`);
-        } catch (error) {
-            console.error('❌ Błąd ładowania z bazy:', error);
-        }
+    async createGenericBeing(config) {
+        const being = new GenericBeing(config, this);
+        this.beings.set(config.alias, being);
     }
 
     startEventListeners() {
-        // WebSocket lub EventSource dla real-time updates
-        this.setupDatabaseListener();
-        
         // DOM event listeners
         document.addEventListener('luxos:message', (e) => {
             this.handleMessage(e.detail);
+        });
+        
+        document.addEventListener('luxos:load_scenario', (e) => {
+            this.loadScenario(e.detail.name);
         });
         
         document.addEventListener('luxos:create_being', (e) => {
@@ -125,29 +276,34 @@ class FrontendKernel {
         console.log('🔧 Event listeners uruchomione');
     }
 
-    setupDatabaseListener() {
-        // Symulacja listenera do zmian w bazie
-        setInterval(async () => {
-            try {
-                const changes = await this.dbConnection.query(
-                    'SELECT * FROM beings WHERE updated_at > NOW() - INTERVAL \'10 seconds\''
-                );
-                
-                changes.forEach(change => {
-                    this.handleDatabaseChange(change);
-                });
-            } catch (error) {
-                console.error('Database listener error:', error);
-            }
-        }, 5000); // Check co 5 sekund
-    }
-
     async handleMessage(message) {
-        console.log('💬 Otrzymano wiadomość:', message);
+        console.log('💬 Kernel otrzymał wiadomość:', message);
         
         if (this.lux) {
             const response = await this.lux.processMessage(message);
             this.emit('lux:response', response);
+        } else {
+            this.emit('lux:response', 'System jeszcze się inicjalizuje...');
+        }
+    }
+
+    async loadScenario(scenarioName) {
+        console.log(`📋 Ładowanie scenariusza: ${scenarioName}`);
+        
+        try {
+            const scenarioData = await this.dbConnection.getScenario(scenarioName);
+            this.scenarios.set(scenarioName, scenarioData.data);
+            
+            this.emit('scenario:loaded', {
+                name: scenarioName,
+                data: scenarioData.data
+            });
+            
+            return scenarioData.data;
+            
+        } catch (error) {
+            console.error(`❌ Błąd ładowania scenariusza ${scenarioName}:`, error);
+            throw error;
         }
     }
 
@@ -155,27 +311,18 @@ class FrontendKernel {
         console.log('🆕 Tworzenie nowego bytu:', beingData);
         
         try {
-            // Zapisz do bazy
-            const result = await this.dbConnection.save('beings', beingData);
+            const result = await this.dbConnection.createBeing(beingData);
             
-            // Dodaj do pamięci
-            const being = new FrontendBeing(result, this);
-            this.beings.set(being.ulid, being);
+            // Utwórz lokalną instancję
+            const being = new FrontendBeing(beingData, this);
+            this.beings.set(result.ulid, being);
             
             this.emit('being:created', being);
             return being;
+            
         } catch (error) {
             console.error('❌ Błąd tworzenia bytu:', error);
             throw error;
-        }
-    }
-
-    handleDatabaseChange(change) {
-        // Aktualizacja bytu w pamięci na podstawie zmiany w bazie
-        if (this.beings.has(change.ulid)) {
-            const being = this.beings.get(change.ulid);
-            being.updateFromDatabase(change);
-            this.emit('being:updated', being);
         }
     }
 
@@ -193,9 +340,17 @@ class FrontendKernel {
         return Array.from(this.beings.values());
     }
 
+    getScenario(name) {
+        return this.scenarios.get(name);
+    }
+
+    getBootstrapState() {
+        return this.bootstrapState;
+    }
+
     async saveBeing(being) {
         try {
-            await this.dbConnection.save('beings', being.toJSON());
+            await this.dbConnection.createBeing(being.toJSON());
             console.log(`💾 Zapisano byt: ${being.alias}`);
         } catch (error) {
             console.error('❌ Błąd zapisywania bytu:', error);
@@ -208,20 +363,18 @@ class LuxAssistant {
         this.soul = soul;
         this.kernel = kernel;
         this.conversationHistory = [];
-        this.userContext = {};
+        this.scenarioAwareness = {};
     }
 
     async processMessage(message) {
         console.log('🤖 Lux przetwarza:', message);
         
-        // Dodaj do historii
         this.conversationHistory.push({
             timestamp: new Date(),
             message: message,
             type: 'user'
         });
 
-        // Analiza intencji
         const intent = this.analyzeIntent(message);
         let response;
 
@@ -229,25 +382,24 @@ class LuxAssistant {
             case 'create_being':
                 response = await this.handleCreateBeing(intent);
                 break;
-            case 'query_beings':
-                response = await this.handleQueryBeings(intent);
+            case 'load_scenario':
+                response = await this.handleLoadScenario(intent);
+                break;
+            case 'system_status':
+                response = await this.handleSystemStatus(intent);
                 break;
             case 'general_chat':
                 response = await this.handleGeneralChat(intent);
                 break;
             default:
-                response = "Nie rozumiem tej komendy. Spróbuj ponownie.";
+                response = "Nie rozumiem tej komendy. Spróbuj: 'stwórz byt', 'załaduj scenariusz', 'status systemu'";
         }
 
-        // Dodaj odpowiedź do historii
         this.conversationHistory.push({
             timestamp: new Date(),
             message: response,
             type: 'assistant'
         });
-
-        // Zapisz zmiany do bazy
-        await this.saveToDatabase();
 
         return response;
     }
@@ -259,8 +411,12 @@ class LuxAssistant {
             return { type: 'create_being', message };
         }
         
-        if (lowerMessage.includes('pokaż') || lowerMessage.includes('znajdź')) {
-            return { type: 'query_beings', message };
+        if (lowerMessage.includes('scenariusz') || lowerMessage.includes('załaduj')) {
+            return { type: 'load_scenario', message };
+        }
+        
+        if (lowerMessage.includes('status') || lowerMessage.includes('stan')) {
+            return { type: 'system_status', message };
         }
         
         return { type: 'general_chat', message };
@@ -273,7 +429,8 @@ class LuxAssistant {
                 data: {
                     created_by: 'lux_assistant',
                     creation_intent: intent.message,
-                    created_at: new Date().toISOString()
+                    created_at: new Date().toISOString(),
+                    type: 'user_created'
                 }
             };
 
@@ -284,36 +441,75 @@ class LuxAssistant {
         }
     }
 
-    async handleQueryBeings(intent) {
+    async handleLoadScenario(intent) {
+        try {
+            // Wyciągnij nazwę scenariusza z wiadomości
+            const match = intent.message.match(/scenariusz\s+(\w+)/i);
+            const scenarioName = match ? match[1] : 'default';
+            
+            const scenario = await this.kernel.loadScenario(scenarioName);
+            return `📋 Załadowałem scenariusz: ${scenario.name || scenarioName}`;
+        } catch (error) {
+            return `❌ Nie udało się załadować scenariusza: ${error.message}`;
+        }
+    }
+
+    async handleSystemStatus(intent) {
         const beings = this.kernel.getAllBeings();
-        const count = beings.length;
+        const scenarios = Array.from(this.kernel.scenarios.keys());
+        const bootstrapState = this.kernel.getBootstrapState();
         
-        return `📊 W systemie jest ${count} bytów:\n${beings.map(b => `- ${b.alias}`).join('\n')}`;
+        return `📊 Status systemu LuxOS:
+• Bootstrap: ${bootstrapState}
+• Bytów w pamięci: ${beings.length}
+• Scenariuszy: ${scenarios.length} (${scenarios.join(', ')})
+• Tryb: Frontend-only
+• Baza: Połączona`;
     }
 
     async handleGeneralChat(intent) {
-        return `🤖 Jestem Lux, asystentem LuxOS. Mogę pomóc Ci zarządzać bytami i danymi. Aktualnie mamy ${this.kernel.beings.size} bytów w pamięci.`;
+        return `🤖 Jestem Lux, asystentem LuxOS działającym w przeglądarce. 
+Mogę zarządzać bytami i scenariuszami. 
+System status: ${this.kernel.getBootstrapState()}`;
+    }
+}
+
+class ScenarioManager {
+    constructor(kernel) {
+        this.kernel = kernel;
+        this.loadedScenarios = new Map();
     }
 
-    async saveToDatabase() {
-        try {
-            await this.kernel.dbConnection.save('beings', {
-                ulid: 'lux_assistant',
-                data: {
-                    conversation_history: this.conversationHistory.slice(-50), // Ostatnie 50 wiadomości
-                    user_context: this.userContext,
-                    updated_at: new Date().toISOString()
-                }
-            });
-        } catch (error) {
-            console.error('❌ Błąd zapisywania Lux do bazy:', error);
-        }
+    async loadScenario(name) {
+        return await this.kernel.loadScenario(name);
+    }
+
+    async createScenario(name, data) {
+        await this.kernel.dbConnection.saveScenario(name, data);
+        this.loadedScenarios.set(name, data);
+    }
+}
+
+class SystemManager {
+    constructor(config, kernel) {
+        this.config = config;
+        this.kernel = kernel;
+        this.alias = config.alias;
+    }
+}
+
+class GenericBeing {
+    constructor(config, kernel) {
+        this.config = config;
+        this.kernel = kernel;
+        this.alias = config.alias;
+        this.type = config.type;
     }
 }
 
 class FrontendBeing {
     constructor(data, kernel) {
-        this.ulid = data.ulid;
+        this.ulid = data.ulid || this.generateULID();
         this.soul_hash = data.soul_hash;
         this.alias = data.alias;
         this.data = data.data || {};
@@ -322,9 +518,9 @@ class FrontendBeing {
         this.updated_at = data.updated_at;
     }
 
-    updateFromDatabase(newData) {
-        this.data = { ...this.data, ...newData.data };
-        this.updated_at = newData.updated_at;
+    generateULID() {
+        // Prosta implementacja ULID-like
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
     async save() {
@@ -349,6 +545,8 @@ window.LuxOSKernel = null;
 // Auto-inicjalizacja po załadowaniu DOM
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        console.log('🌟 LuxOS Frontend System - Uruchamianie...');
+        
         window.LuxOSKernel = new FrontendKernel();
         await window.LuxOSKernel.initialize();
         
@@ -356,7 +554,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.dispatchEvent(new CustomEvent('luxos:ready', { 
             detail: window.LuxOSKernel 
         }));
+        
     } catch (error) {
         console.error('❌ Błąd inicjalizacji LuxOS:', error);
+        
+        // Emit error event
+        document.dispatchEvent(new CustomEvent('luxos:error', { 
+            detail: { error: error.message } 
+        }));
     }
 });
