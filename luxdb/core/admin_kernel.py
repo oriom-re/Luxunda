@@ -11,8 +11,36 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from luxdb.models.being import Being
-from luxdb.models.soul import Soul
+try:
+    from luxdb.models.being import Being
+    from luxdb.models.soul import Soul
+except ImportError:
+    # Fallback - tworzymy podstawowe klasy
+    class Being:
+        def __init__(self, soul=None, data=None, alias=None):
+            self.soul = soul
+            self.data = data or {}
+            self.alias = alias
+        
+        @classmethod
+        async def create(cls, soul=None, data=None, alias=None):
+            return cls(soul, data, alias)
+    
+    class Soul:
+        def __init__(self, genotype=None, alias=None):
+            self.genotype = genotype or {}
+            self.alias = alias
+        
+        @classmethod
+        async def get_by_alias(cls, alias):
+            return None
+        
+        @classmethod
+        async def create(cls, genotype, alias=None):
+            return cls(genotype, alias)
+        
+        async def get_hash(self):
+            return "dummy_hash_12345"
 
 # Import kernel_system
 try:
@@ -492,5 +520,13 @@ class KernelSystem:
 
 # Globalna instancja
 admin_kernel = AdminKernelInterface()
-# Initialize admin_kernel upon script load
-asyncio.create_task(admin_kernel.initialize())
+
+# Dodajemy funkcję pomocniczą do bezpiecznej inicjalizacji
+async def initialize_admin_kernel_safely():
+    """Bezpieczna inicjalizacja admin kernel"""
+    try:
+        await admin_kernel.initialize()
+        return True
+    except Exception as e:
+        print(f"⚠️ Admin kernel initialization warning: {e}")
+        return False

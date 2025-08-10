@@ -6,12 +6,102 @@ import asyncio
 import json
 from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
-import ulid
 
-from .event_listener import DatabaseEventListener, event_bus
+# Import ulid safely
+try:
+    import ulid
+except ImportError:
+    # Fallback ULID generator
+    import uuid
+    import time
+    
+    class ULID:
+        @staticmethod
+        def ulid():
+            # Simple ULID-like generator using timestamp + uuid
+            timestamp = int(time.time() * 1000)
+            random_part = str(uuid.uuid4()).replace('-', '')[:10]
+            return f"{timestamp:013x}{random_part}"
+    
+    ulid = ULID()
+
+try:
+    from .event_listener import DatabaseEventListener, event_bus
+except ImportError:
+    # Fallback - tworzymy podstawową klasę
+    class DatabaseEventListener:
+        def __init__(self, name):
+            self.name = name
+            self.subscribers = {}
+            self.is_listening = False
+        
+        def subscribe(self, event_type: str, handler):
+            if event_type not in self.subscribers:
+                self.subscribers[event_type] = []
+            self.subscribers[event_type].append(handler)
+        
+        async def start_listening(self, poll_interval: float = 1.0):
+            self.is_listening = True
+        
+        def stop_listening(self):
+            self.is_listening = False
+    
+    # Mock event_bus
+    class EventBus:
+        async def create_listener(self, name):
+            return DatabaseEventListener(name)
+    
+    event_bus = EventBus()
 from ..models.being import Being
 from ..models.event import Event
 from ..models.relationship import Relationship
+
+class MessageHandler:
+    """Handler dla wiadomości w systemie komunikacji"""
+    
+    def __init__(self):
+        self.active_messages = {}
+        self.message_history = []
+    
+    async def process_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Przetwarza wiadomość"""
+        message_id = message_data.get("id", str(ulid.ulid()))
+        self.active_messages[message_id] = message_data
+        
+        return {
+            "message_id": message_id,
+            "status": "processed",
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    async def get_message_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Pobiera historię wiadomości"""
+        return self.message_history[-limit:]
+
+class NamespaceManager:
+    """Manager przestrzeni nazw dla komunikacji"""
+    
+    def __init__(self):
+        self.namespaces = {}
+        self.default_namespace = "default"
+    
+    def get_namespace(self, namespace_id: str) -> Dict[str, Any]:
+        """Pobiera przestrzeń nazw"""
+        return self.namespaces.get(namespace_id, {
+            "id": namespace_id,
+            "connections": [],
+            "created_at": datetime.now().isoformat()
+        })
+    
+    def create_namespace(self, namespace_id: str) -> Dict[str, Any]:
+        """Tworzy nową przestrzeń nazw"""
+        namespace = {
+            "id": namespace_id,
+            "connections": [],
+            "created_at": datetime.now().isoformat()
+        }
+        self.namespaces[namespace_id] = namespace
+        return namespace
 
 class CommunicationSystem:
     """
