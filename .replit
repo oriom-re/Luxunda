@@ -241,7 +241,16 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python main.py"
+args = "python main.py --mode=full"
+
+[[workflows.workflow]]
+name = "LuxOS Full Backend"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py --mode=full --bootstrap"
 
 [[ports]]
 localPort = 3000
