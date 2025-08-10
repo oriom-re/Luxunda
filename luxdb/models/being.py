@@ -275,6 +275,68 @@ class Being:
 
         return None
 
+    async def execute_soul_function(self, function_name: str, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Wykonuje funkcję z Soul tego bytu.
+
+        Args:
+            function_name: Nazwa funkcji do wykonania
+            *args: Argumenty pozycyjne
+            **kwargs: Argumenty nazwane
+
+        Returns:
+            Wynik wykonania funkcji w formacie genetycznym
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            soul = await self.get_soul()
+            if not soul:
+                return GeneticResponseFormat.error_response(
+                    error="Soul not found for this being",
+                    error_code="SOUL_NOT_FOUND"
+                )
+
+            # Dodaj kontekst bytu do kwargs jeśli nie ma konfliktu
+            if 'being_context' not in kwargs:
+                kwargs['being_context'] = {
+                    'ulid': self.ulid,
+                    'alias': self.alias,
+                    'data': self.data
+                }
+
+            # Wykonaj funkcję przez Soul
+            result = await soul.execute_function(function_name, *args, **kwargs)
+            
+            # Zaktualizuj licznik wykonań w danych bytu jeśli funkcja się powiodła
+            if result.get('success'):
+                execution_count = self.data.get('execution_count', 0) + 1
+                self.data['execution_count'] = execution_count
+                self.data['last_execution'] = datetime.now().isoformat()
+                self.updated_at = datetime.now()
+
+            return result
+
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Function execution failed: {str(e)}",
+                error_code="BEING_FUNCTION_ERROR"
+            )
+
+    async def list_available_functions(self) -> List[str]:
+        """Lista dostępnych funkcji z Soul"""
+        soul = await self.get_soul()
+        if soul:
+            return soul.list_functions()
+        return []
+
+    async def get_function_info(self, function_name: str) -> Optional[Dict[str, Any]]:
+        """Pobiera informacje o funkcji z Soul"""
+        soul = await self.get_soul()
+        if soul:
+            return soul.get_function_info(function_name)
+        return None
+
     def check_access(self, user_ulid: str = None, user_session: Dict[str, Any] = None) -> bool:
         """
         Sprawdza czy użytkownik ma dostęp do tego bytu.

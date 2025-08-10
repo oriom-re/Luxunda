@@ -99,6 +99,12 @@ class GeneticResponseFormat:
 class JSONBSerializer:
     """Unified JSONB Serializer for LuxDB - handles all serialization needs"""
 
+    SUPPORTED_PY_TYPES = [
+        "str", "int", "float", "bool", "dict", "list",
+        "List[str]", "List[int]", "List[float]", "List[bool]",
+        "datetime", "bytes", "function"
+    ]
+
     @staticmethod
     def serialize(data: Any) -> str:
         """Serialize data to JSON string for JSONB storage"""
@@ -122,6 +128,8 @@ class JSONBSerializer:
             return data.isoformat()
         elif isinstance(data, Decimal):
             return float(data)
+        elif callable(data): # Handle functions
+            return {"__type__": "function", "name": data.__name__}
         elif isinstance(data, dict):
             return {k: JSONBSerializer.prepare_for_jsonb(v) for k, v in data.items()}
         elif isinstance(data, (list, tuple)):
@@ -144,6 +152,8 @@ class JSONBSerializer:
                     serialized[attr_name] = value.isoformat() if isinstance(value, datetime.datetime) else value
                 elif py_type == "List[str]":
                     serialized[attr_name] = list(value) if isinstance(value, (list, set)) else [value]
+                elif py_type == "function":
+                    serialized[attr_name] = {"__type__": "function", "name": value.__name__} if callable(value) else value
                 else:
                     serialized[attr_name] = JSONBSerializer.prepare_for_jsonb(value)
 
@@ -167,6 +177,15 @@ class JSONBSerializer:
                         deserialized[attr_name] = value
                 elif py_type == "List[str]":
                     deserialized[attr_name] = list(value) if isinstance(value, (list, set)) else [value]
+                elif py_type == "function":
+                    # Note: Deserializing a function requires access to the function definition.
+                    # This is a placeholder; actual implementation would need a lookup mechanism.
+                    if isinstance(value, dict) and value.get("__type__") == "function":
+                        # Placeholder for function lookup
+                        # deserialized[attr_name] = get_function_by_name(value["name"])
+                        deserialized[attr_name] = value # Keep as dict for now if lookup fails
+                    else:
+                        deserialized[attr_name] = value
                 else:
                     deserialized[attr_name] = value
 
@@ -192,6 +211,8 @@ class LuxDBJSONEncoder(json.JSONEncoder):
             return obj.isoformat()
         elif isinstance(obj, Decimal):
             return float(obj)
+        elif callable(obj): # Handle functions
+            return {"__type__": "function", "name": obj.__name__}
         elif hasattr(obj, 'to_dict'):
             return obj.to_dict()
         elif hasattr(obj, '__dict__'):

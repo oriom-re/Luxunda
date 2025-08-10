@@ -4,10 +4,12 @@ Model Soul (Dusza/Genotyp) dla LuxDB.
 
 import json
 import hashlib
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable, Union
 from datetime import datetime
 from dataclasses import dataclass, field
 import ulid
+import inspect
+import asyncio
 
 from ..core.globals import Globals
 
@@ -25,6 +27,9 @@ class Soul:
     alias: str = None
     genotype: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
+    
+    # Function registry for this soul
+    _function_registry: Dict[str, Callable] = field(default_factory=dict, init=False, repr=False)
 
     @classmethod
     async def create(cls, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
@@ -278,5 +283,184 @@ class Soul:
         """Protokół dla automatycznej serializacji JSON"""
         return self.to_dict()
 
+    def register_function(self, name: str, func: Callable, description: str = None):
+        """
+        Rejestruje funkcję w Soul.
+
+        Args:
+            name: Nazwa funkcji
+            func: Funkcja do zarejestrowania
+            description: Opcjonalny opis funkcji
+        """
+        self._function_registry[name] = func
+        
+        # Dodaj do genotypu w sekcji functions
+        if "functions" not in self.genotype:
+            self.genotype["functions"] = {}
+        
+        self.genotype["functions"][name] = {
+            "py_type": "function",
+            "description": description or f"Function {name}",
+            "signature": self._get_function_signature(func),
+            "is_async": asyncio.iscoroutinefunction(func)
+        }
+
+    def _get_function_signature(self, func: Callable) -> Dict[str, Any]:
+        """Pobiera sygnaturę funkcji"""
+        try:
+            sig = inspect.signature(func)
+            return {
+                "parameters": {
+                    param.name: {
+                        "type": str(param.annotation) if param.annotation != param.empty else "Any",
+                        "default": str(param.default) if param.default != param.empty else None
+                    }
+                    for param in sig.parameters.values()
+                },
+                "return_type": str(sig.return_annotation) if sig.return_annotation != sig.empty else "Any"
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_function(self, name: str) -> Optional[Callable]:
+        """Pobiera funkcję z rejestru"""
+        return self._function_registry.get(name)
+
+    def list_functions(self) -> List[str]:
+        """Lista dostępnych funkcji"""
+        return list(self._function_registry.keys())
+
+    def get_function_info(self, name: str) -> Optional[Dict[str, Any]]:
+        """Pobiera informacje o funkcji"""
+        if name in self.genotype.get("functions", {}):
+            return self.genotype["functions"][name]
+        return None
+
+    async def execute_function(self, name: str, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Wykonuje funkcję zarejestrowaną w Soul.
+
+        Args:
+            name: Nazwa funkcji
+            *args: Argumenty pozycyjne
+            **kwargs: Argumenty nazwane
+
+        Returns:
+            Wynik wykonania funkcji w standardowym formacie genetycznym
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            func = self.get_function(name)
+            if not func:
+                return GeneticResponseFormat.error_response(
+                    error=f"Function '{name}' not found in soul '{self.alias}'",
+                    error_code="FUNCTION_NOT_FOUND"
+                )
+
+            # Wykonaj funkcję
+            if asyncio.iscoroutinefunction(func):
+                result = await func(*args, **kwargs)
+            else:
+                result = func(*args, **kwargs)
+
+            return GeneticResponseFormat.success_response(
+                data={
+                    "function_name": name,
+                    "result": result,
+                    "executed_at": datetime.now().isoformat()
+                },
+                soul_context={
+                    "soul_hash": self.soul_hash,
+                    "function_info": self.get_function_info(name)
+                }
+            )
+
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Function execution error: {str(e)}",
+                error_code="FUNCTION_EXECUTION_ERROR",
+                soul_context={"soul_hash": self.soul_hash, "function_name": name}
+            )
+
+    @classmethod
+    async def create_function_soul(cls, name: str, func: Callable, description: str = None, alias: str = None) -> 'Soul':
+        """
+        Tworzy specjalizowany Soul dla pojedynczej funkcji.
+
+        Args:
+            name: Nazwa funkcji
+            func: Funkcja
+            description: Opis funkcji
+            alias: Alias dla soul
+
+        Returns:
+            Nowy Soul z funkcją
+        """
+        # Genotyp dla funkcji
+        function_genotype = {
+            "genesis": {
+                "name": alias or f"function_{name}",
+                "type": "function_soul", 
+                "version": "1.0.0",
+                "description": description or f"Soul for function {name}"
+            },
+            "attributes": {
+                "function_name": {"py_type": "str"},
+                "last_execution": {"py_type": "str"},
+                "execution_count": {"py_type": "int", "default": 0}
+            },
+            "functions": {
+                name: {
+                    "py_type": "function",
+                    "description": description or f"Main function {name}",
+                    "is_primary": True
+                }
+            }
+        }
+
+        # Utwórz Soul
+        soul = await cls.create(function_genotype, alias or f"function_{name}")
+        
+        # Zarejestruj funkcję
+        soul.register_function(name, func, description)
+        
+        return soul
+
+    def validate_function_call(self, name: str, *args, **kwargs) -> List[str]:
+        """
+        Waliduje wywołanie funkcji.
+
+        Args:
+            name: Nazwa funkcji
+            *args: Argumenty pozycyjne
+            **kwargs: Argumenty nazwane
+
+        Returns:
+            Lista błędów walidacji
+        """
+        errors = []
+        
+        if name not in self._function_registry:
+            errors.append(f"Function '{name}' not found")
+            return errors
+
+        func = self._function_registry[name]
+        func_info = self.get_function_info(name)
+        
+        if not func_info:
+            return errors
+
+        try:
+            # Sprawdź sygnaturę funkcji
+            sig = inspect.signature(func)
+            bound = sig.bind(*args, **kwargs)
+            bound.apply_defaults()
+        except TypeError as e:
+            errors.append(f"Function signature error: {str(e)}")
+
+        return errors
+
     def __repr__(self):
-        return f"Soul(hash={self.soul_hash[:8]}..., alias={self.alias})"
+        functions_count = len(self._function_registry)
+        return f"Soul(hash={self.soul_hash[:8] if self.soul_hash else 'None'}..., alias={self.alias}, functions={functions_count})"
