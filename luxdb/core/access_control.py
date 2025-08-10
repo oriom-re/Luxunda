@@ -115,8 +115,33 @@ class AccessController:
         if zone_id not in self.zones:
             raise ValueError(f"Zone {zone_id} does not exist")
         
+        old_zone = self.being_zones.get(being_ulid)
         self.being_zones[being_ulid] = zone_id
-        print(f"🎯 Being {being_ulid[:8]}... assigned to zone: {zone_id}")
+        
+        if old_zone and old_zone != zone_id:
+            print(f"🔄 Being {being_ulid[:8]}... evolved from {old_zone} to {zone_id}")
+        else:
+            print(f"🎯 Being {being_ulid[:8]}... assigned to zone: {zone_id}")
+
+    def track_being_evolution(self, being_ulid: str, evolution_info: Dict[str, Any]):
+        """Śledzi ewolucję bytu w systemie kontroli dostępu"""
+        if not hasattr(self, 'evolution_history'):
+            self.evolution_history = {}
+        
+        if being_ulid not in self.evolution_history:
+            self.evolution_history[being_ulid] = []
+        
+        self.evolution_history[being_ulid].append({
+            "timestamp": datetime.now().isoformat(),
+            "evolution_info": evolution_info,
+            "new_zone": self.being_zones.get(being_ulid)
+        })
+
+    def get_being_evolution_history(self, being_ulid: str) -> List[Dict[str, Any]]:
+        """Zwraca historię ewolucji bytu"""
+        if not hasattr(self, 'evolution_history'):
+            return []
+        return self.evolution_history.get(being_ulid, [])
     
     def get_being_zone(self, being_ulid: str) -> Optional[AccessZone]:
         """Pobiera strefę dostępu dla bytu"""
