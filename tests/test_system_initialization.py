@@ -99,6 +99,32 @@ class TestSystemInitialization:
         except Exception as e:
             raise AssertionError(f"Kernel system initialization failed: {e}")
     
+    async def test_evolution_system_initialization(self):
+        """Test inicjalizacji systemu ewolucji"""
+        try:
+            from luxdb.core.kernel_system import kernel_system
+            
+            # Test inicjalizacji kernel system
+            await kernel_system.initialize("test")
+            
+            # Sprawdź status systemu
+            status = await kernel_system.get_system_status()
+            
+            assert status is not None
+            assert 'active_scenario' in status
+            assert 'registered_beings' in status
+            assert 'pending_evolution_requests' in status
+            
+            # Test podstawowych metod ewolucji
+            pending_requests = await kernel_system.get_pending_evolution_requests()
+            assert isinstance(pending_requests, list)
+            
+            print("✅ Evolution system initialized successfully")
+            return True
+            
+        except Exception as e:
+            raise AssertionError(f"Evolution system initialization failed: {e}")
+
     async def test_admin_kernel_initialization(self):
         """Test inicjalizacji admin kernel"""
         try:

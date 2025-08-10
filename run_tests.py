@@ -31,6 +31,7 @@ async def main():
     parser.add_argument("--core-only", action="store_true", help="Run only core functionality tests")
     parser.add_argument("--integration-only", action="store_true", help="Run only integration tests")
     parser.add_argument("--init-only", action="store_true", help="Run only initialization tests")
+    parser.add_argument("--evolution-only", action="store_true", help="Run only evolution system tests")
     parser.add_argument("--save-report", action="store_true", help="Save detailed report to file")
     parser.add_argument("--quick", action="store_true", help="Run quick test subset")
 
@@ -71,6 +72,18 @@ async def main():
             return 0
         else:
             print("\n❌ Initialization tests FAILED")
+            return 1
+    
+    elif args.evolution_only:
+        print("Running evolution system tests only...")
+        from tests.test_being_evolution_system import run_being_evolution_tests
+        results = await run_being_evolution_tests()
+
+        if results.get('overall_success'):
+            print("\n✅ Evolution system tests PASSED")
+            return 0
+        else:
+            print("\n❌ Evolution system tests FAILED")
             return 1
 
     else:

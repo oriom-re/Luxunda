@@ -216,6 +216,15 @@ mode = "sequential"
 task = "shell.exec"
 args = "python run_tests.py --init-only"
 
+[[workflows.workflow]]
+name = "Run Evolution System Tests"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python run_tests.py --evolution-only"
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
