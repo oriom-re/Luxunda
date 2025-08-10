@@ -383,7 +383,61 @@ class Soul:
             description: Opis funkcji
         """
         self.register_function(name, func, description)
+        
+        # Utwórz osobną Soul dla funkcji jako duszy w bazie
+        await self._create_function_soul(name, func, description)
+        
         await self.save()
+    
+    async def _create_function_soul(self, name: str, func: Callable, description: str = None):
+        """
+        Tworzy osobną Soul dla funkcji w bazie danych.
+        
+        Args:
+            name: Nazwa funkcji
+            func: Funkcja
+            description: Opis funkcji
+        """
+        import inspect
+        
+        try:
+            # Pobierz kod źródłowy funkcji
+            source_code = inspect.getsource(func)
+        except:
+            source_code = str(func)
+        
+        # Genotyp dla duszy funkcji
+        function_soul_genotype = {
+            "genesis": {
+                "name": f"function_{name}",
+                "type": "function",
+                "version": "1.0.0",
+                "description": description or f"Function soul for {name}",
+                "created_at": datetime.now().isoformat()
+            },
+            "attributes": {
+                "function_name": {"py_type": "str", "default": name},
+                "source_code": {"py_type": "str", "default": source_code},
+                "language": {"py_type": "str", "default": "python"},
+                "description": {"py_type": "str", "default": description or ""},
+                "signature": {"py_type": "dict", "default": self._get_function_signature(func)},
+                "is_async": {"py_type": "bool", "default": asyncio.iscoroutinefunction(func)},
+                "embedding": {"py_type": "str", "default": ""},  # Dla przyszłych wektorów
+                "usage_count": {"py_type": "int", "default": 0},
+                "last_used": {"py_type": "str", "default": ""},
+                "parent_soul_hash": {"py_type": "str", "default": self.soul_hash}
+            }
+        }
+        
+        # Utwórz Soul funkcji z aliasem
+        function_alias = f"func_{name}_{self.soul_hash[:8]}"
+        function_soul = await Soul.create(function_soul_genotype, alias=function_alias)
+        
+        # Zarejestruj w globalnym rejestrze z hashem
+        from ..core.function_registry import function_registry
+        func_hash = function_registry.register_function(func, name)
+        
+        return function_soul
 
     def _calculate_function_hash(self, func: Callable) -> str:
         """Oblicza hash funkcji na podstawie jej kodu"""
@@ -626,6 +680,155 @@ class Soul:
             }
         except Exception as e:
             return {"error": str(e)}
+    
+    @classmethod
+    async def find_function_by_hash(cls, func_hash: str) -> Optional['Soul']:
+        """
+        Znajduje duszę funkcji po hash.
+        
+        Args:
+            func_hash: Hash funkcji
+            
+        Returns:
+            Soul funkcji lub None
+        """
+        return await cls.get_by_hash(func_hash)
+    
+    @classmethod
+    async def find_function_by_alias(cls, alias: str) -> Optional['Soul']:
+        """
+        Znajduje najnowszą wersję duszy funkcji po alias.
+        
+        Args:
+            alias: Alias funkcji
+            
+        Returns:
+            Najnowsza Soul funkcji lub None
+        """
+        # Znajdź wszystkie funkcje z podobnym aliasem
+        all_souls = await cls.get_all()
+        function_souls = []
+        
+        for soul in all_souls:
+            if (soul.genotype.get("genesis", {}).get("type") == "function" and 
+                soul.alias and alias in soul.alias):
+                function_souls.append(soul)
+        
+        if not function_souls:
+            return None
+        
+        # Zwróć najnowszą wersję (po dacie utworzenia)
+        function_souls.sort(key=lambda s: s.created_at or datetime.min, reverse=True)
+        return function_souls[0]
+    
+    @classmethod
+    async def get_function_souls(cls) -> List['Soul']:
+        """
+        Zwraca wszystkie dusze funkcji.
+        
+        Returns:
+            Lista Soul funkcji
+        """
+        all_souls = await cls.get_all()
+        return [soul for soul in all_souls 
+                if soul.genotype.get("genesis", {}).get("type") == "function"]
+    
+    async def execute_function_from_soul(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Wykonuje funkcję z duszy funkcji poprzez kompilację kodu źródłowego.
+        
+        Args:
+            *args: Argumenty pozycyjne
+            **kwargs: Argumenty nazwane
+            
+        Returns:
+            Wynik wykonania funkcji
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            # Sprawdź czy to dusza funkcji
+            if self.genotype.get("genesis", {}).get("type") != "function":
+                return GeneticResponseFormat.error_response(
+                    error="Soul is not a function type",
+                    error_code="NOT_FUNCTION_SOUL"
+                )
+            
+            # Pobierz kod źródłowy z atrybutów
+            source_code = self.get_default_data().get("source_code", "")
+            function_name = self.get_default_data().get("function_name", "")
+            
+            if not source_code:
+                return GeneticResponseFormat.error_response(
+                    error="No source code found in function soul",
+                    error_code="NO_SOURCE_CODE"
+                )
+            
+            # Kompiluj i wykonaj kod
+            exec_globals = {}
+            exec(source_code, exec_globals)
+            
+            if function_name not in exec_globals:
+                return GeneticResponseFormat.error_response(
+                    error=f"Function '{function_name}' not found in compiled code",
+                    error_code="FUNCTION_NOT_FOUND"
+                )
+            
+            func = exec_globals[function_name]
+            
+            # Wykonaj funkcję
+            if asyncio.iscoroutinefunction(func):
+                result = await func(*args, **kwargs)
+            else:
+                result = func(*args, **kwargs)
+            
+            # Zaktualizuj statystyki użycia
+            await self._update_usage_stats()
+            
+            return GeneticResponseFormat.success_response(
+                data={
+                    "function_name": function_name,
+                    "result": result,
+                    "executed_at": datetime.now().isoformat(),
+                    "execution_method": "soul_execution"
+                },
+                soul_context={
+                    "soul_hash": self.soul_hash,
+                    "function_type": "function_soul"
+                }
+            )
+            
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Function soul execution error: {str(e)}",
+                error_code="SOUL_EXECUTION_ERROR",
+                soul_context={"soul_hash": self.soul_hash}
+            )
+    
+    async def _update_usage_stats(self):
+        """Aktualizuje statystyki użycia funkcji"""
+        try:
+            # Tworzy being i aktualizuje statystyki
+            from ..models.being import Being
+            
+            # Uzyskaj dostęp do danych duszy
+            current_data = self.get_default_data()
+            current_data["usage_count"] = current_data.get("usage_count", 0) + 1
+            current_data["last_used"] = datetime.now().isoformat()
+            
+            # Utwórz tymczasowe being dla aktualizacji
+            being_result = await Being.set(
+                soul=self,
+                data=current_data,
+                alias=f"temp_stats_{self.soul_hash[:8]}"
+            )
+            
+            if being_result.get("success"):
+                # Zaktualizuj being
+                being = being_result["data"]["being"]
+                await being.save()
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to update function usage stats: {e}")
 
     def validate_function_call(self, name: str, *args, **kwargs) -> List[str]:
         """

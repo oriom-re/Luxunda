@@ -64,26 +64,26 @@ class Being:
             Standardowy słownik odpowiedzi z nowym Being
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             being = await cls._create_internal(soul, alias=alias, attributes=data, access_zone=access_zone, ttl_hours=ttl_hours)
-            
+
             soul_context = {
                 "soul_hash": being.soul_hash,
                 "genotype": soul.genotype if hasattr(soul, 'genotype') else {}
             }
-            
+
             return GeneticResponseFormat.success_response(
                 data={"being": being.to_json_serializable()},
                 soul_context=soul_context
             )
-            
+
         except Exception as e:
             return GeneticResponseFormat.error_response(
                 error=str(e),
                 error_code="BEING_SET_ERROR"
             )
-    
+
     @classmethod
     async def _get_by_ulid_internal(cls, ulid_value: str) -> Optional['Being']:
         """Wewnętrzna metoda get_by_ulid zwracająca obiekt Being"""
@@ -91,7 +91,7 @@ class Being:
 
         result = await BeingRepository.get_by_ulid(ulid_value)
         return result.get('being') if result.get('success') else None
-    
+
     @classmethod
     async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, **kwargs) -> 'Being':
         """Wewnętrzna metoda create zwracająca obiekt Being"""
@@ -108,10 +108,10 @@ class Being:
             Standardowy słownik odpowiedzi z Being lub błędem
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             being = await cls._get_by_ulid_internal(ulid_value)
-            
+
             if being:
                 # Pobierz kontekst Soul
                 soul = await being.get_soul()
@@ -119,7 +119,7 @@ class Being:
                     "soul_hash": being.soul_hash,
                     "genotype": soul.genotype if soul else {}
                 }
-                
+
                 return GeneticResponseFormat.success_response(
                     data={"being": being.to_json_serializable()},
                     soul_context=soul_context
@@ -129,7 +129,7 @@ class Being:
                     error="Being not found",
                     error_code="BEING_NOT_FOUND"
                 )
-                
+
         except Exception as e:
             return GeneticResponseFormat.error_response(
                 error=str(e),
@@ -193,7 +193,7 @@ class Being:
         access_controller.assign_being_to_zone(being.ulid, being.access_zone) # Use the being's access_zone
 
         return being
-    
+
     async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
         """Wewnętrzna metoda create - kopia oryginalnej logiki"""
         # Backward compatibility handling
@@ -230,7 +230,7 @@ class Being:
             validation_errors = target_soul.validate_data(attributes)
             if validation_errors:
                 raise ValueError(f"Validation errors: {', '.join(validation_errors)}")
-            
+
             # Połącz domyślne z podanymi danymi
             being.data = {**default_data, **attributes}
         else:
@@ -291,7 +291,7 @@ class Being:
             Wynik wykonania funkcji w formacie genetycznym
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             soul = await self.get_soul()
             if not soul:
@@ -310,7 +310,7 @@ class Being:
 
             # Wykonaj funkcję przez Soul
             result = await soul.execute_function(function_name, *args, **kwargs)
-            
+
             # Zaktualizuj licznik wykonań w danych bytu jeśli funkcja się powiodła
             if result.get('success'):
                 execution_count = self.data.get('execution_count', 0) + 1
@@ -331,17 +331,17 @@ class Being:
         """
         Being może poprosić system o ewolucję, ale nie może się sam ewoluować.
         Żądanie ewolucji musi zostać zatwierdzone przez Kernel lub uprawniony byt.
-        
+
         Args:
             evolution_trigger: Powód ewolucji 
             new_capabilities: Żądane nowe zdolności
             access_level_change: Żądana zmiana poziomu dostępu
-            
+
         Returns:
             Potwierdzenie żądania ewolucji w formacie genetycznym
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             # Sprawdź czy może żądać ewolucji
             evolution_potential = await self.can_evolve()
@@ -371,7 +371,7 @@ class Being:
             # Dodaj żądanie do danych bytu
             if 'evolution_requests' not in self.data:
                 self.data['evolution_requests'] = []
-            
+
             self.data['evolution_requests'].append(evolution_request)
             await self.save()
 
@@ -401,18 +401,18 @@ class Being:
         justification += f"Current stats: {stats['execution_count']} executions, "
         justification += f"{stats['age_in_system']} days in system, "
         justification += f"access zone: {stats['access_zone']}. "
-        
+
         if evolution_potential["available_evolutions"]:
             justification += "Available evolutions: " + ", ".join([
                 evo["type"] for evo in evolution_potential["available_evolutions"]
             ])
-        
+
         return justification
 
     async def can_evolve(self) -> Dict[str, Any]:
         """
         Sprawdza czy Being może ewoluować i jakie opcje ewolucji są dostępne.
-        
+
         Returns:
             Informacje o możliwościach ewolucji
         """
@@ -477,16 +477,16 @@ class Being:
     async def propose_soul_creation(self, new_soul_concept: Dict[str, Any]) -> Dict[str, Any]:
         """
         Being może zaproponować utworzenie nowej Soul (jeśli ma odpowiednie uprawnienia).
-        
+
         Args:
             new_soul_concept: Koncepcja nowej Soul do utworzenia
-            
+
         Returns:
             Wynik propozycji w formacie genetycznym
         """
         from luxdb.utils.serializer import GeneticResponseFormat
         from .soul import Soul
-        
+
         try:
             # Sprawdź uprawnienia
             can_evolve_info = await self.can_evolve()
@@ -494,7 +494,7 @@ class Being:
                 evo["type"] == "soul_creator" and evo["requirements_met"] 
                 for evo in can_evolve_info["available_evolutions"]
             )
-            
+
             if not has_creator_rights:
                 return GeneticResponseFormat.error_response(
                     error="Being does not have soul creation privileges",
@@ -504,7 +504,7 @@ class Being:
             # Waliduj koncepcję Soul
             if "genesis" not in new_soul_concept:
                 new_soul_concept["genesis"] = {}
-            
+
             new_soul_concept["genesis"]["created_by_being"] = self.ulid
             new_soul_concept["genesis"]["creator_alias"] = self.alias
             new_soul_concept["genesis"]["creation_timestamp"] = datetime.now().isoformat()
@@ -519,7 +519,7 @@ class Being:
             # Zaktualizuj statystyki bytu
             if 'souls_created' not in self.data:
                 self.data['souls_created'] = []
-            
+
             self.data['souls_created'].append({
                 "soul_hash": new_soul.soul_hash,
                 "created_at": datetime.now().isoformat(),
@@ -551,18 +551,80 @@ class Being:
             )
 
     async def list_available_functions(self) -> List[str]:
-        """Lista dostępnych funkcji z Soul"""
-        soul = await self.get_soul()
-        if soul:
-            return soul.list_functions()
-        return []
+        """Lista dostępnych funkcji w Soul tego Being"""
+        if not self.soul:
+            return []
 
-    async def get_function_info(self, function_name: str) -> Optional[Dict[str, Any]]:
-        """Pobiera informacje o funkcji z Soul"""
-        soul = await self.get_soul()
-        if soul:
-            return soul.get_function_info(function_name)
+        return self.soul.list_functions()
+
+    @classmethod
+    async def find_function_being(cls, identifier: str, search_type: str = "auto") -> Optional['Being']:
+        """
+        Znajduje Being funkcji po hash lub alias.
+
+        Args:
+            identifier: Hash lub alias funkcji
+            search_type: "hash", "alias" lub "auto"
+
+        Returns:
+            Being funkcji lub None
+        """
+        from .soul import Soul # Import Soul here to avoid circular dependency if Soul uses Being
+        soul = None
+
+        if search_type == "hash":
+            soul = await Soul.find_function_by_hash(identifier)
+        elif search_type == "alias":
+            soul = await Soul.find_function_by_alias(identifier)
+        else:  # auto
+            # Spróbuj najpierw po hash, potem po alias
+            soul = await Soul.find_function_by_hash(identifier)
+            if not soul:
+                soul = await Soul.find_function_by_alias(identifier)
+
+        if not soul:
+            return None
+
+        # Utwórz Being z duszy funkcji
+        being_result = await cls.set(
+            soul=soul,
+            data=soul.get_default_data(),
+            alias=f"exec_{soul.alias or identifier[:8]}"
+        )
+
+        if being_result.get("success"):
+            return being_result["data"]["being"]
+
         return None
+
+    async def exec_function(self, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Wykonuje funkcję jeśli Being reprezentuje duszę funkcji.
+
+        Args:
+            *args: Argumenty pozycyjne
+            **kwargs: Argumenty nazwane
+
+        Returns:
+            Wynik wykonania funkcji
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+
+        if not self.soul:
+            return GeneticResponseFormat.error_response(
+                error="Being has no soul",
+                error_code="NO_SOUL"
+            )
+
+        # Sprawdź czy to dusza funkcji
+        if self.soul.genotype.get("genesis", {}).get("type") != "function":
+            return GeneticResponseFormat.error_response(
+                error="Being soul is not a function type",
+                error_code="NOT_FUNCTION_BEING"
+            )
+
+        # Wykonaj funkcję przez duszę
+        return await self.soul.execute_function_from_soul(*args, **kwargs)
 
     def check_access(self, user_ulid: str = None, user_session: Dict[str, Any] = None) -> bool:
         """
