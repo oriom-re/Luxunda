@@ -138,7 +138,13 @@ class Soul:
         from ..repository.soul_repository import SoulRepository
 
         result = await SoulRepository.get_by_hash(hash)
-        return result.get('soul') if result.get('success') else None
+        soul = result.get('soul') if result.get('success') else None
+        
+        if soul:
+            # Załaduj funkcje z genotypu
+            await soul.load_functions_from_genotype()
+        
+        return soul
 
     @classmethod
     async def get_by_alias(cls, alias: str) -> Optional['Soul']:
@@ -154,7 +160,13 @@ class Soul:
         from ..repository.soul_repository import SoulRepository
 
         result = await SoulRepository.get_by_alias(alias)
-        return result.get('soul') if result.get('success') else None
+        soul = result.get('soul') if result.get('success') else None
+        
+        if soul:
+            # Załaduj funkcje z genotypu
+            await soul.load_functions_from_genotype()
+        
+        return soul
 
     @classmethod
     async def get_all(cls) -> List['Soul']:
@@ -332,6 +344,88 @@ class Soul:
         """
         self._function_registry[name] = func
 
+    def register_function(self, name: str, func: Callable, description: str = None):
+        """
+        Rejestruje funkcję w genotypie i w lokalnym rejestrze.
+        
+        Args:
+            name: Nazwa funkcji
+            func: Funkcja do zarejestrowania
+            description: Opis funkcji
+        """
+        from ..core.function_registry import function_registry
+        
+        # Zarejestruj w globalnym rejestrze
+        func_hash = function_registry.register_function(func, name)
+        
+        # Dodaj do genotypu
+        if "functions" not in self.genotype:
+            self.genotype["functions"] = {}
+        
+        self.genotype["functions"][name] = {
+            "py_type": "function",
+            "description": description or f"Function {name}",
+            "signature": self._get_function_signature(func),
+            "is_async": asyncio.iscoroutinefunction(func),
+            "function_hash": func_hash
+        }
+        
+        # Dodaj do lokalnego rejestru
+        self._function_registry[name] = func
+
+    async def register_function_and_save(self, name: str, func: Callable, description: str = None):
+        """
+        Rejestruje funkcję i zapisuje zmiany w bazie danych.
+        
+        Args:
+            name: Nazwa funkcji
+            func: Funkcja do zarejestrowania
+            description: Opis funkcji
+        """
+        self.register_function(name, func, description)
+        await self.save()
+
+    def _calculate_function_hash(self, func: Callable) -> str:
+        """Oblicza hash funkcji na podstawie jej kodu"""
+        import inspect
+        import hashlib
+        
+        try:
+            source = inspect.getsource(func)
+            return hashlib.sha256(source.encode()).hexdigest()[:16]
+        except:
+            # Fallback dla built-in functions
+            return hashlib.sha256(str(func).encode()).hexdigest()[:16]
+
+    async def load_functions_from_genotype(self):
+        """
+        Ładuje funkcje z genotypu do lokalnego rejestru.
+        Ta metoda musi być wywołana po załadowaniu Soul z bazy danych.
+        """
+        functions_def = self.genotype.get("functions", {})
+        
+        for func_name, func_info in functions_def.items():
+            if func_name not in self._function_registry:
+                # Funkcja nie jest załadowana - próbuj znaleźć ją w globalnym rejestrze
+                loaded_func = await self._load_function_by_hash(func_info.get("function_hash"))
+                if loaded_func:
+                    self._function_registry[func_name] = loaded_func
+                else:
+                    print(f"⚠️ Warning: Function '{func_name}' from genotype not found in registry")
+
+    async def _load_function_by_hash(self, function_hash: str) -> Optional[Callable]:
+        """
+        Ładuje funkcję na podstawie jej hash z globalnego rejestru funkcji.
+        
+        Args:
+            function_hash: Hash funkcji
+            
+        Returns:
+            Funkcja lub None jeśli nie znaleziono
+        """
+        from ..core.function_registry import function_registry
+        return function_registry.get_function(function_hash)
+
     def _get_function_signature(self, func: Callable) -> Dict[str, Any]:
         """Pobiera sygnaturę funkcji"""
         try:
@@ -454,8 +548,18 @@ class Soul:
         # Utwórz Soul
         soul = await cls.create(function_genotype, alias or f"function_{name}")
         
-        # Załaduj funkcję do rejestru (bez modyfikacji genotypu)
+        # Zarejestruj funkcję w globalnym rejestrze
+        from ..core.function_registry import function_registry
+        func_hash = function_registry.register_function(func, name)
+        
+        # Zaktualizuj genotyp z poprawnym hashem
+        soul.genotype["functions"][name]["function_hash"] = func_hash
+        
+        # Załaduj funkcję do lokalnego rejestru
         soul._register_immutable_function(name, func)
+        
+        # Zapisz zaktualizowany genotyp
+        await soul.save()
         
         return soul
 

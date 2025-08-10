@@ -25,9 +25,10 @@ import time
 # Importuj logger i sesje
 import logging
 from luxdb.core.logger import logger
-from luxdb.core.session_assistant import session_manager
+from luxdb.core.session_assistant import SessionAssistant
 from luxdb.core.auth_session import auth_manager
 from luxdb.ai_lux_assistant import LuxAssistant # Import LuxAssistant
+from luxdb.core.function_registry import function_registry
 
 class LuxOSUnifiedSystem:
     """Zunifikowany system startowy LuxOS"""
@@ -268,6 +269,19 @@ class LuxOSUnifiedSystem:
         """Pełne uruchomienie systemu"""
         self.log("SUCCESS", "🌟 ROZPOCZĘCIE URUCHOMIENIA LUXOS SYSTEM", "MAIN")
         self.log("INFO", "=" * 60, "MAIN")
+
+        # Zarejestruj podstawowe funkcje systemowe
+        def system_info() -> dict:
+            """Zwraca informacje o systemie"""
+            import platform
+            return {
+                "platform": platform.system(),
+                "python_version": platform.python_version(),
+                "luxdb_version": "1.0.0"
+            }
+
+        function_registry.register_function(system_info, "system_info")
+        print("✅ Zarejestrowano podstawowe funkcje systemowe")
 
         # Inicjalizacja komponentów
         db_success = await self.initialize_database()
