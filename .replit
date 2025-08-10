@@ -1,3 +1,4 @@
+
 entrypoint = "main.py"
 modules = ["python-3.11"]
 
@@ -12,173 +13,13 @@ language = "python3"
 requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
-run = ["python3", "main.py"]
+run = ["python3", "main.py", "--mode=full"]
 deploymentTarget = "cloudrun"
 
 [workflows]
 runButton = "LuxOS Full System"
 
-[[workflows.workflow]]
-name = "Start LuxOS Server"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py"
-
-[[workflows.workflow]]
-name = "Start LuxOS Server (Port 3000)"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py"
-
-[[workflows.workflow]]
-name = "landing"
-mode = "sequential"
-author = 43346420
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py"
-
-[[workflows.workflow]]
-name = "Demo Landing (app_v2)"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python demo_landing.py"
-
-[[workflows.workflow]]
-name = "Demo Landing FastAPI"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python demo_landing.py"
-
-[[workflows.workflow]]
-name = "Lux AI Assistant Demo"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python demo_lux_assistant.py"
-
-[[workflows.workflow]]
-name = "Lux Web Interface"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python -m luxdb.web_lux_interface"
-
-[[workflows.workflow]]
-name = "LuxOS Quick Start"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py --status"
-
-[[workflows.workflow]]
-name = "LuxOS Kernel System"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python start.py"
-
-[[workflows.workflow]]
-name = "LuxOS Demo System"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python demo_simple_system.py"
-
-[[workflows.workflow]]
-name = "LuxOS Unified Onboarding"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python demo_lux_onboarding.py"
-
-[[workflows.workflow]]
-name = "Luxunda Landing"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python demo_lux_onboarding.py"
-
-[[workflows.workflow]]
-name = "Admin Kernel Server"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python admin_kernel_server.py"
-
-[[workflows.workflow]]
-name = "Demo Lux Assistant"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python demo_lux_assistant.py"
-
-[[workflows.workflow]]
-name = "LuxOS Full Wake Up"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python luxos_wake_up.py"
-
-[[workflows.workflow]]
-name = "LuxOS Status Check"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python luxos_status.py"
-
-[[workflows.workflow]]
-name = "LuxOS Bootstrap Start"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python start.py --bootstrap"
-
-[[workflows.workflow]]
-name = "Database Cleanup"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python database_cleanup.py"
+# === GŁÓWNE WORKFLOW'Y SYSTEMU ===
 
 [[workflows.workflow]]
 name = "LuxOS Full System"
@@ -190,6 +31,15 @@ task = "shell.exec"
 args = "python main.py --mode=full --bootstrap"
 
 [[workflows.workflow]]
+name = "LuxOS Quick Status"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py --status"
+
+[[workflows.workflow]]
 name = "LuxOS Interactive Mode"
 author = 43346420
 mode = "sequential"
@@ -198,8 +48,68 @@ mode = "sequential"
 task = "shell.exec"
 args = "python main.py --interactive"
 
+# === SERWERY I INTERFEJSY ===
+
 [[workflows.workflow]]
-name = "Run Complete Test Certification"
+name = "Admin Kernel Server"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python admin_kernel_server.py"
+
+[[workflows.workflow]]
+name = "Lux Web Interface"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -m luxdb.web_lux_interface"
+
+# === DEMO I PREZENTACJE ===
+
+[[workflows.workflow]]
+name = "Demo Lux Assistant"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python demo_lux_assistant.py"
+
+[[workflows.workflow]]
+name = "Demo Landing Page"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python demo_landing.py"
+
+[[workflows.workflow]]
+name = "Demo Simple System"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python demo_simple_system.py"
+
+[[workflows.workflow]]
+name = "Demo Lux Onboarding"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python demo_lux_onboarding.py"
+
+# === TESTY I DIAGNOSTYKA ===
+
+[[workflows.workflow]]
+name = "Run Complete Tests"
 author = 43346420
 mode = "sequential"
 
@@ -225,57 +135,59 @@ mode = "sequential"
 task = "shell.exec"
 args = "python run_tests.py --evolution-only"
 
+[[workflows.workflow]]
+name = "LuxOS Status Check"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python luxos_status.py"
+
+# === ZARZĄDZANIE BAZĄ DANYCH ===
+
+[[workflows.workflow]]
+name = "Database Cleanup"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python database_cleanup.py"
+
+# === LEGACY SYSTEMY ===
+
+[[workflows.workflow]]
+name = "Legacy Kernel System"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python start.py"
+
+[[workflows.workflow]]
+name = "Legacy Bootstrap Start"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python start.py --bootstrap"
+
+# === PORTY ===
+
 [[ports]]
 localPort = 3000
 externalPort = 3000
-
-[[ports]]
-localPort = 3001
-externalPort = 6800
 
 [[ports]]
 localPort = 3030
 externalPort = 8081
 
 [[ports]]
-localPort = 3089
-externalPort = 3002
-
-[[ports]]
-localPort = 3179
-externalPort = 5173
-
-[[ports]]
-localPort = 4126
-externalPort = 4200
-
-[[ports]]
-localPort = 4393
-externalPort = 6000
-
-[[ports]]
-localPort = 4769
-externalPort = 8080
-
-[[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 5199
-externalPort = 5000
-
-[[ports]]
-localPort = 5366
-externalPort = 3003
-
-[[ports]]
-localPort = 5601
-externalPort = 8008
-
-[[ports]]
-localPort = 5691
-externalPort = 3001
 
 [[ports]]
 localPort = 8000
