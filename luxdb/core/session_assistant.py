@@ -57,33 +57,24 @@ class SessionAssistant:
         """Inicjalizuje asystenta dla sesji"""
         await self.lux_core.initialize()
 
-        # Utwórz Being dla tej sesji asystenta
-        session_genotype = {
-            "genesis": {
-                "name": f"session_assistant_{self.session.session_id}",
-                "type": "session_assistant",
-                "version": "1.0.0",
-                "description": f"Asystent sesji dla użytkownika {self.session.user_fingerprint}"
-            },
-            "attributes": {
-                "session_context": {"py_type": "dict"},
-                "active_events": {"py_type": "List[str]"},
-                "user_actions": {"py_type": "List[dict]"},
-                "conversation_threads": {"py_type": "dict"}
-            }
-        }
-
-        soul = await Soul.create(session_genotype, alias=f"session_soul_{self.session.session_id}")
+        # Użyj istniejącego Soul dla asystentów sesji
+        soul = await self._get_or_create_session_soul()
+        
+        # Utwórz Being dla tej konkretnej sesji
         self.assistant_being = await Being.create(
             soul,
             {
-                "session_context": self.session.__dict__,
-                "active_events": [],
-                "user_actions": [],
-                "conversation_threads": {}
+                "session_id": self.session.session_id,
+                "user_fingerprint": self.session.user_fingerprint,
+                "user_ulid": self.session.user_ulid,
+                "created_at": self.session.created_at.isoformat(),
+                "status": "active"
             },
             alias=f"session_assistant_{self.session.session_id}"
         )
+
+        # Utwórz relacje sesji
+        await self._create_session_relations()
 
         # Rozpocznij nasłuchiwanie eventów
         await self.start_event_monitoring()
@@ -193,8 +184,69 @@ class SessionAssistant:
             print(f"❌ Błąd przetwarzania wiadomości: {e}")
             return f"Przepraszam, wystąpił błąd podczas przetwarzania wiadomości: {str(e)}"
 
+    async def _get_or_create_session_soul(self) -> Soul:
+        """Pobiera lub tworzy standardowy Soul dla asystentów sesji"""
+        try:
+            soul = await Soul.get_by_alias("session_assistant")
+            if soul:
+                return soul
+        except Exception as e:
+            print(f"⚠️ Nie można załadować istniejącej Soul: {e}")
+
+        # Utwórz standardowy genotyp dla asystentów sesji
+        session_genotype = {
+            "genesis": {
+                "name": "session_assistant",
+                "type": "session_assistant",
+                "version": "1.0.0",
+                "description": "Standardowy asystent sesji użytkownika"
+            },
+            "attributes": {
+                "session_id": {"py_type": "str", "required": True},
+                "user_fingerprint": {"py_type": "str", "required": True},
+                "user_ulid": {"py_type": "str", "required": False},
+                "created_at": {"py_type": "str", "required": True},
+                "status": {"py_type": "str", "default": "active"}
+            }
+        }
+
+        try:
+            return await Soul.create(session_genotype, alias="session_assistant")
+        except Exception as e:
+            print(f"❌ Błąd tworzenia Soul dla asystenta sesji: {e}")
+            raise e
+
+    async def _create_session_relations(self):
+        """Tworzy relacje dla sesji"""
+        # Relacja użytkownik -> sesja
+        if self.session.user_ulid:
+            await Relationship.create(
+                source_ulid=self.session.user_ulid,
+                target_ulid=self.assistant_being.ulid,
+                relation_type="owns_session",
+                strength=1.0,
+                metadata={
+                    "session_id": self.session.session_id,
+                    "fingerprint": self.session.user_fingerprint,
+                    "created_at": datetime.now().isoformat()
+                }
+            )
+
+        # Relacja fingerprint -> sesja
+        await Relationship.create(
+            source_ulid=self.session.user_fingerprint,
+            target_ulid=self.assistant_being.ulid,
+            relation_type="browser_session",
+            strength=1.0,
+            metadata={
+                "session_id": self.session.session_id,
+                "user_ulid": self.session.user_ulid,
+                "created_at": datetime.now().isoformat()
+            }
+        )
+
     async def create_contextual_message(self, content: str, role: str = "user") -> Message:
-        """Tworzy wiadomość z kontekstowymi relacjami z zachowaniem kolejności"""
+        """Tworzy wiadomość z relacjami do sesji"""
         # Zapewnij sekwencyjne tworzenie wiadomości
         with self._message_lock:
             message = await Message.create(
@@ -205,11 +257,24 @@ class SessionAssistant:
                 conversation_id=self.session.session_id
             )
 
+        # Główna relacja: wiadomość należy do sesji
+        await Relationship.create(
+            source_ulid=self.assistant_being.ulid,  # sesja
+            target_ulid=message.ulid,               # wiadomość
+            relation_type="contains_message",
+            strength=1.0,
+            metadata={
+                "session_id": self.session.session_id,
+                "message_role": role,
+                "timestamp": datetime.now().isoformat()
+            }
+        )
+
         # Dodaj relacje do aktywnych projektów
         for project_tag in self.session.project_tags:
             await Relationship.create(
                 source_ulid=message.ulid,
-                target_ulid=project_tag,  # Możesz stworzyć Being dla projektu
+                target_ulid=project_tag,
                 relation_type="relates_to_project",
                 strength=1.0,
                 metadata={
@@ -220,7 +285,7 @@ class SessionAssistant:
             )
 
         # Dodaj relacje do ostatnich eventów
-        for event_ulid in self.session.active_events[-5:]:  # Ostatnie 5 eventów
+        for event_ulid in self.session.active_events[-5:]:
             await Relationship.create(
                 source_ulid=message.ulid,
                 target_ulid=event_ulid,
@@ -236,7 +301,7 @@ class SessionAssistant:
 
     async def get_recent_messages(self, limit: int = 10, author_ulid: str = None) -> List:
         """
-        Pobiera ostatnie wiadomości z konwersacji.
+        Pobiera ostatnie wiadomości z sesji przez relacje.
         
         Args:
             limit: Maksymalna liczba wiadomości
@@ -248,24 +313,82 @@ class SessionAssistant:
         try:
             from ..models.message import Message
             
-            if author_ulid:
-                # Pobierz wiadomości konkretnego autora w tej sesji
-                messages = await Message.get_by_author_in_session(
-                    author_ulid=author_ulid,
-                    fingerprint=self.session.user_fingerprint,
-                    limit=limit
-                )
-            else:
-                # Pobierz całą historię konwersacji dla tego fingerprint
-                messages = await Message.get_conversation_history(
-                    fingerprint=self.session.user_fingerprint,
-                    limit=limit
-                )
+            # Znajdź wszystkie wiadomości powiązane z tą sesją
+            relationships = await Relationship.get_all()
+            session_message_ulids = []
             
-            return messages
+            for rel in relationships:
+                if (rel.source_ulid == self.assistant_being.ulid and 
+                    rel.relation_type == "contains_message"):
+                    session_message_ulids.append(rel.target_ulid)
+            
+            # Opcjonalnie filtruj po autorze
+            if author_ulid:
+                filtered_ulids = []
+                for rel in relationships:
+                    if (rel.source_ulid == author_ulid and 
+                        rel.relation_type == "authored" and
+                        rel.target_ulid in session_message_ulids):
+                        filtered_ulids.append(rel.target_ulid)
+                session_message_ulids = filtered_ulids
+            
+            # Pobierz wiadomości
+            messages = []
+            for message_ulid in session_message_ulids:
+                message = await Message.load_by_ulid(message_ulid)
+                if message:
+                    messages.append(message)
+            
+            # Sortuj chronologicznie po sequence_number
+            messages.sort(key=lambda m: getattr(m, 'sequence_number', 0))
+            
+            return messages[-limit:] if len(messages) > limit else messages
+            
         except Exception as e:
-            print(f"⚠️ Błąd pobierania historii wiadomości: {e}")
+            print(f"⚠️ Błąd pobierania historii wiadomości przez relacje: {e}")
             return []
+
+    async def get_user_last_active_session(self, user_identifier: str) -> Optional['SessionAssistant']:
+        """
+        Znajduje ostatnią aktywną sesję użytkownika przez relacje.
+        
+        Args:
+            user_identifier: ULID użytkownika lub fingerprint
+            
+        Returns:
+            Ostatni aktywny SessionAssistant lub None
+        """
+        try:
+            relationships = await Relationship.get_all()
+            user_sessions = []
+            
+            # Znajdź wszystkie sesje użytkownika
+            for rel in relationships:
+                if (rel.source_ulid == user_identifier and 
+                    rel.relation_type in ["owns_session", "browser_session"]):
+                    session_being_ulid = rel.target_ulid
+                    session_being = await Being.load_by_ulid(session_being_ulid)
+                    if session_being and getattr(session_being, 'status', '') == 'active':
+                        user_sessions.append({
+                            'session_being': session_being,
+                            'created_at': getattr(session_being, 'created_at', ''),
+                            'session_id': getattr(session_being, 'session_id', '')
+                        })
+            
+            if not user_sessions:
+                return None
+            
+            # Znajdź najnowszą sesję
+            latest_session = max(user_sessions, key=lambda s: s['created_at'])
+            
+            # Sprawdź czy sesja istnieje w session_manager
+            # Tu można dodać logikę pobierania z session_manager
+            
+            return None  # Placeholder - można rozbudować
+            
+        except Exception as e:
+            print(f"⚠️ Błąd wyszukiwania ostatniej sesji użytkownika: {e}")
+            return None
 
     async def get_conversation_context_for_ai(self, limit: int = 10) -> str:
         """
@@ -517,10 +640,60 @@ class SessionManager:
         """Pobiera sesję asystenta"""
         session = self.sessions.get(session_id)
         if session and not session.is_active:
-            # Opcjonalnie: można próbować reaktywować sesję lub zwrócić błąd
             print(f"⚠️ Sesja {session_id} jest nieaktywna (offline).")
             return None
         return session
+
+    async def get_user_active_session(self, user_identifier: str) -> Optional[SessionAssistant]:
+        """
+        Znajdź aktywną sesję użytkownika przez relacje.
+        
+        Args:
+            user_identifier: ULID użytkownika lub browser fingerprint
+            
+        Returns:
+            Aktywna sesja użytkownika lub None
+        """
+        try:
+            relationships = await Relationship.get_all()
+            
+            # Znajdź sesje powiązane z użytkownikiem
+            for rel in relationships:
+                if (rel.source_ulid == user_identifier and 
+                    rel.relation_type in ["owns_session", "browser_session"]):
+                    
+                    session_being_ulid = rel.target_ulid
+                    session_being = await Being.load_by_ulid(session_being_ulid)
+                    
+                    if session_being:
+                        session_id = getattr(session_being, 'session_id', None)
+                        if session_id and session_id in self.sessions:
+                            active_session = self.sessions[session_id]
+                            if active_session.is_active:
+                                return active_session
+            
+            return None
+            
+        except Exception as e:
+            print(f"⚠️ Błąd wyszukiwania aktywnej sesji użytkownika: {e}")
+            return None
+
+    async def get_session_messages_chronologically(self, session_id: str, limit: int = 50) -> List:
+        """
+        Pobiera wszystkie wiadomości sesji uporządkowane chronologicznie.
+        
+        Args:
+            session_id: ID sesji
+            limit: Maksymalna liczba wiadomości
+            
+        Returns:
+            Lista wiadomości user + AI chronologicznie
+        """
+        session = await self.get_session(session_id)
+        if not session:
+            return []
+        
+        return await session.get_recent_messages(limit=limit)
 
     async def cleanup_expired_sessions(self):
         """Usuwa wygasłe sesje"""
