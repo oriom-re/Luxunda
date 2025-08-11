@@ -211,8 +211,12 @@ class Being:
         return await cls.create(target_soul, alias=alias, attributes=attributes)
 
     @classmethod
-    async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
-        """Tworzy nowy Being na podstawie Soul - z kompatybilnością wsteczną"""
+    async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, persistent: bool = True) -> 'Being':
+        """Tworzy nowy Being na podstawie Soul - z kompatybilnością wsteczną
+        
+        Args:
+            persistent: Czy Being ma być zapisywane do bazy danych
+        """
 
         # Backward compatibility handling
         if soul is not None:
@@ -258,13 +262,18 @@ class Being:
             if key != 'attributes':
                 setattr(being, key, value)
 
-        # Zapis do bazy danych
-        from ..repository.soul_repository import BeingRepository
-        await BeingRepository.insert_data_transaction(being, target_soul.genotype)
+        # Zapis do bazy danych tylko jeśli persistent=True
+        if persistent:
+            from ..repository.soul_repository import BeingRepository
+            await BeingRepository.insert_data_transaction(being, target_soul.genotype)
 
-        # Przypisanie do strefy dostępu
-        from ..core.access_control import access_controller
-        access_controller.assign_being_to_zone(being.ulid, being.access_zone) # Use the being's access_zone
+            # Przypisanie do strefy dostępu
+            from ..core.access_control import access_controller
+            access_controller.assign_being_to_zone(being.ulid, being.access_zone)
+        else:
+            # Dla nietrwałych Being, dodaj flagę w danych
+            being.data['_persistent'] = False
+            print(f"💨 Created transient being: {being.alias} (not persisted)")
 
         # *** AUTOMATYCZNA INICJALIZACJA PO UTWORZENIU ***
         await being._auto_initialize_after_creation(target_soul)
@@ -770,6 +779,10 @@ class Being:
         if not self.ttl_expires:
             return False
         return datetime.now() > self.ttl_expires
+
+    def is_persistent(self) -> bool:
+        """Sprawdza czy Being jest zapisywane do bazy danych"""
+        return self.data.get('_persistent', True)
 
     def extend_ttl(self, hours: int):
         """Przedłuża TTL bytu"""
