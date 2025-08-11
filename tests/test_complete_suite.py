@@ -18,6 +18,7 @@ from test_being_operations import run_being_tests
 from test_system_initialization import run_initialization_tests
 from test_core_functionality import run_luxdb_tests
 from test_integration import run_integration_tests
+from test_integration_soul_being_functions import run_integration_tests as run_soul_being_function_tests
 
 
 class CompleteTestSuite:
@@ -43,6 +44,7 @@ class CompleteTestSuite:
             ("🔧 System Initialization", run_initialization_tests),
             ("🧠 Soul Operations", run_soul_tests),
             ("🤖 Being Operations", run_being_tests),
+            ("🔄 Soul+Being+Functions Integration", run_soul_being_function_tests),
             ("⚙️  Core Functionality", run_luxdb_tests),
             ("🔗 Integration Tests", run_integration_tests)
         ]
