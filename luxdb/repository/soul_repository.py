@@ -6,18 +6,18 @@
 from typing import Dict, Any, Optional, List
 import json
 from database.postgre_db import Postgre_db
-from core.globals import Globals
+from luxdb.core.globals import Globals
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from database.models.base import Being
-    from database.models.base import Soul
+    from luxdb.models.soul import Soul
+    from luxdb.models.being import Being
 
 def get_soul_class():
-    from database.models.base import Soul
+    from luxdb.models.soul import Soul
     return Soul
 
 def get_being_class():
-    from database.models.base import Being
+    from luxdb.models.being import Being
     return Being
 
 class SoulRepository:
