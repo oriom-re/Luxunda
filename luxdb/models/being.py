@@ -784,6 +784,101 @@ class Being:
         """Sprawdza czy Being jest zapisywane do bazy danych"""
         return self.data.get('_persistent', True)
 
+    async def evolve_to_soul(self, new_genotype_changes: Dict[str, Any] = None, new_alias: str = None) -> Dict[str, Any]:
+        """
+        Being ewoluuje w nową Soul na podstawie swoich doświadczeń i danych.
+        
+        Args:
+            new_genotype_changes: Zmiany w genotypie dla nowej Soul
+            new_alias: Nowy alias dla Soul
+            
+        Returns:
+            Wynik ewolucji w formacie genetycznym
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        from .soul import Soul
+        
+        try:
+            current_soul = await self.get_soul()
+            if not current_soul:
+                return GeneticResponseFormat.error_response(
+                    error="Cannot evolve Being without Soul",
+                    error_code="SOUL_NOT_FOUND"
+                )
+
+            # Przygotuj nowy genotyp na podstawie doświadczeń Being
+            evolved_genotype = current_soul.genotype.copy()
+            
+            # Dodaj informacje o ewolucji z Being
+            if "genesis" not in evolved_genotype:
+                evolved_genotype["genesis"] = {}
+                
+            evolved_genotype["genesis"]["evolved_from_being"] = self.ulid
+            evolved_genotype["genesis"]["being_alias"] = self.alias
+            evolved_genotype["genesis"]["evolution_timestamp"] = datetime.now().isoformat()
+            evolved_genotype["genesis"]["evolution_trigger"] = "being_to_soul"
+            
+            # Włącz dane z Being jako nowe atrybuty genotypu
+            if "attributes" not in evolved_genotype:
+                evolved_genotype["attributes"] = {}
+                
+            # Dodaj doświadczenia Being jako atrybuty
+            for key, value in self.data.items():
+                if not key.startswith('_'):  # Pomijaj metadane
+                    attr_name = f"inherited_{key}"
+                    evolved_genotype["attributes"][attr_name] = {
+                        "py_type": type(value).__name__,
+                        "default": value,
+                        "description": f"Inherited from Being {self.alias}"
+                    }
+            
+            # Zastosuj dodatkowe zmiany
+            if new_genotype_changes:
+                for key, value in new_genotype_changes.items():
+                    if "." in key:  # Nested path
+                        keys = key.split(".")
+                        current = evolved_genotype
+                        for k in keys[:-1]:
+                            if k not in current:
+                                current[k] = {}
+                            current = current[k]
+                        current[keys[-1]] = value
+                    else:
+                        evolved_genotype[key] = value
+
+            # Utwórz nową Soul
+            new_soul = await Soul.create(
+                genotype=evolved_genotype,
+                alias=new_alias or f"evolved_{self.alias}"
+            )
+
+            # Zaktualizuj informacje w Being
+            self.data['_evolved_to_soul'] = new_soul.soul_hash
+            self.data['_evolution_timestamp'] = datetime.now().isoformat()
+            await self.save()
+
+            return GeneticResponseFormat.success_response(
+                data={
+                    "evolution_successful": True,
+                    "new_soul": new_soul.to_json_serializable(),
+                    "source_being": {
+                        "ulid": self.ulid,
+                        "alias": self.alias
+                    }
+                },
+                soul_context={
+                    "new_soul_hash": new_soul.soul_hash,
+                    "source_soul_hash": current_soul.soul_hash,
+                    "evolution_type": "being_to_soul"
+                }
+            )
+
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Being evolution failed: {str(e)}",
+                error_code="BEING_EVOLUTION_ERROR"
+            )
+
     def extend_ttl(self, hours: int):
         """Przedłuża TTL bytu"""
         if self.ttl_expires:

@@ -425,6 +425,92 @@ class Soul:
                 soul_context={"soul_hash": self.soul_hash, "function_name": name}
             )
 
+    def should_create_persistent_being(self, attributes: Dict[str, Any] = None) -> bool:
+        """
+        Decyduje czy Being powinno być trwałe na podstawie obecności atrybutów.
+        
+        Args:
+            attributes: Atrybuty do sprawdzenia
+            
+        Returns:
+            True jeśli Being powinno być zapisywane
+        """
+        # Bez atrybutów = tymczasowe wykonanie
+        if not attributes:
+            return False
+            
+        # Z atrybutami = trwały Being
+        return True
+
+    async def execute_or_create_being(self, function_name: str = None, attributes: Dict[str, Any] = None, alias: str = None, *args, **kwargs) -> Dict[str, Any]:
+        """
+        Inteligentnie decyduje czy wykonać funkcję bezpośrednio czy utworzyć Being.
+        
+        Args:
+            function_name: Nazwa funkcji do wykonania (opcjonalne)
+            attributes: Atrybuty dla potencjalnego Being
+            alias: Alias dla potencjalnego Being
+            *args, **kwargs: Argumenty dla funkcji
+            
+        Returns:
+            Wynik operacji w formacie genetycznym
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        # Sprawdź czy potrzebne Being
+        if self.should_create_persistent_being(attributes):
+            # Utwórz trwały Being z atrybutami
+            from .being import Being
+            
+            being = await Being.create(
+                soul=self,
+                attributes=attributes,
+                alias=alias,
+                persistent=True
+            )
+            
+            # Jeśli podano funkcję - wykonaj ją przez Being
+            if function_name:
+                result = await being.execute_soul_function(function_name, *args, **kwargs)
+                
+                return GeneticResponseFormat.success_response(
+                    data={
+                        "being_created": True,
+                        "being": being.to_json_serializable(),
+                        "function_result": result.get('data', {})
+                    },
+                    soul_context={
+                        "soul_hash": self.soul_hash,
+                        "execution_mode": "persistent_being"
+                    }
+                )
+            else:
+                return GeneticResponseFormat.success_response(
+                    data={
+                        "being_created": True,
+                        "being": being.to_json_serializable()
+                    },
+                    soul_context={
+                        "soul_hash": self.soul_hash,
+                        "execution_mode": "persistent_being"
+                    }
+                )
+        else:
+            # Bez atrybutów = bezpośrednie wykonanie funkcji
+            if function_name:
+                result = await self.execute_function(function_name, *args, **kwargs)
+                
+                # Dodaj informację o trybie wykonania
+                if result.get('success'):
+                    result['soul_context']['execution_mode'] = 'direct_function'
+                
+                return result
+            else:
+                return GeneticResponseFormat.error_response(
+                    error="No function specified for execution",
+                    error_code="NO_FUNCTION_SPECIFIED"
+                )
+
     @classmethod
     async def create_function_soul(cls, name: str, func: Callable, description: str = None, alias: str = None, version: str = "1.0.0") -> 'Soul':
         """
