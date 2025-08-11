@@ -12,7 +12,6 @@ import ulid
 
 from ..models.being import Being
 from ..models.soul import Soul
-from ..models.event import Event
 from ..models.message import Message
 from ..models.relationship import Relationship
 from ..ai_lux_assistant import LuxAssistant
@@ -26,7 +25,6 @@ class SessionContext:
     created_at: datetime = field(default_factory=datetime.now)
     last_activity: datetime = field(default_factory=datetime.now)
     ttl_minutes: int = 30
-    active_events: List[str] = field(default_factory=list)
     user_actions: List[Dict[str, Any]] = field(default_factory=list)
     conversation_context: Dict[str, Any] = field(default_factory=dict)
     project_tags: Set[str] = field(default_factory=set)
@@ -48,7 +46,6 @@ class SessionAssistant:
     def __init__(self, session_context: SessionContext, openai_api_key: str = None):
         self.session = session_context
         self.lux_core = LuxAssistant(openai_api_key or "demo-key")
-        self.event_listeners: List[str] = []
         self.is_active = True
         self.offline_mode = False
         
@@ -84,70 +81,21 @@ class SessionAssistant:
             alias=f"session_assistant_{self.session.session_id}"
         )
         
-        # Rozpocznij nasłuchiwanie eventów
-        await self.start_event_monitoring()
-        
         print(f"🤖 Session Assistant initialized for session {self.session.session_id}")
     
-    async def start_event_monitoring(self):
-        """Rozpoczyna monitorowanie eventów użytkownika"""
-        # Znajdź wszystkie active eventy
-        all_events = await Event.get_all()
-        
-        for event in all_events:
-            if (hasattr(event, 'status') and event.status == 'active' and
-                self._is_user_related_event(event)):
-                await self.track_event(event)
-    
-    def _is_user_related_event(self, event: Event) -> bool:
-        """Sprawdza czy event jest związany z tym użytkownikiem"""
-        # Implementuj logikę sprawdzania czy event dotyczy tego użytkownika
-        # Na podstawie fingerprint, user_ulid, lub innych metadanych
-        event_metadata = getattr(event, 'payload', {})
-        return (
-            event_metadata.get('user_fingerprint') == self.session.user_fingerprint or
-            event_metadata.get('user_ulid') == self.session.user_ulid
-        )
-    
-    async def track_event(self, event: Event):
-        """Śledzi nowy event użytkownika"""
-        self.session.active_events.append(event.ulid)
-        
-        # Dodaj do kontekstu działań użytkownika
-        action_context = {
-            "timestamp": datetime.now().isoformat(),
-            "event_type": event.event_type,
-            "event_ulid": event.ulid,
-            "payload": getattr(event, 'payload', {}),
-            "status": getattr(event, 'status', 'unknown')
-        }
-        
-        self.session.user_actions.append(action_context)
-        
-        # Analizuj tagi projektowe
-        await self.analyze_project_tags(action_context)
-        
-        # Odśwież aktywność
-        self.session.refresh_activity()
-        
-        print(f"📊 Tracked event {event.event_type} for session {self.session.session_id}")
-    
-    async def analyze_project_tags(self, action_context: Dict[str, Any]):
-        """Analizuje i dodaje tagi projektowe"""
-        payload = action_context.get('payload', {})
-        event_type = action_context.get('event_type', '')
+    async def analyze_project_tags(self, content: str):
+        """Analizuje i dodaje tagi projektowe na podstawie treści"""
+        content_lower = content.lower()
         
         # Proste reguły tagowania (można rozbudować o AI)
-        if 'luxunda' in str(payload).lower() or 'luxunda' in event_type.lower():
+        if 'luxunda' in content_lower:
             self.session.project_tags.add('luxunda')
         
-        if 'deployment' in event_type.lower():
+        if 'deployment' in content_lower:
             self.session.project_tags.add('deployment')
         
-        if 'database' in event_type.lower():
+        if 'database' in content_lower or 'soul' in content_lower or 'being' in content_lower:
             self.session.project_tags.add('database')
-        
-        # Dodaj więcej reguł...
     
     async def process_message(self, message_content: str) -> str:
         """Przetwarza wiadomość użytkownika z fragmentami i pamięcią"""
@@ -157,67 +105,31 @@ class SessionAssistant:
         # Odśwież aktywność
         self.session.refresh_activity()
         
-        # Utwórz wiadomość jako Being z relacjami
-        message = await self.create_contextual_message(message_content)
+        # Analizuj tagi projektowe z wiadomości
+        await self.analyze_project_tags(message_content)
         
-        # Fragmentacja wiadomości na części
-        fragments = await MessageFragment.create_from_message(
-            message_content=message_content,
-            message_ulid=message.ulid,
-            author_ulid=self.session.user_ulid,
-            fingerprint=self.session.user_fingerprint,
-            conversation_id=self.session.session_id
-        )
+        # Dodaj do kontekstu działań użytkownika
+        action_context = {
+            "timestamp": datetime.now().isoformat(),
+            "action_type": "user_message",
+            "content": message_content[:100] + "..." if len(message_content) > 100 else message_content
+        }
         
-        # Pobierz istotne wspomnienia
-        relevant_memories = await MemoryCache.get_relevant_memories(
-            conversation_id=self.session.session_id,
-            author_ulid=self.session.user_ulid,
-            tags=list(self.session.project_tags),
-            min_importance=0.4,
-            time_limit_hours=12,
-            limit=8
-        )
+        self.session.user_actions.append(action_context)
         
-        # Zbuduj kontekst z fragmentów i pamięci
-        context = await self.build_enhanced_conversation_context(fragments, relevant_memories)
-        
-        # Przetwórz przez Lux z rozbudowanym kontekstem
+        # Przetwórz przez Lux z kontekstem sesji
         enhanced_prompt = f"""
         Kontekst sesji użytkownika:
         - Ostatnie działania: {self.get_recent_actions_summary()}
         - Aktywne projekty: {', '.join(self.session.project_tags)}
         - Czas sesji: {self.session.last_activity.strftime('%H:%M')}
         
-        Pamięć istotnych wydarzeń:
-        {self._format_memory_context(relevant_memories)}
-        
-        Fragmenty aktualnej wiadomości:
-        {self._format_fragments_context(fragments)}
-        
-        Aktywne eventy: {len(self.session.active_events)}
-        
         Wiadomość użytkownika: {message_content}
         
-        Odpowiedz jako Lux, uwzględniając pełną historię fragmentów, pamięć wydarzeń i aktualny kontekst.
+        Odpowiedz jako Lux, uwzględniając kontekst sesji użytkownika.
         """
         
         response = await self.lux_core.chat(enhanced_prompt)
-        
-        # Zapisz odpowiedź jako kolejną wiadomość z fragmentami
-        response_message = await self.create_contextual_message(response, role="assistant")
-        response_fragments = await MessageFragment.create_from_message(
-            message_content=response,
-            message_ulid=response_message.ulid,
-            author_ulid=None,  # Assistant
-            fingerprint=self.session.user_fingerprint,
-            conversation_id=self.session.session_id
-        )
-        
-        # Analizuj odpowiedź pod kątem nowych faktów do zapamiętania
-        await self.extract_and_store_insights(
-            message_content, response, fragments + response_fragments
-        )
         
         return response
     
@@ -245,18 +157,7 @@ class SessionAssistant:
                 }
             )
         
-        # Dodaj relacje do ostatnich eventów
-        for event_ulid in self.session.active_events[-5:]:  # Ostatnie 5 eventów
-            await Relationship.create(
-                source_ulid=message.ulid,
-                target_ulid=event_ulid,
-                relation_type="contextual_event",
-                strength=0.8,
-                metadata={
-                    "session_id": self.session.session_id,
-                    "context_type": "recent_activity"
-                }
-            )
+        
         
         return message
     
@@ -268,9 +169,10 @@ class SessionAssistant:
         
         summary = []
         for action in recent:
-            event_type = action.get('event_type', 'unknown')
+            action_type = action.get('action_type', 'unknown')
             timestamp = action.get('timestamp', '')
-            summary.append(f"- {event_type} ({timestamp[-8:-3]})")  # HH:MM format
+            content = action.get('content', '')
+            summary.append(f"- {action_type}: {content} ({timestamp[-8:-3]})")  # HH:MM format
         
         return '\n'.join(summary)
     
@@ -282,86 +184,10 @@ class SessionAssistant:
                 "activity_count": len(self.session.user_actions),
                 "project_tags": list(self.session.project_tags)
             },
-            "recent_activity": self.get_recent_actions_summary(),
-            "active_events_count": len(self.session.active_events)
+            "recent_activity": self.get_recent_actions_summary()
         }
     
-    async def build_enhanced_conversation_context(self, fragments: List, memories: List) -> Dict[str, Any]:
-        """Buduje rozszerzony kontekst z fragmentami i pamięcią"""
-        base_context = await self.build_conversation_context()
-        
-        base_context.update({
-            "message_fragments_count": len(fragments),
-            "relevant_memories_count": len(memories),
-            "memory_importance_avg": sum(getattr(m, 'importance_level', 0) for m in memories) / max(len(memories), 1),
-            "conversation_fragments": [getattr(f, 'content', '') for f in fragments[:5]]  # Pierwsze 5 fragmentów
-        })
-        
-        return base_context
     
-    def _format_memory_context(self, memories: List) -> str:
-        """Formatuje pamięć wydarzeń do kontekstu"""
-        if not memories:
-            return "Brak istotnych wspomnień z tej sesji."
-        
-        context_lines = []
-        for memory in memories[:5]:  # Top 5 najważniejszych
-            memory_type = getattr(memory, 'memory_type', 'unknown')
-            content = getattr(memory, 'content', '')
-            importance = getattr(memory, 'importance_level', 0)
-            context_lines.append(f"- [{memory_type.upper()}:{importance:.1f}] {content}")
-        
-        return '\n'.join(context_lines)
-    
-    def _format_fragments_context(self, fragments: List) -> str:
-        """Formatuje fragmenty wiadomości do kontekstu"""
-        if not fragments:
-            return "Brak fragmentów wiadomości."
-        
-        context_lines = []
-        for i, fragment in enumerate(fragments):
-            frag_type = getattr(fragment, 'fragment_type', 'unknown')
-            content = getattr(fragment, 'content', '')
-            context_lines.append(f"{i+1}. [{frag_type}] {content}")
-        
-        return '\n'.join(context_lines)
-    
-    async def extract_and_store_insights(self, user_message: str, assistant_response: str, all_fragments: List):
-        """Ekstraktuje i przechowuje istotne wglądy z rozmowy"""
-        from ..models.memory_cache import MemoryCache
-        
-        # Prosta heurystyka - szukaj faktów i ważnych stwierdzeń
-        insight_triggers = [
-            "ważne:", "pamiętaj:", "wydarzenie:", "problem:", "rozwiązanie:",
-            "ustalenie:", "decyzja:", "plan:", "status:", "aktualizacja:"
-        ]
-        
-        combined_text = f"{user_message} {assistant_response}".lower()
-        
-        for trigger in insight_triggers:
-            if trigger in combined_text:
-                # Znajdź kontekst wokół trigger'a
-                trigger_index = combined_text.find(trigger)
-                context_start = max(0, trigger_index - 50)
-                context_end = min(len(combined_text), trigger_index + 200)
-                context = combined_text[context_start:context_end].strip()
-                
-                # Utwórz pamięć z wyższą ważnością
-                await MemoryCache.create_memory(
-                    memory_type="fact" if trigger in ["ustalenie:", "decyzja:", "status:"] else "insight",
-                    content=context,
-                    importance_level=0.8 if trigger in ["ważne:", "decyzja:"] else 0.6,
-                    context_ulids=[f.ulid for f in all_fragments],
-                    conversation_id=self.session.session_id,
-                    author_ulid=self.session.user_ulid,
-                    tags=["auto_extracted", "conversation"] + list(self.session.project_tags),
-                    metadata={
-                        "trigger_word": trigger,
-                        "auto_extracted": True,
-                        "session_duration": int((datetime.now() - self.session.created_at).total_seconds() / 60)
-                    }
-                )
-                break  # Tylko jedna pamięć per wiadomość żeby nie spamować
     
     async def check_expiry(self) -> bool:
         """Sprawdza czy sesja wygasła i przełącza w tryb offline"""
@@ -381,15 +207,7 @@ class SessionAssistant:
         if hasattr(self, 'assistant_being'):
             await self.assistant_being.save()
     
-    async def handle_background_event(self, event: Event):
-        """Obsługuje eventy w trybie offline"""
-        if not self.offline_mode:
-            return
-        
-        # Logika dla eventów w tle
-        print(f"🔄 Background event processed: {event.event_type}")
-        
-        # Można dodać logikę zapisywania ważnych eventów do odtworzenia przy ponownym logowaniu
+    
 
 class SessionManager:
     """Manager wszystkich sesji asystentów"""
