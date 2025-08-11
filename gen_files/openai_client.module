@@ -1,0 +1,118 @@
+
+"""
+OpenAI Client Module for LuxDB Soul System
+Dynamic module with functions for OpenAI integration
+"""
+
+import openai
+from typing import Dict, Any, List, Optional
+from datetime import datetime
+
+# Global client instance
+_client = None
+_api_key = None
+_model = "gpt-4o-mini"
+
+def initialize_openai(api_key: str, model: str = "gpt-4o-mini"):
+    """Initialize OpenAI client with API key"""
+    global _client, _api_key, _model
+    _api_key = api_key
+    _model = model
+    _client = openai.OpenAI(api_key=api_key)
+    return {"success": True, "message": f"OpenAI client initialized with model {model}"}
+
+def is_initialized():
+    """Check if OpenAI client is initialized"""
+    return _client is not None
+
+def get_model():
+    """Get current model name"""
+    return _model
+
+def set_model(model: str):
+    """Set model for completions"""
+    global _model
+    _model = model
+    return {"success": True, "model": model}
+
+def completion(prompt: str, instruction: str = "You are a helpful assistant.", max_tokens: int = 150):
+    """
+    Basic completion function with instruction and prompt
+    Returns response from OpenAI
+    """
+    if not _client:
+        return {"error": "OpenAI client not initialized. Call initialize_openai first."}
+    
+    try:
+        messages = [
+            {"role": "system", "content": instruction},
+            {"role": "user", "content": prompt}
+        ]
+        
+        response = _client.chat.completions.create(
+            model=_model,
+            messages=messages,
+            max_tokens=max_tokens
+        )
+        
+        return {
+            "success": True,
+            "response": response.choices[0].message.content,
+            "model": _model,
+            "tokens_used": response.usage.total_tokens if response.usage else None,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {"error": f"OpenAI completion failed: {str(e)}"}
+
+def chat_completion(messages: List[Dict[str, str]], max_tokens: int = 150):
+    """
+    Advanced chat completion with message history
+    """
+    if not _client:
+        return {"error": "OpenAI client not initialized. Call initialize_openai first."}
+    
+    try:
+        response = _client.chat.completions.create(
+            model=_model,
+            messages=messages,
+            max_tokens=max_tokens
+        )
+        
+        return {
+            "success": True,
+            "response": response.choices[0].message.content,
+            "model": _model,
+            "tokens_used": response.usage.total_tokens if response.usage else None,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {"error": f"OpenAI chat completion failed: {str(e)}"}
+
+def test_connection():
+    """Test OpenAI connection with simple prompt"""
+    return completion(
+        prompt="Say 'Connection successful!'",
+        instruction="Respond exactly as requested.",
+        max_tokens=10
+    )
+
+# Module metadata for Soul system
+__module_info__ = {
+    "name": "OpenAI Client Module",
+    "version": "1.0.0",
+    "description": "Dynamic OpenAI integration for LuxDB Soul system",
+    "functions": [
+        "initialize_openai",
+        "is_initialized", 
+        "get_model",
+        "set_model",
+        "completion",
+        "chat_completion",
+        "test_connection"
+    ],
+    "requirements": ["openai"],
+    "author": "LuxDB System"
+}

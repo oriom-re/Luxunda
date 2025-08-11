@@ -319,6 +319,10 @@ class Soul:
         """Lista dostępnych funkcji"""
         return list(self._function_registry.keys())
 
+    def get_functions_count(self) -> int:
+        """Zwraca liczbę zarejestrowanych funkcji"""
+        return len(self._function_registry)
+
     def get_function_info(self, name: str) -> Optional[Dict[str, Any]]:
         """Pobiera informacje o funkcji"""
         if name in self.genotype.get("functions", {}):
