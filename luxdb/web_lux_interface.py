@@ -10,11 +10,13 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import json
+import os
+from typing import Optional
 import asyncio
+from datetime import datetime
 from luxdb.ai_lux_assistant import LuxAssistant
 from luxdb.core.session_assistant import session_manager, SessionManager
 from database.postgre_db import Postgre_db
-import os
 import hashlib
 
 app = FastAPI(title="Lux AI Assistant Web Interface")

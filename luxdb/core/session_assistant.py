@@ -12,8 +12,6 @@ import ulid
 
 from ..models.being import Being
 from ..models.soul import Soul
-from ..models.message import Message
-from ..models.relationship import Relationship
 from ..ai_lux_assistant import LuxAssistant
 
 @dataclass
@@ -98,9 +96,7 @@ class SessionAssistant:
             self.session.project_tags.add('database')
     
     async def process_message(self, message_content: str) -> str:
-        """Przetwarza wiadomość użytkownika z fragmentami i pamięcią"""
-        from ..models.message_fragment import MessageFragment
-        from ..models.memory_cache import MemoryCache
+        """Przetwarza wiadomość użytkownika"""
         
         # Odśwież aktywność
         self.session.refresh_activity()
@@ -133,33 +129,42 @@ class SessionAssistant:
         
         return response
     
-    async def create_contextual_message(self, content: str, role: str = "user") -> Message:
-        """Tworzy wiadomość z kontekstowymi relacjami"""
-        message = await Message.create(
-            content=content,
-            role=role,
-            author_ulid=self.session.user_ulid,
-            fingerprint=self.session.user_fingerprint,
-            conversation_id=self.session.session_id
+    async def create_contextual_data(self, content: str, role: str = "user") -> Being:
+        """Tworzy Being z danymi kontekstowymi"""
+        # Utwórz genotyp dla danych sesji
+        data_genotype = {
+            "genesis": {
+                "name": "session_data",
+                "type": "session_data",
+                "version": "1.0.0",
+                "description": "Dane z sesji użytkownika"
+            },
+            "attributes": {
+                "content": {"py_type": "str"},
+                "role": {"py_type": "str"},
+                "author_ulid": {"py_type": "str"},
+                "fingerprint": {"py_type": "str"},
+                "session_id": {"py_type": "str"},
+                "project_tags": {"py_type": "List[str]"}
+            }
+        }
+        
+        soul = await Soul.create(data_genotype, alias="session_data_soul")
+        
+        being = await Being.create(
+            soul.soul_hash,
+            {
+                "content": content,
+                "role": role,
+                "author_ulid": self.session.user_ulid,
+                "fingerprint": self.session.user_fingerprint,
+                "session_id": self.session.session_id,
+                "project_tags": list(self.session.project_tags)
+            },
+            alias=f"session_data_{self.session.session_id}"
         )
         
-        # Dodaj relacje do aktywnych projektów
-        for project_tag in self.session.project_tags:
-            await Relationship.create(
-                source_ulid=message.ulid,
-                target_ulid=project_tag,  # Możesz stworzyć Being dla projektu
-                relation_type="relates_to_project",
-                strength=1.0,
-                metadata={
-                    "project_tag": project_tag,
-                    "session_id": self.session.session_id,
-                    "timestamp": datetime.now().isoformat()
-                }
-            )
-        
-        
-        
-        return message
+        return being
     
     def get_recent_actions_summary(self) -> str:
         """Zwraca podsumowanie ostatnich działań"""
