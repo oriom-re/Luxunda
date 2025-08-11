@@ -372,34 +372,42 @@ class Being:
     async def _auto_initialize_after_creation(self, soul):
         """
         Automatyczna inicjalizacja Being po utworzeniu.
-        Używa nowej metody auto_init z Soul.
+        Being z funkcją init staje się masterem zarządzania swoimi funkcjami.
         """
         try:
             if soul.has_init_function():
-                print(f"Auto-initializing being {self.alias} with init function")
+                print(f"🧬 Auto-initializing master being {self.alias} with init function")
                 
                 # Przygotuj kontekst Being (NIE są to atrybuty!)
                 being_context = {
                     'ulid': self.ulid,
                     'alias': self.alias,
                     'creation_time': datetime.now().isoformat(),
-                    'data': self.data.copy()
+                    'data': self.data.copy(),
+                    'soul_functions': soul.list_functions(),
+                    'function_count': soul.get_functions_count()
                 }
                 
                 result = await soul.auto_init(being_context=being_context)
                 
                 if result.get('success'):
-                    print(f"Being {self.alias} successfully initialized")
-                    # Zapisz informację o inicjalizacji
+                    print(f"🎯 Being {self.alias} is now a function master - knows {soul.get_functions_count()} functions")
+                    # Being staje się masterem swoich funkcji
+                    self.data['_function_master'] = True
                     self.data['_initialized'] = True
                     self.data['_init_time'] = datetime.now().isoformat()
+                    self.data['_managed_functions'] = soul.list_functions()
+                    self.data['_function_signatures'] = {
+                        name: soul.get_function_info(name) for name in soul.list_functions()
+                    }
+                    
                     if self.is_persistent():
                         await self.save()
                 else:
-                    print(f"Being {self.alias} initialization failed: {result.get('error')}")
+                    print(f"❌ Being {self.alias} initialization failed: {result.get('error')}")
                     
         except Exception as e:
-            print(f"Auto-initialization failed for being {self.alias}: {e}")
+            print(f"💥 Auto-initialization failed for being {self.alias}: {e}")
 
     async def _initialize_dynamic_handlers(self, soul):
         """Inicjalizuje dynamiczne handlery z kodu źródłowego modułu Soul"""
@@ -535,10 +543,10 @@ class Being:
 
     async def execute(self, data: Dict[str, Any] = None, function: str = None, **kwargs) -> Dict[str, Any]:
         """
-        Wygodna metoda do wykonywania funkcji. 
+        Inteligentna metoda wykonywania funkcji - Being jako master swoich funkcji.
         
-        Jeśli nie podano function, wywołuje domyślną funkcję 'execute'.
-        Jeśli podano function, wywołuje tę konkretną funkcję.
+        Jeśli nie podano function, wywołuje inteligentną procedurę 'execute'.
+        Jeśli podano function, wywołuje tę konkretną funkcję manualnie.
         
         Args:
             data: Dane do przetworzenia (argument funkcji)
@@ -546,7 +554,7 @@ class Being:
             **kwargs: Dodatkowe argumenty dla funkcji
             
         Returns:
-            Wynik wykonania funkcji
+            Wynik wykonania funkcji z inteligentnymi decyzjami
         """
         soul = await self.get_soul()
         if not soul:
@@ -556,12 +564,121 @@ class Being:
                 error_code="SOUL_NOT_FOUND"
             )
 
-        if function:
-            # Wywołaj konkretną funkcję
-            return await self.execute_soul_function(function, data=data, **kwargs)
+        # Being jako function master
+        if self.is_function_master():
+            if function:
+                # Manualne wywołanie konkretnej funkcji
+                print(f"🎯 Function master {self.alias} executing specific function: {function}")
+                result = await self.execute_soul_function(function, data=data, **kwargs)
+                
+                # Master aktualizuje swoje statystyki
+                await self._update_function_usage_stats(function, result.get('success', False))
+                return result
+            else:
+                # Inteligentna procedura execute
+                print(f"🧠 Function master {self.alias} running intelligent execute procedure")
+                return await self._intelligent_execute(data, **kwargs)
         else:
-            # Wywołaj domyślną funkcję execute
-            return await soul.default_execute(data=data, **kwargs)
+            # Standardowe wykonanie dla nie-masterów
+            if function:
+                return await self.execute_soul_function(function, data=data, **kwargs)
+            else:
+                return await soul.default_execute(data=data, **kwargs)
+
+    def is_function_master(self) -> bool:
+        """Sprawdza czy Being jest masterem funkcji (ma init i został zainicjalizowany)"""
+        return self.data.get('_function_master', False) and self.data.get('_initialized', False)
+
+    async def _intelligent_execute(self, data: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
+        """
+        Inteligentna procedura execute - Being sam decyduje jaką funkcję wywołać.
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            soul = await self.get_soul()
+            
+            # Sprawdź czy ma domyślną funkcję execute
+            if soul.has_execute_function():
+                print(f"🎯 Master {self.alias} delegating to default execute function")
+                result = await soul.default_execute(data=data, **kwargs)
+            else:
+                # Inteligentne wybieranie funkcji na podstawie danych lub kontekstu
+                available_functions = self.data.get('_managed_functions', [])
+                
+                if not available_functions:
+                    return GeneticResponseFormat.error_response(
+                        error="Function master has no available functions",
+                        error_code="NO_FUNCTIONS_AVAILABLE"
+                    )
+                
+                # Prosta logika wyboru - można rozbudować o AI/ML
+                selected_function = self._select_best_function_for_data(data, available_functions)
+                print(f"🧠 Master {self.alias} intelligently selected function: {selected_function}")
+                
+                result = await self.execute_soul_function(selected_function, data=data, **kwargs)
+                
+            # Aktualizuj statystyki inteligentnego wykonania
+            self.data['_intelligent_executions'] = self.data.get('_intelligent_executions', 0) + 1
+            self.data['_last_intelligent_execution'] = datetime.now().isoformat()
+            
+            return result
+            
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Intelligent execution failed: {str(e)}",
+                error_code="INTELLIGENT_EXECUTION_ERROR"
+            )
+
+    def _select_best_function_for_data(self, data: Dict[str, Any], available_functions: List[str]) -> str:
+        """
+        Inteligentne wybieranie najlepszej funkcji dla danych.
+        Można rozbudować o zaawansowaną logikę AI/ML.
+        """
+        if not available_functions:
+            return "execute"  # fallback
+        
+        # Prosta logika - można zastąpić zaawansowanym AI
+        if data:
+            # Jeśli są dane, preferuj funkcje które prawdopodobnie je przetwarzają
+            processing_functions = [f for f in available_functions if any(
+                keyword in f.lower() for keyword in ['process', 'handle', 'execute', 'run']
+            )]
+            if processing_functions:
+                return processing_functions[0]
+        
+        # Domyślnie zwróć pierwszą dostępną funkcję
+        return available_functions[0]
+
+    async def _update_function_usage_stats(self, function_name: str, success: bool):
+        """Aktualizuje statystyki użycia funkcji przez mastera"""
+        if '_function_stats' not in self.data:
+            self.data['_function_stats'] = {}
+        
+        if function_name not in self.data['_function_stats']:
+            self.data['_function_stats'][function_name] = {
+                'total_calls': 0,
+                'successful_calls': 0,
+                'last_called': None
+            }
+        
+        stats = self.data['_function_stats'][function_name]
+        stats['total_calls'] += 1
+        if success:
+            stats['successful_calls'] += 1
+        stats['last_called'] = datetime.now().isoformat()
+
+    def get_function_mastery_info(self) -> Dict[str, Any]:
+        """Zwraca informacje o masterowaniu funkcji przez tego Being"""
+        return {
+            'is_function_master': self.is_function_master(),
+            'managed_functions': self.data.get('_managed_functions', []),
+            'function_count': len(self.data.get('_managed_functions', [])),
+            'intelligent_executions': self.data.get('_intelligent_executions', 0),
+            'function_stats': self.data.get('_function_stats', {}),
+            'initialized_at': self.data.get('_init_time'),
+            'function_signatures': self.data.get('_function_signatures', {})
+        }
 
     async def init(self, **kwargs) -> Dict[str, Any]:
         """
