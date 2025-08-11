@@ -78,13 +78,13 @@ class ModuleValidator:
     @staticmethod
     def analyze_module_source(source_code: str) -> Dict[str, Any]:
         """
-        Analizuje kod źródłowy modułu
+        Analizuje kod źródłowy modułu z szczegółową analizą typów
         
         Args:
             source_code: Kod źródłowy do analizy
             
         Returns:
-            Analiza modułu
+            Szczegółowa analiza modułu
         """
         analysis = {
             "functions": {},
@@ -92,23 +92,31 @@ class ModuleValidator:
             "has_init": False,
             "has_execute": False,
             "async_functions": [],
-            "private_functions": []
+            "private_functions": [],
+            "language": "python",
+            "python_version": None
         }
         
         try:
-            # Wykonaj kod w bezpiecznym środowisku
-            temp_globals = {}
+            import sys
+            analysis["python_version"] = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+            
+            # Wykonaj kod w izolowanym środowisku
+            temp_globals = {"__name__": "__temp_module__"}
             exec(source_code, temp_globals)
             
             # Analizuj elementy
             for name, obj in temp_globals.items():
+                if name.startswith('__'):  # Pomijaj dunder methods
+                    continue
+                    
                 if name.startswith('_'):
                     if callable(obj):
                         analysis["private_functions"].append(name)
                     continue
                     
                 if callable(obj):
-                    # To jest funkcja
+                    # Szczegółowa analiza funkcji
                     try:
                         sig = inspect.signature(obj)
                         is_async = asyncio.iscoroutinefunction(obj)
@@ -116,8 +124,17 @@ class ModuleValidator:
                         analysis["functions"][name] = {
                             "py_type": "function",
                             "is_async": is_async,
-                            "parameters": list(sig.parameters.keys()),
-                            "signature": str(sig)
+                            "parameters": {
+                                param.name: {
+                                    "type": str(param.annotation) if param.annotation != param.empty else "Any",
+                                    "default": repr(param.default) if param.default != param.empty else None,
+                                    "required": param.default == param.empty
+                                }
+                                for param in sig.parameters.values()
+                            },
+                            "return_type": str(sig.return_annotation) if sig.return_annotation != sig.empty else "Any",
+                            "signature": str(sig),
+                            "docstring": getattr(obj, '__doc__', None)
                         }
                         
                         if is_async:
@@ -134,10 +151,18 @@ class ModuleValidator:
                             "error": str(e)
                         }
                 else:
-                    # To jest atrybut
+                    # Szczegółowa analiza atrybutów
+                    obj_type = type(obj)
+                    type_name = obj_type.__name__
+                    
                     analysis["attributes"][name] = {
-                        "py_type": type(obj).__name__,
-                        "value": obj if isinstance(obj, (str, int, float, bool)) else str(obj)
+                        "py_type": type_name,
+                        "full_type": f"{obj_type.__module__}.{type_name}" if obj_type.__module__ != 'builtins' else type_name,
+                        "value": obj if isinstance(obj, (str, int, float, bool, type(None))) else repr(obj)[:100],
+                        "is_optional": obj is None,
+                        "is_mutable": isinstance(obj, (list, dict, set)),
+                        "is_constant": name.isupper(),
+                        "size": len(obj) if hasattr(obj, '__len__') else None
                     }
                     
         except Exception as e:

@@ -353,69 +353,90 @@ class Soul:
             "functions": {},
             "attributes": {},
             "errors": [],
-            "warnings": []
+            "warnings": [],
+            "has_init": False,
+            "has_execute": False,
+            "language": "python",
+            "python_version": "3.8+"
         }
         
         try:
             import ast
             import inspect
+            import sys
             
-            # Parsuj kod
+            # Parsuj kod AST dla bezpiecznej analizy
             tree = ast.parse(module_source)
             
-            # Wykonaj kod w bezpiecznym środowisku dla analizy
-            temp_globals = {}
+            # Wykonaj kod w izolowanym środowisku
+            temp_globals = {"__name__": "__temp_module__"}
             exec(module_source, temp_globals)
             
-            # Znajdź funkcje (bez "_")
+            # Analizuj funkcje (bez "_")
             for name, obj in temp_globals.items():
-                if not name.startswith('_') and callable(obj):
+                if name.startswith('__'):  # Pomijaj dunder methods
+                    continue
+                    
+                if callable(obj) and not name.startswith('_'):
                     try:
                         sig = inspect.signature(obj)
+                        is_async = asyncio.iscoroutinefunction(obj)
+                        
                         validation_result["functions"][name] = {
                             "py_type": "function",
-                            "description": f"Function {name}",
-                            "is_async": asyncio.iscoroutinefunction(obj),
+                            "description": getattr(obj, '__doc__', None) or f"Function {name}",
+                            "is_async": is_async,
+                            "is_coroutine": is_async,
                             "signature": {
                                 "parameters": {
                                     param.name: {
                                         "type": str(param.annotation) if param.annotation != param.empty else "Any",
-                                        "default": str(param.default) if param.default != param.empty else None
+                                        "default": repr(param.default) if param.default != param.empty else None,
+                                        "required": param.default == param.empty,
+                                        "kind": str(param.kind)
                                     }
                                     for param in sig.parameters.values()
                                 },
                                 "return_type": str(sig.return_annotation) if sig.return_annotation != sig.empty else "Any"
                             }
                         }
+                        
+                        # Sprawdź specjalne funkcje
+                        if name == 'init':
+                            validation_result["has_init"] = True
+                        elif name == 'execute':
+                            validation_result["has_execute"] = True
+                            
                     except Exception as e:
                         validation_result["warnings"].append(f"Cannot analyze function {name}: {e}")
                         
-                elif not name.startswith('_') and not callable(obj):
-                    # Znajdź atrybuty modułu
+                elif not callable(obj) and not name.startswith('_'):
+                    # Szczegółowa analiza atrybutów modułu
+                    obj_type = type(obj)
+                    type_name = obj_type.__name__
+                    
+                    # Określ czy jest Optional
+                    is_optional = obj is None
+                    is_mutable = isinstance(obj, (list, dict, set))
+                    
                     validation_result["attributes"][name] = {
-                        "py_type": type(obj).__name__,
-                        "default": obj if isinstance(obj, (str, int, float, bool, list, dict)) else str(obj),
-                        "description": f"Module attribute {name}"
+                        "py_type": type_name,
+                        "full_type": f"{obj_type.__module__}.{type_name}" if obj_type.__module__ != 'builtins' else type_name,
+                        "default": obj if isinstance(obj, (str, int, float, bool, type(None))) else repr(obj)[:100],
+                        "description": f"Module attribute {name} of type {type_name}",
+                        "is_optional": is_optional,
+                        "is_mutable": is_mutable,
+                        "is_constant": name.isupper(),
+                        "size": len(obj) if hasattr(obj, '__len__') else None
                     }
             
-            # Sprawdź czy ma init
-            if 'init' in validation_result["functions"]:
-                validation_result["has_init"] = True
-            else:
-                validation_result["has_init"] = False
-                
-            # Sprawdź czy ma execute
-            if 'execute' in validation_result["functions"]:
-                validation_result["has_execute"] = True
-            else:
-                validation_result["has_execute"] = False
-                
             validation_result["valid"] = True
+            validation_result["python_version"] = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
             
         except SyntaxError as e:
-            validation_result["errors"].append(f"Syntax error: {e}")
+            validation_result["errors"].append(f"Python syntax error: {e}")
         except Exception as e:
-            validation_result["errors"].append(f"Validation error: {e}")
+            validation_result["errors"].append(f"Module validation error: {e}")
             
         return validation_result
 
@@ -456,17 +477,24 @@ class Soul:
         if not alias:
             alias = module_path.stem
             
-        # Utwórz genotyp automatycznie
+        # Utwórz genotyp automatycznie z oddzielnymi kluczami
         genotype = {
             "genesis": {
                 "name": alias,
                 "type": "module_soul",
-                "version": "1.0.0",
                 "description": f"Auto-generated from {module_path.name}",
                 "source_file": str(module_path),
                 "created_at": datetime.now().isoformat(),
+                "creation_method": "module_file"
+            },
+            "version": "1.0.0",
+            "language": validation.get("language", "python"),
+            "python_version": validation.get("python_version", "3.8+"),
+            "capabilities": {
                 "has_init": validation["has_init"],
-                "has_execute": validation["has_execute"]
+                "has_execute": validation["has_execute"],
+                "function_count": len(validation["functions"]),
+                "attribute_count": len(validation["attributes"])
             },
             "module_source": module_source,
             "functions": validation["functions"],
@@ -498,17 +526,23 @@ class Soul:
         if not validation["valid"]:
             raise ValueError(f"Invalid module: {', '.join(validation['errors'])}")
             
-        # Utwórz genotyp
+        # Utwórz genotyp z oddzielnymi kluczami
         genotype = {
             "genesis": {
                 "name": alias,
                 "type": "manual_module_soul",
-                "version": "1.0.0",
                 "description": f"Manually created module soul: {alias}",
                 "created_at": datetime.now().isoformat(),
-                "creation_method": "manual_module",
+                "creation_method": "manual_module"
+            },
+            "version": "1.0.0",
+            "language": validation.get("language", "python"),
+            "python_version": validation.get("python_version", "3.8+"),
+            "capabilities": {
                 "has_init": validation["has_init"],
-                "has_execute": validation["has_execute"]
+                "has_execute": validation["has_execute"],
+                "function_count": len(validation["functions"]),
+                "attribute_count": len(validation["attributes"])
             },
             "module_source": module_source,
             "functions": validation["functions"],
@@ -526,28 +560,49 @@ class Soul:
         return await cls.create(genotype, alias)
 
     def load_module_dynamically(self) -> Optional[Any]:
-        """Ładuje moduł dynamicznie z kodu źródłowego"""
+        """Ładuje moduł dynamicznie z kodu źródłowego - bez cykliczności"""
         if not self.has_module_source():
             return None
+            
+        # Sprawdź czy już załadowano
+        module_name = f"dynamic_soul_{self.soul_hash[:8]}"
+        if hasattr(self, '_loaded_module') and self._loaded_module is not None:
+            return self._loaded_module
         
         try:
             import types
             import sys
             
             # Utwórz nowy moduł
-            module_name = f"dynamic_soul_{self.soul_hash[:8]}"
             module = types.ModuleType(module_name)
             
+            # Przygotuj bezpieczne środowisko wykonania
+            safe_globals = {
+                "__name__": module_name,
+                "__file__": f"<dynamic_soul_{self.soul_hash[:8]}>",
+                "__builtins__": __builtins__
+            }
+            
             # Wykonaj kod w kontekście modułu
-            exec(self.get_module_source(), module.__dict__)
+            exec(self.get_module_source(), safe_globals, module.__dict__)
             
-            # Automatycznie zarejestruj funkcje z modułu
-            functions = self.extract_functions_from_module(module)
-            for func_name, func in functions.items():
-                self._register_immutable_function(func_name, func)
+            # Zarejestruj funkcje TYLKO RAZ
+            functions = {}
+            for attr_name in dir(module):
+                if not attr_name.startswith('_'):
+                    attr = getattr(module, attr_name)
+                    if callable(attr):
+                        functions[attr_name] = attr
+                        # Rejestruj bez wywoływania innych metod Soul
+                        if attr_name not in self._function_registry:
+                            self._function_registry[attr_name] = attr
             
-            # Dodaj do sys.modules dla możliwości importu
-            sys.modules[module_name] = module
+            # Cache'uj moduł
+            self._loaded_module = module
+            
+            # Opcjonalnie dodaj do sys.modules
+            if module_name not in sys.modules:
+                sys.modules[module_name] = module
             
             print(f"✅ Loaded dynamic module {module_name} with {len(functions)} functions")
             
@@ -901,6 +956,10 @@ class Soul:
 
     def get_version(self) -> str:
         """Zwraca wersję Soul"""
+        # Sprawdź nową strukturę genotypu
+        if "version" in self.genotype:
+            return self.genotype["version"]
+        # Fallback na starą strukturę
         return self.genotype.get("genesis", {}).get("version", "1.0.0")
     
     def get_parent_hash(self) -> Optional[str]:
