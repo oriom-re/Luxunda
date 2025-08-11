@@ -1,0 +1,107 @@
+
+{
+  "genesis": {
+    "name": "openai_client",
+    "type": "ai_integration_being",
+    "description": "OpenAI API client with intelligent response handling",
+    "version": "1.0.0",
+    "creation_method": "converted_from_module"
+  },
+  "version": "1.0.0",
+  "language": "python",
+  "capabilities": {
+    "has_init": true,
+    "has_execute": true,
+    "ai_integration": true,
+    "async_operations": true
+  },
+  "attributes": {
+    "api_key": {
+      "py_type": "str",
+      "description": "OpenAI API key",
+      "is_optional": true,
+      "is_secret": true
+    },
+    "model": {
+      "py_type": "str", 
+      "default": "gpt-4",
+      "description": "Default OpenAI model to use"
+    },
+    "max_tokens": {
+      "py_type": "int",
+      "default": 1000,
+      "description": "Maximum tokens per response"
+    },
+    "temperature": {
+      "py_type": "float",
+      "default": 0.7,
+      "description": "Response creativity level"
+    },
+    "last_response": {
+      "py_type": "str",
+      "description": "Last AI response received",
+      "is_optional": true
+    },
+    "request_count": {
+      "py_type": "int",
+      "default": 0,
+      "description": "Number of requests made"
+    }
+  },
+  "functions": {
+    "init": {
+      "py_type": "function",
+      "description": "Initialize OpenAI client with API key",
+      "is_async": true,
+      "signature": {
+        "parameters": {
+          "api_key": {
+            "type": "str",
+            "default": "None",
+            "required": false
+          }
+        },
+        "return_type": "Dict[str, Any]"
+      }
+    },
+    "execute": {
+      "py_type": "function", 
+      "description": "Process user query with OpenAI",
+      "is_async": true,
+      "signature": {
+        "parameters": {
+          "query": {
+            "type": "str",
+            "required": true
+          },
+          "context": {
+            "type": "Dict[str, Any]",
+            "default": "{}",
+            "required": false
+          }
+        },
+        "return_type": "Dict[str, Any]"
+      }
+    },
+    "chat_completion": {
+      "py_type": "function",
+      "description": "Direct chat completion with OpenAI",
+      "is_async": true,
+      "signature": {
+        "parameters": {
+          "messages": {
+            "type": "List[Dict[str, str]]",
+            "required": true
+          },
+          "model": {
+            "type": "str", 
+            "default": "None",
+            "required": false
+          }
+        },
+        "return_type": "Dict[str, Any]"
+      }
+    }
+  },
+  "implementation_note": "Functions will be implemented when Being is created with external code injection or by specialized Being factory"
+}

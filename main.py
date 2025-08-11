@@ -21,6 +21,7 @@ from database.postgre_db import Postgre_db
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
 from luxdb.web_lux_interface import create_app
+import luxdb.core.genotype_system as genotype_system # Added import for genotype_system
 
 VERSION = "2.0.0-minimal"
 SYSTEM_NAME = "LuxOS Minimal"
@@ -39,12 +40,12 @@ async def init_minimal_system() -> Dict[str, Any]:
         # Test podstawowych operacji Soul + Being
         print("🧬 Testing Soul operations...")
         souls = await Soul.get_all()
-        
+
         print("🤖 Testing Being operations...")
         beings = await Being.get_all()
 
         print(f"✅ System OK: {len(souls)} souls, {len(beings)} beings")
-        
+
         return {
             "status": "operational",
             "souls_count": len(souls),
@@ -73,19 +74,48 @@ async def run_web_mode():
 async def show_status():
     """Status systemu"""
     status = await init_minimal_system()
-    print(f"📊 Status: {status.get('status')}")
-    print(f"🧬 Souls: {status.get('souls_count', 0)}")
-    print(f"🤖 Beings: {status.get('beings_count', 0)}")
+    
+    # Initialize genotype system first
+    if "--init-genotypes" in sys.argv or "--status" in sys.argv:
+        print("🧬 Inicjalizacja systemu genotypów...")
+        genotype_result = await genotype_system.initialize_system()
+
+        if genotype_result["success"]:
+            print(f"✅ Załadowano {genotype_result['loaded_souls_count']} genotypów")
+        else:
+            print(f"❌ Błąd ładowania genotypów: {genotype_result.get('error')}")
+
+    # System diagnostics
+    if "--status" in sys.argv:
+        print("🔍 LuxOS System Status Check")
+        print("=" * 50)
+
+        # Genotype system check
+        if genotype_system.initialization_complete:
+            print("✅ Genotype System: OK")
+            print(f"   Loaded souls: {len(genotype_system.loaded_souls)}")
+        else:
+            print("❌ Genotype System: NOT INITIALIZED")
+
+        # Database check
+        print(f"📊 PostgreSQL connection: {'OK' if status.get('status') == 'operational' else 'FAILED'}")
+        if status.get("status") == "operational":
+            print(f"   Souls: {status.get('souls_count', 0)}")
+            print(f"   Beings: {status.get('beings_count', 0)}")
+        else:
+            print(f"   Error: {status.get('error')}")
+
 
 def main():
     parser = argparse.ArgumentParser(description=f'{SYSTEM_NAME} v{VERSION}')
     parser.add_argument('--mode', choices=['web'], default='web')
     parser.add_argument('--status', action='store_true')
+    parser.add_argument('--init-genotypes', action='store_true', help="Initialize genotype system from files")
 
     args = parser.parse_args()
 
     try:
-        if args.status:
+        if args.status or args.init_genotypes: # Ensure init-genotypes is also handled by async run
             asyncio.run(show_status())
         else:
             asyncio.run(run_web_mode())
