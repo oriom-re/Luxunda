@@ -65,17 +65,18 @@ class Soul:
         soul = cls()
         soul.alias = alias
         soul.genotype = genotype
+        # Hash generowany TYLKO z genotypu - to jest kod genetyczny
         soul.soul_hash = hashlib.sha256(
             json.dumps(genotype, sort_keys=True).encode()
         ).hexdigest()
+        soul.created_at = datetime.now()
 
         # Zapis do bazy danych
         result = await SoulRepository.set(soul)
         if not result.get('success'):
             raise Exception("Failed to create soul")
 
-        # Zwróć zgodnie z formatem genetycznym
-        return await cls.set(genotype, alias)
+        return soul
 
     @classmethod
     async def get(cls, **kwargs) -> Optional['Soul']:
@@ -120,19 +121,19 @@ class Soul:
         return await cls.create(genotype, alias)
 
     @classmethod
-    async def get_by_hash(cls, hash: str) -> Optional['Soul']:
+    async def get_by_hash(cls, soul_hash: str) -> Optional['Soul']:
         """
-        Ładuje Soul po global_ulid.
+        Ładuje Soul po jego hash (kodzie genetycznym).
 
         Args:
-            hash: Global ULID soul
+            soul_hash: Hash wygenerowany z genotypu - unikalny kod genetyczny
 
         Returns:
             Soul lub None jeśli nie znaleziono
         """
         from ..repository.soul_repository import SoulRepository
 
-        result = await SoulRepository.get_by_hash(hash)
+        result = await SoulRepository.get_soul_by_hash(soul_hash)
         return result.get('soul') if result.get('success') else None
 
     @classmethod
@@ -249,6 +250,35 @@ class Soul:
     async def get_hash(self) -> str:
         """Zwraca hash Soul"""
         return self.soul_hash
+    
+    @staticmethod
+    def generate_hash_from_genotype(genotype: Dict[str, Any]) -> str:
+        """
+        Generuje hash z genotypu - to jest kod genetyczny Soul.
+        
+        Args:
+            genotype: Słownik z definicją genotypu
+            
+        Returns:
+            Hash SHA256 jako hex string
+        """
+        return hashlib.sha256(
+            json.dumps(genotype, sort_keys=True).encode()
+        ).hexdigest()
+    
+    @classmethod
+    async def find_by_genotype(cls, genotype: Dict[str, Any]) -> Optional['Soul']:
+        """
+        Znajduje Soul po genotypie (generuje hash i szuka).
+        
+        Args:
+            genotype: Definicja genotypu do znalezienia
+            
+        Returns:
+            Soul jeśli istnieje o takim genotypie
+        """
+        expected_hash = cls.generate_hash_from_genotype(genotype)
+        return await cls.get_by_hash(expected_hash)
 
     def to_dict(self) -> Dict[str, Any]:
         """Konwertuje Soul do słownika dla serializacji"""
