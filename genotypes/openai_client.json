@@ -1,120 +1,120 @@
-
 {
   "genesis": {
     "name": "openai_client",
-    "type": "ai_integration_being",
-    "description": "OpenAI API client with intelligent response handling",
+    "type": "client_soul",
+    "description": "OpenAI API client with advanced capabilities",
     "version": "1.0.0",
-    "creation_method": "converted_from_module"
+    "created_at": "2025-01-30T10:00:00Z",
+    "creation_method": "json_genotype"
   },
   "version": "1.0.0",
   "language": "python",
+  "python_version": "3.8+",
   "capabilities": {
     "has_init": true,
     "has_execute": true,
-    "ai_integration": true,
-    "async_operations": true
+    "function_count": 3,
+    "public_function_count": 3,
+    "private_function_count": 0,
+    "attribute_count": 3
   },
+  "module_source": "import asyncio\nimport json\nfrom typing import Dict, Any, Optional\n\n# Module attributes\napi_key = None\nmodel = \"gpt-4\"\nmax_tokens = 1000\n\nasync def init(being_context: Dict[str, Any] = None) -> Dict[str, Any]:\n    \"\"\"Initialize OpenAI client with configuration\"\"\"\n    global api_key, model, max_tokens\n    \n    if being_context:\n        # Extract configuration from being context\n        data = being_context.get('data', {})\n        api_key = data.get('api_key', api_key)\n        model = data.get('model', model)\n        max_tokens = data.get('max_tokens', max_tokens)\n    \n    return {\n        \"initialized\": True,\n        \"model\": model,\n        \"max_tokens\": max_tokens,\n        \"has_api_key\": api_key is not None,\n        \"message\": \"OpenAI client initialized successfully\"\n    }\n\nasync def chat_completion(prompt: str, being_context: Dict[str, Any] = None) -> Dict[str, Any]:\n    \"\"\"Generate chat completion using OpenAI API\"\"\"\n    if not api_key:\n        return {\n            \"error\": \"API key not configured\",\n            \"success\": False\n        }\n    \n    # Simulate OpenAI API call\n    response_text = f\"AI Response to: {prompt[:50]}...\"\n    \n    return {\n        \"success\": True,\n        \"response\": response_text,\n        \"model_used\": model,\n        \"tokens_used\": len(prompt) + len(response_text),\n        \"prompt\": prompt\n    }\n\ndef get_status() -> Dict[str, Any]:\n    \"\"\"Get current client status and configuration\"\"\"\n    return {\n        \"api_key_configured\": api_key is not None,\n        \"current_model\": model,\n        \"max_tokens\": max_tokens,\n        \"status\": \"active\" if api_key else \"not_configured\"\n    }\n\nasync def execute(data: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:\n    \"\"\"Default execute function - intelligent chat completion\"\"\"\n    if not data:\n        return await get_status()\n    \n    prompt = data.get('prompt')\n    if prompt:\n        return await chat_completion(prompt, being_context=kwargs.get('being_context'))\n    \n    return {\n        \"error\": \"No prompt provided\",\n        \"available_functions\": [\"chat_completion\", \"get_status\"],\n        \"usage\": \"Provide 'prompt' in data to generate completion\"\n    }",
   "attributes": {
     "api_key": {
-      "py_type": "str",
-      "description": "OpenAI API key",
+      "py_type": "NoneType",
+      "default": null,
+      "description": "Module attribute api_key of type NoneType",
       "is_optional": true,
-      "is_secret": true
+      "is_mutable": true,
+      "is_constant": false,
+      "size": null
     },
     "model": {
-      "py_type": "str", 
+      "py_type": "str",
       "default": "gpt-4",
-      "description": "Default OpenAI model to use"
+      "description": "Module attribute model of type str",
+      "is_optional": false,
+      "is_mutable": true,
+      "is_constant": false,
+      "size": 6
     },
     "max_tokens": {
       "py_type": "int",
       "default": 1000,
-      "description": "Maximum tokens per response"
-    },
-    "temperature": {
-      "py_type": "float",
-      "default": 0.7,
-      "description": "Response creativity level"
-    },
-    "last_response": {
-      "py_type": "str",
-      "description": "Last AI response received",
-      "is_optional": true
-    },
-    "request_count": {
-      "py_type": "int",
-      "default": 0,
-      "description": "Number of requests made"
+      "description": "Module attribute max_tokens of type int",
+      "is_optional": false,
+      "is_mutable": true,
+      "is_constant": false,
+      "size": null
     }
   },
   "functions": {
-    "chat_completion": {
+    "init": {
       "py_type": "function",
-      "description": "Direct chat completion with OpenAI",
+      "description": "Initialize OpenAI client with configuration",
       "is_async": true,
+      "is_coroutine": true,
       "signature": {
         "parameters": {
-          "messages": {
-            "type": "List[Dict[str, str]]",
-            "required": true
-          },
-          "model": {
-            "type": "str", 
+          "being_context": {
+            "type": "typing.Dict[str, typing.Any]",
             "default": "None",
-            "required": false
+            "required": false,
+            "kind": "POSITIONAL_OR_KEYWORD"
           }
         },
-        "return_type": "Dict[str, Any]"
-      },
-      "source": "async def chat_completion(messages: List[Dict[str, str]], model: str = None) -> Dict[str, Any]:\n    \"\"\"Direct chat completion with OpenAI\"\"\"\n    global _client, _last_response, _request_count\n    \n    if not _client:\n        # Try to auto-initialize\n        init_result = await init()\n        if not init_result.get(\"success\"):\n            return init_result\n    \n    try:\n        response = await _client.chat.completions.create(\n            model=model or _model,\n            messages=messages,\n            max_tokens=_max_tokens,\n            temperature=_temperature\n        )\n        \n        completion_text = response.choices[0].message.content\n        _last_response = completion_text\n        _request_count += 1\n        \n        return {\n            \"success\": True,\n            \"response\": completion_text,\n            \"model\": response.model,\n            \"usage\": {\n                \"prompt_tokens\": response.usage.prompt_tokens,\n                \"completion_tokens\": response.usage.completion_tokens,\n                \"total_tokens\": response.usage.total_tokens\n            },\n            \"request_count\": _request_count,\n            \"timestamp\": datetime.now().isoformat(),\n            \"status\": \"completed\"\n        }\n        \n    except Exception as e:\n        return {\n            \"success\": False,\n            \"error\": f\"OpenAI chat completion failed: {str(e)}\",\n            \"messages\": messages,\n            \"status\": \"api_error\",\n            \"timestamp\": datetime.now().isoformat()\n        }"
+        "return_type": "typing.Dict[str, typing.Any]"
+      }
+    },
+    "chat_completion": {
+      "py_type": "function",
+      "description": "Generate chat completion using OpenAI API",
+      "is_async": true,
+      "is_coroutine": true,
+      "signature": {
+        "parameters": {
+          "prompt": {
+            "type": "<class 'str'>",
+            "default": "None",
+            "required": true,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "being_context": {
+            "type": "typing.Dict[str, typing.Any]",
+            "default": "None",
+            "required": false,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          }
+        },
+        "return_type": "typing.Dict[str, typing.Any]"
+      }
     },
     "get_status": {
       "py_type": "function",
-      "description": "Get current status of the OpenAI being",
+      "description": "Get current client status and configuration",
       "is_async": false,
+      "is_coroutine": false,
       "signature": {
         "parameters": {},
-        "return_type": "Dict[str, Any]"
-      },
-      "source": "def get_status() -> Dict[str, Any]:\n    \"\"\"Get current status of the OpenAI being\"\"\"\n    return {\n        \"initialized\": _client is not None,\n        \"model\": _model,\n        \"request_count\": _request_count,\n        \"last_response_preview\": _last_response[:100] + \"...\" if _last_response and len(_last_response) > 100 else _last_response,\n        \"openai_available\": OPENAI_AVAILABLE,\n        \"api_key_set\": bool(_api_key)\n    }"
+        "return_type": "typing.Dict[str, typing.Any]"
+      }
     },
-    "set_model": {
+    "execute": {
       "py_type": "function",
-      "description": "Set the model for completions",
-      "is_async": false,
+      "description": "Default execute function - intelligent chat completion",
+      "is_async": true,
+      "is_coroutine": true,
       "signature": {
         "parameters": {
-          "model": {
-            "type": "str",
-            "required": true
+          "data": {
+            "type": "typing.Dict[str, typing.Any]",
+            "default": "None",
+            "required": false,
+            "kind": "POSITIONAL_OR_KEYWORD"
           }
         },
-        "return_type": "Dict[str, Any]"
-      },
-      "source": "def set_model(model: str) -> Dict[str, Any]:\n    \"\"\"Set the model for completions\"\"\"\n    global _model\n    _model = model\n    return {\n        \"success\": True,\n        \"model\": _model,\n        \"message\": f\"Model set to {model}\"\n    }"
-    },
-    "set_parameters": {
-      "py_type": "function",
-      "description": "Set completion parameters",
-      "is_async": false,
-      "signature": {
-        "parameters": {
-          "max_tokens": {
-            "type": "int",
-            "default": "None",
-            "required": false
-          },
-          "temperature": {
-            "type": "float",
-            "default": "None",
-            "required": false
-          }
-        },
-        "return_type": "Dict[str, Any]"
-      },
-      "source": "def set_parameters(max_tokens: int = None, temperature: float = None) -> Dict[str, Any]:\n    \"\"\"Set completion parameters\"\"\"\n    global _max_tokens, _temperature\n    \n    if max_tokens is not None:\n        _max_tokens = max_tokens\n    if temperature is not None:\n        _temperature = temperature\n    \n    return {\n        \"success\": True,\n        \"max_tokens\": _max_tokens,\n        \"temperature\": _temperature,\n        \"message\": \"Parameters updated\"\n    }"
+        "return_type": "typing.Dict[str, typing.Any]"
+      }
     }
-  },
-  "source_module": "\"\"\"\nOpenAI Client Module for LuxDB Being System\nComplete implementation with async functions\n\"\"\"\n\nimport os\nimport asyncio\nfrom typing import Dict, Any, List, Optional\nfrom datetime import datetime\n\ntry:\n    import openai\n    OPENAI_AVAILABLE = True\nexcept ImportError:\n    OPENAI_AVAILABLE = False\n    openai = None\n\n# Global state for the being\n_client = None\n_api_key = None\n_model = \"gpt-4o-mini\"\n_max_tokens = 1000\n_temperature = 0.7\n_last_response = None\n_request_count = 0\n\nasync def init(api_key: str = None) -> Dict[str, Any]:\n    \"\"\"Initialize OpenAI client with API key\"\"\"\n    global _client, _api_key, _model, _request_count\n    \n    if not OPENAI_AVAILABLE:\n        return {\n            \"success\": False,\n            \"error\": \"OpenAI package not installed. Run: pip install openai\",\n            \"status\": \"missing_package\"\n        }\n    \n    # Use provided API key or environment variable\n    if api_key:\n        _api_key = api_key\n    else:\n        _api_key = os.getenv('OPENAI_API_KEY')\n    \n    if not _api_key:\n        return {\n            \"success\": False,\n            \"error\": \"No OpenAI API key provided. Set OPENAI_API_KEY environment variable or pass api_key parameter\",\n            \"status\": \"missing_api_key\"\n        }\n    \n    try:\n        _client = openai.AsyncOpenAI(api_key=_api_key)\n        _request_count = 0\n        \n        return {\n            \"success\": True,\n            \"message\": f\"OpenAI client initialized with model {_model}\",\n            \"model\": _model,\n            \"status\": \"initialized\",\n            \"timestamp\": datetime.now().isoformat()\n        }\n    except Exception as e:\n        return {\n            \"success\": False,\n            \"error\": f\"Failed to initialize OpenAI client: {str(e)}\",\n            \"status\": \"initialization_error\"\n        }\n\nasync def execute(query: str, context: Dict[str, Any] = {}) -> Dict[str, Any]:\n    \"\"\"Process user query with OpenAI - main execution function\"\"\"\n    global _client, _last_response, _request_count\n    \n    if not _client:\n        # Try to auto-initialize\n        init_result = await init()\n        if not init_result.get(\"success\"):\n            return init_result\n    \n    try:\n        # Prepare messages\n        messages = []\n        \n        # Add system context if provided\n        system_context = context.get(\"system\", \"You are a helpful AI assistant.\")\n        messages.append({\n            \"role\": \"system\",\n            \"content\": system_context\n        })\n        \n        # Add conversation history if provided\n        history = context.get(\"history\", [])\n        messages.extend(history)\n        \n        # Add user query\n        messages.append({\n            \"role\": \"user\",\n            \"content\": query\n        })\n        \n        # Make API call\n        response = await _client.chat.completions.create(\n            model=context.get(\"model\", _model),\n            messages=messages,\n            max_tokens=context.get(\"max_tokens\", _max_tokens),\n            temperature=context.get(\"temperature\", _temperature)\n        )\n        \n        # Extract response\n        completion_text = response.choices[0].message.content\n        _last_response = completion_text\n        _request_count += 1\n        \n        return {\n            \"success\": True,\n            \"response\": completion_text,\n            \"model\": response.model,\n            \"usage\": {\n                \"prompt_tokens\": response.usage.prompt_tokens,\n                \"completion_tokens\": response.usage.completion_tokens,\n                \"total_tokens\": response.usage.total_tokens\n            },\n            \"request_count\": _request_count,\n            \"timestamp\": datetime.now().isoformat(),\n            \"status\": \"completed\"\n        }\n        \n    except Exception as e:\n        return {\n            \"success\": False,\n            \"error\": f\"OpenAI API call failed: {str(e)}\",\n            \"query\": query,\n            \"status\": \"api_error\",\n            \"timestamp\": datetime.now().isoformat()\n        }\n\nasync def chat_completion(messages: List[Dict[str, str]], model: str = None) -> Dict[str, Any]:\n    \"\"\"Direct chat completion with OpenAI\"\"\"\n    global _client, _last_response, _request_count\n    \n    if not _client:\n        # Try to auto-initialize\n        init_result = await init()\n        if not init_result.get(\"success\"):\n            return init_result\n    \n    try:\n        response = await _client.chat.completions.create(\n            model=model or _model,\n            messages=messages,\n            max_tokens=_max_tokens,\n            temperature=_temperature\n        )\n        \n        completion_text = response.choices[0].message.content\n        _last_response = completion_text\n        _request_count += 1\n        \n        return {\n            \"success\": True,\n            \"response\": completion_text,\n            \"model\": response.model,\n            \"usage\": {\n                \"prompt_tokens\": response.usage.prompt_tokens,\n                \"completion_tokens\": response.usage.completion_tokens,\n                \"total_tokens\": response.usage.total_tokens\n            },\n            \"request_count\": _request_count,\n            \"timestamp\": datetime.now().isoformat(),\n            \"status\": \"completed\"\n        }\n        \n    except Exception as e:\n        return {\n            \"success\": False,\n            \"error\": f\"OpenAI chat completion failed: {str(e)}\",\n            \"messages\": messages,\n            \"status\": \"api_error\",\n            \"timestamp\": datetime.now().isoformat()\n        }\n\ndef get_status() -> Dict[str, Any]:\n    \"\"\"Get current status of the OpenAI being\"\"\"\n    return {\n        \"initialized\": _client is not None,\n        \"model\": _model,\n        \"request_count\": _request_count,\n        \"last_response_preview\": _last_response[:100] + \"...\" if _last_response and len(_last_response) > 100 else _last_response,\n        \"openai_available\": OPENAI_AVAILABLE,\n        \"api_key_set\": bool(_api_key)\n    }\n\ndef set_model(model: str) -> Dict[str, Any]:\n    \"\"\"Set the model for completions\"\"\"\n    global _model\n    _model = model\n    return {\n        \"success\": True,\n        \"model\": _model,\n        \"message\": f\"Model set to {model}\"\n    }\n\ndef set_parameters(max_tokens: int = None, temperature: float = None) -> Dict[str, Any]:\n    \"\"\"Set completion parameters\"\"\"\n    global _max_tokens, _temperature\n    \n    if max_tokens is not None:\n        _max_tokens = max_tokens\n    if temperature is not None:\n        _temperature = temperature\n    \n    return {\n        \"success\": True,\n        \"max_tokens\": _max_tokens,\n        \"temperature\": _temperature,\n        \"message\": \"Parameters updated\"\n    }\n\n# Module metadata\n__module_info__ = {\n    \"name\": \"OpenAI Client Being\",\n    \"version\": \"1.0.0\",\n    \"description\": \"Complete OpenAI integration with async support\",\n    \"functions\": [\"init\", \"execute\", \"chat_completion\", \"get_status\", \"set_model\", \"set_parameters\"],\n    \"requirements\": [\"openai\"],\n    \"capabilities\": [\"async_operations\", \"ai_integration\", \"state_management\"]\n}"
+  }
 }
