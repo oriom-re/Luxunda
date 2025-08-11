@@ -5,11 +5,12 @@
 
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 from ..repository.soul_repository import BeingRepository
 from luxdb.utils.serializer import JSONBSerializer
 import ulid # Import ulid globally
 import time # Import time globally
+import asyncio # Import asyncio globally
 from dataclasses import dataclass, field # Import dataclass and field
 from luxdb.core.globals import Globals # Import Globals
 
@@ -141,6 +142,75 @@ class Being:
             )
 
     @classmethod
+    async def get_or_create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, 
+                           unique_by: str = "alias", soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
+        """
+        Pobiera istniejący Being lub tworzy nowy.
+        
+        Args:
+            soul_or_hash: Soul lub hash do bytu
+            alias: Alias bytu
+            attributes: Atrybuty do ustawienia
+            unique_by: Sposób szukania unikalności ("alias", "soul_hash", "custom")
+            soul: Soul object (nowy styl)
+            soul_hash: Hash soul (legacy)
+            
+        Returns:
+            Istniejący lub nowy Being
+        """
+        # Resolve target soul
+        if soul is not None:
+            target_soul = soul
+        elif soul_hash is not None:
+            from ..repository.soul_repository import SoulRepository
+            result = await SoulRepository.get_soul_by_hash(soul_hash)
+            if not result or not result.get('success'):
+                raise ValueError(f"Soul with hash {soul_hash} not found")
+            target_soul = result.get('soul')
+        elif isinstance(soul_or_hash, str):
+            from ..repository.soul_repository import SoulRepository
+            result = await SoulRepository.get_soul_by_hash(soul_or_hash)
+            if not result or not result.get('success'):
+                raise ValueError(f"Soul with hash {soul_or_hash} not found")
+            target_soul = result.get('soul')
+        else:
+            target_soul = soul_or_hash
+
+        if not target_soul:
+            raise ValueError("Soul object or hash must be provided.")
+
+        # Szukaj istniejącego Being
+        existing_being = None
+        
+        if unique_by == "alias" and alias:
+            beings_with_alias = await cls.get_by_alias(alias)
+            # Znajdź Being z tym samym soul_hash
+            for b in beings_with_alias:
+                if b.soul_hash == target_soul.soul_hash:
+                    existing_being = b
+                    break
+                    
+        elif unique_by == "soul_hash":
+            # Dla bytów typu Kernel - jeden per soul_hash
+            from ..repository.soul_repository import BeingRepository
+            result = await BeingRepository.get_by_soul_hash(target_soul.soul_hash)
+            beings = result.get('beings', [])
+            if beings:
+                existing_being = beings[0]  # Bierz pierwszy (powinien być jeden)
+
+        # Jeśli istnieje - zwróć go (opcjonalnie aktualizuj dane)
+        if existing_being:
+            # Aktualizuj atrybuty jeśli podano
+            if attributes:
+                existing_being.data.update(attributes)
+                existing_being.updated_at = datetime.now()
+                await existing_being.save()
+            return existing_being
+
+        # Jeśli nie istnieje - utwórz nowy
+        return await cls.create(target_soul, alias=alias, attributes=attributes)
+
+    @classmethod
     async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
         """Tworzy nowy Being na podstawie Soul - z kompatybilnością wsteczną"""
 
@@ -196,8 +266,12 @@ class Being:
         from ..core.access_control import access_controller
         access_controller.assign_being_to_zone(being.ulid, being.access_zone) # Use the being's access_zone
 
+        # *** AUTOMATYCZNA INICJALIZACJA PO UTWORZENIU ***
+        await being._auto_initialize_after_creation(target_soul)
+
         return being
     
+    @classmethod
     async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
         """Wewnętrzna metoda create - kopia oryginalnej logiki"""
         # Backward compatibility handling
@@ -250,6 +324,9 @@ class Being:
         from ..core.access_control import access_controller
         access_controller.assign_being_to_zone(being.ulid, being.access_zone)
 
+        # *** AUTOMATYCZNA INICJALIZACJA PO UTWORZENIU ***
+        await being._auto_initialize_after_creation(target_soul)
+
         return being
 
     async def get_soul(self):
@@ -282,6 +359,33 @@ class Being:
             return soul
 
         return None
+
+    async def _auto_initialize_after_creation(self, soul):
+        """
+        Automatyczna inicjalizacja Being po utworzeniu.
+        Sprawdza czy Soul ma funkcję 'init' i ją wykonuje.
+        """
+        try:
+            # Sprawdź czy Being ma funkcję init w soul
+            if soul.get_function('init'):
+                print(f"Auto-initializing being {self.alias} with init function")
+                result = await self.execute_soul_function('init', being_context={
+                    'ulid': self.ulid,
+                    'alias': self.alias,
+                    'creation_time': datetime.now().isoformat()
+                })
+                
+                if result.get('success'):
+                    print(f"Being {self.alias} successfully initialized")
+                    # Zapisz informację o inicjalizacji
+                    self.data['_initialized'] = True
+                    self.data['_init_time'] = datetime.now().isoformat()
+                    await self.save()
+                else:
+                    print(f"Being {self.alias} initialization failed: {result.get('error')}")
+                    
+        except Exception as e:
+            print(f"Auto-initialization failed for being {self.alias}: {e}")
 
     async def _initialize_dynamic_handlers(self, soul):
         """Inicjalizuje dynamiczne handlery z kodu źródłowego modułu Soul"""

@@ -437,6 +437,64 @@ class BeingRepository:
                 'count': 0
             }
 
+    @staticmethod
+    async def get_by_soul_hash(soul_hash: str) -> dict:
+        """Ładuje beings na podstawie soul_hash"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT * FROM beings WHERE soul_hash = $1 ORDER BY created_at DESC",
+                    soul_hash
+                )
+
+                Being = get_being_class()
+                beings = []
+                for row in rows:
+                    being_data = dict(row)
+                    being = Being.from_dict(being_data)
+                    beings.append(being)
+
+                return {"success": True, "beings": beings}
+        except Exception as e:
+            return {"success": False, "error": str(e), "beings": []}
+
+    @staticmethod
+    async def get_all_by_alias(alias: str) -> dict:
+        """Pobiera wszystkie beings o danym aliasie"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT * FROM beings
+                    WHERE alias = $1
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query, alias)
+
+                Being = get_being_class()
+                beings = []
+                for row in rows:
+                    being = Being()
+                    being.ulid = row['ulid']
+                    being.soul_hash = row['soul_hash']
+                    being.alias = row['alias']
+                    being.data = row['data'] or {}
+                    being.vector_embedding = row['vector_embedding']
+                    being.table_type = row['table_type']
+                    being.created_at = row['created_at']
+                    being.updated_at = row['updated_at']
+                    beings.append(being)
+
+                return {"success": True, "beings": beings}
+        except Exception as e:
+            print(f"❌ Error getting beings by alias: {e}")
+            return {"success": False, "error": str(e), "beings": []}
+
+
 class RelationshipRepository:
     """Repository for Relationship operations"""
 
