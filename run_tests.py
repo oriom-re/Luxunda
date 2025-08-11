@@ -17,8 +17,10 @@ import sys
 import argparse
 from pathlib import Path
 
-# Add tests directory to path
-tests_dir = Path(__file__).parent / "tests"
+# Add project root and tests directory to path
+project_root = Path(__file__).parent
+tests_dir = project_root / "tests"
+sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(tests_dir))
 
 from tests.test_runner import main as run_all_tests

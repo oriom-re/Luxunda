@@ -266,6 +266,24 @@ mode = "sequential"
 task = "shell.exec"
 args = "python main.py --status"
 
+[[workflows.workflow]]
+name = "Run Integration Tests"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PYTHONPATH=. python tests/test_integration_soul_being_functions.py"
+
+[[workflows.workflow]]
+name = "Run All Tests"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PYTHONPATH=. python run_tests.py"
+
 # === PORTY ===
 
 [[ports]]
