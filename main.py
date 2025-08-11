@@ -26,28 +26,35 @@ VERSION = "2.0.0-minimal"
 SYSTEM_NAME = "LuxOS Minimal"
 
 async def init_minimal_system() -> Dict[str, Any]:
-    """Inicjalizuje minimalny system Soul + Being"""
-    print(f"\n🚀 {SYSTEM_NAME} v{VERSION}")
+    """Inicjalizuje minimalny system Soul + Being - TYLKO PODSTAWA"""
+    print(f"\n🧬 {SYSTEM_NAME} v{VERSION} - Pure Soul + Being")
 
     try:
         # Połączenie z bazą
-        print("📊 PostgreSQL...")
+        print("📊 PostgreSQL connection...")
         pool = await Postgre_db.get_db_pool()
         if not pool:
             raise Exception("Database connection failed")
 
-        # Test operacji
+        # Test podstawowych operacji Soul + Being
+        print("🧬 Testing Soul operations...")
         souls = await Soul.get_all()
+        
+        print("🤖 Testing Being operations...")
         beings = await Being.get_all()
 
+        print(f"✅ System OK: {len(souls)} souls, {len(beings)} beings")
+        
         return {
             "status": "operational",
             "souls_count": len(souls),
             "beings_count": len(beings),
+            "core_only": True,
             "timestamp": datetime.now().isoformat()
         }
 
     except Exception as e:
+        print(f"❌ Core system error: {e}")
         return {"status": "error", "error": str(e)}
 
 async def run_web_mode():

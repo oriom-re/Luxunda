@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any, List
 from .connection import ConnectionManager
 from ..models.soul import Soul
 from ..models.being import Being
-# Removed unused import: from ..models.relationship import Relationship
+# Relationships moved to legacy system
 
 class LuxDB:
     """

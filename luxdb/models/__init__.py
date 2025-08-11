@@ -10,4 +10,4 @@ from .soul import Soul
 from .being import Being
 # Relationship model moved to legacy - remove import
 
-__all__ = ["Soul", "Being", "Relationship"]
+__all__ = ["Soul", "Being"]

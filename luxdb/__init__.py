@@ -55,7 +55,7 @@ __email__ = "contact@luxdb.dev"
 from .core.luxdb import LuxDB
 from .models.soul import Soul
 from .models.being import Being
-from .models.relationship import Relationship
+# Relationship moved to legacy
 
 # Utilities
 from .utils.types import GenotypeDef, AttributeDef
@@ -66,7 +66,7 @@ __all__ = [
     "LuxDB",
     "Soul", 
     "Being",
-    "Relationship",
+    # Relationship moved to legacy
 
     # Types
     "GenotypeDef",
