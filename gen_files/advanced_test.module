@@ -1,0 +1,101 @@
+
+"""
+Advanced test module with init, execute and various functions
+"""
+
+# Module attributes
+MODULE_VERSION = "1.2.0"
+MODULE_DESCRIPTION = "Advanced test module for LuxDB"
+DEFAULT_TIMEOUT = 30
+
+# Private helper function (will be ignored)
+def _internal_helper(data):
+    """Internal helper function"""
+    return f"processed_{data}"
+
+def init(being_context=None):
+    """Initialize the module - called automatically when Being is created"""
+    print(f"🚀 Advanced module initialized for being: {being_context.get('alias', 'unknown') if being_context else 'unknown'}")
+    return {
+        "status": "initialized",
+        "module": "advanced_test",
+        "version": MODULE_VERSION
+    }
+
+def execute(data=None, **kwargs):
+    """Default execution function - intelligent dispatch"""
+    if not data:
+        return process_status()
+    
+    if isinstance(data, dict):
+        if 'command' in data:
+            return process_command(data['command'], data.get('params', {}))
+        elif 'text' in data:
+            return process_text(data['text'])
+    
+    return process_generic(data)
+
+def process_text(text):
+    """Process text data"""
+    result = {
+        "type": "text_processing",
+        "input": text,
+        "length": len(text),
+        "words": len(text.split()),
+        "processed": _internal_helper(text)
+    }
+    return result
+
+def process_command(command, params=None):
+    """Process command with parameters"""
+    if params is None:
+        params = {}
+    
+    return {
+        "type": "command_processing", 
+        "command": command,
+        "params": params,
+        "result": f"Executed {command} with {len(params)} parameters"
+    }
+
+def process_generic(data):
+    """Generic data processor"""
+    return {
+        "type": "generic_processing",
+        "data_type": type(data).__name__,
+        "data": str(data),
+        "processed_at": "now"
+    }
+
+def process_status():
+    """Get module status"""
+    return {
+        "status": "active",
+        "version": MODULE_VERSION,
+        "description": MODULE_DESCRIPTION,
+        "timeout": DEFAULT_TIMEOUT
+    }
+
+def calculate_complex(x, y, operation="add"):
+    """Complex calculation function"""
+    operations = {
+        "add": x + y,
+        "multiply": x * y,
+        "power": x ** y
+    }
+    
+    return {
+        "operation": operation,
+        "x": x,
+        "y": y,
+        "result": operations.get(operation, 0)
+    }
+
+async def async_operation(delay=1):
+    """Async operation example"""
+    import asyncio
+    await asyncio.sleep(delay)
+    return {
+        "async_result": f"Completed after {delay} seconds",
+        "type": "async_operation"
+    }

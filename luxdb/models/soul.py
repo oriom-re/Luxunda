@@ -337,6 +337,194 @@ class Soul:
         """Zwraca kod źródłowy modułu"""
         return self.genotype.get("module_source")
 
+    @classmethod
+    def validate_module_source(cls, module_source: str) -> Dict[str, Any]:
+        """
+        Waliduje kod źródłowy modułu i zwraca informacje o funkcjach i atrybutach.
+        
+        Args:
+            module_source: Kod źródłowy modułu do walidacji
+            
+        Returns:
+            Dict z wynikami walidacji
+        """
+        validation_result = {
+            "valid": False,
+            "functions": {},
+            "attributes": {},
+            "errors": [],
+            "warnings": []
+        }
+        
+        try:
+            import ast
+            import inspect
+            
+            # Parsuj kod
+            tree = ast.parse(module_source)
+            
+            # Wykonaj kod w bezpiecznym środowisku dla analizy
+            temp_globals = {}
+            exec(module_source, temp_globals)
+            
+            # Znajdź funkcje (bez "_")
+            for name, obj in temp_globals.items():
+                if not name.startswith('_') and callable(obj):
+                    try:
+                        sig = inspect.signature(obj)
+                        validation_result["functions"][name] = {
+                            "py_type": "function",
+                            "description": f"Function {name}",
+                            "is_async": asyncio.iscoroutinefunction(obj),
+                            "signature": {
+                                "parameters": {
+                                    param.name: {
+                                        "type": str(param.annotation) if param.annotation != param.empty else "Any",
+                                        "default": str(param.default) if param.default != param.empty else None
+                                    }
+                                    for param in sig.parameters.values()
+                                },
+                                "return_type": str(sig.return_annotation) if sig.return_annotation != sig.empty else "Any"
+                            }
+                        }
+                    except Exception as e:
+                        validation_result["warnings"].append(f"Cannot analyze function {name}: {e}")
+                        
+                elif not name.startswith('_') and not callable(obj):
+                    # Znajdź atrybuty modułu
+                    validation_result["attributes"][name] = {
+                        "py_type": type(obj).__name__,
+                        "default": obj if isinstance(obj, (str, int, float, bool, list, dict)) else str(obj),
+                        "description": f"Module attribute {name}"
+                    }
+            
+            # Sprawdź czy ma init
+            if 'init' in validation_result["functions"]:
+                validation_result["has_init"] = True
+            else:
+                validation_result["has_init"] = False
+                
+            # Sprawdź czy ma execute
+            if 'execute' in validation_result["functions"]:
+                validation_result["has_execute"] = True
+            else:
+                validation_result["has_execute"] = False
+                
+            validation_result["valid"] = True
+            
+        except SyntaxError as e:
+            validation_result["errors"].append(f"Syntax error: {e}")
+        except Exception as e:
+            validation_result["errors"].append(f"Validation error: {e}")
+            
+        return validation_result
+
+    @classmethod
+    async def create_from_module_file(cls, module_file_path: str, alias: str = None) -> 'Soul':
+        """
+        Tworzy Soul z pliku .module automatycznie generując genotyp.
+        
+        Args:
+            module_file_path: Ścieżka do pliku .module
+            alias: Opcjonalny alias dla Soul
+            
+        Returns:
+            Nowy obiekt Soul
+        """
+        import os
+        from pathlib import Path
+        
+        module_path = Path(module_file_path)
+        
+        if not module_path.exists():
+            raise FileNotFoundError(f"Module file not found: {module_file_path}")
+            
+        if module_path.suffix != '.module':
+            raise ValueError("File must have .module extension")
+            
+        # Wczytaj kod źródłowy
+        with open(module_path, 'r', encoding='utf-8') as f:
+            module_source = f.read()
+            
+        # Waliduj moduł
+        validation = cls.validate_module_source(module_source)
+        
+        if not validation["valid"]:
+            raise ValueError(f"Invalid module: {', '.join(validation['errors'])}")
+            
+        # Przygotuj alias
+        if not alias:
+            alias = module_path.stem
+            
+        # Utwórz genotyp automatycznie
+        genotype = {
+            "genesis": {
+                "name": alias,
+                "type": "module_soul",
+                "version": "1.0.0",
+                "description": f"Auto-generated from {module_path.name}",
+                "source_file": str(module_path),
+                "created_at": datetime.now().isoformat(),
+                "has_init": validation["has_init"],
+                "has_execute": validation["has_execute"]
+            },
+            "module_source": module_source,
+            "functions": validation["functions"],
+            "attributes": validation["attributes"]
+        }
+        
+        # Dodaj warnings jako metadane
+        if validation["warnings"]:
+            genotype["genesis"]["warnings"] = validation["warnings"]
+            
+        return await cls.create(genotype, alias)
+
+    @classmethod
+    async def create_with_manual_module(cls, module_source: str, alias: str, additional_metadata: Dict[str, Any] = None) -> 'Soul':
+        """
+        Tworzy Soul z ręcznie podanym kodem źródłowym modułu.
+        
+        Args:
+            module_source: Kod źródłowy modułu
+            alias: Alias dla Soul
+            additional_metadata: Dodatkowe metadane
+            
+        Returns:
+            Nowy obiekt Soul
+        """
+        # Waliduj moduł
+        validation = cls.validate_module_source(module_source)
+        
+        if not validation["valid"]:
+            raise ValueError(f"Invalid module: {', '.join(validation['errors'])}")
+            
+        # Utwórz genotyp
+        genotype = {
+            "genesis": {
+                "name": alias,
+                "type": "manual_module_soul",
+                "version": "1.0.0",
+                "description": f"Manually created module soul: {alias}",
+                "created_at": datetime.now().isoformat(),
+                "creation_method": "manual_module",
+                "has_init": validation["has_init"],
+                "has_execute": validation["has_execute"]
+            },
+            "module_source": module_source,
+            "functions": validation["functions"],
+            "attributes": validation["attributes"]
+        }
+        
+        # Dodaj dodatkowe metadane
+        if additional_metadata:
+            genotype["genesis"].update(additional_metadata)
+            
+        # Dodaj warnings jako metadane
+        if validation["warnings"]:
+            genotype["genesis"]["warnings"] = validation["warnings"]
+            
+        return await cls.create(genotype, alias)
+
     def load_module_dynamically(self) -> Optional[Any]:
         """Ładuje moduł dynamicznie z kodu źródłowego"""
         if not self.has_module_source():
@@ -353,13 +541,20 @@ class Soul:
             # Wykonaj kod w kontekście modułu
             exec(self.get_module_source(), module.__dict__)
             
+            # Automatycznie zarejestruj funkcje z modułu
+            functions = self.extract_functions_from_module(module)
+            for func_name, func in functions.items():
+                self._register_immutable_function(func_name, func)
+            
             # Dodaj do sys.modules dla możliwości importu
             sys.modules[module_name] = module
+            
+            print(f"✅ Loaded dynamic module {module_name} with {len(functions)} functions")
             
             return module
             
         except Exception as e:
-            print(f"Error loading dynamic module: {e}")
+            print(f"❌ Error loading dynamic module: {e}")
             return None
 
     def extract_functions_from_module(self, module: Any) -> Dict[str, Callable]:
