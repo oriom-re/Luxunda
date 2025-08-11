@@ -46,6 +46,10 @@ class Being:
         if not self.created_at:
             self.created_at = datetime.now()
         self.updated_at = datetime.now()
+        
+        # Cache dla dynamicznie załadowanych handlerów
+        self._dynamic_handlers: Dict[str, Callable] = {}
+        self._module_loaded = False
 
     @classmethod
     async def set(cls, soul, data: Dict[str, Any], alias: str = None,
@@ -270,10 +274,92 @@ class Being:
             if soul:
                 self._soul_cache = soul
                 self._soul_cache_ttl = current_time + 3600  # 1 godzina TTL
+                
+                # Inicjalizuj handlery z modułu jeśli jeszcze nie zostało to zrobione
+                if not self._module_loaded:
+                    await self._initialize_dynamic_handlers(soul)
 
             return soul
 
         return None
+
+    async def _initialize_dynamic_handlers(self, soul):
+        """Inicjalizuje dynamiczne handlery z kodu źródłowego modułu Soul"""
+        try:
+            if soul.has_module_source():
+                # Załaduj moduł dynamicznie
+                module = soul.load_module_dynamically()
+                if module:
+                    # Wyciągnij funkcje z modułu
+                    module_functions = soul.extract_functions_from_module(module)
+                    
+                    # Dodaj funkcje jako handlery
+                    for func_name, func in module_functions.items():
+                        self._dynamic_handlers[func_name] = func
+                        
+                        # Opcjonalnie: dodaj też do rejestru funkcji Soul
+                        if func_name not in soul._function_registry:
+                            soul._register_immutable_function(func_name, func)
+                    
+                    self._module_loaded = True
+                    print(f"Loaded {len(module_functions)} dynamic handlers for being {self.alias}")
+                    
+        except Exception as e:
+            print(f"Failed to initialize dynamic handlers: {e}")
+
+    def get_dynamic_handler(self, handler_name: str) -> Optional[Callable]:
+        """Pobiera dynamiczny handler po nazwie"""
+        return self._dynamic_handlers.get(handler_name)
+
+    def list_dynamic_handlers(self) -> List[str]:
+        """Lista dostępnych dynamicznych handlerów"""
+        return list(self._dynamic_handlers.keys())
+
+    async def execute_dynamic_handler(self, handler_name: str, *args, **kwargs) -> Dict[str, Any]:
+        """Wykonuje dynamiczny handler"""
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            handler = self.get_dynamic_handler(handler_name)
+            if not handler:
+                return GeneticResponseFormat.error_response(
+                    error=f"Dynamic handler '{handler_name}' not found",
+                    error_code="HANDLER_NOT_FOUND"
+                )
+
+            # Dodaj kontekst Being do kwargs
+            if 'being_context' not in kwargs:
+                kwargs['being_context'] = {
+                    'ulid': self.ulid,
+                    'alias': self.alias,
+                    'data': self.data
+                }
+
+            # Wykonaj handler
+            if asyncio.iscoroutinefunction(handler):
+                result = await handler(*args, **kwargs)
+            else:
+                result = handler(*args, **kwargs)
+
+            # Zaktualizuj statystyki
+            execution_count = self.data.get('handler_executions', 0) + 1
+            self.data['handler_executions'] = execution_count
+            self.data['last_handler_execution'] = datetime.now().isoformat()
+            self.updated_at = datetime.now()
+
+            return GeneticResponseFormat.success_response(
+                data={
+                    "handler_name": handler_name,
+                    "result": result,
+                    "executed_at": datetime.now().isoformat()
+                }
+            )
+
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Handler execution failed: {str(e)}",
+                error_code="HANDLER_EXECUTION_ERROR"
+            )
 
     async def execute_soul_function(self, function_name: str, *args, **kwargs) -> Dict[str, Any]:
         """

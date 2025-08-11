@@ -325,6 +325,55 @@ class Soul:
             return self.genotype["functions"][name]
         return None
 
+    def has_module_source(self) -> bool:
+        """Sprawdza czy Soul zawiera kod źródłowy modułu"""
+        return "module_source" in self.genotype and self.genotype["module_source"] is not None
+
+    def get_module_source(self) -> Optional[str]:
+        """Zwraca kod źródłowy modułu"""
+        return self.genotype.get("module_source")
+
+    def load_module_dynamically(self) -> Optional[Any]:
+        """Ładuje moduł dynamicznie z kodu źródłowego"""
+        if not self.has_module_source():
+            return None
+        
+        try:
+            import types
+            import sys
+            
+            # Utwórz nowy moduł
+            module_name = f"dynamic_soul_{self.soul_hash[:8]}"
+            module = types.ModuleType(module_name)
+            
+            # Wykonaj kod w kontekście modułu
+            exec(self.get_module_source(), module.__dict__)
+            
+            # Dodaj do sys.modules dla możliwości importu
+            sys.modules[module_name] = module
+            
+            return module
+            
+        except Exception as e:
+            print(f"Error loading dynamic module: {e}")
+            return None
+
+    def extract_functions_from_module(self, module: Any) -> Dict[str, Callable]:
+        """Wyciąga funkcje z załadowanego modułu"""
+        functions = {}
+        
+        if not module:
+            return functions
+            
+        # Znajdź wszystkie callable obiekty w module
+        for attr_name in dir(module):
+            if not attr_name.startswith('_'):  # Pomijaj prywatne
+                attr = getattr(module, attr_name)
+                if callable(attr):
+                    functions[attr_name] = attr
+                    
+        return functions
+
     async def execute_function(self, name: str, *args, **kwargs) -> Dict[str, Any]:
         """
         Wykonuje funkcję zarejestrowaną w Soul.
