@@ -17,7 +17,7 @@ run = ["python3", "main.py", "--mode=full"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS Main System"
+runButton = "LuxOS Minimal"
 
 [[workflows.workflow]]
 name = "LuxOS Full System"
@@ -238,6 +238,24 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python main.py --mode=web"
+
+[[workflows.workflow]]
+name = "LuxOS Minimal"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py --mode=web"
+
+[[workflows.workflow]]
+name = "Status Check"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py --status"
 
 # === PORTY ===
 
