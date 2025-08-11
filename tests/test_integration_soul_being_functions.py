@@ -14,7 +14,8 @@ from typing import Dict, Any
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
 from database.postgre_db import Postgre_db
-
+import sys
+sys.path.insert(0, '.')
 
 # Test functions for the Soul
 def simple_function(x: int, y: int = 10) -> int:
