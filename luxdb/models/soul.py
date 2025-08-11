@@ -34,26 +34,16 @@ class Soul:
     @classmethod
     async def create(cls, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
         """
-        Tworzy nowy Soul na podstawie genotypu.
+        Tworzy Soul na podstawie genotypu. 
+        Jeśli Soul o tym samym hash już istnieje - zwraca istniejący.
+        To zapewnia unikalność i bezpieczeństwo.
 
         Args:
-            genotype: Definicja struktury danych
+            genotype: Definicja struktury danych (słownik)
             alias: Opcjonalny alias dla łatwego odszukiwania
 
         Returns:
-            Nowy obiekt Soul
-
-        Example:
-            ```python
-            genotype = {
-                "genesis": {"name": "user", "version": "1.0"},
-                "attributes": {
-                    "name": {"py_type": "str"},
-                    "email": {"py_type": "str", "unique": True}
-                }
-            }
-            soul = await Soul.create(genotype, alias="user_profile")
-            ```
+            Soul (nowy lub istniejący)
         """
         from ..utils.validators import validate_genotype
         from ..repository.soul_repository import SoulRepository
@@ -61,14 +51,25 @@ class Soul:
         # Walidacja genotypu
         validate_genotype(genotype)
 
-        # Tworzenie Soul
+        # Generuj hash z genotypu - to jest unikalny kod genetyczny
+        soul_hash = hashlib.sha256(
+            json.dumps(genotype, sort_keys=True).encode()
+        ).hexdigest()
+
+        # Sprawdź czy Soul o tym hash już istnieje
+        existing_soul = await cls.get_by_hash(soul_hash)
+        if existing_soul:
+            # Aktualizuj alias jeśli podano nowy
+            if alias and existing_soul.alias != alias:
+                existing_soul.alias = alias
+                await SoulRepository.set(existing_soul)
+            return existing_soul
+
+        # Utwórz nową Soul
         soul = cls()
         soul.alias = alias
         soul.genotype = genotype
-        # Hash generowany TYLKO z genotypu - to jest kod genetyczny
-        soul.soul_hash = hashlib.sha256(
-            json.dumps(genotype, sort_keys=True).encode()
-        ).hexdigest()
+        soul.soul_hash = soul_hash
         soul.created_at = datetime.now()
 
         # Zapis do bazy danych
@@ -251,34 +252,7 @@ class Soul:
         """Zwraca hash Soul"""
         return self.soul_hash
     
-    @staticmethod
-    def generate_hash_from_genotype(genotype: Dict[str, Any]) -> str:
-        """
-        Generuje hash z genotypu - to jest kod genetyczny Soul.
-        
-        Args:
-            genotype: Słownik z definicją genotypu
-            
-        Returns:
-            Hash SHA256 jako hex string
-        """
-        return hashlib.sha256(
-            json.dumps(genotype, sort_keys=True).encode()
-        ).hexdigest()
     
-    @classmethod
-    async def find_by_genotype(cls, genotype: Dict[str, Any]) -> Optional['Soul']:
-        """
-        Znajduje Soul po genotypie (generuje hash i szuka).
-        
-        Args:
-            genotype: Definicja genotypu do znalezienia
-            
-        Returns:
-            Soul jeśli istnieje o takim genotypie
-        """
-        expected_hash = cls.generate_hash_from_genotype(genotype)
-        return await cls.get_by_hash(expected_hash)
 
     def to_dict(self) -> Dict[str, Any]:
         """Konwertuje Soul do słownika dla serializacji"""
