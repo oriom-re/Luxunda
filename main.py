@@ -20,7 +20,7 @@ from luxdb.core.globals import Globals
 from database.postgre_db import Postgre_db
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
-from luxdb.web_lux_interface import create_app
+from luxdb.web_lux_interface import app
 import luxdb.core.genotype_system as genotype_system # Added import for genotype_system
 
 VERSION = "2.0.0-minimal"
@@ -65,11 +65,9 @@ async def run_web_mode():
         print("❌ Cannot start server")
         return
 
-    app = create_app()
-    app.config['SYSTEM_STATUS'] = status
-
-    print("🚀 Server: http://0.0.0.0:5000")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    print("🚀 Starting FastAPI server on http://0.0.0.0:5000")
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)
 
 async def show_status():
     """Status systemu"""
