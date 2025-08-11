@@ -1,19 +1,18 @@
-
 """
 Główna klasa LuxDB do zarządzania połączeniem i inicjalizacji systemu.
 """
 
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from .connection import ConnectionManager
 from ..models.soul import Soul
 from ..models.being import Being
-from ..models.relationship import Relationship
+# Removed unused import: from ..models.relationship import Relationship
 
 class LuxDB:
     """
     Główna klasa LuxDB do zarządzania bazą danych.
-    
+
     Przykład:
         ```python
         db = LuxDB(
@@ -26,7 +25,7 @@ class LuxDB:
         await db.initialize()
         ```
     """
-    
+
     def __init__(
         self,
         host: str = None,
@@ -41,7 +40,7 @@ class LuxDB:
     ):
         """
         Inicjalizuje LuxDB z parametrami połączenia.
-        
+
         Args:
             host: Adres serwera PostgreSQL (opcjonalny jeśli use_existing_pool=True)
             port: Port serwera PostgreSQL
@@ -53,7 +52,7 @@ class LuxDB:
             use_existing_pool: Czy użyć istniejącej puli z database.postgre_db
         """
         self.use_existing_pool = use_existing_pool
-        
+
         if not use_existing_pool and host:
             self.connection_manager = ConnectionManager(
                 host=host,
@@ -67,17 +66,17 @@ class LuxDB:
             )
         else:
             self.connection_manager = None
-            
+
         self._initialized = False
         self.pool = None
-        
+
     async def initialize(self) -> None:
         """
         Inicjalizuje połączenie z bazą danych i tworzy podstawowe tabele.
         """
         if self._initialized:
             return
-        
+
         if self.use_existing_pool:
             # Użyj istniejącej puli z database.postgre_db
             from database.postgre_db import Postgre_db
@@ -86,10 +85,10 @@ class LuxDB:
             # Użyj własnego connection manager
             await self.connection_manager.initialize()
             self.pool = await self.connection_manager.get_pool()
-            
+
         await self._setup_core_tables()
         self._initialized = True
-        
+
     async def close(self) -> None:
         """
         Zamyka wszystkie połączenia z bazą danych.
@@ -99,7 +98,7 @@ class LuxDB:
         # Nie zamykamy zewnętrznej puli, bo może być używana przez inne komponenty
         self._initialized = False
         self.pool = None
-        
+
     async def _setup_core_tables(self) -> None:
         """
         Tworzy podstawowe tabele systemu LuxDB.
@@ -110,14 +109,14 @@ class LuxDB:
             else:
                 from database.postgre_db import Postgre_db
                 self.pool = await Postgre_db.get_db_pool()
-                
+
         async with self.pool.acquire() as conn:
             # Włącz rozszerzenia PostgreSQL
             await conn.execute("""
                 CREATE EXTENSION IF NOT EXISTS vector;
                 CREATE EXTENSION IF NOT EXISTS pgcrypto;
             """)
-            
+
             # Tabela souls (genotypów)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS souls (
@@ -128,12 +127,12 @@ class LuxDB:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(alias)
                 );
-                
+
                 CREATE INDEX IF NOT EXISTS idx_souls_genotype ON souls USING gin (genotype);
                 CREATE INDEX IF NOT EXISTS idx_souls_alias ON souls (alias);
                 CREATE INDEX IF NOT EXISTS idx_souls_created_at ON souls (created_at);
             """)
-            
+
             # Tabela beings (bytów)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS beings (
@@ -144,13 +143,13 @@ class LuxDB:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (soul_hash) REFERENCES souls(soul_hash)
                 );
-                
+
                 CREATE INDEX IF NOT EXISTS idx_beings_soul_hash ON beings (soul_hash);
                 CREATE INDEX IF NOT EXISTS idx_beings_created_at ON beings (created_at);
                 CREATE INDEX IF NOT EXISTS idx_beings_updated_at ON beings (updated_at);
                 CREATE INDEX IF NOT EXISTS idx_beings_alias ON beings (alias);
             """)
-            
+
             # Tabela relationships (relacji)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS relationships (
@@ -165,7 +164,7 @@ class LuxDB:
                     FOREIGN KEY (source_ulid) REFERENCES beings(ulid) ON DELETE CASCADE,
                     FOREIGN KEY (target_ulid) REFERENCES beings(ulid) ON DELETE CASCADE
                 );
-                
+
                 CREATE INDEX IF NOT EXISTS idx_relationships_source ON relationships (source_ulid);
                 CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships (target_ulid);
                 CREATE INDEX IF NOT EXISTS idx_relationships_type ON relationships (relation_type);
@@ -173,11 +172,11 @@ class LuxDB:
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_relationship 
                 ON relationships (source_ulid, target_ulid, relation_type);
             """)
-            
+
     async def health_check(self) -> Dict[str, Any]:
         """
         Sprawdza stan połączenia z bazą danych.
-        
+
         Returns:
             Słownik z informacjami o stanie bazy danych
         """
@@ -188,16 +187,16 @@ class LuxDB:
                 else:
                     from database.postgre_db import Postgre_db
                     self.pool = await Postgre_db.get_db_pool()
-                    
+
             async with self.pool.acquire() as conn:
                 # Sprawdź połączenie
                 result = await conn.fetchval("SELECT 1")
-                
+
                 # Sprawdź liczbę souls i beings
                 souls_count = await conn.fetchval("SELECT COUNT(*) FROM souls")
                 beings_count = await conn.fetchval("SELECT COUNT(*) FROM beings")
                 relationships_count = await conn.fetchval("SELECT COUNT(*) FROM relationships")
-                
+
                 return {
                     "status": "healthy",
                     "connection": "ok" if result == 1 else "error",
@@ -213,15 +212,15 @@ class LuxDB:
                 "error": str(e),
                 "initialized": self._initialized
             }
-            
+
     def __repr__(self):
         return f"LuxDB(initialized={self._initialized})"
-        
+
     async def __aenter__(self):
         """Context manager support."""
         await self.initialize()
         return self
-        
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Context manager support."""
         await self.close()
