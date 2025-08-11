@@ -1,4 +1,3 @@
-
 """
 OpenAI Client Module for LuxDB Soul System
 Dynamic module with functions for OpenAI integration
@@ -42,19 +41,19 @@ def completion(prompt: str, instruction: str = "You are a helpful assistant.", m
     """
     if not _client:
         return {"error": "OpenAI client not initialized. Call initialize_openai first."}
-    
+
     try:
         messages = [
             {"role": "system", "content": instruction},
             {"role": "user", "content": prompt}
         ]
-        
+
         response = _client.chat.completions.create(
             model=_model,
             messages=messages,
             max_tokens=max_tokens
         )
-        
+
         return {
             "success": True,
             "response": response.choices[0].message.content,
@@ -62,7 +61,7 @@ def completion(prompt: str, instruction: str = "You are a helpful assistant.", m
             "tokens_used": response.usage.total_tokens if response.usage else None,
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
         return {"error": f"OpenAI completion failed: {str(e)}"}
 
@@ -72,14 +71,14 @@ def chat_completion(messages: List[Dict[str, str]], max_tokens: int = 150):
     """
     if not _client:
         return {"error": "OpenAI client not initialized. Call initialize_openai first."}
-    
+
     try:
         response = _client.chat.completions.create(
             model=_model,
             messages=messages,
             max_tokens=max_tokens
         )
-        
+
         return {
             "success": True,
             "response": response.choices[0].message.content,
@@ -87,7 +86,7 @@ def chat_completion(messages: List[Dict[str, str]], max_tokens: int = 150):
             "tokens_used": response.usage.total_tokens if response.usage else None,
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
         return {"error": f"OpenAI chat completion failed: {str(e)}"}
 
@@ -98,6 +97,153 @@ def test_connection():
         instruction="Respond exactly as requested.",
         max_tokens=10
     )
+
+def init(being_context=None):
+    """
+    Funkcja inicjalizująca moduł OpenAI - automatycznie wywoływana przy tworzeniu Being
+
+    Args:
+        being_context: Kontekst Being (ulid, alias, data)
+
+    Returns:
+        Status inicjalizacji
+    """
+    import os
+
+    # Sprawdź dostępność klucza API
+    api_key = os.getenv('OPENAI_API_KEY')
+
+    result = {
+        "module": "openai_client",
+        "initialized_at": being_context.get("creation_time") if being_context else None,
+        "api_key_available": bool(api_key),
+        "being_alias": being_context.get("alias") if being_context else None
+    }
+
+    if api_key:
+        result["status"] = "ready"
+        result["message"] = f"OpenAI module initialized for being {being_context.get('alias', 'unknown')}"
+    else:
+        result["status"] = "warning"  
+        result["message"] = "OpenAI module initialized but API key not found"
+
+    return result
+
+def execute(data=None, model="gpt-3.5-turbo", temperature=0.7, max_tokens=1000):
+    """
+    Domyślna funkcja execute - wywołuje completion z danymi
+
+    Args:
+        data: Dict z 'prompt' i opcjonalnie 'context'
+        model: Model OpenAI
+        temperature: Temperatura
+        max_tokens: Limit tokenów
+
+    Returns:
+        Wynik completion
+    """
+    if not data:
+        return {
+            "error": "Brak danych do przetworzenia",
+            "status": "no_data"
+        }
+
+    prompt = data.get("prompt")
+    if not prompt:
+        return {
+            "error": "Brak 'prompt' w danych",
+            "status": "invalid_data" 
+        }
+
+    context = data.get("context", "")
+
+    return get_completion(
+        prompt=prompt,
+        context=context, 
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens
+    )
+
+def get_completion(prompt, context="", model="gpt-3.5-turbo", temperature=0.7, max_tokens=1000, being_context=None):
+    """
+    Pobiera completion z OpenAI API
+
+    Args:
+        prompt: Zapytanie użytkownika
+        context: Kontekst dla AI (opcjonalny)  
+        model: Model do użycia
+        temperature: Temperatura generowania
+        max_tokens: Maksymalna liczba tokenów
+        being_context: Kontekst Being (ulid, alias, data) - automatycznie dodawany
+
+    Returns:
+        Odpowiedź AI lub komunikat błędu
+    """
+    try:
+        import os
+        from openai import OpenAI
+
+        # Pobranie klucza API
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            return {
+                "error": "Brak klucza API OpenAI. Ustaw zmienną OPENAI_API_KEY",
+                "status": "missing_api_key"
+            }
+
+        client = OpenAI(api_key=api_key)
+
+        # Przygotowanie wiadomości
+        messages = []
+
+        if context:
+            messages.append({
+                "role": "system", 
+                "content": context
+            })
+
+        messages.append({
+            "role": "user", 
+            "content": prompt
+        })
+
+        # Wywołanie API
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+
+        # Przygotowanie odpowiedzi
+        completion_text = response.choices[0].message.content
+
+        result = {
+            "completion": completion_text,
+            "model": model,
+            "usage": {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens
+            },
+            "status": "success"
+        }
+
+        # Dodaj informacje o Being jeśli dostępne
+        if being_context:
+            result["being_info"] = {
+                "ulid": being_context.get("ulid"),
+                "alias": being_context.get("alias")
+            }
+
+        return result
+
+    except Exception as e:
+        return {
+            "error": f"Błąd wywołania OpenAI API: {str(e)}",
+            "status": "api_error"
+        }
 
 # Module metadata for Soul system
 __module_info__ = {
@@ -111,7 +257,9 @@ __module_info__ = {
         "set_model",
         "completion",
         "chat_completion",
-        "test_connection"
+        "test_connection",
+        "init",
+        "execute"
     ],
     "requirements": ["openai"],
     "author": "LuxDB System"

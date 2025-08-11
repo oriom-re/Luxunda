@@ -372,24 +372,29 @@ class Being:
     async def _auto_initialize_after_creation(self, soul):
         """
         Automatyczna inicjalizacja Being po utworzeniu.
-        Sprawdza czy Soul ma funkcję 'init' i ją wykonuje.
+        Używa nowej metody auto_init z Soul.
         """
         try:
-            # Sprawdź czy Being ma funkcję init w soul
-            if soul.get_function('init'):
+            if soul.has_init_function():
                 print(f"Auto-initializing being {self.alias} with init function")
-                result = await self.execute_soul_function('init', being_context={
+                
+                # Przygotuj kontekst Being (NIE są to atrybuty!)
+                being_context = {
                     'ulid': self.ulid,
                     'alias': self.alias,
-                    'creation_time': datetime.now().isoformat()
-                })
+                    'creation_time': datetime.now().isoformat(),
+                    'data': self.data.copy()
+                }
+                
+                result = await soul.auto_init(being_context=being_context)
                 
                 if result.get('success'):
                     print(f"Being {self.alias} successfully initialized")
                     # Zapisz informację o inicjalizacji
                     self.data['_initialized'] = True
                     self.data['_init_time'] = datetime.now().isoformat()
-                    await self.save()
+                    if self.is_persistent():
+                        await self.save()
                 else:
                     print(f"Being {self.alias} initialization failed: {result.get('error')}")
                     
@@ -480,8 +485,8 @@ class Being:
 
         Args:
             function_name: Nazwa funkcji do wykonania
-            *args: Argumenty pozycyjne
-            **kwargs: Argumenty nazwane
+            *args: Argumenty pozycyjne dla funkcji
+            **kwargs: Argumenty nazwane dla funkcji (NIE atrybuty Being)
 
         Returns:
             Wynik wykonania funkcji w formacie genetycznym
@@ -496,18 +501,24 @@ class Being:
                     error_code="SOUL_NOT_FOUND"
                 )
 
-            # Dodaj kontekst bytu do kwargs jeśli nie ma konfliktu
+            # Automatycznie dodaj being_context jeśli funkcja go potrzebuje
             if 'being_context' not in kwargs:
-                kwargs['being_context'] = {
-                    'ulid': self.ulid,
-                    'alias': self.alias,
-                    'data': self.data
-                }
+                # Sprawdź czy funkcja przyjmuje being_context
+                import inspect
+                func = soul.get_function(function_name)
+                if func:
+                    sig = inspect.signature(func)
+                    if 'being_context' in sig.parameters:
+                        kwargs['being_context'] = {
+                            'ulid': self.ulid,
+                            'alias': self.alias,
+                            'data': self.data.copy()
+                        }
 
-            # Wykonaj funkcję przez Soul
+            # Wykonaj funkcję przez Soul - kwargs to TYLKO argumenty funkcji
             result = await soul.execute_function(function_name, *args, **kwargs)
             
-            # Zaktualizuj licznik wykonań w danych bytu jeśli funkcja się powiodła
+            # Zaktualizuj statystyki Being jeśli funkcja się powiodła
             if result.get('success'):
                 execution_count = self.data.get('execution_count', 0) + 1
                 self.data['execution_count'] = execution_count
@@ -521,6 +532,62 @@ class Being:
                 error=f"Function execution failed: {str(e)}",
                 error_code="BEING_FUNCTION_ERROR"
             )
+
+    async def execute(self, data: Dict[str, Any] = None, function: str = None, **kwargs) -> Dict[str, Any]:
+        """
+        Wygodna metoda do wykonywania funkcji. 
+        
+        Jeśli nie podano function, wywołuje domyślną funkcję 'execute'.
+        Jeśli podano function, wywołuje tę konkretną funkcję.
+        
+        Args:
+            data: Dane do przetworzenia (argument funkcji)
+            function: Nazwa konkretnej funkcji do wywołania (opcjonalne)
+            **kwargs: Dodatkowe argumenty dla funkcji
+            
+        Returns:
+            Wynik wykonania funkcji
+        """
+        soul = await self.get_soul()
+        if not soul:
+            from luxdb.utils.serializer import GeneticResponseFormat
+            return GeneticResponseFormat.error_response(
+                error="Soul not found for this being",
+                error_code="SOUL_NOT_FOUND"
+            )
+
+        if function:
+            # Wywołaj konkretną funkcję
+            return await self.execute_soul_function(function, data=data, **kwargs)
+        else:
+            # Wywołaj domyślną funkcję execute
+            return await soul.default_execute(data=data, **kwargs)
+
+    async def init(self, **kwargs) -> Dict[str, Any]:
+        """
+        Wygodna metoda do ręcznego wywołania inicjalizacji.
+        
+        Args:
+            **kwargs: Dodatkowe argumenty dla funkcji init
+            
+        Returns:
+            Wynik funkcji init
+        """
+        soul = await self.get_soul()
+        if not soul:
+            from luxdb.utils.serializer import GeneticResponseFormat
+            return GeneticResponseFormat.error_response(
+                error="Soul not found for this being",
+                error_code="SOUL_NOT_FOUND"
+            )
+
+        being_context = {
+            'ulid': self.ulid,
+            'alias': self.alias,
+            'data': self.data.copy()
+        }
+        
+        return await soul.auto_init(being_context=being_context, **kwargs)
 
     async def request_evolution(self, evolution_trigger: str, new_capabilities: Dict[str, Any] = None, 
                                access_level_change: str = None) -> Dict[str, Any]:

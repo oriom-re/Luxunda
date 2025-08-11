@@ -385,7 +385,7 @@ class Soul:
         Args:
             name: Nazwa funkcji
             *args: Argumenty pozycyjne
-            **kwargs: Argumenty nazwane
+            **kwargs: Argumenty nazwane (NIE zawierają atrybutów Being)
 
         Returns:
             Wynik wykonania funkcji w standardowym formacie genetycznym
@@ -400,7 +400,7 @@ class Soul:
                     error_code="FUNCTION_NOT_FOUND"
                 )
 
-            # Wykonaj funkcję
+            # Wykonaj funkcję - kwargs to tylko argumenty funkcji, nie atrybuty Being
             if asyncio.iscoroutinefunction(func):
                 result = await func(*args, **kwargs)
             else:
@@ -423,6 +423,52 @@ class Soul:
                 error=f"Function execution error: {str(e)}",
                 error_code="FUNCTION_EXECUTION_ERROR",
                 soul_context={"soul_hash": self.soul_hash, "function_name": name}
+            )
+
+    def has_init_function(self) -> bool:
+        """Sprawdza czy Soul ma funkcję init"""
+        return self.get_function('init') is not None
+
+    def has_execute_function(self) -> bool:
+        """Sprawdza czy Soul ma funkcję execute"""
+        return self.get_function('execute') is not None
+
+    async def auto_init(self, being_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Automatyczne wywołanie funkcji init jeśli istnieje.
+        
+        Args:
+            being_context: Kontekst Being (ulid, alias, data, itp.)
+            
+        Returns:
+            Wynik funkcji init lub informację o jej braku
+        """
+        if self.has_init_function():
+            return await self.execute_function('init', being_context=being_context or {})
+        else:
+            from luxdb.utils.serializer import GeneticResponseFormat
+            return GeneticResponseFormat.success_response(
+                data={"message": "No init function found, skipping auto-initialization"}
+            )
+
+    async def default_execute(self, data: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
+        """
+        Wykonuje domyślną funkcję execute z danymi.
+        
+        Args:
+            data: Dane do przetworzenia
+            **kwargs: Dodatkowe argumenty
+            
+        Returns:
+            Wynik funkcji execute
+        """
+        if self.has_execute_function():
+            return await self.execute_function('execute', data=data, **kwargs)
+        else:
+            from luxdb.utils.serializer import GeneticResponseFormat
+            return GeneticResponseFormat.error_response(
+                error="No execute function found in soul",
+                error_code="EXECUTE_FUNCTION_NOT_FOUND"
             )
 
     def should_create_persistent_being(self, attributes: Dict[str, Any] = None) -> bool:
