@@ -406,7 +406,24 @@ async def main():
         return 2
 
 
+def run_async_test():
+    """Run test with proper asyncio handling"""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If loop is already running, create a new task
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, main())
+                return future.result()
+        else:
+            return asyncio.run(main())
+    except RuntimeError:
+        # If there's an issue with the loop, create a new one
+        return asyncio.run(main())
+
+
 if __name__ == "__main__":
     import sys
-    exit_code = asyncio.run(main())
+    exit_code = run_async_test()
     sys.exit(exit_code)

@@ -6,7 +6,6 @@ Test integracyjny dla pełnego cyklu: Soul → Being → Funkcje
 Kompletny test tworzenia Soul, Being i wykonywania funkcji.
 """
 
-import pytest
 import asyncio
 from datetime import datetime
 from typing import Dict, Any
@@ -60,8 +59,7 @@ def process_data(input_data: str) -> str:
 class TestIntegrationSoulBeingFunctions:
     """Kompletny test integracyjny Soul + Being + Functions"""
 
-    @pytest.fixture
-    async def test_soul_with_functions(self):
+    async def create_test_soul_with_functions(self):
         """Soul testowy z funkcjami"""
         # Genotyp z funkcjami w module_source
         genotype = {
@@ -123,11 +121,11 @@ def _private_function():
         
         return await Soul.create(genotype, alias="integration_test_soul")
 
-    async def test_complete_integration_cycle(self, test_soul_with_functions):
+    async def test_complete_integration_cycle(self):
         """Test kompletnego cyklu: Soul → Being → Funkcje"""
         print("\n🔄 Testing complete integration cycle...")
         
-        soul = test_soul_with_functions
+        soul = await self.create_test_soul_with_functions()
         
         # 1. Sprawdź czy Soul została utworzona poprawnie
         assert soul is not None
@@ -290,11 +288,11 @@ def _private_function():
         assert being.is_function_master() == False  # Nie ma init
         print("✅ Being from Soul without functions is not a function master")
 
-    async def test_error_handling(self, test_soul_with_functions):
+    async def test_error_handling(self):
         """Test obsługi błędów"""
         print("\n❌ Testing error handling...")
         
-        soul = test_soul_with_functions
+        soul = await self.create_test_soul_with_functions()
         being = await Being.create(
             soul=soul,
             attributes={"name": "Error Test Being"},
@@ -346,14 +344,11 @@ async def run_integration_tests():
     
     print("🔄 Uruchamianie testów integracyjnych Soul + Being + Functions...")
     
-    # Przygotuj fixture
-    test_soul = await test_instance.test_soul_with_functions()
-    
     tests = [
-        ("Complete Integration Cycle", test_instance.test_complete_integration_cycle(test_soul)),
+        ("Complete Integration Cycle", test_instance.test_complete_integration_cycle()),
         ("Function Soul Creation", test_instance.test_function_soul_creation()),
         ("Soul Without Functions", test_instance.test_soul_without_functions()),
-        ("Error Handling", test_instance.test_error_handling(test_soul))
+        ("Error Handling", test_instance.test_error_handling())
     ]
     
     passed = 0
