@@ -48,12 +48,15 @@ class Soul:
         from ..utils.validators import validate_genotype
         from ..repository.soul_repository import SoulRepository
 
+        # Automatycznie rozpoznaj funkcje publiczne z module_source
+        processed_genotype = cls._process_module_source_for_genotype(genotype.copy())
+
         # Walidacja genotypu
-        validate_genotype(genotype)
+        validate_genotype(processed_genotype)
 
         # Generuj hash z genotypu - to jest unikalny kod genetyczny
         soul_hash = hashlib.sha256(
-            json.dumps(genotype, sort_keys=True).encode()
+            json.dumps(processed_genotype, sort_keys=True).encode()
         ).hexdigest()
 
         # Sprawdź czy Soul o tym hash już istnieje
@@ -68,9 +71,13 @@ class Soul:
         # Utwórz nową Soul
         soul = cls()
         soul.alias = alias
-        soul.genotype = genotype
+        soul.genotype = processed_genotype
         soul.soul_hash = soul_hash
         soul.created_at = datetime.now()
+
+        # Załaduj moduł i zarejestruj funkcje w rejestrze
+        if soul.has_module_source():
+            soul._load_and_register_module_functions()
 
         # Zapis do bazy danych
         result = await SoulRepository.set(soul)
@@ -322,6 +329,75 @@ class Soul:
     def get_functions_count(self) -> int:
         """Zwraca liczbę zarejestrowanych funkcji"""
         return len(self._function_registry)
+
+    def get_available_functions_clear(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Zwraca czytelną listę dostępnych funkcji dla Being z pełnymi informacjami.
+        
+        Returns:
+            Dict z funkcjami publicznymi i ich szczegółami
+        """
+        available_functions = {}
+        
+        # Funkcje publiczne z genotype.functions (zewnętrzny dostęp)
+        public_functions = self.genotype.get("functions", {})
+        for func_name, func_info in public_functions.items():
+            if not func_name.startswith('_'):
+                available_functions[func_name] = {
+                    "name": func_name,
+                    "type": "public",
+                    "description": func_info.get("description", f"Public function {func_name}"),
+                    "is_async": func_info.get("is_async", False),
+                    "signature": func_info.get("signature", {}),
+                    "source": "genotype.functions",
+                    "accessible_via": "being.execute_soul_function()"
+                }
+        
+        # Dodaj informacje o funkcjach prywatnych (dla debugowania)
+        if self.has_module_source():
+            for func_name in self._function_registry:
+                if func_name.startswith('_') and func_name not in available_functions:
+                    available_functions[f"[PRIVATE] {func_name}"] = {
+                        "name": func_name,
+                        "type": "private",
+                        "description": f"Private function {func_name} (available only to execute)",
+                        "source": "module_source",
+                        "accessible_via": "internal execute logic"
+                    }
+        
+        return available_functions
+
+    def get_function_visibility_info(self) -> Dict[str, Any]:
+        """
+        Zwraca informacje o widoczności funkcji w Soul.
+        
+        Returns:
+            Informacje o funkcjach publicznych, prywatnych i capabilities
+        """
+        public_functions = [f for f in self.genotype.get("functions", {}) if not f.startswith('_')]
+        private_functions = [f for f in self._function_registry if f.startswith('_')]
+        
+        return {
+            "soul_hash": self.soul_hash[:8] + "..." if self.soul_hash else "None",
+            "alias": self.alias,
+            "has_module_source": self.has_module_source(),
+            "capabilities": self.genotype.get("capabilities", {}),
+            "functions": {
+                "public": {
+                    "count": len(public_functions),
+                    "names": public_functions,
+                    "source": "genotype.functions",
+                    "access": "external via Being"
+                },
+                "private": {
+                    "count": len(private_functions), 
+                    "names": private_functions,
+                    "source": "module_source",
+                    "access": "internal via execute"
+                },
+                "total_registered": len(self._function_registry)
+            }
+        }
 
     def get_function_info(self, name: str) -> Optional[Dict[str, Any]]:
         """Pobiera informacje o funkcji"""
@@ -901,6 +977,76 @@ class Soul:
         
         # Utwórz nową Soul
         return await cls.create(evolved_genotype, original_soul.alias)
+
+    @classmethod
+    def _process_module_source_for_genotype(cls, genotype: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Przetwarza module_source w genotypie i automatycznie dodaje funkcje publiczne do functions.
+        
+        Args:
+            genotype: Oryginalny genotyp
+            
+        Returns:
+            Przetworzony genotyp z automatycznie rozpoznanymi funkcjami
+        """
+        if "module_source" not in genotype or not genotype["module_source"]:
+            return genotype
+            
+        module_source = genotype["module_source"]
+        
+        # Waliduj i wyciągnij funkcje z module_source
+        validation = cls.validate_module_source(module_source)
+        
+        if not validation["valid"]:
+            print(f"⚠️ Warning: Invalid module_source in genotype: {validation['errors']}")
+            return genotype
+            
+        # Automatycznie dodaj funkcje publiczne do functions jeśli nie istnieją
+        if "functions" not in genotype:
+            genotype["functions"] = {}
+            
+        # Dodaj funkcje publiczne (bez "_") do functions
+        for func_name, func_info in validation["functions"].items():
+            if not func_name.startswith('_'):  # Tylko publiczne funkcje
+                genotype["functions"][func_name] = func_info
+                
+        # Dodaj informacje o capabilities jeśli nie istnieją
+        if "capabilities" not in genotype:
+            genotype["capabilities"] = {}
+            
+        genotype["capabilities"].update({
+            "has_init": validation["has_init"],
+            "has_execute": validation["has_execute"],
+            "function_count": len(validation["functions"]),
+            "public_function_count": len([f for f in validation["functions"] if not f.startswith('_')]),
+            "private_function_count": len([f for f in validation["functions"] if f.startswith('_')]),
+            "attribute_count": len(validation["attributes"])
+        })
+        
+        # Dodaj attributes z modułu jeśli nie istnieją
+        if "attributes" not in genotype:
+            genotype["attributes"] = {}
+            
+        # Merge attributes z modułu (module attributes mają niższy priorytet)
+        for attr_name, attr_info in validation["attributes"].items():
+            if attr_name not in genotype["attributes"]:
+                genotype["attributes"][attr_name] = attr_info
+                
+        return genotype
+
+    def _load_and_register_module_functions(self):
+        """Ładuje moduł i rejestruje funkcje w _function_registry"""
+        try:
+            module = self.load_module_dynamically()
+            if module:
+                # Rejestruj WSZYSTKIE funkcje (publiczne i prywatne) w rejestrze
+                functions = self.extract_functions_from_module(module)
+                for func_name, func in functions.items():
+                    self._function_registry[func_name] = func
+                    
+                print(f"✅ Registered {len(functions)} functions in Soul {self.alias}")
+        except Exception as e:
+            print(f"❌ Failed to load and register module functions: {e}")
 
     @classmethod
     def _get_function_signature_static(cls, func: Callable) -> Dict[str, Any]:

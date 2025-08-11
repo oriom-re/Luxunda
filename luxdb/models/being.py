@@ -47,7 +47,7 @@ class Being:
         if not self.created_at:
             self.created_at = datetime.now()
         self.updated_at = datetime.now()
-        
+
         # Cache dla dynamicznie załadowanych handlerów
         self._dynamic_handlers: Dict[str, Callable] = {}
         self._module_loaded = False
@@ -69,26 +69,26 @@ class Being:
             Standardowy słownik odpowiedzi z nowym Being
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             being = await cls._create_internal(soul, alias=alias, attributes=data, access_zone=access_zone, ttl_hours=ttl_hours)
-            
+
             soul_context = {
                 "soul_hash": being.soul_hash,
                 "genotype": soul.genotype if hasattr(soul, 'genotype') else {}
             }
-            
+
             return GeneticResponseFormat.success_response(
                 data={"being": being.to_json_serializable()},
                 soul_context=soul_context
             )
-            
+
         except Exception as e:
             return GeneticResponseFormat.error_response(
                 error=str(e),
                 error_code="BEING_SET_ERROR"
             )
-    
+
     @classmethod
     async def _get_by_ulid_internal(cls, ulid_value: str) -> Optional['Being']:
         """Wewnętrzna metoda get_by_ulid zwracająca obiekt Being"""
@@ -96,7 +96,7 @@ class Being:
 
         result = await BeingRepository.get_by_ulid(ulid_value)
         return result.get('being') if result.get('success') else None
-    
+
     @classmethod
     async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, **kwargs) -> 'Being':
         """Wewnętrzna metoda create zwracająca obiekt Being"""
@@ -113,10 +113,10 @@ class Being:
             Standardowy słownik odpowiedzi z Being lub błędem
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             being = await cls._get_by_ulid_internal(ulid_value)
-            
+
             if being:
                 # Pobierz kontekst Soul
                 soul = await being.get_soul()
@@ -124,7 +124,7 @@ class Being:
                     "soul_hash": being.soul_hash,
                     "genotype": soul.genotype if soul else {}
                 }
-                
+
                 return GeneticResponseFormat.success_response(
                     data={"being": being.to_json_serializable()},
                     soul_context=soul_context
@@ -134,7 +134,7 @@ class Being:
                     error="Being not found",
                     error_code="BEING_NOT_FOUND"
                 )
-                
+
         except Exception as e:
             return GeneticResponseFormat.error_response(
                 error=str(e),
@@ -142,11 +142,11 @@ class Being:
             )
 
     @classmethod
-    async def get_or_create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, 
+    async def get_or_create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None,
                            unique_by: str = "alias", soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
         """
         Pobiera istniejący Being lub tworzy nowy.
-        
+
         Args:
             soul_or_hash: Soul lub hash do bytu
             alias: Alias bytu
@@ -154,7 +154,7 @@ class Being:
             unique_by: Sposób szukania unikalności ("alias", "soul_hash", "custom")
             soul: Soul object (nowy styl)
             soul_hash: Hash soul (legacy)
-            
+
         Returns:
             Istniejący lub nowy Being
         """
@@ -181,7 +181,7 @@ class Being:
 
         # Szukaj istniejącego Being
         existing_being = None
-        
+
         if unique_by == "alias" and alias:
             beings_with_alias = await cls.get_by_alias(alias)
             # Znajdź Being z tym samym soul_hash
@@ -189,7 +189,7 @@ class Being:
                 if b.soul_hash == target_soul.soul_hash:
                     existing_being = b
                     break
-                    
+
         elif unique_by == "soul_hash":
             # Dla bytów typu Kernel - jeden per soul_hash
             from ..repository.soul_repository import BeingRepository
@@ -213,7 +213,7 @@ class Being:
     @classmethod
     async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, persistent: bool = True) -> 'Being':
         """Tworzy nowy Being na podstawie Soul - z kompatybilnością wsteczną
-        
+
         Args:
             persistent: Czy Being ma być zapisywane do bazy danych
         """
@@ -279,7 +279,7 @@ class Being:
         await being._auto_initialize_after_creation(target_soul)
 
         return being
-    
+
     @classmethod
     async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
         """Wewnętrzna metoda create - kopia oryginalnej logiki"""
@@ -360,7 +360,7 @@ class Being:
             if soul:
                 self._soul_cache = soul
                 self._soul_cache_ttl = current_time + 3600  # 1 godzina TTL
-                
+
                 # Inicjalizuj handlery z modułu jeśli jeszcze nie zostało to zrobione
                 if not self._module_loaded:
                     await self._initialize_dynamic_handlers(soul)
@@ -377,7 +377,7 @@ class Being:
         try:
             if soul.has_init_function():
                 print(f"🧬 Auto-initializing master being {self.alias} with init function")
-                
+
                 # Przygotuj kontekst Being (NIE są to atrybuty!)
                 being_context = {
                     'ulid': self.ulid,
@@ -387,9 +387,9 @@ class Being:
                     'soul_functions': soul.list_functions(),
                     'function_count': soul.get_functions_count()
                 }
-                
+
                 result = await soul.auto_init(being_context=being_context)
-                
+
                 if result.get('success'):
                     print(f"🎯 Being {self.alias} is now a function master - knows {soul.get_functions_count()} functions")
                     # Being staje się masterem swoich funkcji
@@ -400,12 +400,12 @@ class Being:
                     self.data['_function_signatures'] = {
                         name: soul.get_function_info(name) for name in soul.list_functions()
                     }
-                    
+
                     if self.is_persistent():
                         await self.save()
                 else:
                     print(f"❌ Being {self.alias} initialization failed: {result.get('error')}")
-                    
+
         except Exception as e:
             print(f"💥 Auto-initialization failed for being {self.alias}: {e}")
 
@@ -418,18 +418,18 @@ class Being:
                 if module:
                     # Wyciągnij funkcje z modułu
                     module_functions = soul.extract_functions_from_module(module)
-                    
+
                     # Dodaj funkcje jako handlery
                     for func_name, func in module_functions.items():
                         self._dynamic_handlers[func_name] = func
-                        
+
                         # Opcjonalnie: dodaj też do rejestru funkcji Soul
                         if func_name not in soul._function_registry:
                             soul._register_immutable_function(func_name, func)
-                    
+
                     self._module_loaded = True
                     print(f"Loaded {len(module_functions)} dynamic handlers for being {self.alias}")
-                    
+
         except Exception as e:
             print(f"Failed to initialize dynamic handlers: {e}")
 
@@ -444,7 +444,7 @@ class Being:
     async def execute_dynamic_handler(self, handler_name: str, *args, **kwargs) -> Dict[str, Any]:
         """Wykonuje dynamiczny handler"""
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             handler = self.get_dynamic_handler(handler_name)
             if not handler:
@@ -500,7 +500,7 @@ class Being:
             Wynik wykonania funkcji w formacie genetycznym
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             soul = await self.get_soul()
             if not soul:
@@ -525,7 +525,7 @@ class Being:
 
             # Wykonaj funkcję przez Soul - kwargs to TYLKO argumenty funkcji
             result = await soul.execute_function(function_name, *args, **kwargs)
-            
+
             # Zaktualizuj statystyki Being jeśli funkcja się powiodła
             if result.get('success'):
                 execution_count = self.data.get('execution_count', 0) + 1
@@ -544,15 +544,15 @@ class Being:
     async def execute(self, data: Dict[str, Any] = None, function: str = None, **kwargs) -> Dict[str, Any]:
         """
         Inteligentna metoda wykonywania funkcji - Being jako master swoich funkcji.
-        
+
         Jeśli nie podano function, wywołuje inteligentną procedurę 'execute'.
         Jeśli podano function, wywołuje tę konkretną funkcję manualnie.
-        
+
         Args:
             data: Dane do przetworzenia (argument funkcji)
             function: Nazwa konkretnej funkcji do wywołania (opcjonalne)
             **kwargs: Dodatkowe argumenty dla funkcji
-            
+
         Returns:
             Wynik wykonania funkcji z inteligentnymi decyzjami
         """
@@ -570,7 +570,7 @@ class Being:
                 # Manualne wywołanie konkretnej funkcji
                 print(f"🎯 Function master {self.alias} executing specific function: {function}")
                 result = await self.execute_soul_function(function, data=data, **kwargs)
-                
+
                 # Master aktualizuje swoje statystyki
                 await self._update_function_usage_stats(function, result.get('success', False))
                 return result
@@ -594,10 +594,10 @@ class Being:
         Inteligentna procedura execute - Being sam decyduje jaką funkcję wywołać.
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             soul = await self.get_soul()
-            
+
             # Sprawdź czy ma domyślną funkcję execute
             if soul.has_execute_function():
                 print(f"🎯 Master {self.alias} delegating to default execute function")
@@ -605,25 +605,25 @@ class Being:
             else:
                 # Inteligentne wybieranie funkcji na podstawie danych lub kontekstu
                 available_functions = self.data.get('_managed_functions', [])
-                
+
                 if not available_functions:
                     return GeneticResponseFormat.error_response(
                         error="Function master has no available functions",
                         error_code="NO_FUNCTIONS_AVAILABLE"
                     )
-                
+
                 # Prosta logika wyboru - można rozbudować o AI/ML
                 selected_function = self._select_best_function_for_data(data, available_functions)
                 print(f"🧠 Master {self.alias} intelligently selected function: {selected_function}")
-                
+
                 result = await self.execute_soul_function(selected_function, data=data, **kwargs)
-                
+
             # Aktualizuj statystyki inteligentnego wykonania
             self.data['_intelligent_executions'] = self.data.get('_intelligent_executions', 0) + 1
             self.data['_last_intelligent_execution'] = datetime.now().isoformat()
-            
+
             return result
-            
+
         except Exception as e:
             return GeneticResponseFormat.error_response(
                 error=f"Intelligent execution failed: {str(e)}",
@@ -637,7 +637,7 @@ class Being:
         """
         if not available_functions:
             return "execute"  # fallback
-        
+
         # Prosta logika - można zastąpić zaawansowanym AI
         if data:
             # Jeśli są dane, preferuj funkcje które prawdopodobnie je przetwarzają
@@ -646,7 +646,7 @@ class Being:
             )]
             if processing_functions:
                 return processing_functions[0]
-        
+
         # Domyślnie zwróć pierwszą dostępną funkcję
         return available_functions[0]
 
@@ -654,14 +654,14 @@ class Being:
         """Aktualizuje statystyki użycia funkcji przez mastera"""
         if '_function_stats' not in self.data:
             self.data['_function_stats'] = {}
-        
+
         if function_name not in self.data['_function_stats']:
             self.data['_function_stats'][function_name] = {
                 'total_calls': 0,
                 'successful_calls': 0,
                 'last_called': None
             }
-        
+
         stats = self.data['_function_stats'][function_name]
         stats['total_calls'] += 1
         if success:
@@ -683,10 +683,10 @@ class Being:
     async def init(self, **kwargs) -> Dict[str, Any]:
         """
         Wygodna metoda do ręcznego wywołania inicjalizacji.
-        
+
         Args:
             **kwargs: Dodatkowe argumenty dla funkcji init
-            
+
         Returns:
             Wynik funkcji init
         """
@@ -703,25 +703,25 @@ class Being:
             'alias': self.alias,
             'data': self.data.copy()
         }
-        
+
         return await soul.auto_init(being_context=being_context, **kwargs)
 
-    async def request_evolution(self, evolution_trigger: str, new_capabilities: Dict[str, Any] = None, 
+    async def request_evolution(self, evolution_trigger: str, new_capabilities: Dict[str, Any] = None,
                                access_level_change: str = None) -> Dict[str, Any]:
         """
         Being może poprosić system o ewolucję, ale nie może się sam ewoluować.
         Żądanie ewolucji musi zostać zatwierdzone przez Kernel lub uprawniony byt.
-        
+
         Args:
-            evolution_trigger: Powód ewolucji 
+            evolution_trigger: Powód ewolucji
             new_capabilities: Żądane nowe zdolności
             access_level_change: Żądana zmiana poziomu dostępu
-            
+
         Returns:
             Potwierdzenie żądania ewolucji w formacie genetycznym
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             # Sprawdź czy może żądać ewolucji
             evolution_potential = await self.can_evolve()
@@ -751,7 +751,7 @@ class Being:
             # Dodaj żądanie do danych bytu
             if 'evolution_requests' not in self.data:
                 self.data['evolution_requests'] = []
-            
+
             self.data['evolution_requests'].append(evolution_request)
             await self.save()
 
@@ -781,18 +781,18 @@ class Being:
         justification += f"Current stats: {stats['execution_count']} executions, "
         justification += f"{stats['age_in_system']} days in system, "
         justification += f"access zone: {stats['access_zone']}. "
-        
+
         if evolution_potential["available_evolutions"]:
             justification += "Available evolutions: " + ", ".join([
                 evo["type"] for evo in evolution_potential["available_evolutions"]
             ])
-        
+
         return justification
 
     async def can_evolve(self) -> Dict[str, Any]:
         """
         Sprawdza czy Being może ewoluować i jakie opcje ewolucji są dostępne.
-        
+
         Returns:
             Informacje o możliwościach ewolucji
         """
@@ -821,8 +821,8 @@ class Being:
             evolution_potential["can_evolve"] = True
 
         # Sprawdź możliwość otrzymania uprawnień administratora
-        if (self.access_zone == "authenticated_zone" and 
-            execution_count >= 100 and 
+        if (self.access_zone == "authenticated_zone" and
+            execution_count >= 100 and
             system_age >= 7):
             evolution_potential["available_evolutions"].append({
                 "type": "admin_privileges",
@@ -832,7 +832,7 @@ class Being:
             evolution_potential["can_evolve"] = True
 
         # Sprawdź możliwość zostania twórcą Soul
-        if (execution_count >= 50 and 
+        if (execution_count >= 50 and
             len(self.data.get('evolution_history', [])) >= 1):
             evolution_potential["available_evolutions"].append({
                 "type": "soul_creator",
@@ -857,24 +857,24 @@ class Being:
     async def propose_soul_creation(self, new_soul_concept: Dict[str, Any]) -> Dict[str, Any]:
         """
         Being może zaproponować utworzenie nowej Soul (jeśli ma odpowiednie uprawnienia).
-        
+
         Args:
             new_soul_concept: Koncepcja nowej Soul do utworzenia
-            
+
         Returns:
             Wynik propozycji w formacie genetycznym
         """
         from luxdb.utils.serializer import GeneticResponseFormat
         from .soul import Soul
-        
+
         try:
             # Sprawdź uprawnienia
             can_evolve_info = await self.can_evolve()
             has_creator_rights = any(
-                evo["type"] == "soul_creator" and evo["requirements_met"] 
+                evo["type"] == "soul_creator" and evo["requirements_met"]
                 for evo in can_evolve_info["available_evolutions"]
             )
-            
+
             if not has_creator_rights:
                 return GeneticResponseFormat.error_response(
                     error="Being does not have soul creation privileges",
@@ -884,7 +884,7 @@ class Being:
             # Waliduj koncepcję Soul
             if "genesis" not in new_soul_concept:
                 new_soul_concept["genesis"] = {}
-            
+
             new_soul_concept["genesis"]["created_by_being"] = self.ulid
             new_soul_concept["genesis"]["creator_alias"] = self.alias
             new_soul_concept["genesis"]["creation_timestamp"] = datetime.now().isoformat()
@@ -899,7 +899,7 @@ class Being:
             # Zaktualizuj statystyki bytu
             if 'souls_created' not in self.data:
                 self.data['souls_created'] = []
-            
+
             self.data['souls_created'].append({
                 "soul_hash": new_soul.soul_hash,
                 "created_at": datetime.now().isoformat(),
@@ -931,18 +931,31 @@ class Being:
             )
 
     async def list_available_functions(self) -> List[str]:
-        """Lista dostępnych funkcji z Soul"""
-        soul = await self.get_soul()
-        if soul:
-            return soul.list_functions()
-        return []
+        """Lista dostępnych funkcji do wykonania (tylko publiczne)"""
+        if not self.soul:
+            return []
 
-    async def get_function_info(self, function_name: str) -> Optional[Dict[str, Any]]:
-        """Pobiera informacje o funkcji z Soul"""
-        soul = await self.get_soul()
-        if soul:
-            return soul.get_function_info(function_name)
-        return None
+        # Zwróć tylko funkcje publiczne z genotype.functions
+        public_functions = []
+        for func_name in self.soul.genotype.get("functions", {}):
+            if not func_name.startswith('_'):
+                public_functions.append(func_name)
+
+        return public_functions
+
+    async def get_function_details(self) -> Dict[str, Any]:
+        """Szczegółowe informacje o dostępnych funkcjach"""
+        if not self.soul:
+            return {"error": "No soul attached"}
+
+        return self.soul.get_available_functions_clear()
+
+    async def get_soul_capabilities(self) -> Dict[str, Any]:
+        """Informacje o możliwościach Soul"""
+        if not self.soul:
+            return {"error": "No soul attached"}
+
+        return self.soul.get_function_visibility_info()
 
     def check_access(self, user_ulid: str = None, user_session: Dict[str, Any] = None) -> bool:
         """
@@ -971,17 +984,17 @@ class Being:
     async def evolve_to_soul(self, new_genotype_changes: Dict[str, Any] = None, new_alias: str = None) -> Dict[str, Any]:
         """
         Being ewoluuje w nową Soul na podstawie swoich doświadczeń i danych.
-        
+
         Args:
             new_genotype_changes: Zmiany w genotypie dla nowej Soul
             new_alias: Nowy alias dla Soul
-            
+
         Returns:
             Wynik ewolucji w formacie genetycznym
         """
         from luxdb.utils.serializer import GeneticResponseFormat
         from .soul import Soul
-        
+
         try:
             current_soul = await self.get_soul()
             if not current_soul:
@@ -992,20 +1005,20 @@ class Being:
 
             # Przygotuj nowy genotyp na podstawie doświadczeń Being
             evolved_genotype = current_soul.genotype.copy()
-            
+
             # Dodaj informacje o ewolucji z Being
             if "genesis" not in evolved_genotype:
                 evolved_genotype["genesis"] = {}
-                
+
             evolved_genotype["genesis"]["evolved_from_being"] = self.ulid
             evolved_genotype["genesis"]["being_alias"] = self.alias
             evolved_genotype["genesis"]["evolution_timestamp"] = datetime.now().isoformat()
             evolved_genotype["genesis"]["evolution_trigger"] = "being_to_soul"
-            
+
             # Włącz dane z Being jako nowe atrybuty genotypu
             if "attributes" not in evolved_genotype:
                 evolved_genotype["attributes"] = {}
-                
+
             # Dodaj doświadczenia Being jako atrybuty
             for key, value in self.data.items():
                 if not key.startswith('_'):  # Pomijaj metadane
@@ -1015,7 +1028,7 @@ class Being:
                         "default": value,
                         "description": f"Inherited from Being {self.alias}"
                     }
-            
+
             # Zastosuj dodatkowe zmiany
             if new_genotype_changes:
                 for key, value in new_genotype_changes.items():
