@@ -24,20 +24,6 @@ class SoulRepository:
     """Repository for Soul operations"""
 
     @staticmethod
-    async def create_soul(genotype: Dict[str, Any], alias: str = None) -> 'Soul':
-        """Create a new soul"""
-        Soul = get_soul_class()
-        soul = Soul(genotype=genotype, alias=alias)
-        await soul.save()
-        return soul
-
-    @staticmethod
-    async def get_soul_by_hash(soul_hash: str) -> Optional['Soul']:
-        """Get soul by hash"""
-        Soul = get_soul_class()
-        return await Soul.get_by_hash(soul_hash)
-
-    @staticmethod
     async def get_soul_by_hash(soul_hash: str) -> dict:
         """Get soul by hash - primary method"""
         return await SoulRepository.get_by_hash(soul_hash)
@@ -153,8 +139,8 @@ class SoulRepository:
 
             async with pool.acquire() as conn:
                 query = """
-                    INSERT INTO souls (soul_hash, global_ulid, alias, genotype, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
+                    INSERT INTO souls (soul_hash, global_ulid, alias, genotype)
+                    VALUES ($1, $2, $3, $4)
                     ON CONFLICT (soul_hash) DO UPDATE SET
                         alias = EXCLUDED.alias,
                         genotype = EXCLUDED.genotype

@@ -55,19 +55,7 @@ class Soul:
         return None
 
 
-    @classmethod
-    async def create(cls, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
-        """Tworzy nowy genotyp na podstawie definicji"""
-        from luxdb.repository.soul_repository import SoulRepository
-        soul = cls()
-        soul.alias = alias
-        soul.genotype = genotype
-        soul.soul_hash = hashlib.sha256(json.dumps(genotype, sort_keys=True).encode()).hexdigest()
-        result = await SoulRepository.save(soul)
-        if result and result.get('success'):
-            return soul
-        else:
-            raise Exception("Failed to create soul")
+    
 
     @classmethod
     async def load_by_hash(cls, hash: str) -> 'Soul':

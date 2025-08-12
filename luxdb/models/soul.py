@@ -73,7 +73,6 @@ class Soul:
         soul.alias = alias
         soul.genotype = processed_genotype
         soul.soul_hash = soul_hash
-        soul.created_at = datetime.now()
 
         # Załaduj moduł i zarejestruj funkcje w rejestrze
         if soul.has_module_source():
@@ -191,17 +190,7 @@ class Soul:
         souls = result.get('souls', [])
         return [soul for soul in souls if soul is not None]
 
-    async def save(self) -> bool:
-        """
-        Zapisuje zmiany w Soul do bazy danych.
-
-        Returns:
-            True jeśli zapis się powiódł
-        """
-        from ..repository.soul_repository import SoulRepository
-
-        result = await SoulRepository.save(self)
-        return result.get('success', False)
+    
 
     def get_attribute_types(self) -> Dict[str, str]:
         """

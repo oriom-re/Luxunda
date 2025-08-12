@@ -49,31 +49,7 @@ class SoulRepository:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    @staticmethod
-    async def save(soul: 'Soul') -> dict:
-        """Zapisuje soul do bazy danych"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False}
-
-            async with pool.acquire() as conn:
-                query = """
-                    INSERT INTO souls (soul_hash, global_ulid, alias, genotype, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
-                    ON CONFLICT (soul_hash) DO UPDATE SET
-                        alias = EXCLUDED.alias,
-                        genotype = EXCLUDED.genotype
-                """
-                await conn.execute(query,
-                    soul.soul_hash,
-                    soul.global_ulid,
-                    soul.alias,
-                    json.dumps(soul.genotype)
-                )
-                return {"success": True}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+    
 
     @staticmethod
     async def get_all() -> dict:
@@ -205,30 +181,7 @@ class SoulRepository:
         except Exception as e:
             print(f"❌ Error creating indexes for soul {soul_hash[:8]}: {e}")
 
-    @staticmethod
-    async def load(soul: 'Soul') -> dict:
-        """Ładuje soul z bazy danych na podstawie jego unikalnego hasha"""
-        try:
-            pool = await Postgre_db.get_db_pool()
-            if not pool:
-                return {"success": False}
-
-            async with pool.acquire() as conn:
-                query = """
-                    SELECT * FROM souls
-                    WHERE soul_hash = $1
-                """
-                row = await conn.fetchrow(query, soul.soul_hash)
-                if row:
-                    soul.alias = row['alias']
-                    soul.soul_hash = row['soul_hash']
-                    soul.genotype = json.loads(row['genotype'])
-                    soul.created_at = row['created_at']
-                    soul.global_ulid = row['global_ulid']
-            return {"success": True}
-        except Exception as e:
-            print(f"❌ Error loading soul: {e}")
-            return {"success": False, "error": str(e)}
+    
 
 class BeingRepository:
     """Repository dla operacji na beings w podejściu JSONB"""
