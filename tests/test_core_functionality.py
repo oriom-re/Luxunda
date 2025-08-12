@@ -13,7 +13,8 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import traceback
 
-from luxdb import LuxDB, Soul, Being, Relationship
+from luxdb import LuxDB, Soul, Being
+from database.models.relationship import Relationship
 from luxdb.utils.validators import validate_genotype
 from database.postgre_db import Postgre_db
 
