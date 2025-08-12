@@ -29,33 +29,6 @@ task = "shell.exec"
 args = "python main.py --mode=full --bootstrap"
 
 [[workflows.workflow]]
-name = "LuxOS Quick Status"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py --status"
-
-[[workflows.workflow]]
-name = "LuxOS Interactive Mode"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py --interactive"
-
-[[workflows.workflow]]
-name = "Admin Kernel Server"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python admin_kernel_server.py"
-
-[[workflows.workflow]]
 name = "Lux Web Interface"
 author = 43346420
 mode = "sequential"
@@ -146,91 +119,6 @@ task = "shell.exec"
 args = "python database_cleanup.py"
 
 [[workflows.workflow]]
-name = "Legacy Kernel System"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python start.py"
-
-[[workflows.workflow]]
-name = "Legacy Bootstrap Start"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python start.py --bootstrap"
-
-[[workflows.workflow]]
-name = "System Diagnostics"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python luxos_status.py"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python -c \"import asyncio; from database.postgre_db import Postgre_db; asyncio.run(Postgre_db.get_db_pool())\""
-
-[[workflows.workflow]]
-name = "Simple System Start"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python simple_start.py --web"
-
-[[workflows.workflow]]
-name = "Simple Diagnostics"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python simple_start.py --diagnostics"
-
-[[workflows.workflow]]
-name = "Simple System (Stable)"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python simple_start.py --web"
-
-[[workflows.workflow]]
-name = "Database Diagnostics"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python simple_start.py --diagnostics"
-
-[[workflows.workflow]]
-name = "Interactive Mode"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python simple_start.py --interactive"
-
-[[workflows.workflow]]
-name = "Quick Database Test"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python -c \"import asyncio; from database.postgre_db import Postgre_db; print('Testing DB...'); asyncio.run(Postgre_db.get_db_pool())\""
-
-[[workflows.workflow]]
 name = "LuxOS Main System"
 author = 43346420
 mode = "sequential"
@@ -240,42 +128,6 @@ task = "shell.exec"
 args = "python main.py --mode=web"
 
 [[workflows.workflow]]
-name = "LuxOS Minimal"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py --mode=web"
-
-[[workflows.workflow]]
-name = "Status Check"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py --status"
-
-[[workflows.workflow]]
-name = "LuxOS Minimal (Safe)"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python main.py --status"
-
-[[workflows.workflow]]
-name = "Run Integration Tests"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PYTHONPATH=. python tests/test_integration_soul_being_functions.py"
-
-[[workflows.workflow]]
 name = "Run All Tests"
 author = 43346420
 mode = "sequential"
@@ -283,15 +135,6 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python run_tests.py"
-
-[[workflows.workflow]]
-name = "Complete System Tests"
-author = 43346420
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python run_tests.py --complete-system"
 
 # === PORTY ===
 
