@@ -854,6 +854,77 @@ class Being:
 
         return evolution_potential
 
+    async def request_function_evolution(self, new_functions: Dict[str, Dict[str, Any]], 
+                                              justification: str) -> Dict[str, Any]:
+        """
+        Being może poprosić o ewolucję swojej Soul z nowymi funkcjami.
+        
+        Args:
+            new_functions: Nowe funkcje do dodania
+            justification: Uzasadnienie potrzeby nowych funkcji
+            
+        Returns:
+            Wynik żądania ewolucji funkcji
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            soul = await self.get_soul()
+            if not soul:
+                return GeneticResponseFormat.error_response(
+                    error="Soul not found for function evolution",
+                    error_code="SOUL_NOT_FOUND"
+                )
+            
+            # Sprawdź czy Soul może ewoluować
+            if not soul.can_accept_new_functions():
+                return GeneticResponseFormat.error_response(
+                    error="Soul cannot accept new functions (immutable or lacks basic capabilities)",
+                    error_code="EVOLUTION_NOT_ALLOWED"
+                )
+            
+            # Utwórz żądanie ewolucji funkcji
+            evolution_request = {
+                "type": "function_evolution",
+                "requesting_being": self.ulid,
+                "new_functions": new_functions,
+                "justification": justification,
+                "current_soul_hash": soul.soul_hash,
+                "requested_at": datetime.now().isoformat(),
+                "being_stats": {
+                    "function_executions": self.data.get('execution_count', 0),
+                    "is_function_master": self.is_function_master(),
+                    "current_functions": soul.list_functions()
+                }
+            }
+            
+            # Dodaj do danych bytu
+            if 'function_evolution_requests' not in self.data:
+                self.data['function_evolution_requests'] = []
+            
+            self.data['function_evolution_requests'].append(evolution_request)
+            await self.save()
+            
+            return GeneticResponseFormat.success_response(
+                data={
+                    "evolution_requested": True,
+                    "request_type": "function_evolution",
+                    "request_id": len(self.data['function_evolution_requests']) - 1,
+                    "evolution_request": evolution_request,
+                    "message": f"Function evolution requested: {list(new_functions.keys())}"
+                },
+                soul_context={
+                    "soul_hash": soul.soul_hash,
+                    "current_functions": soul.list_functions()
+                }
+            )
+            
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Function evolution request failed: {str(e)}",
+                error_code="FUNCTION_EVOLUTION_ERROR"
+            )
+
     async def propose_soul_creation(self, new_soul_concept: Dict[str, Any]) -> Dict[str, Any]:
         """
         Being może zaproponować utworzenie nowej Soul (jeśli ma odpowiednie uprawnienia).

@@ -421,6 +421,7 @@ class Soul:
             "valid": False,
             "functions": {},
             "attributes": {},
+            "dependencies": {},
             "errors": [],
             "warnings": [],
             "has_init": False,
@@ -437,8 +438,34 @@ class Soul:
             # Parsuj kod AST dla bezpiecznej analizy
             tree = ast.parse(module_source)
 
-            # Wykonaj kod w izolowanym środowisku
+            # Wyciągnij zależności z AST
+            dependencies = cls._extract_dependencies_from_ast(tree)
+            validation_result["dependencies"] = dependencies
+
+            # Przygotuj środowisko z zależnościami
             temp_globals = {"__name__": "__temp_module__"}
+            
+            # Próbuj załadować zależności
+            missing_deps = []
+            for dep_name, dep_info in dependencies.items():
+                try:
+                    if dep_info["type"] == "standard":
+                        # Standardowe biblioteki Python
+                        temp_globals[dep_name] = __import__(dep_name)
+                    elif dep_info["type"] == "external":
+                        # Zewnętrzne pakiety (openai, requests, etc.)
+                        try:
+                            temp_globals[dep_name] = __import__(dep_name)
+                        except ImportError:
+                            missing_deps.append(dep_name)
+                            validation_result["warnings"].append(f"Missing external dependency: {dep_name}")
+                except ImportError as e:
+                    missing_deps.append(dep_name)
+                    validation_result["warnings"].append(f"Cannot import {dep_name}: {e}")
+
+            validation_result["missing_dependencies"] = missing_deps
+            
+            # Wykonaj kod w przygotowanym środowisku
             exec(module_source, temp_globals)
 
             # Analizuj funkcje (bez "_")
@@ -894,8 +921,14 @@ class Soul:
             "function_count": len(validation["functions"]),
             "public_function_count": len([f for f in validation["functions"] if not f.startswith('_')]),
             "private_function_count": len([f for f in validation["functions"] if f.startswith('_')]),
-            "attribute_count": len(validation["attributes"])
+            "attribute_count": len(validation["attributes"]),
+            "dependencies_count": len(validation.get("dependencies", {})),
+            "missing_dependencies": validation.get("missing_dependencies", [])
         })
+
+        # Dodaj informacje o zależnościach
+        if validation.get("dependencies"):
+            genotype["dependencies"] = validation["dependencies"]
 
         # Dodaj attributes z modułu jeśli nie istnieją
         if "attributes" not in genotype:
@@ -921,6 +954,59 @@ class Soul:
                 print(f"✅ Registered {len(functions)} functions in Soul {self.alias}")
         except Exception as e:
             print(f"❌ Failed to load and register module functions: {e}")
+
+    @classmethod
+    def _extract_dependencies_from_ast(cls, tree: Any) -> Dict[str, Any]:
+        """Wyciąga zależności z AST"""
+        import ast
+        dependencies = {}
+        
+        class DependencyVisitor(ast.NodeVisitor):
+            def visit_Import(self, node):
+                for alias in node.names:
+                    name = alias.asname or alias.name
+                    dependencies[name] = {
+                        "type": cls._classify_dependency(alias.name),
+                        "module": alias.name,
+                        "alias": alias.asname,
+                        "source": "import"
+                    }
+                self.generic_visit(node)
+            
+            def visit_ImportFrom(self, node):
+                if node.module:
+                    for alias in node.names:
+                        name = alias.asname or alias.name
+                        dependencies[name] = {
+                            "type": cls._classify_dependency(node.module),
+                            "module": node.module,
+                            "imported_name": alias.name,
+                            "alias": alias.asname,
+                            "source": "from_import"
+                        }
+                self.generic_visit(node)
+        
+        visitor = DependencyVisitor()
+        visitor.visit(tree)
+        return dependencies
+    
+    @classmethod
+    def _classify_dependency(cls, module_name: str) -> str:
+        """Klasyfikuje zależność jako standard/external/local"""
+        import sys
+        
+        standard_libs = {
+            'os', 'sys', 'json', 'asyncio', 'datetime', 'time', 'math', 
+            'random', 'hashlib', 'uuid', 'logging', 'pathlib', 'typing',
+            'collections', 'itertools', 'functools', 're', 'urllib', 'http'
+        }
+        
+        if module_name in standard_libs or module_name in sys.stdlib_module_names:
+            return "standard"
+        elif module_name.startswith('.'):
+            return "local"
+        else:
+            return "external"
 
     @classmethod
     def _get_function_signature_static(cls, func: Callable) -> Dict[str, Any]:
@@ -1004,6 +1090,52 @@ class Soul:
                 break
 
         return lineage
+
+    async def evolve_with_new_functions(self, new_functions: Dict[str, Dict[str, Any]], 
+                                       reason: str = "Function enhancement") -> 'Soul':
+        """
+        Ewolucja Soul z nowymi funkcjami spoza module_source.
+        
+        Args:
+            new_functions: Nowe funkcje do dodania
+            reason: Powód ewolucji
+            
+        Returns:
+            Nowa Soul z rozszerzonymi funkcjami
+        """
+        # Przygotuj zmiany
+        current_functions = self.genotype.get("functions", {}).copy()
+        current_functions.update(new_functions)
+        
+        changes = {
+            "functions": current_functions,
+            "evolution_info": {
+                "reason": reason,
+                "added_functions": list(new_functions.keys()),
+                "evolution_type": "function_enhancement"
+            }
+        }
+        
+        # Aktualizuj capabilities
+        if "capabilities" not in changes:
+            changes["capabilities"] = self.genotype.get("capabilities", {}).copy()
+        
+        changes["capabilities"]["function_count"] = len(current_functions)
+        changes["capabilities"]["evolved_function_count"] = len(new_functions)
+        
+        return await self.create_evolved_version(self, changes)
+
+    def can_accept_new_functions(self) -> bool:
+        """Sprawdza czy Soul może przyjąć nowe funkcje"""
+        # Soul może ewoluować jeśli ma podstawowe możliwości
+        capabilities = self.genotype.get("capabilities", {})
+        
+        # Wymagania: ma init lub execute, nie jest immutable
+        has_init = capabilities.get("has_init", False)
+        has_execute = capabilities.get("has_execute", False)
+        is_immutable = self.genotype.get("genesis", {}).get("immutable", False)
+        
+        return (has_init or has_execute) and not is_immutable
 
     @classmethod
     async def get_all_versions(cls, base_name: str) -> List['Soul']:
