@@ -38,6 +38,11 @@ class SoulRepository:
         return await Soul.get_by_hash(soul_hash)
 
     @staticmethod
+    async def get_soul_by_hash(soul_hash: str) -> dict:
+        """Get soul by hash - primary method"""
+        return await SoulRepository.get_by_hash(soul_hash)
+    
+    @staticmethod
     async def get_by_hash(soul_hash: str) -> dict:
         """Ładuje soul z bazy danych na podstawie jego unikalnego global_ulid"""
         try:

@@ -105,5 +105,18 @@ class GenotypeSystem:
         # Załaduj ponownie
         return await self.initialize_system()
 
+async def initialize_system(self) -> Dict[str, Any]:
+        """
+        Alias dla initialize_system - zgodność z istniejącym kodem
+        """
+        return await self.initialize_system()
+
 # Globalna instancja
 genotype_system = GenotypeSystem()
+
+# Dodaj funkcję na poziomie modułu dla kompatybilności
+async def initialize_system() -> Dict[str, Any]:
+    """
+    Initialize genotype system at module level
+    """
+    return await genotype_system.initialize_system()
