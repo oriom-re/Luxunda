@@ -319,6 +319,10 @@ class Soul:
         """Zwraca liczbę zarejestrowanych funkcji"""
         return len(self._function_registry)
 
+    def get_version(self) -> str:
+        """Zwraca wersję Soul"""
+        return self.genotype.get("genesis", {}).get("version", "1.0.0")
+
     def get_available_functions_clear(self) -> Dict[str, Dict[str, Any]]:
         """
         Zwraca czytelną listę dostępnych funkcji dla Being z pełnymi informacjami.
