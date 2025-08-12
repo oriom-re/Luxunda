@@ -21,7 +21,7 @@ from luxdb.core.postgre_db import Postgre_db
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
 from luxdb.web_lux_interface import app
-import luxdb.core.genotype_system as genotype_system # Added import for genotype_system
+from luxdb.core import genotype_system
 
 VERSION = "2.0.0-minimal"
 SYSTEM_NAME = "LuxOS Minimal"

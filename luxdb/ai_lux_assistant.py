@@ -11,7 +11,7 @@ import openai
 # Embedding będzie obsłużony przez OpenAI bezpośrednio
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
-from database.soul_repository import BeingRepository
+from luxdb.repository.soul_repository import BeingRepository
 
 class LuxAssistant:
     """Revolutionary AI Assistant that manages beings, tools and knowledge"""
