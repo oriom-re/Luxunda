@@ -80,7 +80,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python run_tests.py --complete"
+args = "python tests/test_integration_soul_being_functions.py"
 
 [[workflows.workflow]]
 name = "Run Initialization Tests"
