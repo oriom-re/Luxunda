@@ -167,7 +167,40 @@ class BeingRepository:
         return being
 
     @staticmethod
-    async def get_being_by_ulid(ulid: str) -> Optional['Being']:
+    async def get_all_beings() -> Dict[str, Any]:
+        """
+        Pobiera wszystkie Being z bazy danych.
+
+        Returns:
+            Dict z listą wszystkich Being
+        """
+        try:
+            pool = await Postgre_db.get_db_pool()
+            async with pool.acquire() as conn:
+                query = "SELECT ulid, soul_hash, alias, data, access_zone, created_at, updated_at FROM beings ORDER BY created_at DESC"
+                rows = await conn.fetch(query)
+
+                beings = []
+                for row in rows:
+                    being_data = dict(row)
+                    being = Being.from_dict(being_data)
+                    beings.append(being)
+
+                return {
+                    "success": True,
+                    "beings": beings,
+                    "count": len(beings)
+                }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "beings": []
+            }
+
+    @staticmethod
+    async def get_by_ulid(ulid: str) -> Optional['Being']:
         """Get being by ULID"""
         Being = get_being_class()
         return await Being.get_by_ulid(ulid)
@@ -485,6 +518,35 @@ class BeingRepository:
             print(f"❌ Error getting beings by alias: {e}")
             return {"success": False, "error": str(e), "beings": []}
 
+    @staticmethod
+    async def update_being(being) -> Dict[str, Any]:
+        """
+        Aktualizuje Being w bazie danych.
+
+        Args:
+            being: Obiekt Being do aktualizacji
+
+        Returns:
+            Dict z wynikiem operacji
+        """
+        try:
+            pool = await Postgre_db.get_db_pool()
+            async with pool.acquire() as conn:
+                query = """
+                    UPDATE beings 
+                    SET data = $1, updated_at = $2
+                    WHERE ulid = $3
+                """
+                await conn.execute(query, being.data, being.updated_at, being.ulid)
+
+                return {"success": True, "updated_being": being.ulid}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
+    async def insert_data_transaction(being_data, genotype_data) -> Dict[str, Any]:
+        pass
 
 class RelationshipRepository:
     """Repository for Relationship operations"""

@@ -854,20 +854,20 @@ class Being:
 
         return evolution_potential
 
-    async def request_function_evolution(self, new_functions: Dict[str, Dict[str, Any]], 
+    async def request_function_evolution(self, new_functions: Dict[str, Dict[str, Any]],
                                               justification: str) -> Dict[str, Any]:
         """
         Being może poprosić o ewolucję swojej Soul z nowymi funkcjami.
-        
+
         Args:
             new_functions: Nowe funkcje do dodania
             justification: Uzasadnienie potrzeby nowych funkcji
-            
+
         Returns:
             Wynik żądania ewolucji funkcji
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             soul = await self.get_soul()
             if not soul:
@@ -875,14 +875,14 @@ class Being:
                     error="Soul not found for function evolution",
                     error_code="SOUL_NOT_FOUND"
                 )
-            
+
             # Sprawdź czy Soul może ewoluować
             if not soul.can_accept_new_functions():
                 return GeneticResponseFormat.error_response(
                     error="Soul cannot accept new functions (immutable or lacks basic capabilities)",
                     error_code="EVOLUTION_NOT_ALLOWED"
                 )
-            
+
             # Utwórz żądanie ewolucji funkcji
             evolution_request = {
                 "type": "function_evolution",
@@ -897,14 +897,14 @@ class Being:
                     "current_functions": soul.list_functions()
                 }
             }
-            
+
             # Dodaj do danych bytu
             if 'function_evolution_requests' not in self.data:
                 self.data['function_evolution_requests'] = []
-            
+
             self.data['function_evolution_requests'].append(evolution_request)
             await self.save()
-            
+
             return GeneticResponseFormat.success_response(
                 data={
                     "evolution_requested": True,
@@ -918,7 +918,7 @@ class Being:
                     "current_functions": soul.list_functions()
                 }
             )
-            
+
         except Exception as e:
             return GeneticResponseFormat.error_response(
                 error=f"Function evolution request failed: {str(e)}",
@@ -1049,8 +1049,22 @@ class Being:
         return datetime.now() > self.ttl_expires
 
     def is_persistent(self) -> bool:
-        """Sprawdza czy Being jest zapisywane do bazy danych"""
+        """Sprawdza czy Being jest trwałe (zapisywane w bazie)"""
         return self.data.get('_persistent', True)
+
+    async def save(self):
+        """Zapisuje zmiany w Being do bazy danych"""
+        if self.is_persistent():
+            from ..repository.soul_repository import BeingRepository
+            self.updated_at = datetime.now()
+
+            try:
+                await BeingRepository.update_being(self)
+                print(f"💾 Saved Being {self.alias}")
+            except Exception as e:
+                print(f"❌ Error saving Being {self.alias}: {e}")
+        else:
+            print(f"💨 Transient Being {self.alias} - not saved to database")
 
     async def evolve_to_soul(self, new_genotype_changes: Dict[str, Any] = None, new_alias: str = None) -> Dict[str, Any]:
         """
