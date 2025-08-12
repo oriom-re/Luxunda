@@ -1,4 +1,3 @@
-
 """
 Genotype System Initialization
 Automatyczne ładowanie i inicjalizacja genotypów przy starcie systemu
@@ -8,31 +7,33 @@ import asyncio
 from typing import List, Dict, Any
 from ..utils.genotype_loader import genotype_loader
 from ..models.soul import Soul
+from ..models.being import Being
+from database.postgre_db import Postgre_db
 
 class GenotypeSystem:
     """System zarządzania genotypami"""
-    
+
     def __init__(self):
         self.loaded_souls: List[Soul] = []
         self.statistics = {}
         self.initialization_complete = False
-        
+
     async def initialize_system(self) -> Dict[str, Any]:
         """Inicjalizuje system genotypów przy starcie"""
         print("🧬 Inicjalizacja systemu genotypów...")
-        
+
         try:
             # Utwórz przykładowe genotypy jeśli folder jest pusty
             genotype_loader.create_example_genotypes()
-            
+
             # Załaduj wszystkie genotypy
             self.loaded_souls = await genotype_loader.load_all_genotypes()
-            
+
             # Pobierz statystyki
             self.statistics = genotype_loader.get_load_statistics()
-            
+
             self.initialization_complete = True
-            
+
             result = {
                 "success": True,
                 "loaded_souls_count": len(self.loaded_souls),
@@ -47,27 +48,27 @@ class GenotypeSystem:
                     for soul in self.loaded_souls
                 ]
             }
-            
+
             print(f"✅ System genotypów zainicjalizowany: {len(self.loaded_souls)} Soul")
             return result
-            
+
         except Exception as e:
             error_result = {
                 "success": False,
                 "error": str(e),
                 "loaded_souls_count": 0
             }
-            
+
             print(f"❌ Błąd inicjalizacji systemu genotypów: {e}")
             return error_result
-    
+
     def get_soul_by_alias(self, alias: str) -> Soul:
         """Znajdź Soul po aliasie"""
         for soul in self.loaded_souls:
             if soul.alias == alias:
                 return soul
         return None
-    
+
     def get_souls_by_type(self, soul_type: str) -> List[Soul]:
         """Znajdź Soul po typie"""
         matching_souls = []
@@ -76,7 +77,7 @@ class GenotypeSystem:
             if genesis_type == soul_type:
                 matching_souls.append(soul)
         return matching_souls
-    
+
     def list_available_souls(self) -> List[Dict[str, Any]]:
         """Lista dostępnych Soul z podstawowymi informacjami"""
         return [
@@ -92,16 +93,16 @@ class GenotypeSystem:
             }
             for soul in self.loaded_souls
         ]
-    
+
     async def reload_genotypes(self) -> Dict[str, Any]:
         """Przeładuj genotypy z folderu"""
         print("🔄 Przeładowywanie genotypów...")
-        
+
         # Wyczyść obecne
         self.loaded_souls = []
         genotype_loader.loaded_genotypes = {}
         genotype_loader.load_log = []
-        
+
         # Załaduj ponownie
         return await self.initialize_system()
 

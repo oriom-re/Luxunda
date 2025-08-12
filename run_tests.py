@@ -84,7 +84,7 @@ async def main():
         else:
             print("\n❌ Initialization tests FAILED")
             return 1
-            
+
     elif args.evolution_only:
         print("Running evolution system tests only...")
         from tests.test_being_evolution_system import run_being_evolution_tests
