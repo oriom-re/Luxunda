@@ -221,7 +221,8 @@ def _private_function():
         print("🎉 Basic integration test PASSED!")
             
         except Exception as e:
-            print(f"❌ Complete integration test FAILED: {e}")
+            print(f"❌ Integration test failed: {e}")
+            print(f"Traceback: {traceback.format_exc()}")
             raise
 
     async def test_function_soul_creation(self):
