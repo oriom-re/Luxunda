@@ -1,0 +1,27 @@
+{
+  "genesis": {
+    "name": "math_calculator",
+    "type": "computation_being",
+    "description": "Mathematical calculations being",
+    "version": "1.0.0"
+  },
+  "attributes": {
+    "precision": {
+      "py_type": "int",
+      "default": 10
+    },
+    "last_result": {
+      "py_type": "float",
+      "default": 0.0
+    },
+    "operation_history": {
+      "py_type": "List[str]",
+      "default": []
+    }
+  },
+  "capabilities": {
+    "basic_math": true,
+    "advanced_math": false,
+    "statistics": true
+  }
+}
