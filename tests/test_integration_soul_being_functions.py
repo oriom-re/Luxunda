@@ -15,7 +15,7 @@ import traceback
 try:
     from luxdb.models.soul import Soul
     from luxdb.models.being import Being
-    from database.postgre_db import Postgre_db
+    from luxdb.core.postgre_db import Postgre_db
 except ImportError as e:
     print(f"Import error: {e}")
     import sys

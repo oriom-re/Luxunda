@@ -61,7 +61,7 @@ async def run_initialization_tests():
 
     try:
         # Test database connection
-        from database.postgre_db import Postgre_db
+        from luxdb.core.postgre_db import Postgre_db
 
         try:
             pool = await Postgre_db.get_db_pool()

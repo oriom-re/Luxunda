@@ -35,7 +35,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m luxdb.web_lux_interface"
+args = "python luxdb/web_lux_interface.py"
 
 [[workflows.workflow]]
 name = "Demo Lux Assistant"

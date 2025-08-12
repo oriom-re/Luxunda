@@ -5,7 +5,7 @@
 
 from typing import Dict, Any, Optional, List
 import json
-from database.postgre_db import Postgre_db
+from luxdb.core.postgre_db import Postgre_db
 from luxdb.core.globals import Globals
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
