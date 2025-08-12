@@ -8,7 +8,7 @@ from typing import List, Dict, Any
 from ..utils.genotype_loader import genotype_loader
 from ..models.soul import Soul
 from ..models.being import Being
-from database.postgre_db import Postgre_db
+from .postgre_db import Postgre_db
 
 class GenotypeSystem:
     """System zarządzania genotypami"""
