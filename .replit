@@ -17,7 +17,7 @@ run = ["python3", "main.py", "--mode=full"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS Minimal (Safe)"
+runButton = "LuxOS Main System"
 
 [[workflows.workflow]]
 name = "LuxOS Full System"
@@ -282,7 +282,16 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PYTHONPATH=. python run_tests.py"
+args = "python run_tests.py"
+
+[[workflows.workflow]]
+name = "Complete System Tests"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python run_tests.py --complete-system"
 
 # === PORTY ===
 
