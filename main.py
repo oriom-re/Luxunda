@@ -67,7 +67,11 @@ async def run_web_mode():
 
     print("🚀 Starting FastAPI server on http://0.0.0.0:5000")
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    
+    # Fix: Create new event loop for uvicorn
+    config = uvicorn.Config(app, host="0.0.0.0", port=5000, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 async def show_status():
     """Status systemu"""
