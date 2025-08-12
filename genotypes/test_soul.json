@@ -1,0 +1,31 @@
+
+{
+  "genesis": {
+    "name": "test_soul",
+    "type": "test",
+    "version": "1.0.0",
+    "description": "Simple test soul for system validation"
+  },
+  "attributes": {
+    "name": {
+      "py_type": "str",
+      "required": true,
+      "description": "Name of the test entity"
+    },
+    "value": {
+      "py_type": "int",
+      "default": 0,
+      "description": "Test value"
+    },
+    "active": {
+      "py_type": "bool",
+      "default": true,
+      "description": "Whether the test entity is active"
+    }
+  },
+  "capabilities": {
+    "has_init": false,
+    "has_execute": false,
+    "function_count": 0
+  }
+}
