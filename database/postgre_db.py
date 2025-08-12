@@ -11,15 +11,6 @@ class Postgre_db:
         self.connection = None
         self.pool = None
 
-    async def initialize(self):
-        """Inicjalizacja połączenia z bazą danych"""
-        try:
-            await self.connect()
-            print("✅ PostgreSQL połączenie zainicjalizowane")
-        except Exception as e:
-            print(f"❌ Błąd inicjalizacji PostgreSQL: {e}")
-            raise
-
     @staticmethod
     async def get_db_pool():
         """Zwraca pulę połączeń do bazy danych PostgreSQL"""
@@ -184,6 +175,16 @@ class Postgre_db:
                 print("✅ Tabele PostgreSQL utworzone w podejściu JSONB")
         except Exception as e:
             print(f"❌ Błąd tworzenia tabel PostgreSQL: {e}")
+
+    @staticmethod
+    async def initialize():
+        """Inicjalizacja połączenia z bazą danych"""
+        try:
+            await Postgre_db.get_db_pool()
+            print("✅ PostgreSQL połączenie zainicjalizowane")
+        except Exception as e:
+            print(f"❌ Błąd inicjalizacji PostgreSQL: {e}")
+            raise
 
     async def connect(self):
         """Łączy się z bazą danych PostgreSQL"""
