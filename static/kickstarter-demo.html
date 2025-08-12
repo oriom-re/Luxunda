@@ -1,0 +1,466 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxOS - Live Kickstarter Demo</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            overflow-x: hidden;
+        }
+        
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #00ff88, #00ccff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero h2 {
+            font-size: 2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        
+        .kickstarter-badge {
+            background: #05CE78;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 3rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .demo-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 3rem;
+            margin: 2rem 0;
+            max-width: 1200px;
+            width: 100%;
+            backdrop-filter: blur(10px);
+        }
+        
+        .live-demo {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        
+        .demo-panel {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 2rem;
+        }
+        
+        .genetic-visualizer {
+            width: 100%;
+            height: 400px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .stat-card {
+            background: rgba(0, 255, 136, 0.2);
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+            border: 1px solid rgba(0, 255, 136, 0.5);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        .funding-progress {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            padding: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(45deg, #00ff88, #00ccff);
+            height: 20px;
+            border-radius: 10px;
+            width: 47%;
+            transition: width 1s ease;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            gap: 2rem;
+            margin-top: 3rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #05CE78;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+        
+        .feature-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5rem; }
+            .live-demo { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .cta-buttons { flex-direction: column; align-items: center; }
+        }
+    </style>
+</head>
+<body>
+    <section class="hero">
+        <div class="kickstarter-badge">
+            🚀 LIVE ON KICKSTARTER - 47% FUNDED
+        </div>
+        
+        <h1>LuxOS</h1>
+        <h2>Pierwsza Genetyczna Baza Danych Świata</h2>
+        <p style="font-size: 1.3rem; max-width: 800px; margin-bottom: 2rem;">
+            Dane, które żyją, uczą się i ewoluują. Rewolucyjna technologia łącząca AI z biologicznymi koncepcjami ewolucji.
+        </p>
+        
+        <div class="funding-progress">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                <span>$11,750 pledged</span>
+                <span>$25,000 goal</span>
+            </div>
+            <div class="progress-bar"></div>
+            <div style="display: flex; justify-content: space-between; margin-top: 1rem;">
+                <span><strong>234</strong> backers</span>
+                <span><strong>18</strong> days to go</span>
+            </div>
+        </div>
+    </section>
+    
+    <section class="demo-section">
+        <h2 style="text-align: center; margin-bottom: 2rem;">🧬 Zobacz LuxOS w Akcji</h2>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="soulsCount">12</div>
+                <div>Active Genotypes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="beingsCount">847</div>
+                <div>Living Beings</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="mutationsCount">156</div>
+                <div>Mutations Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="connectionsCount">2.3K</div>
+                <div>Neural Connections</div>
+            </div>
+        </div>
+        
+        <div class="live-demo">
+            <div class="demo-panel">
+                <h3>🔬 Genetic Evolution</h3>
+                <div class="genetic-visualizer" id="geneticViz"></div>
+                <p style="margin-top: 1rem;">
+                    Obserwuj jak genotypy ewoluują w czasie rzeczywistym, 
+                    tworząc nowe struktury danych i optymalizując się automatycznie.
+                </p>
+            </div>
+            
+            <div class="demo-panel">
+                <h3>🧠 AI Integration</h3>
+                <div style="background: rgba(0, 0, 0, 0.5); border-radius: 10px; padding: 1rem; height: 300px; overflow-y: auto;" id="aiLog">
+                    <div>🤖 AI: Analyzing data patterns...</div>
+                    <div>🧬 Gene mutation detected in user_profile genotype</div>
+                    <div>🔗 Creating semantic relationship: user ↔ product</div>
+                    <div>📊 Performance optimization: +23% query speed</div>
+                    <div>🎯 Intention recognized: "find similar users"</div>
+                </div>
+                <p style="margin-top: 1rem;">
+                    System AI automatycznie analizuje dane, rozpoznaje intencje 
+                    i optymalizuje struktury bez ludzkiej interwencji.
+                </p>
+            </div>
+        </div>
+    </section>
+    
+    <section class="demo-section">
+        <h2 style="text-align: center; margin-bottom: 2rem;">✨ Rewolucyjne Funkcje</h2>
+        
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🧬</div>
+                <h3>Genetic Data Structures</h3>
+                <p>Dane z DNA - każda struktura ma genotyp i może ewoluować, mutować i adaptować się do nowych wymagań.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <h3>Built-in AI Brain</h3>
+                <p>Wbudowana sztuczna inteligencja rozumie kontekst, rozpoznaje wzorce i automatycznie optymalizuje system.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🕸️</div>
+                <h3>Semantic Relationships</h3>
+                <p>System automatycznie wykrywa podobieństwa i tworzy inteligentne połączenia między danymi.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Real-time Evolution</h3>
+                <p>Struktury danych ewoluują w czasie rzeczywistym, dostosowując się do zmieniających się potrzeb.</p>
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 3rem; padding: 2rem; background: rgba(0, 255, 136, 0.1); border-radius: 15px;">
+            <h3>💡 "To nie jest kolejna baza danych - to żywy organizm cyfrowy!"</h3>
+            <p style="margin-top: 1rem; font-style: italic;">
+                - Dr. Sarah Chen, AI Research Director at TechForward Labs
+            </p>
+        </div>
+    </section>
+    
+    <section class="demo-section">
+        <h2 style="text-align: center; margin-bottom: 2rem;">🎯 Cele Kampanii</h2>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
+            <div style="background: rgba(0, 255, 136, 0.1); padding: 2rem; border-radius: 15px;">
+                <h3>$25,000 - MVP Complete</h3>
+                <ul style="margin-top: 1rem; padding-left: 1rem;">
+                    <li>✅ Core genetic system</li>
+                    <li>✅ AI integration</li>
+                    <li>🔄 Advanced documentation</li>
+                    <li>🔄 Community platform</li>
+                </ul>
+            </div>
+            
+            <div style="background: rgba(0, 204, 255, 0.1); padding: 2rem; border-radius: 15px;">
+                <h3>$50,000 - Enterprise Ready</h3>
+                <ul style="margin-top: 1rem; padding-left: 1rem;">
+                    <li>🎯 Enterprise features</li>
+                    <li>🎯 Advanced security</li>
+                    <li>🎯 Professional support</li>
+                    <li>🎯 Cloud deployment</li>
+                </ul>
+            </div>
+            
+            <div style="background: rgba(255, 0, 204, 0.1); padding: 2rem; border-radius: 15px;">
+                <h3>$100,000 - Global Platform</h3>
+                <ul style="margin-top: 1rem; padding-left: 1rem;">
+                    <li>🚀 SaaS platform</li>
+                    <li>🚀 Global infrastructure</li>
+                    <li>🚀 Team expansion</li>
+                    <li>🚀 Research & Development</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+    
+    <section class="demo-section" style="text-align: center;">
+        <h2>🚀 Dołącz do Rewolucji!</h2>
+        <p style="font-size: 1.2rem; margin: 2rem 0;">
+            Bądź częścią przyszłości baz danych. Wspieraj projekt, który zmieni sposób 
+            myślenia o danych na zawsze.
+        </p>
+        
+        <div class="cta-buttons">
+            <a href="https://www.kickstarter.com/projects/luxos/genetic-database" class="btn btn-primary">
+                💳 Back This Project
+            </a>
+            <a href="#" class="btn btn-secondary" onclick="testLiveDemo()">
+                🎮 Try Live Demo
+            </a>
+            <a href="https://github.com/luxos-project" class="btn btn-secondary">
+                📁 View Source Code
+            </a>
+        </div>
+    </section>
+
+    <script>
+        // Live stats animation
+        function animateStats() {
+            const stats = [
+                { id: 'soulsCount', start: 8, end: 15, suffix: '' },
+                { id: 'beingsCount', start: 623, end: 1247, suffix: '' },
+                { id: 'mutationsCount', start: 89, end: 203, suffix: '' },
+                { id: 'connectionsCount', start: 1.8, end: 3.2, suffix: 'K' }
+            ];
+            
+            stats.forEach(stat => {
+                let current = stat.start;
+                const increment = (stat.end - stat.start) / 100;
+                const timer = setInterval(() => {
+                    current += increment;
+                    document.getElementById(stat.id).textContent = 
+                        Math.floor(current) + stat.suffix;
+                    if (current >= stat.end) clearInterval(timer);
+                }, 50);
+            });
+        }
+        
+        // Genetic visualization
+        function initGeneticViz() {
+            const viz = d3.select('#geneticViz');
+            const svg = viz.append('svg')
+                .attr('width', '100%')
+                .attr('height', '100%');
+                
+            // Create animated genetic nodes
+            for (let i = 0; i < 20; i++) {
+                svg.append('circle')
+                    .attr('cx', Math.random() * 300)
+                    .attr('cy', Math.random() * 300)
+                    .attr('r', Math.random() * 8 + 3)
+                    .attr('fill', `hsl(${Math.random() * 360}, 70%, 60%)`)
+                    .attr('opacity', 0.7);
+            }
+            
+            // Animate connections
+            setInterval(() => {
+                svg.selectAll('line').remove();
+                svg.selectAll('circle').each(function(d, i) {
+                    const x1 = +d3.select(this).attr('cx');
+                    const y1 = +d3.select(this).attr('cy');
+                    
+                    svg.selectAll('circle').each(function(d2, j) {
+                        if (i !== j && Math.random() > 0.8) {
+                            const x2 = +d3.select(this).attr('cx');
+                            const y2 = +d3.select(this).attr('cy');
+                            
+                            svg.append('line')
+                                .attr('x1', x1)
+                                .attr('y1', y1)
+                                .attr('x2', x2)
+                                .attr('y2', y2)
+                                .attr('stroke', '#00ff88')
+                                .attr('stroke-width', 1)
+                                .attr('opacity', 0.3);
+                        }
+                    });
+                });
+            }, 2000);
+        }
+        
+        // AI log simulation
+        function simulateAILog() {
+            const logs = [
+                '🤖 AI: Analyzing new data patterns...',
+                '🧬 Mutation detected in product_catalog genotype',
+                '🔗 Creating relationship: user_preferences ↔ recommendations',
+                '📊 Query optimization: +31% performance improvement',
+                '🎯 Intention: "analyze customer behavior"',
+                '✨ Auto-generated insight: Customer cluster evolution detected',
+                '🔄 Genotype evolution: e-commerce_v2.1 → e-commerce_v2.2',
+                '🧠 Learning pattern: User engagement correlation found'
+            ];
+            
+            setInterval(() => {
+                const log = document.getElementById('aiLog');
+                const newEntry = document.createElement('div');
+                newEntry.textContent = logs[Math.floor(Math.random() * logs.length)];
+                newEntry.style.opacity = '0';
+                newEntry.style.transition = 'opacity 0.5s';
+                
+                log.insertBefore(newEntry, log.firstChild);
+                setTimeout(() => newEntry.style.opacity = '1', 100);
+                
+                // Keep only last 8 entries
+                while (log.children.length > 8) {
+                    log.removeChild(log.lastChild);
+                }
+            }, 3000);
+        }
+        
+        function testLiveDemo() {
+            alert('🚀 Demo będzie dostępny dla backerów! Wspieraj projekt na Kickstarter aby uzyskać pełny dostęp.');
+        }
+        
+        // Initialize everything
+        window.addEventListener('load', () => {
+            animateStats();
+            initGeneticViz();
+            simulateAILog();
+        });
+    </script>
+</body>
+</html>
