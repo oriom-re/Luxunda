@@ -930,7 +930,7 @@ class Being:
                 error_code="SOUL_CREATION_FAILED"
             )
 
-    async def list_available_functions(self) -> List[str]:
+    def list_available_functions(self) -> List[str]:
         """Lista dostępnych funkcji do wykonania (tylko publiczne)"""
         if not self.soul:
             return []

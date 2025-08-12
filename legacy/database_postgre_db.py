@@ -3,7 +3,7 @@
 Legacy PostgreSQL implementation - moved to legacy folder
 """
 
-from database.postgre_db import Postgre_db as CurrentPostgreDb
+from luxdb.core.postgre_db import Postgre_db as CurrentPostgreDb
 
 # Legacy compatibility
 class Postgre_db:

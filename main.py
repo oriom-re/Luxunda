@@ -17,7 +17,7 @@ from datetime import datetime
 
 # Core imports
 from luxdb.core.globals import Globals
-from database.postgre_db import Postgre_db
+from luxdb.core.postgre_db import Postgre_db
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
 from luxdb.web_lux_interface import app
