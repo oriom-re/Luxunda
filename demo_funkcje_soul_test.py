@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 🧬 Praktyczny test systemu funkcji Soul
@@ -19,15 +18,15 @@ from database.postgre_db import Postgre_db
 async def demo_funkcje_soul():
     print("🧬 Demo: System Funkcji Soul w Praktyce")
     print("=" * 50)
-    
+
     # Inicjalizacja bazy danych
     print("📊 Inicjalizacja PostgreSQL...")
     db = Postgre_db()
     await db.initialize()
-    
+
     # 1. Tworzenie Soul z kodem źródłowym
     print("\n1. 📝 Tworzenie Soul z module_source...")
-    
+
     calculator_code = '''
 def dodaj(a, b):
     """Dodaje dwie liczby"""
@@ -55,7 +54,7 @@ def zaawansowane_obliczenie(x, y, operacja="dodaj"):
     """Zaawansowana funkcja używająca prywatnej funkcji"""
     if not _helper_validate(x) or not _helper_validate(y):
         return "Błąd: Podaj prawidłowe liczby!"
-    
+
     if operacja == "dodaj":
         return dodaj(x, y)
     elif operacja == "odejmij":
@@ -77,13 +76,13 @@ def execute(data=None, **kwargs):
     """Główna funkcja wykonawcza"""
     if not data:
         return "Podaj dane do przetworzenia!"
-    
+
     if "operacja" in data and "a" in data and "b" in data:
         return zaawansowane_obliczenie(data["a"], data["b"], data["operacja"])
-    
+
     return f"Przetworzono dane: {data}"
 '''
-    
+
     # Tworzenie genotypu z module_source
     calculator_genotype = {
         "genesis": {
@@ -99,49 +98,49 @@ def execute(data=None, **kwargs):
         },
         "module_source": calculator_code
     }
-    
+
     # Soul automatycznie rozpozna funkcje z module_source
     calculator_soul = await Soul.create(calculator_genotype, alias="calculator_demo")
-    
+
     print(f"✅ Soul created: {calculator_soul.alias}")
     print(f"📋 Soul hash: {calculator_soul.soul_hash[:16]}...")
-    
+
     # 2. Sprawdź rozpoznane funkcje
     print(f"\n2. 🔍 Analiza rozpoznanych funkcji...")
-    
+
     visibility_info = calculator_soul.get_function_visibility_info()
     print(f"📊 Funkcje publiczne: {visibility_info['functions']['public']['count']}")
     print(f"📊 Funkcje prywatne: {visibility_info['functions']['private']['count']}")
     print(f"📊 Wszystkich funkcji: {visibility_info['functions']['total_registered']}")
-    
+
     print(f"\n🔓 Publiczne funkcje:")
     for func_name in visibility_info['functions']['public']['names']:
         print(f"   • {func_name}")
-    
+
     print(f"\n🔒 Prywatne funkcje:")
     for func_name in visibility_info['functions']['private']['names']:
         print(f"   • {func_name}")
-    
+
     # 3. Testowanie funkcji bezpośrednio przez Soul
     print(f"\n3. ⚡ Testowanie funkcji bezpośrednio przez Soul...")
-    
+
     # Test podstawowych funkcji
     result1 = await calculator_soul.execute_function("dodaj", 15, 25)
     print(f"📈 15 + 25 = {result1['data']['result']}")
-    
+
     result2 = await calculator_soul.execute_function("pomnoz", 7, 8)
     print(f"📈 7 × 8 = {result2['data']['result']}")
-    
+
     result3 = await calculator_soul.execute_function("podziel", 100, 4)
     print(f"📈 100 ÷ 4 = {result3['data']['result']}")
-    
+
     # Test zaawansowanej funkcji
     result4 = await calculator_soul.execute_function("zaawansowane_obliczenie", 20, 5, operacja="podziel")
     print(f"📈 Zaawansowane: 20 ÷ 5 = {result4['data']['result']}")
-    
+
     # 4. Tworzenie Being i testowanie przez Being
     print(f"\n4. 🤖 Tworzenie Being i testowanie funkcji...")
-    
+
     being_result = await Being.set(
         soul=calculator_soul,
         data={
@@ -151,29 +150,29 @@ def execute(data=None, **kwargs):
         },
         alias="calculator_being"
     )
-    
+
     if being_result.get('success'):
         calc_being = being_result['data']['being']
         print(f"✅ Being created: {calc_being.alias}")
-        
+
         # Lista funkcji dostępnych przez Being
         available_functions = await calc_being.list_available_functions()
         print(f"📋 Funkcje dostępne przez Being: {len(available_functions)}")
-        
+
         # Testuj funkcje przez Being
         being_result1 = await calc_being.execute_soul_function("dodaj", 33, 77)
         if being_result1.get('success'):
             print(f"🤖 Being calc: 33 + 77 = {being_result1['data']['result']}")
-        
+
         being_result2 = await calc_being.execute_soul_function("odejmij", 100, 25)
         if being_result2.get('success'):
             print(f"🤖 Being calc: 100 - 25 = {being_result2['data']['result']}")
-            
+
         # Test funkcji init i execute
         init_result = await calc_being.execute_soul_function("init", being_context={"alias": calc_being.alias})
         if init_result.get('success'):
             print(f"🔧 Init result: {init_result['data']['result']}")
-            
+
         execute_result = await calc_being.execute_soul_function("execute", data={
             "operacja": "pomnoz", 
             "a": 12, 
@@ -181,41 +180,41 @@ def execute(data=None, **kwargs):
         })
         if execute_result.get('success'):
             print(f"⚡ Execute result: {execute_result['data']['result']}")
-    
+
     # 5. Test walidacji funkcji
     print(f"\n5. ✅ Test walidacji wywołań funkcji...")
-    
+
     # Prawidłowe wywołanie
     errors1 = calculator_soul.validate_function_call("dodaj", 5, 10)
     print(f"Walidacja 'dodaj(5, 10)': {len(errors1)} błędów")
-    
+
     # Nieprawidłowe wywołanie - nieistniejąca funkcja
     errors2 = calculator_soul.validate_function_call("nieistniejaca_funkcja", 1, 2)
     print(f"Walidacja 'nieistniejaca_funkcja': {len(errors2)} błędów")
     if errors2:
         print(f"   Błąd: {errors2[0]}")
-    
+
     # 6. Test informacji o funkcjach
     print(f"\n6. ℹ️ Informacje o funkcjach...")
-    
+
     dodaj_info = calculator_soul.get_function_info("dodaj")
     if dodaj_info:
         print(f"Funkcja 'dodaj': {dodaj_info.get('description', 'Brak opisu')}")
         print(f"   Typ: {dodaj_info.get('py_type')}")
         print(f"   Async: {dodaj_info.get('is_async', False)}")
-    
+
     # 7. Test specjalnych funkcji Soul
     print(f"\n7. 🔧 Test specjalnych funkcji Soul...")
-    
+
     print(f"Ma funkcję init: {calculator_soul.has_init_function()}")
     print(f"Ma funkcję execute: {calculator_soul.has_execute_function()}")
     print(f"Ma module_source: {calculator_soul.has_module_source()}")
-    
+
     # Test auto-init
     if calculator_soul.has_init_function():
         auto_init_result = await calculator_soul.auto_init({"test": "context"})
         print(f"🔧 Auto-init result: {auto_init_result.get('success', False)}")
-    
+
     print(f"\n✨ Demo zakończone pomyślnie!")
     print(f"\n🎯 Kluczowe odkrycia:")
     print(f"   • Soul automatycznie rozpoznaje funkcje z module_source")
@@ -224,5 +223,69 @@ def execute(data=None, **kwargs):
     print(f"   • System waliduje wywołania funkcji")
     print(f"   • init i execute to specjalne funkcje orkiestratora")
 
+async def test_basic_soul_functions():
+    """Test podstawowych funkcji Soul"""
+    from datetime import datetime
+
+    # Przykład prostego modułu z funkcjami
+    module_source = '''
+def hello(name="World"):
+    """Przywitaj się z kimś"""
+    return f"Hello, {name}!"
+
+def calculate(a, b, operation="add"):
+    """Wykonaj prostą operację matematyczną"""
+    if operation == "add":
+        return a + b
+    elif operation == "multiply":
+        return a * b
+    elif operation == "subtract":
+        return a - b
+    else:
+        return "Unknown operation"
+
+def get_info():
+    """Zwróć informacje o module"""
+    return {
+        "name": "Basic Functions Module",
+        "version": "1.0.0",
+        "functions": ["hello", "calculate", "get_info"]
+    }
+'''
+
+    # Stwórz genotyp z module_source
+    genotype = {
+        "genesis": {
+            "name": "basic_functions_test",
+            "type": "module_soul",
+            "description": "Test podstawowych funkcji",
+            "created_at": datetime.now().isoformat(),
+            "creation_method": "test"
+        },
+        "version": "1.0.0",
+        "module_source": module_source
+    }
+
+    # Tworzenie Soul z tym genotypem
+    basic_soul = await Soul.create(genotype, alias="basic_soul_test")
+
+    # Testowanie funkcji hello
+    result_hello = await basic_soul.execute_function("hello", name="Python")
+    print(f"Test 'hello': {result_hello.get('data', {}).get('result')}")
+
+    # Testowanie funkcji calculate
+    result_calculate = await basic_soul.execute_function("calculate", 10, 5, operation="multiply")
+    print(f"Test 'calculate' (multiply): {result_calculate.get('data', {}).get('result')}")
+
+    # Testowanie funkcji get_info
+    result_get_info = await basic_soul.execute_function("get_info")
+    print(f"Test 'get_info': {result_get_info.get('data', {}).get('result')}")
+
+    # Testowanie nieistniejącej funkcji
+    result_nonexistent = await basic_soul.execute_function("nonexistent_function")
+    print(f"Test 'nonexistent_function': {result_nonexistent.get('error', 'No error reported')}")
+
+
 if __name__ == "__main__":
     asyncio.run(demo_funkcje_soul())
+    # asyncio.run(test_basic_soul_functions()) # Uruchom testy, jeśli chcesz
