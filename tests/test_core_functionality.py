@@ -14,7 +14,6 @@ from datetime import datetime
 import traceback
 
 from luxdb import LuxDB, Soul, Being
-from database.models.relationship import Relationship
 from luxdb.utils.validators import validate_genotype
 from database.postgre_db import Postgre_db
 
@@ -60,7 +59,7 @@ class CoreFunctionalityTester:
                 """)
                 table_names = [row['table_name'] for row in tables]
 
-                required_tables = ['souls', 'beings', 'relationships', 'attr_text', 'attr_int', 'attr_float', 'attr_boolean', 'attr_jsonb']
+                required_tables = ['souls', 'beings', 'attr_text', 'attr_int', 'attr_float', 'attr_boolean', 'attr_jsonb']
                 missing_tables = [t for t in required_tables if t not in table_names]
 
                 if not missing_tables:
@@ -83,7 +82,6 @@ class CoreFunctionalityTester:
                 # Clean test data
                 await conn.execute("DELETE FROM beings WHERE soul_hash LIKE 'test_%'")
                 await conn.execute("DELETE FROM souls WHERE soul_hash LIKE 'test_%'")
-                await conn.execute("DELETE FROM relationships WHERE metadata->>'test' = 'true'")
                 setup_results['test_data_clean'] = True
                 print("✅ Test data cleaned")
 
@@ -259,90 +257,77 @@ class CoreFunctionalityTester:
 
         return results
 
-    async def test_relationship_operations(self) -> Dict[str, Any]:
-        """Test all Relationship operations"""
-        print("\n🔗 Testing Relationship operations...")
+    async def test_being_advanced_operations(self) -> Dict[str, Any]:
+        """Test advanced Being operations"""
+        print("\n🤖 Testing Advanced Being operations...")
         results = {
-            'create_relationship': False,
-            'load_relationships': False,
-            'update_relationship': False,
-            'delete_relationship': False,
-            'complex_queries': False,
+            'function_execution': False,
+            'being_mastery': False,
+            'evolution_requests': False,
+            'soul_creation': False,
             'errors': []
         }
 
         try:
-            # Create test beings for relationships
+            # Get test soul
             soul = await Soul.load_by_alias("test_soul")
-
-            being1_data = {"name": "Being 1", "count": 1, "active": True, "metadata": {"role": "source"}}
-            being2_data = {"name": "Being 2", "count": 2, "active": True, "metadata": {"role": "target"}}
-
-            being1 = await Being.create(soul, being1_data)
-            being2 = await Being.create(soul, being2_data)
-
-            # Create relationship
-            relationship = await Relationship.create(
-                source_ulid=being1.ulid,
-                target_ulid=being2.ulid,
-                relation_type="test_connection",
-                strength=0.8,
-                metadata={"test": True, "created_by": "test_suite"}
-            )
-
-            if relationship and relationship.id:
-                results['create_relationship'] = True
-                print(f"✅ Relationship created: {relationship.id}")
-            else:
-                results['errors'].append("Failed to create relationship")
-                print("❌ Failed to create relationship")
+            if not soul:
+                results['errors'].append("Test soul not found")
                 return results
 
-            # Load relationships
-            relationships = await Relationship.find_by_source(being1.ulid)
-            if relationships and len(relationships) > 0:
-                results['load_relationships'] = True
-                print("✅ Relationships loaded successfully")
+            # Create being for advanced testing
+            test_data = {
+                "name": "Advanced Test Being",
+                "count": 1,
+                "active": True,
+                "metadata": {"advanced_test": True}
+            }
+
+            being = await Being.create(soul, test_data)
+            if being and being.ulid:
+                print(f"✅ Advanced Being created: {being.ulid}")
             else:
-                results['errors'].append("Failed to load relationships")
-                print("❌ Failed to load relationships")
+                results['errors'].append("Failed to create advanced being")
+                return results
 
-            # Update relationship
-            await relationship.update(strength=0.9, metadata={"test": True, "updated": True})
-            updated_rel = await Relationship.load_by_id(relationship.id)
-
-            if updated_rel and updated_rel.strength == 0.9:
-                results['update_relationship'] = True
-                print("✅ Relationship updated successfully")
+            # Test function mastery checking
+            is_master = being.is_function_master()
+            if isinstance(is_master, bool):
+                results['being_mastery'] = True
+                print(f"✅ Being mastery check: {is_master}")
             else:
-                results['errors'].append("Failed to update relationship")
-                print("❌ Failed to update relationship")
+                results['errors'].append("Failed to check being mastery")
 
-            # Complex queries
-            all_test_rels = await Relationship.find_by_type("test_connection")
-            strong_rels = await Relationship.find_by_strength_range(0.8, 1.0)
-
-            if len(all_test_rels) >= 1 and len(strong_rels) >= 1:
-                results['complex_queries'] = True
-                print("✅ Complex queries successful")
+            # Test evolution capabilities
+            evolution_info = await being.can_evolve()
+            if isinstance(evolution_info, dict) and 'can_evolve' in evolution_info:
+                results['evolution_requests'] = True
+                print(f"✅ Evolution capabilities checked")
             else:
-                results['errors'].append("Failed complex queries")
-                print("❌ Failed complex queries")
+                results['errors'].append("Failed to check evolution capabilities")
 
-            # Delete relationship
-            await relationship.delete()
-            deleted_rel = await Relationship.load_by_id(relationship.id)
-
-            if not deleted_rel:
-                results['delete_relationship'] = True
-                print("✅ Relationship deleted successfully")
+            # Test Soul creation capabilities (if being has privileges)
+            soul_concept = {
+                "genesis": {
+                    "name": "test_created_soul",
+                    "type": "test_creation",
+                    "version": "1.0.0"
+                },
+                "attributes": {
+                    "created_by_test": {"py_type": "bool", "default": True}
+                }
+            }
+            
+            creation_result = await being.propose_soul_creation(soul_concept)
+            if isinstance(creation_result, dict):
+                results['soul_creation'] = True
+                print(f"✅ Soul creation proposal tested")
             else:
-                results['errors'].append("Failed to delete relationship")
-                print("❌ Failed to delete relationship")
+                results['errors'].append("Failed to test soul creation")
 
         except Exception as e:
-            results['errors'].append(f"Relationship operations error: {str(e)}\n{traceback.format_exc()}")
-            print(f"❌ Relationship operations error: {str(e)}")
+            results['errors'].append(f"Advanced Being operations error: {str(e)}\n{traceback.format_exc()}")
+            print(f"❌ Advanced Being operations error: {str(e)}")
 
         return results
 
@@ -408,7 +393,6 @@ class CoreFunctionalityTester:
             # Complex queries
             for i in range(10):
                 await Being.load_all()
-                relationships = await Relationship.load_all()
                 souls = await Soul.load_all()
 
             query_duration = (datetime.now() - query_start).total_seconds()
@@ -469,23 +453,21 @@ class CoreFunctionalityTester:
         }
 
         try:
-            # Test foreign key constraints
+            # Test Being data constraints
             soul = await Soul.load_by_alias("test_soul")
             being = await Being.create(soul, {"name": "Integrity Test", "count": 1, "active": True})
 
-            # Try to create relationship with non-existent being
+            # Try to create being with invalid soul_hash
             try:
-                await Relationship.create(
-                    source_ulid=being.ulid,
-                    target_ulid="01INVALID_ULID_HERE",
-                    relation_type="test",
-                    strength=1.0
+                invalid_being = await Being.create(
+                    soul_hash="invalid_hash_that_does_not_exist",
+                    attributes={"name": "Invalid", "count": 1}
                 )
-                results['errors'].append("Foreign key constraint not enforced")
-                print("❌ Foreign key constraint not enforced")
+                results['errors'].append("Soul foreign key constraint not enforced")
+                print("❌ Soul foreign key constraint not enforced")
             except Exception:
                 results['foreign_key_constraints'] = True
-                print("✅ Foreign key constraints working")
+                print("✅ Soul foreign key constraints working")
 
             # Test data consistency
             original_attrs = await being.get_attributes()
@@ -559,7 +541,6 @@ class CoreFunctionalityTester:
             # Remove test data
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
-                await conn.execute("DELETE FROM relationships WHERE metadata->>'test' = 'true'")
                 await conn.execute("DELETE FROM beings WHERE soul_hash IN (SELECT soul_hash FROM souls WHERE alias LIKE 'test_%')")
                 await conn.execute("DELETE FROM souls WHERE alias LIKE 'test_%'")
 
@@ -602,7 +583,7 @@ class CoreFunctionalityTester:
             if final_results['setup']['database_connection']:
                 final_results['soul_tests'] = await self.test_soul_operations()
                 final_results['being_tests'] = await self.test_being_operations()
-                final_results['relationship_tests'] = await self.test_relationship_operations()
+                final_results['advanced_being_tests'] = await self.test_being_advanced_operations()
                 final_results['performance_tests'] = await self.test_performance_and_stress()
                 final_results['integrity_tests'] = await self.test_data_integrity()
 
@@ -613,7 +594,7 @@ class CoreFunctionalityTester:
                 final_results['setup'],
                 final_results['soul_tests'],
                 final_results['being_tests'],
-                final_results['relationship_tests'],
+                final_results['advanced_being_tests'],
                 final_results['performance_tests'],
                 final_results['integrity_tests']
             ]
@@ -625,8 +606,7 @@ class CoreFunctionalityTester:
             critical_tests_passed = (
                 final_results['setup'].get('database_connection', False) and
                 final_results['soul_tests'].get('create_soul', False) and
-                final_results['being_tests'].get('create_being', False) and
-                final_results['relationship_tests'].get('create_relationship', False)
+                final_results['being_tests'].get('create_being', False)
             )
 
             final_results['overall_success'] = critical_tests_passed and total_errors < 5
@@ -729,7 +709,7 @@ class CoreFunctionalityTester:
             ('Setup', results['setup']),
             ('Soul Operations', results['soul_tests']),
             ('Being Operations', results['being_tests']),
-            ('Relationship Operations', results['relationship_tests']),
+            ('Advanced Being Operations', results['advanced_being_tests']),
             ('Performance Tests', results['performance_tests']),
             ('Data Integrity', results['integrity_tests']),
             ('Cleanup', results['cleanup'])
