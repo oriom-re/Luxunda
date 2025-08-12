@@ -30,9 +30,6 @@ class GenotypeSystem:
             # Załaduj wszystkie genotypy
             self.loaded_souls = await genotype_loader.load_all_genotypes()
 
-            # Migracja starych danych - sprawdź czy są Soul w bazie które nie mają odpowiedników w plikach
-            await self._migrate_old_souls()
-
             # Pobierz statystyki
             self.statistics = genotype_loader.get_load_statistics()
 
@@ -82,65 +79,7 @@ class GenotypeSystem:
                 matching_souls.append(soul)
         return matching_souls
 
-    async def _migrate_old_souls(self):
-        """Migruje stare Soul z bazy danych"""
-        try:
-            from ..models.soul import Soul
-            
-            # Pobierz wszystkie Soul z bazy
-            all_souls = await Soul.get_all()
-            print(f"🔄 Sprawdzanie {len(all_souls)} Soul w bazie...")
-            
-            migrated_count = 0
-            for soul in all_souls:
-                # Sprawdź czy soul ma stary format (brak genesis)
-                if not soul.genotype.get("genesis"):
-                    print(f"🔧 Migracja Soul: {soul.alias}")
-                    await self._migrate_single_soul(soul)
-                    migrated_count += 1
-                    
-                # Dodaj do loaded_souls jeśli nie ma
-                if not any(s.soul_hash == soul.soul_hash for s in self.loaded_souls):
-                    self.loaded_souls.append(soul)
-                    
-            if migrated_count > 0:
-                print(f"✅ Zmigrowano {migrated_count} Soul")
-                
-        except Exception as e:
-            print(f"⚠️ Problem z migracją Soul: {e}")
-
-    async def _migrate_single_soul(self, soul):
-        """Migruje pojedynczą Soul do nowego formatu"""
-        try:
-            # Utwórz nowy genotyp z genesis
-            new_genotype = {
-                "genesis": {
-                    "name": soul.alias or "migrated_soul",
-                    "type": "migrated",
-                    "version": "1.0.0",
-                    "description": f"Migrated soul: {soul.alias}",
-                    "migration_date": datetime.now().isoformat()
-                },
-                "attributes": soul.genotype.get("attributes", {}),
-                "functions": soul.genotype.get("functions", {}),
-                "capabilities": soul.genotype.get("capabilities", {}),
-                # Zachowaj stare dane w sekcji legacy
-                "legacy": {
-                    "original_genotype": soul.genotype,
-                    "migration_source": "genotype_system"
-                }
-            }
-            
-            # Aktualizuj Soul
-            soul.genotype = new_genotype
-            
-            from ..repository.soul_repository import SoulRepository
-            await SoulRepository.set(soul)
-            
-            print(f"✅ Soul {soul.alias} zmigrowana")
-            
-        except Exception as e:
-            print(f"❌ Błąd migracji Soul {soul.alias}: {e}")
+    
 
     def list_available_souls(self) -> List[Dict[str, Any]]:
         """Lista dostępnych Soul z podstawowymi informacjami"""
