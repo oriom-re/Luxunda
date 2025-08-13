@@ -7,6 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+# Initialize Jinja2 templates
+templates = Jinja2Templates(directory="static")
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import json

@@ -143,6 +143,8 @@ def execute(request=None, being_context=None, **kwargs):
                 "version": "1.0.0"
             },
             "module_source": '''
+from datetime import datetime
+
 def execute(request=None, being_context=None, **kwargs):
     """Handles authentication requests"""
     action = request.get('action') if request else 'status'
@@ -206,7 +208,7 @@ def execute(request=None, being_context=None, **kwargs):
             "dispatched": True,
             "task_id": task_data.get('task_id'),
             "target": target,
-            "dispatch_time": "2025-01-30T00:00:00"
+            "dispatch_time": datetime.now().isoformat()
         }
     
     elif action == 'route':
@@ -243,16 +245,15 @@ def execute(request=None, being_context=None, **kwargs):
     async def _load_tasks_dispenser(self):
         """Ładuje system zadań i dispenser"""
         try:
-            from luxdb.utils.genotype_loader import GenotypeLoader
-            loader = GenotypeLoader()
+            # Simplified loading without GenotypeLoader for now
+            from luxdb.models.soul import Soul
             
-            # Load tasks soul
-            tasks_soul = await loader.load_soul_from_file("genotypes/tasks_soul.json")
+            # Load tasks and dispenser souls by alias
+            tasks_soul = await Soul.get_by_alias("tasks_soul")
             if tasks_soul:
-                print("🎯 Tasks soul loaded")
+                print("🎯 Tasks soul found")
             
-            # Load and create singleton dispenser
-            dispenser_soul = await loader.load_soul_from_file("genotypes/dispenser_soul.json") 
+            dispenser_soul = await Soul.get_by_alias("dispenser_soul")
             if dispenser_soul:
                 dispenser_being = await Being.get_or_create(
                     soul=dispenser_soul,
