@@ -104,6 +104,9 @@ def execute(request=None, being_context=None, **kwargs):
         # Załaduj podstawowe moduły
         await self._load_core_modules()
         
+        # Załaduj tasks i dispenser
+        await self._load_tasks_dispenser()
+        
         print(f"🧠 Simple Kernel initialized: {self.kernel_being.ulid}")
         return self.kernel_being
         
@@ -230,6 +233,31 @@ def execute(request=None, being_context=None, **kwargs):
         except Exception as e:
             print(f"❌ Failed to create dispatcher module: {e}")
             return None
+    
+    async def _load_tasks_dispenser(self):
+        """Ładuje system zadań i dispenser"""
+        try:
+            from luxdb.utils.genotype_loader import GenotypeLoader
+            loader = GenotypeLoader()
+            
+            # Load tasks soul
+            tasks_soul = await loader.load_soul_from_file("genotypes/tasks_soul.json")
+            if tasks_soul:
+                print("🎯 Tasks soul loaded")
+            
+            # Load and create singleton dispenser
+            dispenser_soul = await loader.load_soul_from_file("genotypes/dispenser_soul.json") 
+            if dispenser_soul:
+                dispenser_being = await Being.get_or_create(
+                    soul=dispenser_soul,
+                    alias="kernel_dispenser",
+                    unique_by="soul_hash"
+                )
+                self.modules["dispenser"] = dispenser_being
+                print("📦 Dispenser singleton loaded")
+                
+        except Exception as e:
+            print(f"⚠️ Error loading tasks/dispenser: {e}")
     
     async def create_task(self, task_type: str, target_module: str, payload: Dict[str, Any]) -> str:
         """Tworzy nowe zadanie w systemie"""

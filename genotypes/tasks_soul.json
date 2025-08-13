@@ -1,0 +1,169 @@
+
+{
+  "genesis": {
+    "name": "tasks",
+    "type": "task_management_soul",
+    "version": "1.0.0",
+    "description": "Universal task management with history and execution"
+  },
+  "attributes": {
+    "task_id": {"py_type": "str", "required": true},
+    "task_type": {"py_type": "str", "default": "generic"},
+    "status": {"py_type": "str", "default": "pending"},
+    "payload": {"py_type": "dict", "default": {}},
+    "result": {"py_type": "dict", "default": {}},
+    "created_at": {"py_type": "str"},
+    "completed_at": {"py_type": "str", "default": null},
+    "history": {"py_type": "list", "default": []},
+    "priority": {"py_type": "int", "default": 5}
+  },
+  "module_source": """
+import uuid
+import json
+from datetime import datetime
+
+def init(being_context=None):
+    \"\"\"Initialize task management system\"\"\"
+    alias = being_context.get('alias', 'task_manager')
+    print(f"🎯 Task Manager {alias} initialized")
+    
+    # Auto-generate task_id if not provided
+    if not being_context.get('data', {}).get('task_id'):
+        being_context['data']['task_id'] = str(uuid.uuid4())[:8]
+        being_context['data']['created_at'] = datetime.now().isoformat()
+    
+    return {
+        "ready": True,
+        "task_id": being_context['data']['task_id'],
+        "suggested_persistence": True
+    }
+
+def execute(request=None, being_context=None, **kwargs):
+    \"\"\"Smart task execution - handles both function calls and history queries\"\"\"
+    
+    if not request:
+        return get_task_status(being_context)
+    
+    action = request.get('action') if isinstance(request, dict) else str(request)
+    
+    # Function routing
+    if action == 'update_status':
+        return update_task_status(request.get('status'), request.get('result'), being_context)
+    elif action == 'add_history':
+        return add_to_history(request.get('entry'), being_context)
+    elif action == 'get_history':
+        return get_task_history(being_context)
+    elif action == 'process':
+        return process_task(request.get('data'), being_context)
+    else:
+        # Default - treat as task processing
+        return process_task(request, being_context)
+
+def get_task_status(being_context):
+    \"\"\"Get current task status\"\"\"
+    data = being_context.get('data', {})
+    return {
+        "task_id": data.get('task_id'),
+        "task_type": data.get('task_type'),
+        "status": data.get('status', 'pending'),
+        "created_at": data.get('created_at'),
+        "completed_at": data.get('completed_at'),
+        "history_count": len(data.get('history', []))
+    }
+
+def update_task_status(status, result=None, being_context=None):
+    \"\"\"Update task status and result\"\"\"
+    data = being_context.get('data', {})
+    old_status = data.get('status')
+    
+    data['status'] = status
+    if result:
+        data['result'] = result
+    
+    # Add to history
+    history_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "action": "status_change",
+        "from_status": old_status,
+        "to_status": status,
+        "result_size": len(json.dumps(result)) if result else 0
+    }
+    
+    if 'history' not in data:
+        data['history'] = []
+    data['history'].append(history_entry)
+    
+    # Mark completed
+    if status in ['completed', 'failed']:
+        data['completed_at'] = datetime.now().isoformat()
+    
+    print(f"🎯 Task {data.get('task_id')} status: {old_status} → {status}")
+    
+    return {
+        "success": True,
+        "task_id": data.get('task_id'),
+        "old_status": old_status,
+        "new_status": status,
+        "completed": status in ['completed', 'failed']
+    }
+
+def add_to_history(entry, being_context):
+    \"\"\"Add entry to task history\"\"\"
+    data = being_context.get('data', {})
+    
+    if 'history' not in data:
+        data['history'] = []
+    
+    history_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "entry": entry
+    }
+    
+    data['history'].append(history_entry)
+    
+    return {
+        "success": True,
+        "history_count": len(data['history'])
+    }
+
+def get_task_history(being_context):
+    \"\"\"Get full task history\"\"\"
+    data = being_context.get('data', {})
+    history = data.get('history', [])
+    
+    return {
+        "task_id": data.get('task_id'),
+        "history": history,
+        "total_entries": len(history),
+        "first_entry": history[0] if history else None,
+        "last_entry": history[-1] if history else None
+    }
+
+def process_task(task_data, being_context):
+    \"\"\"Process task data and update accordingly\"\"\"
+    data = being_context.get('data', {})
+    
+    # Update payload
+    if task_data:
+        data['payload'] = task_data
+    
+    # Auto-detect task type
+    if isinstance(task_data, dict):
+        if 'message' in task_data:
+            data['task_type'] = 'message'
+        elif 'calculation' in task_data:
+            data['task_type'] = 'calculation'
+        elif 'api_call' in task_data:
+            data['task_type'] = 'api_call'
+    
+    # Add processing entry to history
+    add_to_history(f"Processing {data.get('task_type', 'generic')} task", being_context)
+    
+    return {
+        "processed": True,
+        "task_id": data.get('task_id'),
+        "task_type": data.get('task_type'),
+        "payload_received": bool(task_data)
+    }
+"""
+}

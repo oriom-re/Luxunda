@@ -1,0 +1,199 @@
+
+{
+  "genesis": {
+    "name": "dispenser",
+    "type": "task_dispatcher_singleton",
+    "version": "1.0.0",
+    "description": "Singleton task dispatcher for backend/frontend distribution"
+  },
+  "attributes": {
+    "active_tasks": {"py_type": "dict", "default": {}},
+    "frontend_queue": {"py_type": "list", "default": []},
+    "backend_queue": {"py_type": "list", "default": []},
+    "routing_rules": {"py_type": "dict", "default": {}},
+    "statistics": {"py_type": "dict", "default": {}}
+  },
+  "module_source": """
+import uuid
+import json
+from datetime import datetime
+
+def init(being_context=None):
+    \"\"\"Initialize singleton dispenser\"\"\"
+    print(f"📦 Dispenser initialized as singleton")
+    
+    # Initialize default routing rules
+    being_context['data']['routing_rules'] = {
+        "message": "frontend",
+        "calculation": "backend", 
+        "api_call": "backend",
+        "ui_update": "frontend",
+        "data_processing": "backend"
+    }
+    
+    being_context['data']['statistics'] = {
+        "total_dispatched": 0,
+        "frontend_count": 0,
+        "backend_count": 0,
+        "last_dispatch": None
+    }
+    
+    return {
+        "ready": True,
+        "singleton": True,
+        "suggested_persistence": True
+    }
+
+def execute(request=None, being_context=None, **kwargs):
+    \"\"\"Main dispatch logic\"\"\"
+    
+    if not request:
+        return get_dispenser_status(being_context)
+    
+    action = request.get('action') if isinstance(request, dict) else 'dispatch'
+    
+    if action == 'dispatch':
+        return dispatch_task(request, being_context)
+    elif action == 'get_queue':
+        target = request.get('target', 'both')
+        return get_queue(target, being_context)
+    elif action == 'complete_task':
+        return complete_task(request.get('task_id'), request.get('result'), being_context)
+    elif action == 'set_routing':
+        return set_routing_rule(request.get('task_type'), request.get('target'), being_context)
+    else:
+        return dispatch_task(request, being_context)
+
+def get_dispenser_status(being_context):
+    \"\"\"Get current dispenser status\"\"\"
+    data = being_context.get('data', {})
+    
+    return {
+        "status": "active",
+        "active_tasks": len(data.get('active_tasks', {})),
+        "frontend_queue": len(data.get('frontend_queue', [])),
+        "backend_queue": len(data.get('backend_queue', [])),
+        "statistics": data.get('statistics', {}),
+        "routing_rules": data.get('routing_rules', {})
+    }
+
+def dispatch_task(task_request, being_context):
+    \"\"\"Dispatch task to appropriate queue\"\"\"
+    data = being_context.get('data', {})
+    
+    # Extract task info
+    task_type = task_request.get('task_type', 'generic')
+    task_data = task_request.get('data', task_request)
+    task_id = task_request.get('task_id', str(uuid.uuid4())[:8])
+    priority = task_request.get('priority', 5)
+    
+    # Determine target based on routing rules
+    routing_rules = data.get('routing_rules', {})
+    target = routing_rules.get(task_type, 'backend')  # Default to backend
+    
+    # Create task entry
+    task_entry = {
+        "task_id": task_id,
+        "task_type": task_type,
+        "data": task_data,
+        "priority": priority,
+        "created_at": datetime.now().isoformat(),
+        "status": "queued"
+    }
+    
+    # Add to appropriate queue
+    if target == 'frontend':
+        data['frontend_queue'].append(task_entry)
+        data['statistics']['frontend_count'] += 1
+    else:
+        data['backend_queue'].append(task_entry)
+        data['statistics']['backend_count'] += 1
+    
+    # Track active task
+    data['active_tasks'][task_id] = {
+        "target": target,
+        "created_at": datetime.now().isoformat(),
+        "status": "dispatched"
+    }
+    
+    # Update statistics
+    data['statistics']['total_dispatched'] += 1
+    data['statistics']['last_dispatch'] = datetime.now().isoformat()
+    
+    print(f"📦 Dispatched task {task_id} ({task_type}) to {target}")
+    
+    return {
+        "success": True,
+        "task_id": task_id,
+        "target": target,
+        "queued_at": task_entry["created_at"],
+        "queue_position": len(data[f'{target}_queue'])
+    }
+
+def get_queue(target, being_context):
+    \"\"\"Get tasks from specified queue\"\"\"
+    data = being_context.get('data', {})
+    
+    if target == 'frontend':
+        queue = data.get('frontend_queue', [])
+    elif target == 'backend':
+        queue = data.get('backend_queue', [])
+    else:  # both
+        return {
+            "frontend_queue": data.get('frontend_queue', []),
+            "backend_queue": data.get('backend_queue', []),
+            "total_tasks": len(data.get('frontend_queue', [])) + len(data.get('backend_queue', []))
+        }
+    
+    return {
+        "target": target,
+        "queue": queue,
+        "count": len(queue)
+    }
+
+def complete_task(task_id, result, being_context):
+    \"\"\"Mark task as completed and remove from active tracking\"\"\"
+    data = being_context.get('data', {})
+    
+    if task_id in data.get('active_tasks', {}):
+        task_info = data['active_tasks'][task_id]
+        task_info['status'] = 'completed'
+        task_info['completed_at'] = datetime.now().isoformat()
+        task_info['result_size'] = len(json.dumps(result)) if result else 0
+        
+        # Remove from active (move to completed history if needed)
+        del data['active_tasks'][task_id]
+        
+        print(f"✅ Task {task_id} completed")
+        
+        return {
+            "success": True,
+            "task_id": task_id,
+            "completed_at": task_info['completed_at']
+        }
+    else:
+        return {
+            "success": False,
+            "error": f"Task {task_id} not found in active tasks"
+        }
+
+def set_routing_rule(task_type, target, being_context):
+    \"\"\"Set routing rule for task type\"\"\"
+    data = being_context.get('data', {})
+    
+    if 'routing_rules' not in data:
+        data['routing_rules'] = {}
+    
+    old_target = data['routing_rules'].get(task_type)
+    data['routing_rules'][task_type] = target
+    
+    print(f"📋 Routing rule: {task_type} → {target} (was: {old_target})")
+    
+    return {
+        "success": True,
+        "task_type": task_type,
+        "old_target": old_target,
+        "new_target": target
+    }
+"""
+}
