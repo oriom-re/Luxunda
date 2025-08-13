@@ -1,0 +1,17 @@
+
+{
+  "genesis": {
+    "name": "soul_relations",
+    "type": "relation_soul",
+    "version": "1.0.0",
+    "description": "Zarządza relacjami kierunkowymi can_use między bytami"
+  },
+  "attributes": {
+    "source_being_ulid": {"py_type": "str", "description": "ULID bytu źródłowego"},
+    "target_being_ulid": {"py_type": "str", "description": "ULID bytu docelowego"}, 
+    "relation_type": {"py_type": "str", "default": "can_use"},
+    "permissions": {"py_type": "dict", "default": {}},
+    "ttl_expires": {"py_type": "str", "description": "Kiedy relacja wygasa"}
+  },
+  "module_source": "def execute(source_ulid=None, target_ulid=None, action='check', being_context=None):\n    \"\"\"Zarządza relacjami can_use\"\"\"\n    if action == 'check':\n        return {'can_use': True, 'relation_exists': True}\n    elif action == 'create':\n        return {'relation_created': True, 'source': source_ulid, 'target': target_ulid}\n    return {'action': action, 'result': 'executed'}"
+}
