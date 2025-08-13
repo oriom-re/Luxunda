@@ -250,15 +250,19 @@ async def get_available_tools():
     """Get list of available tools/beings"""
     from luxdb.models.being import Being
 
-    all_beings = await Being.load_all()
+    all_beings = await Being.get_all()
     tools = []
 
     for being in all_beings:
+        # Get soul to access genotype
+        soul = await being.get_soul()
+        genotype = soul.genotype if soul else {}
+        
         tools.append({
             "ulid": being.ulid,
             "alias": being.alias,
-            "type": being.genotype.get("genesis", {}).get("type", "unknown"),
-            "description": being.genotype.get("genesis", {}).get("description", "No description")
+            "type": genotype.get("genesis", {}).get("type", "unknown"),
+            "description": genotype.get("genesis", {}).get("description", "No description")
         })
 
     return {"tools": tools}
