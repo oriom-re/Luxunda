@@ -518,6 +518,129 @@ class Being:
                 error_code="HANDLER_EXECUTION_ERROR"
             )
 
+    async def execute_dynamic_function_via_openai(self, function_name: str, function_data: Dict[str, Any], *args, **kwargs) -> Dict[str, Any]:
+        """
+        Wykonuje dynamiczną funkcję przez OpenAI i Kernel
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            # Przygotuj dane dla OpenAI
+            function_schema = {
+                "type": "function",
+                "function": {
+                    "name": function_name,
+                    "description": function_data.get('description', f'Dynamic function {function_name}'),
+                    "parameters": function_data.get('parameters', {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    })
+                }
+            }
+            
+            # Sprawdź czy mamy dostęp do OpenAI
+            use_real_openai = kwargs.pop('use_openai', False)
+            openai_client = kwargs.pop('openai_client', None)
+            
+            if use_real_openai and openai_client:
+                # Prawdziwe wykonanie przez OpenAI
+                result = await self._execute_via_real_openai(
+                    function_name, function_schema, args, kwargs, openai_client
+                )
+            else:
+                # Symulacja wykonania przez OpenAI i Kernel
+                print(f"🤖 {self.alias} executing dynamic function {function_name} via OpenAI simulation")
+                
+                result = {
+                    "function_name": function_name,
+                    "executed_via": "openai_kernel_simulation",
+                    "arguments": {"args": args, "kwargs": kwargs},
+                    "result": f"Dynamic function {function_name} executed successfully",
+                    "simulated_response": self._simulate_function_execution(function_name, function_data, args, kwargs),
+                    "timestamp": datetime.now().isoformat()
+                }
+            
+            # Aktualizuj statystyki
+            self.data['_dynamic_functions'][function_name]['execution_count'] += 1
+            self.data['_dynamic_functions'][function_name]['last_executed'] = datetime.now().isoformat()
+            
+            if self.is_persistent():
+                await self.save()
+            
+            return GeneticResponseFormat.success_response(
+                data=result
+            )
+            
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Dynamic function execution failed: {str(e)}",
+                error_code="DYNAMIC_FUNCTION_EXECUTION_ERROR"
+            )
+    
+    def _simulate_function_execution(self, function_name: str, function_data: Dict[str, Any], args: tuple, kwargs: Dict[str, Any]) -> str:
+        """Symuluje wykonanie funkcji na podstawie jej definicji"""
+        domain = function_data.get('domain', 'general')
+        
+        if domain == 'mathematics':
+            if 'expression' in kwargs:
+                return f"Calculated {kwargs['expression']} = 42 (simulated)"
+            return "Mathematical operation completed (simulated)"
+        
+        elif domain == 'nlp':
+            if 'text' in kwargs:
+                text = kwargs['text']
+                return f"Text analysis of '{text[:50]}...': Sentiment: Positive, Keywords: ['AI', 'development'] (simulated)"
+            return "Text analysis completed (simulated)"
+        
+        else:
+            return f"Function {function_name} executed with {len(args)} args and {len(kwargs)} kwargs (simulated)"
+    
+    async def _execute_via_real_openai(self, function_name: str, function_schema: Dict, args: tuple, kwargs: Dict, openai_client) -> Dict[str, Any]:
+        """Wykonuje funkcję przez prawdziwe API OpenAI"""
+        try:
+            import json
+            
+            # Przygotuj prompt dla OpenAI
+            prompt = f"""
+            Execute the function {function_name} with the following arguments:
+            Args: {args}
+            Kwargs: {kwargs}
+            
+            Function definition: {json.dumps(function_schema, indent=2)}
+            
+            Please provide a realistic result for this function call.
+            """
+            
+            response = await openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a function execution assistant. Execute the requested function and provide realistic results."},
+                    {"role": "user", "content": prompt}
+                ],
+                tools=[function_schema] if function_schema else None,
+                tool_choice="auto"
+            )
+            
+            return {
+                "function_name": function_name,
+                "executed_via": "real_openai_api",
+                "arguments": {"args": args, "kwargs": kwargs},
+                "openai_response": response.choices[0].message.content,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"❌ OpenAI execution failed: {e}")
+            return {
+                "function_name": function_name,
+                "executed_via": "openai_fallback_simulation",
+                "arguments": {"args": args, "kwargs": kwargs},
+                "result": f"OpenAI execution failed, using simulation: {self._simulate_function_execution(function_name, {}, args, kwargs)}",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+
     async def execute_soul_function(self, function_name: str, *args, **kwargs) -> Dict[str, Any]:
         """
         Wykonuje funkcję z Soul tego bytu.
@@ -540,6 +663,19 @@ class Being:
                     error_code="SOUL_NOT_FOUND"
                 )
 
+            # Sprawdź czy to jest dynamiczna funkcja
+            dynamic_functions = self.data.get('_dynamic_functions', {})
+            
+            if function_name in dynamic_functions:
+                # To jest dynamiczna funkcja - wykonaj przez OpenAI i Kernel
+                print(f"🔧 Executing dynamic function: {function_name}")
+                return await self.execute_dynamic_function_via_openai(
+                    function_name, 
+                    dynamic_functions[function_name], 
+                    *args, 
+                    **kwargs
+                )
+            
             # Automatycznie dodaj being_context jeśli funkcja go potrzebuje
             if 'being_context' not in kwargs:
                 # Sprawdź czy funkcja przyjmuje being_context
@@ -619,6 +755,62 @@ class Being:
     def is_function_master(self) -> bool:
         """Sprawdza czy Being jest masterem funkcji (ma init i został zainicjalizowany)"""
         return self.data.get('_function_master', False) and self.data.get('_initialized', False)
+    
+    async def add_dynamic_function(self, function_name: str, function_definition: Dict[str, Any], source: str = "user") -> Dict[str, Any]:
+        """
+        Dodaje nową funkcję do Being jako atrybut.
+        Master Function Being może dodawać sobie funkcje dynamicznie.
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            if not self.is_function_master():
+                return GeneticResponseFormat.error_response(
+                    error="Only function masters can add dynamic functions",
+                    error_code="NOT_FUNCTION_MASTER"
+                )
+            
+            # Inicjalizuj dynamic_functions jeśli nie istnieje
+            if '_dynamic_functions' not in self.data:
+                self.data['_dynamic_functions'] = {}
+            
+            # Dodaj definicję funkcji
+            self.data['_dynamic_functions'][function_name] = {
+                "definition": function_definition,
+                "description": function_definition.get('description', ''),
+                "parameters": function_definition.get('parameters', {}),
+                "source": source,
+                "added_at": datetime.now().isoformat(),
+                "execution_count": 0,
+                "last_executed": None,
+                "enabled": True
+            }
+            
+            # Aktualizuj listę zarządzanych funkcji
+            managed_functions = self.data.get('_managed_functions', [])
+            if function_name not in managed_functions:
+                managed_functions.append(function_name)
+                self.data['_managed_functions'] = managed_functions
+            
+            # Zapisz zmiany
+            if self.is_persistent():
+                await self.save()
+            
+            print(f"🔧 Master {self.alias} added dynamic function: {function_name}")
+            
+            return GeneticResponseFormat.success_response(
+                data={
+                    "function_name": function_name,
+                    "added": True,
+                    "total_dynamic_functions": len(self.data['_dynamic_functions'])
+                }
+            )
+            
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Failed to add dynamic function: {str(e)}",
+                error_code="DYNAMIC_FUNCTION_ADD_ERROR"
+            )
 
     async def _intelligent_execute(self, data: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
         """
@@ -705,6 +897,8 @@ class Being:
     
     def get_function_mastery_info(self) -> Dict[str, Any]:
         """Zwraca informacje o masterowaniu funkcji przez tego Being"""
+        dynamic_functions = self.data.get('_dynamic_functions', {})
+        
         return {
             'is_function_master': self.is_function_master(),
             'managed_functions': self.data.get('_managed_functions', []),
@@ -712,7 +906,13 @@ class Being:
             'intelligent_executions': self.data.get('_intelligent_executions', 0),
             'function_stats': self.data.get('_function_stats', {}),
             'initialized_at': self.data.get('_init_time'),
-            'function_signatures': self.data.get('_function_signatures', {})
+            'function_signatures': self.data.get('_function_signatures', {}),
+            'dynamic_functions': {
+                'count': len(dynamic_functions),
+                'functions': list(dynamic_functions.keys()),
+                'total_executions': sum(f.get('execution_count', 0) for f in dynamic_functions.values()),
+                'enabled_count': len([f for f in dynamic_functions.values() if f.get('enabled', True)])
+            }
         }
 
     async def init(self, **kwargs) -> Dict[str, Any]:
