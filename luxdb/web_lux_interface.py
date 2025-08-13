@@ -2,7 +2,7 @@
 Web Interface for Lux AI Assistant
 """
 
-from fastapi import FastAPI, Request, WebSocket, HTTPException, Depends
+from fastapi import FastAPI, Request, WebSocket, HTTPException, Depends, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
