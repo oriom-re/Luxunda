@@ -206,8 +206,9 @@ def cleanup_expired_beings(being_context):
         self.alias_mappings = data.get('alias_mappings', {})
         self.alias_history = data.get('alias_history', {})
         self.managed_beings = data.get('managed_beings', [])
+        self.auto_update_configs = data.get('auto_update_configs', {})
         
-        print(f"🧠 Loaded registry: {len(self.alias_mappings)} aliases, {len(self.managed_beings)} beings")
+        print(f"🧠 Loaded registry: {len(self.alias_mappings)} aliases, {len(self.managed_beings)} beings, {len(self.auto_update_configs)} auto-update configs")
         
     async def _save_registry_data(self):
         """Zapisuje dane registry z pamięci do Being"""
@@ -217,16 +218,18 @@ def cleanup_expired_beings(being_context):
         self.kernel_being.data['alias_mappings'] = self.alias_mappings
         self.kernel_being.data['alias_history'] = self.alias_history
         self.kernel_being.data['managed_beings'] = self.managed_beings
+        self.kernel_being.data['auto_update_configs'] = getattr(self, 'auto_update_configs', {})
         self.kernel_being.data['registry_stats'] = {
             "aliases_count": len(self.alias_mappings),
             "beings_count": len(self.managed_beings),
+            "auto_update_aliases": len(getattr(self, 'auto_update_configs', {})),
             "last_update": datetime.now().isoformat()
         }
         
         await self.kernel_being.save()
         
-    async def register_alias_mapping(self, alias: str, soul_hash: str) -> Dict[str, Any]:
-        """Rejestruje mapowanie alias -> soul_hash"""
+    async def register_alias_mapping(self, alias: str, soul_hash: str, auto_update: bool = True) -> Dict[str, Any]:
+        """Rejestruje mapowanie alias -> soul_hash z możliwością auto-update"""
         old_hash = self.alias_mappings.get(alias)
         self.alias_mappings[alias] = soul_hash
         
@@ -237,19 +240,103 @@ def cleanup_expired_beings(being_context):
         self.alias_history[alias].append({
             "soul_hash": soul_hash,
             "updated_at": datetime.now().isoformat(),
-            "previous_hash": old_hash
+            "previous_hash": old_hash,
+            "auto_update": auto_update
         })
         
         await self._save_registry_data()
         
-        print(f"🧠 Kernel registered alias: {alias} → {soul_hash[:8]}...")
+        print(f"🧠 Kernel registered alias: {alias} → {soul_hash[:8]}... (auto-update: {auto_update})")
         return {
             "success": True,
             "alias": alias,
             "soul_hash": soul_hash,
             "previous_hash": old_hash,
-            "is_update": old_hash is not None
+            "is_update": old_hash is not None,
+            "auto_update": auto_update
         }
+        
+    async def auto_update_alias_to_latest(self, alias: str, base_name: str) -> Dict[str, Any]:
+        """Automatycznie aktualizuje alias do najnowszej wersji Soul o danej nazwie"""
+        try:
+            from ..models.soul import Soul
+            
+            # Znajdź wszystkie Soul z daną nazwą (base_name)
+            all_souls = await Soul.get_all()
+            matching_souls = []
+            
+            for soul in all_souls:
+                if hasattr(soul, 'genotype') and 'genesis' in soul.genotype:
+                    genesis = soul.genotype['genesis']
+                    if genesis.get('name') == base_name:
+                        matching_souls.append({
+                            'soul': soul,
+                            'version': genesis.get('version', '0.0.0'),
+                            'created_at': getattr(soul, 'created_at', None)
+                        })
+            
+            if not matching_souls:
+                return {
+                    "success": False,
+                    "error": f"No souls found with name '{base_name}'"
+                }
+            
+            # Sortuj po wersji i dacie utworzenia
+            matching_souls.sort(key=lambda x: (x['version'], x['created_at']), reverse=True)
+            latest_soul = matching_souls[0]['soul']
+            
+            # Aktualizuj alias
+            result = await self.register_alias_mapping(
+                alias, 
+                latest_soul.soul_hash, 
+                auto_update=True
+            )
+            
+            print(f"🔄 Auto-updated alias '{alias}' to latest version {matching_souls[0]['version']}")
+            return {
+                **result,
+                "auto_updated": True,
+                "latest_version": matching_souls[0]['version'],
+                "base_name": base_name
+            }
+            
+        except Exception as e:
+            print(f"❌ Auto-update failed for alias '{alias}': {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+            
+    async def setup_auto_update_alias(self, alias: str, base_name: str) -> Dict[str, Any]:
+        """Konfiguruje alias do automatycznego śledzenia najnowszej wersji Soul"""
+        
+        # Znajdź aktualnie najnowszą wersję
+        result = await self.auto_update_alias_to_latest(alias, base_name)
+        
+        if result.get("success"):
+            # Zapisz konfigurację auto-update
+            if not hasattr(self, 'auto_update_configs'):
+                self.auto_update_configs = {}
+                
+            self.auto_update_configs[alias] = {
+                "base_name": base_name,
+                "enabled": True,
+                "last_update": datetime.now().isoformat(),
+                "update_count": 1
+            }
+            
+            await self._save_registry_data()
+            
+            print(f"✅ Setup auto-update for alias '{alias}' → base_name '{base_name}'")
+            return {
+                "success": True,
+                "alias": alias,
+                "base_name": base_name,
+                "current_version": result.get("latest_version"),
+                "auto_update_enabled": True
+            }
+        else:
+            return result
         
     async def get_current_hash_for_alias(self, alias: str) -> Dict[str, Any]:
         """Pobiera aktualny hash dla aliasu"""
