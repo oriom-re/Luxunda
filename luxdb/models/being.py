@@ -218,27 +218,56 @@ class Being:
             persistent: Czy Being ma być zapisywane do bazy danych
         """
 
-        # Backward compatibility handling
-        if soul is not None:
-            # New style: create(soul=soul_object, ...)
-            target_soul = soul
-        elif soul_hash is not None:
-            # Legacy style: create(soul_hash="...", ...)
-            from ..repository.soul_repository import SoulRepository
-            result = await SoulRepository.get_soul_by_hash(soul_hash)
-            if not result or not result.get('success'):
-                raise ValueError(f"Soul with hash {soul_hash} not found")
-            target_soul = result.get('soul')
-        elif isinstance(soul_or_hash, str):
-            # Legacy style: create("hash_string", ...)
-            from ..repository.soul_repository import SoulRepository
-            result = await SoulRepository.get_soul_by_hash(soul_or_hash)
-            if not result or not result.get('success'):
-                raise ValueError(f"Soul with hash {soul_or_hash} not found")
-            target_soul = result.get('soul')
+        # *** SPECJALNE PRZYPADKI DELEGACJI ***
+        
+        # 1. Jeśli podano TYLKO alias (bez soul/soul_hash), deleguj do registry
+        if alias and not soul and not soul_hash and not soul_or_hash:
+            print(f"🔄 Delegating Being.create(alias='{alias}') to registry...")
+            
+            # Znajdź registry being
+            registry_beings = await cls.get_by_soul_alias("soul_registry")
+            if registry_beings:
+                registry_being = registry_beings[0]
+                
+                # Pobierz aktualny hash dla aliasu
+                hash_result = await registry_being.execute_soul_function(
+                    "get_current_hash_for_alias",
+                    alias=alias
+                )
+                
+                if hash_result.get('success') and hash_result.get('data', {}).get('found'):
+                    current_hash = hash_result['data']['soul_hash']
+                    print(f"📍 Registry mapped alias '{alias}' → hash '{current_hash[:8]}...'")
+                    
+                    # Utwórz Being używając znalezionego hash
+                    from ..repository.soul_repository import SoulRepository
+                    soul_result = await SoulRepository.get_soul_by_hash(current_hash)
+                    if soul_result and soul_result.get('success'):
+                        target_soul = soul_result.get('soul')
+                    else:
+                        raise ValueError(f"Soul with hash {current_hash} not found in database")
+                else:
+                    raise ValueError(f"Registry has no mapping for alias '{alias}'")
+            else:
+                raise ValueError("Registry being not found - cannot resolve alias")
         else:
-            # New style: create(soul_object, ...)
-            target_soul = soul_or_hash
+            # Standardowa logika rozpoznawania Soul
+            if soul is not None:
+                target_soul = soul
+            elif soul_hash is not None:
+                from ..repository.soul_repository import SoulRepository
+                result = await SoulRepository.get_soul_by_hash(soul_hash)
+                if not result or not result.get('success'):
+                    raise ValueError(f"Soul with hash {soul_hash} not found")
+                target_soul = result.get('soul')
+            elif isinstance(soul_or_hash, str):
+                from ..repository.soul_repository import SoulRepository
+                result = await SoulRepository.get_soul_by_hash(soul_or_hash)
+                if not result or not result.get('success'):
+                    raise ValueError(f"Soul with hash {soul_or_hash} not found")
+                target_soul = result.get('soul')
+            else:
+                target_soul = soul_or_hash
 
         if not target_soul:
              raise ValueError("Soul object or hash must be provided.")
