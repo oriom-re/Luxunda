@@ -219,11 +219,11 @@ class Being:
         """
 
         # DELEGACJA DO KERNEL - jeśli podano tylko alias bez soul
-        if (alias is not None and 
-            soul is None and 
-            soul_or_hash is None and 
+        if (alias is not None and
+            soul is None and
+            soul_or_hash is None and
             soul_hash is None):
-            
+
             print(f"🏛️ Delegating Being.create(alias='{alias}') to Kernel...")
             from ..core.intelligent_kernel import intelligent_kernel
             return await intelligent_kernel.create_being_by_alias(alias, attributes, persistent)
@@ -524,11 +524,11 @@ class Being:
         Being to niezmienne instancje, wykonanie odbywa się przez Master Soul + Kernel.
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             # Deleguj do Kernel
             from ..core.intelligent_kernel import intelligent_kernel
-            
+
             execution_request = {
                 "being_ulid": self.ulid,
                 "soul_hash": self.soul_hash,
@@ -537,16 +537,16 @@ class Being:
                 "request_type": "function_execution",
                 "timestamp": datetime.now().isoformat()
             }
-            
+
             print(f"🏛️ Being {self.alias} delegating function '{function_name}' execution to Kernel")
-            
+
             # Kernel znajdzie odpowiedni Master Soul Being i wykona funkcję
             result = await intelligent_kernel.execute_function_via_master_soul(
                 self.soul_hash,
                 function_name,
                 execution_request
             )
-            
+
             return GeneticResponseFormat.success_response(
                 data={
                     "delegated_to": "kernel",
@@ -555,47 +555,47 @@ class Being:
                     "being_role": "request_delegator_only"
                 }
             )
-            
+
         except Exception as e:
             return GeneticResponseFormat.error_response(
                 error=f"Function execution delegation failed: {str(e)}",
                 error_code="KERNEL_DELEGATION_ERROR"
             )
-    
+
     def _simulate_function_execution(self, function_name: str, function_data: Dict[str, Any], args: tuple, kwargs: Dict[str, Any]) -> str:
         """Symuluje wykonanie funkcji na podstawie jej definicji"""
         domain = function_data.get('domain', 'general')
-        
+
         if domain == 'mathematics':
             if 'expression' in kwargs:
                 return f"Calculated {kwargs['expression']} = 42 (simulated)"
             return "Mathematical operation completed (simulated)"
-        
+
         elif domain == 'nlp':
             if 'text' in kwargs:
                 text = kwargs['text']
                 return f"Text analysis of '{text[:50]}...': Sentiment: Positive, Keywords: ['AI', 'development'] (simulated)"
             return "Text analysis completed (simulated)"
-        
+
         else:
             return f"Function {function_name} executed with {len(args)} args and {len(kwargs)} kwargs (simulated)"
-    
+
     async def _execute_via_real_openai(self, function_name: str, function_schema: Dict, args: tuple, kwargs: Dict, openai_client) -> Dict[str, Any]:
         """Wykonuje funkcję przez prawdziwe API OpenAI"""
         try:
             import json
-            
+
             # Przygotuj prompt dla OpenAI
             prompt = f"""
             Execute the function {function_name} with the following arguments:
             Args: {args}
             Kwargs: {kwargs}
-            
+
             Function definition: {json.dumps(function_schema, indent=2)}
-            
+
             Please provide a realistic result for this function call.
             """
-            
+
             response = await openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
@@ -605,7 +605,7 @@ class Being:
                 tools=[function_schema] if function_schema else None,
                 tool_choice="auto"
             )
-            
+
             return {
                 "function_name": function_name,
                 "executed_via": "real_openai_api",
@@ -613,7 +613,7 @@ class Being:
                 "openai_response": response.choices[0].message.content,
                 "timestamp": datetime.now().isoformat()
             }
-            
+
         except Exception as e:
             print(f"❌ OpenAI execution failed: {e}")
             return {
@@ -625,138 +625,85 @@ class Being:
                 "timestamp": datetime.now().isoformat()
             }
 
-    async def execute_soul_function(self, function_name: str, *args, **kwargs) -> Dict[str, Any]:
+    async def execute_soul_function(self, function_name: str = None, *args, **kwargs) -> Dict[str, Any]:
         """
-        Wykonuje funkcję z Soul tego bytu.
+        Wykonuje funkcję z Soul poprzez Being context.
 
         Args:
-            function_name: Nazwa funkcji do wykonania
-            *args: Argumenty pozycyjne dla funkcji
-            **kwargs: Argumenty nazwane dla funkcji (NIE atrybuty Being)
+            function_name: Nazwa funkcji do wykonania (None = domyślne execute)
+            *args: Argumenty pozycyjne
+            **kwargs: Argumenty nazwane
 
         Returns:
-            Wynik wykonania funkcji w formacie genetycznym
+            Wynik wykonania funkcji
         """
         from luxdb.utils.serializer import GeneticResponseFormat
 
-        try:
-            soul = await self.get_soul()
-            if not soul:
-                return GeneticResponseFormat.error_response(
-                    error="Soul not found for this being",
-                    error_code="SOUL_NOT_FOUND"
-                )
-
-            # Sprawdź czy to jest dynamiczna funkcja - deleguj do Kernel
-            dynamic_functions = self.data.get('_dynamic_functions', {})
-            
-            if function_name in dynamic_functions:
-                # To jest dynamiczna funkcja - deleguj do Kernel dla wykonania
-                print(f"🔧 Delegating dynamic function to Kernel: {function_name}")
-                return await self.request_function_execution_via_kernel(
-                    function_name, 
-                    *args, 
-                    **kwargs
-                )
-            
-            # Automatycznie dodaj being_context jeśli funkcja go potrzebuje
-            if 'being_context' not in kwargs:
-                # Sprawdź czy funkcja przyjmuje being_context
-                import inspect
-                func = soul.get_function(function_name)
-                if func:
-                    sig = inspect.signature(func)
-                    if 'being_context' in sig.parameters:
-                        kwargs['being_context'] = {
-                            'ulid': self.ulid,
-                            'alias': self.alias,
-                            'data': self.data.copy()
-                        }
-
-            # Wykonaj funkcję przez Soul - kwargs to TYLKO argumenty funkcji
-            result = await soul.execute_function(function_name, *args, **kwargs)
-
-            # Zaktualizuj statystyki Being jeśli funkcja się powiodła
-            if result.get('success'):
-                execution_count = self.data.get('execution_count', 0) + 1
-                self.data['execution_count'] = execution_count
-                self.data['last_execution'] = datetime.now().isoformat()
-                self.updated_at = datetime.now()
-
-            return result
-
-        except Exception as e:
-            return GeneticResponseFormat.error_response(
-                error=f"Function execution failed: {str(e)}",
-                error_code="BEING_FUNCTION_ERROR"
-            )
-
-    async def execute(self, data: Dict[str, Any] = None, function: str = None, **kwargs) -> Dict[str, Any]:
-        """
-        Inteligentna metoda wykonywania funkcji - Being jako master swoich funkcji.
-
-        Jeśli nie podano function, wywołuje inteligentną procedurę 'execute'.
-        Jeśli podano function, wywołuje tę konkretną funkcję manualnie.
-
-        Args:
-            data: Dane do przetworzenia (argument funkcji)
-            function: Nazwa konkretnej funkcji do wywołania (opcjonalne)
-            **kwargs: Dodatkowe argumenty dla funkcji
-
-        Returns:
-            Wynik wykonania funkcji z inteligentnymi decyzjami
-        """
         soul = await self.get_soul()
         if not soul:
-            from luxdb.utils.serializer import GeneticResponseFormat
             return GeneticResponseFormat.error_response(
-                error="Soul not found for this being",
-                error_code="SOUL_NOT_FOUND"
+                error="No soul attached to being",
+                error_code="NO_SOUL"
             )
 
-        # Being jako function master
-        if self.is_function_master():
-            if function:
-                # Manualne wywołanie konkretnej funkcji
-                print(f"🎯 Function master {self.alias} executing specific function: {function}")
-                result = await self.execute_soul_function(function, data=data, **kwargs)
+        # Przygotuj being_context dla funkcji Soul
+        being_context = {
+            "ulid": self.ulid,
+            "alias": self.alias,
+            "data": self.data,
+            "soul_hash": soul.soul_hash,
+            "attributes": self.data  # Alias dla kompatybilności
+        }
 
-                # Master aktualizuje swoje statystyki
-                await self._update_function_usage_stats(function, result.get('success', False))
-                return result
+        # Jeśli Soul ma module_source - używaj standardowego protokołu execute
+        if soul.has_module_source():
+            # Wszystkie Soul z module_source muszą mieć execute
+            if not soul.has_execute_function():
+                return GeneticResponseFormat.error_response(
+                    error="Soul with module_source must have execute function",
+                    error_code="MISSING_EXECUTE"
+                )
+
+            # Standardowe wywołanie execute z request protocol
+            if function_name and function_name != 'execute':
+                # Przekaż żądanie konkretnej funkcji przez execute
+                request = {
+                    "action": function_name,
+                    "data": kwargs.get('data'),
+                    "args": args,
+                    "kwargs": {k: v for k, v in kwargs.items() if k != 'data'}
+                }
+                return await soul.execute_function('execute', request=request, being_context=being_context)
             else:
-                # Inteligentna procedura execute
-                print(f"🧠 Function master {self.alias} running intelligent execute procedure")
-                return await self._intelligent_execute(data, **kwargs)
-        else:
-            # Standardowe wykonanie dla nie-masterów
-            if function:
-                return await self.execute_soul_function(function, data=data, **kwargs)
-            else:
-                return await soul.default_execute(data=data, **kwargs)
+                # Bezpośrednie wywołanie execute
+                return await soul.execute_function('execute', being_context=being_context, *args, **kwargs)
+
+        # Dla Soul bez module_source - bezpośrednie wywołanie funkcji
+        target_function = function_name or 'execute'
+        return await soul.execute_function(target_function, being_context=being_context, *args, **kwargs)
 
     def is_function_master(self) -> bool:
         """Sprawdza czy Being jest masterem funkcji (ma init i został zainicjalizowany)"""
         return self.data.get('_function_master', False) and self.data.get('_initialized', False)
-    
+
     async def add_dynamic_function(self, function_name: str, function_definition: Dict[str, Any], source: str = "user") -> Dict[str, Any]:
         """
         Dodaje nową funkcję do Being jako atrybut.
         Master Function Being może dodawać sobie funkcje dynamicznie.
         """
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         try:
             if not self.is_function_master():
                 return GeneticResponseFormat.error_response(
                     error="Only function masters can add dynamic functions",
                     error_code="NOT_FUNCTION_MASTER"
                 )
-            
+
             # Inicjalizuj dynamic_functions jeśli nie istnieje
             if '_dynamic_functions' not in self.data:
                 self.data['_dynamic_functions'] = {}
-            
+
             # Dodaj definicję funkcji
             self.data['_dynamic_functions'][function_name] = {
                 "definition": function_definition,
@@ -768,19 +715,19 @@ class Being:
                 "last_executed": None,
                 "enabled": True
             }
-            
+
             # Aktualizuj listę zarządzanych funkcji
             managed_functions = self.data.get('_managed_functions', [])
             if function_name not in managed_functions:
                 managed_functions.append(function_name)
                 self.data['_managed_functions'] = managed_functions
-            
+
             # Zapisz zmiany
             if self.is_persistent():
                 await self.save()
-            
+
             print(f"🔧 Master {self.alias} added dynamic function: {function_name}")
-            
+
             return GeneticResponseFormat.success_response(
                 data={
                     "function_name": function_name,
@@ -788,7 +735,7 @@ class Being:
                     "total_dynamic_functions": len(self.data['_dynamic_functions'])
                 }
             )
-            
+
         except Exception as e:
             return GeneticResponseFormat.error_response(
                 error=f"Failed to add dynamic function: {str(e)}",
@@ -875,13 +822,13 @@ class Being:
         stats['last_called'] = datetime.now().isoformat()
 
     def is_persistent(self) -> bool:
-        """Sprawdza czy Being jest trwały (zapisany w bazie)"""
-        return self.data.get('_persistent', True)  # Domyślnie persistent=True
-    
+        """Sprawdza czy Being jest trwałe (zapisane w bazie)"""
+        return self.data.get('_persistent', True)
+
     def get_function_mastery_info(self) -> Dict[str, Any]:
         """Zwraca informacje o masterowaniu funkcji przez tego Being"""
         dynamic_functions = self.data.get('_dynamic_functions', {})
-        
+
         return {
             'is_function_master': self.is_function_master(),
             'managed_functions': self.data.get('_managed_functions', []),
@@ -1270,19 +1217,37 @@ class Being:
         """Sprawdza czy Being jest trwałe (zapisywane w bazie)"""
         return self.data.get('_persistent', True)
 
-    async def save(self):
-        """Zapisuje zmiany w Being do bazy danych"""
-        if self.is_persistent():
-            from ..repository.soul_repository import BeingRepository
+    async def save(self) -> Dict[str, Any]:
+        """
+        Zapisuje Being do bazy danych.
+
+        Returns:
+            Dict z wynikiem operacji
+        """
+        from ..repository.soul_repository import BeingRepository
+
+        result = await BeingRepository.set(self)
+        if result.get('success'):
             self.updated_at = datetime.now()
 
-            try:
-                await BeingRepository.update_being(self)
-                print(f"💾 Saved Being {self.alias}")
-            except Exception as e:
-                print(f"❌ Error saving Being {self.alias}: {e}")
-        else:
-            print(f"💨 Transient Being {self.alias} - not saved to database")
+        return result
+
+    async def execute(self, request=None, **kwargs) -> Dict[str, Any]:
+        """
+        Standardowa metoda execute - wywołuje Soul.execute przez protokół.
+
+        Args:
+            request: Request object lub dict z action, data, etc.
+            **kwargs: Dodatkowe argumenty
+
+        Returns:
+            Wynik wykonania Soul.execute
+        """
+        # Jeśli request to string - przekształć na action
+        if isinstance(request, str):
+            request = {"action": request}
+
+        return await self.execute_soul_function('execute', request=request, **kwargs)
 
     async def evolve_to_soul(self, new_genotype_changes: Dict[str, Any] = None, new_alias: str = None) -> Dict[str, Any]:
         """
@@ -1502,18 +1467,20 @@ class Being:
         # Filtrowanie według uprawnień dostępu
         return access_controller.filter_accessible_beings(zone_beings, user_ulid, user_session)
 
-    async def save(self) -> bool:
+    async def save(self) -> Dict[str, Any]:
         """
-        Zapisuje zmiany w Being do bazy danych.
+        Zapisuje Being do bazy danych.
 
         Returns:
-            True jeśli zapis się powiódł
+            Dict z wynikiem operacji
         """
         from ..repository.soul_repository import BeingRepository
 
-        self.updated_at = datetime.now()
         result = await BeingRepository.set(self)
-        return result.get('success', False)
+        if result.get('success'):
+            self.updated_at = datetime.now()
+
+        return result
 
     async def delete(self) -> bool:
         """
