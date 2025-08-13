@@ -200,7 +200,7 @@ def cleanup_expired_beings(being_context):
 '''
         }
         
-        return await Soul.get_or_create(
+        return await Soul.create(
             genotype=kernel_genotype,
             alias="intelligent_kernel_soul"
         )

@@ -37,10 +37,17 @@ async def init_minimal_system() -> Dict[str, Any]:
         if not pool:
             raise Exception("Database connection failed")
 
-        # Inicjalizacja Intelligent Kernel
-        print("🧠 Initializing Intelligent Kernel...")
-        from luxdb.core.intelligent_kernel import intelligent_kernel
-        kernel_being = await intelligent_kernel.initialize()
+        # Wybór typu kernel
+        kernel_type = "simple"  # lub "intelligent" 
+
+        if kernel_type == "simple":
+            print("🧠 Initializing Simple Kernel...")
+            from luxdb.core.simple_kernel import simple_kernel
+            kernel_being = await simple_kernel.initialize()
+        else:
+            print("🧠 Initializing Intelligent Kernel...")
+            from luxdb.core.intelligent_kernel import intelligent_kernel
+            kernel_being = await intelligent_kernel.initialize()
 
         # Test podstawowych operacji Soul + Being
         print("🧬 Testing Soul operations...")
@@ -72,7 +79,7 @@ async def run_web_mode():
 
     print("🚀 Starting FastAPI server on http://0.0.0.0:5000")
     import uvicorn
-    
+
     # Fix: Create new event loop for uvicorn
     config = uvicorn.Config(app, host="0.0.0.0", port=5000, log_level="info")
     server = uvicorn.Server(config)
@@ -81,7 +88,7 @@ async def run_web_mode():
 async def show_status():
     """Status systemu"""
     status = await init_minimal_system()
-    
+
     # Initialize genotype system first
     if "--init-genotypes" in sys.argv or "--status" in sys.argv:
         print("🧬 Inicjalizacja systemu genotypów...")
@@ -111,7 +118,6 @@ async def show_status():
             print(f"   Beings: {status.get('beings_count', 0)}")
         else:
             print(f"   Error: {status.get('error')}")
-
 
 def main():
     parser = argparse.ArgumentParser(description=f'{SYSTEM_NAME} v{VERSION}')

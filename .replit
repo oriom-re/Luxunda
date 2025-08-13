@@ -136,6 +136,15 @@ mode = "sequential"
 task = "shell.exec"
 args = "python run_tests.py"
 
+[[workflows.workflow]]
+name = "Demo Simple Kernel Tasks"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python demo_simple_kernel_tasks.py"
+
 # === PORTY ===
 
 [[ports]]
