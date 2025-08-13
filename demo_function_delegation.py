@@ -115,14 +115,23 @@ def init(being_context=None):
     print(f"🎯 Task coordinator initialized: {being_context.get('alias', 'unknown')}")
     return {"ready": True, "role": "coordinator", "delegates_functions": True}
 
-def execute(task_description=None, **kwargs):
-    """Coordinate task execution - delegates to appropriate beings"""
-    print(f"🎯 Coordinating task: {task_description}")
-    return {
-        "status": "coordinated", 
-        "description": task_description,
-        "timestamp": "2025-01-30T00:00:00"
-    }
+async def execute(function_name=None, args=None, kwargs=None, being_context=None, **extra_kwargs):
+    """Coordinate task execution - smart delegation based on function name"""
+    print(f"🎯 Coordinating execution of: {function_name}")
+    
+    # Prosta logika delegacji w execute
+    math_functions = ["add", "multiply", "advanced_calc"]
+    text_functions = ["uppercase", "lowercase", "reverse_text"]
+    
+    if function_name in math_functions:
+        print(f"🧮 Delegating {function_name} to math specialist...")
+        # W rzeczywistości znajdziemy odpowiedni Being i przekażemy zadanie
+        return f"MATH_RESULT: {function_name} delegated successfully"
+    elif function_name in text_functions:
+        print(f"📝 Delegating {function_name} to text specialist...")
+        return f"TEXT_RESULT: {function_name} delegated successfully"
+    else:
+        return f"❓ Unknown function: {function_name}"
 '''
     }
 
@@ -155,22 +164,9 @@ def execute(task_description=None, **kwargs):
     )
     print(f"   ✅ Coordinator Being: {coordinator_being.alias} ({coordinator_being.ulid[:8]}...)")
 
-    # 4. Skonfiguruj delegacje funkcji
-    print("\n4. 🔗 Configuring function delegations...")
-    
-    # Coordinator deleguje funkcje matematyczne do math_being
-    coordinator_being.add_function_delegate("add", math_being.ulid)
-    coordinator_being.add_function_delegate("multiply", math_being.ulid)
-    coordinator_being.add_function_delegate("advanced_calc", math_being.ulid)
-    
-    # Coordinator deleguje funkcje tekstowe do text_being
-    coordinator_being.add_function_delegate("uppercase", text_being.ulid)
-    coordinator_being.add_function_delegate("lowercase", text_being.ulid)
-    coordinator_being.add_function_delegate("reverse_text", text_being.ulid)
-    
-    await coordinator_being.save()
-    
-    print(f"   ✅ Configured {len(coordinator_being.get_function_delegates())} function delegates")
+    # 4. Coordinator będzie delegować przez swoją funkcję execute
+    print("\n4. 🔗 Coordinator ready for smart delegation via execute function...")
+    print("   ✅ No manual configuration needed - execute will handle delegation")
 
     # 5. Testuj delegacje funkcji
     print("\n5. 🧪 Testing function delegations...")

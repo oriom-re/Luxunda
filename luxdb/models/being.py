@@ -323,7 +323,7 @@ class Being:
         # TTL
         if ttl_hours:
             from datetime import timedelta
-            being.ttl_expires = datetime.now() + timedelta(hours=ttl_hours)
+            being.ttl_expires = datetime.now() + timedelta(hours=hours)
 
         # Zapis do bazy danych
         from ..repository.soul_repository import BeingRepository
