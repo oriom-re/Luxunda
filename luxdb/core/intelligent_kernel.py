@@ -228,32 +228,46 @@ def cleanup_expired_beings(being_context):
         
         await self.kernel_being.save()
         
-    async def register_alias_mapping(self, alias: str, soul_hash: str, auto_update: bool = True) -> Dict[str, Any]:
-        """Rejestruje mapowanie alias -> soul_hash z możliwością auto-update"""
+    async def register_soul_template(self, alias: str, soul_hash: str) -> Dict[str, Any]:
+        """Rejestruje Template Soul - używaną tylko do tworzenia Being"""
         old_hash = self.alias_mappings.get(alias)
-        self.alias_mappings[alias] = soul_hash
-        
-        # Historia
-        if alias not in self.alias_history:
-            self.alias_history[alias] = []
-            
-        self.alias_history[alias].append({
+        self.alias_mappings[alias] = {
             "soul_hash": soul_hash,
-            "updated_at": datetime.now().isoformat(),
-            "previous_hash": old_hash,
-            "auto_update": auto_update
-        })
+            "type": "template",
+            "for_creation_only": True,
+            "registered_at": datetime.now().isoformat()
+        }
         
         await self._save_registry_data()
         
-        print(f"🧠 Kernel registered alias: {alias} → {soul_hash[:8]}... (auto-update: {auto_update})")
+        print(f"📝 Registered template soul: {alias} → {soul_hash[:8]}...")
         return {
             "success": True,
             "alias": alias,
             "soul_hash": soul_hash,
-            "previous_hash": old_hash,
-            "is_update": old_hash is not None,
-            "auto_update": auto_update
+            "type": "template"
+        }
+        
+    async def register_master_soul(self, alias: str, soul_hash: str, being_ulid: str) -> Dict[str, Any]:
+        """Rejestruje Master Soul z konkretną instancją Being"""
+        old_hash = self.alias_mappings.get(alias)
+        self.alias_mappings[alias] = {
+            "soul_hash": soul_hash,
+            "being_ulid": being_ulid,
+            "type": "master",
+            "has_instance": True,
+            "registered_at": datetime.now().isoformat()
+        }
+        
+        await self._save_registry_data()
+        
+        print(f"👑 Registered master soul: {alias} → {soul_hash[:8]}... (Being: {being_ulid[:8]}...)")
+        return {
+            "success": True,
+            "alias": alias,
+            "soul_hash": soul_hash,
+            "being_ulid": being_ulid,
+            "type": "master"
         }
         
     async def auto_update_alias_to_latest(self, alias: str, base_name: str) -> Dict[str, Any]:
@@ -358,53 +372,66 @@ def cleanup_expired_beings(being_context):
             }
             
     async def create_being_by_alias(self, soul_alias: str, attributes: Dict[str, Any] = None, persistent: bool = True) -> 'Being':
-        """Kernel tworzy Being na podstawie aliasu Soul"""
+        """Kernel tworzy Being na podstawie typu Soul (template/master)"""
         print(f"🧠 Kernel creating being from soul alias: {soul_alias}")
         
-        # Sprawdź czy mamy zarejestrowany alias
-        registry_result = await self.get_current_hash_for_alias(soul_alias)
-        
-        if registry_result.get('found'):
-            # Użyj zarejestrowanego hash
-            soul_hash = registry_result['soul_hash']
-            print(f"🧠 Using registered hash: {soul_hash[:8]}...")
-        else:
-            # Spróbuj znaleźć Soul po aliasie
+        # Sprawdź typ Soul w registry
+        alias_data = self.alias_mappings.get(soul_alias)
+        if not alias_data:
+            # Fallback - znajdź Soul i zarejestruj jako template
+            from ..models.soul import Soul
             soul = await Soul.get_by_alias(soul_alias)
             if not soul:
-                raise ValueError(f"Soul with alias '{soul_alias}' not found in registry or database")
-            soul_hash = soul.soul_hash
+                raise ValueError(f"Soul with alias '{soul_alias}' not found")
             
-            # Zarejestruj znaleziony alias
-            await self.register_alias_mapping(soul_alias, soul_hash)
+            # Automatycznie określ typ na podstawie funkcji
+            if soul.has_init_function():
+                raise ValueError(f"Master Soul '{soul_alias}' must be registered with Being instance first")
+            else:
+                await self.register_soul_template(soul_alias, soul.soul_hash)
+                alias_data = self.alias_mappings.get(soul_alias)
         
-        # Utwórz Being bezpośrednio (bez delegacji!)
+        soul_type = alias_data.get("type")
+        
+        if soul_type == "template":
+            # Template Soul - utwórz nowy Being
+            return await self._create_being_from_template(soul_alias, alias_data, attributes, persistent)
+        
+        elif soul_type == "master":
+            # Master Soul - zwróć istniejący Being
+            being_ulid = alias_data.get("being_ulid")
+            from ..models.being import Being
+            existing_being = await Being._get_by_ulid_internal(being_ulid)
+            if not existing_being:
+                raise ValueError(f"Master Being {being_ulid} not found")
+            
+            print(f"👑 Returning existing master being: {existing_being.ulid}")
+            return existing_being
+            
+        else:
+            raise ValueError(f"Unknown soul type: {soul_type}")
+    
+    async def _create_being_from_template(self, soul_alias: str, alias_data: Dict, attributes: Dict[str, Any], persistent: bool) -> 'Being':
+        """Tworzy Being z Template Soul"""
+        soul_hash = alias_data["soul_hash"]
+        
         from ..repository.soul_repository import SoulRepository
+        from ..models.being import Being
+        
         soul_result = await SoulRepository.get_soul_by_hash(soul_hash)
         if not soul_result.get('success'):
-            raise ValueError(f"Soul with hash {soul_hash} not found")
+            raise ValueError(f"Template Soul with hash {soul_hash} not found")
             
         target_soul = soul_result.get('soul')
         
-        # Utwórz Being przez _create_internal żeby uniknąć rekursji
+        # Utwórz Being (często nietrwały dla templates)
         being = await Being._create_internal(
             soul=target_soul,
             attributes=attributes,
             persistent=persistent
         )
         
-        # Zarejestruj w managed_beings
-        self.managed_beings.append({
-            "ulid": being.ulid,
-            "soul_alias": soul_alias,
-            "soul_hash": soul_hash,
-            "created_by_kernel": True,
-            "registered_at": datetime.now().isoformat()
-        })
-        
-        await self._save_registry_data()
-        
-        print(f"🧠 Kernel created being: {being.ulid} from alias '{soul_alias}'")
+        print(f"📝 Created being from template '{soul_alias}': {being.ulid}")
         return being
         
     async def cleanup_expired_beings(self) -> Dict[str, Any]:
