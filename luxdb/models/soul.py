@@ -663,20 +663,66 @@ class Soul:
     async def auto_init(self, being_context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Automatyczne wywołanie funkcji init jeśli istnieje.
+        
+        Soul.init() może zdecydować czy Being powinno być persistent na podstawie:
+        - Obecności atrybutów (dane do zapisania)
+        - Typu operacji (message, log, temp processing)
+        - Jawnego parametru persistent w being_context
 
         Args:
             being_context: Kontekst Being (ulid, alias, data, itp.)
 
         Returns:
-            Wynik funkcji init lub informację o jej braku
+            Wynik funkcji init z rekomendacją persistence
         """
         if self.has_init_function():
-            return await self.execute_function('init', being_context=being_context or {})
+            # Dodaj informację o persistence do kontekstu
+            enhanced_context = (being_context or {}).copy()
+            enhanced_context.update({
+                'soul_type': self.genotype.get('genesis', {}).get('type', 'unknown'),
+                'has_attributes': len(enhanced_context.get('data', {})) > 0,
+                'persistence_hint': self._suggest_persistence(enhanced_context)
+            })
+            
+            return await self.execute_function('init', being_context=enhanced_context)
         else:
             from luxdb.utils.serializer import GeneticResponseFormat
             return GeneticResponseFormat.success_response(
                 data={"message": "No init function found, skipping auto-initialization"}
             )
+    
+    def _suggest_persistence(self, being_context: Dict[str, Any]) -> bool:
+        """
+        Sugeruje czy Being powinno być persistent na podstawie kontekstu.
+        
+        Returns:
+            True jeśli Being powinno być zapisane do bazy
+        """
+        # Sprawdź typ Soul
+        soul_type = self.genotype.get('genesis', {}).get('type', '')
+        
+        # Typy które zazwyczaj są persistent
+        persistent_types = ['message', 'log', 'user_data', 'relation', 'registry']
+        if soul_type in persistent_types:
+            return True
+            
+        # Typy które zazwyczaj są temporary  
+        temp_types = ['processor', 'calculator', 'validator', 'transformer']
+        if soul_type in temp_types:
+            return False
+            
+        # Sprawdź czy ma dane do zapisania
+        data = being_context.get('data', {})
+        if data and len(data) > 0:
+            return True
+            
+        # Sprawdź czy ma alias (sugeruje trwałość)
+        alias = being_context.get('alias')
+        if alias and not alias.startswith('temp_'):
+            return True
+            
+        # Domyślnie temporary
+        return False
 
     async def default_execute(self, data: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
         """

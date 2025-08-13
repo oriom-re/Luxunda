@@ -276,7 +276,27 @@ class Being:
             print(f"💨 Created transient being: {being.alias} (not persisted)")
 
         # *** AUTOMATYCZNA INICJALIZACJA PO UTWORZENIU ***
-        await being._auto_initialize_after_creation(target_soul)
+        init_result = await being._auto_initialize_after_creation(target_soul)
+
+        # Sprawdź czy init funkcja zaleciła zmianę persistence
+        if init_result and init_result.get('success'):
+            init_data = init_result.get('data', {})
+            suggested_persistence = init_data.get('suggested_persistence')
+
+            if suggested_persistence is not None and suggested_persistence != persistent:
+                print(f"🧬 Soul {target_soul.alias} suggests persistence: {suggested_persistence} (current: {persistent})")
+
+                # Jeśli Soul sugeruje zapisanie, a Being nie jest persistent
+                if suggested_persistence and not persistent:
+                    print(f"🔄 Converting Being {being.alias} to persistent based on Soul recommendation")
+                    being.data['_persistent'] = True
+                    # Zapisz do bazy
+                    from ..repository.soul_repository import BeingRepository
+                    await BeingRepository.insert_data_transaction(being, target_soul.genotype)
+
+                    # Przypisanie do strefy dostępu
+                    from ..core.access_control import access_controller
+                    access_controller.assign_being_to_zone(being.ulid, being.access_zone)
 
         return being
 
@@ -403,11 +423,14 @@ class Being:
 
                     if self.is_persistent():
                         await self.save()
+                    return result # Return result for persistence check
                 else:
                     print(f"❌ Being {self.alias} initialization failed: {result.get('error')}")
+                    return result # Return result for persistence check
 
         except Exception as e:
             print(f"💥 Auto-initialization failed for being {self.alias}: {e}")
+            return {'success': False, 'error': str(e)} # Return error result
 
     async def _initialize_dynamic_handlers(self, soul):
         """Inicjalizuje dynamiczne handlery z kodu źródłowego modułu Soul"""
