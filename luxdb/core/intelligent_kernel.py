@@ -1,5 +1,4 @@
 
-<line_number>1</line_number>
 #!/usr/bin/env python3
 """
 🧠 Intelligent Kernel - Główny inteligentny byt systemu LuxOS
