@@ -59,7 +59,10 @@ class SimpleKernel:
             "attributes": {
                 "active_tasks": {"py_type": "dict", "default": {}},
                 "modules": {"py_type": "dict", "default": {}},
-                "task_history": {"py_type": "list", "default": []}
+                "task_history": {"py_type": "list", "default": []},
+                "kernel_type": {"py_type": "str", "default": "simple_async"},
+                "max_concurrent_tasks": {"py_type": "int", "default": 100},
+                "initialized_at": {"py_type": "str"}
             },
             "module_source": '''
 def init(being_context=None):
@@ -95,6 +98,9 @@ def execute(request=None, being_context=None, **kwargs):
             soul=kernel_soul,
             alias="simple_kernel",
             attributes={
+                "active_tasks": {},
+                "modules": {},
+                "task_history": [],
                 "kernel_type": "simple_async",
                 "max_concurrent_tasks": 100,
                 "initialized_at": datetime.now().isoformat()
