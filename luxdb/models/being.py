@@ -518,64 +518,48 @@ class Being:
                 error_code="HANDLER_EXECUTION_ERROR"
             )
 
-    async def execute_dynamic_function_via_openai(self, function_name: str, function_data: Dict[str, Any], *args, **kwargs) -> Dict[str, Any]:
+    async def request_function_execution_via_kernel(self, function_name: str, *args, **kwargs) -> Dict[str, Any]:
         """
-        Wykonuje dynamiczną funkcję przez OpenAI i Kernel
+        DELEGUJE wykonanie funkcji do Kernel - Being nie wykonuje funkcji bezpośrednio!
+        Being to niezmienne instancje, wykonanie odbywa się przez Master Soul + Kernel.
         """
         from luxdb.utils.serializer import GeneticResponseFormat
         
         try:
-            # Przygotuj dane dla OpenAI
-            function_schema = {
-                "type": "function",
-                "function": {
-                    "name": function_name,
-                    "description": function_data.get('description', f'Dynamic function {function_name}'),
-                    "parameters": function_data.get('parameters', {
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    })
-                }
+            # Deleguj do Kernel
+            from ..core.intelligent_kernel import intelligent_kernel
+            
+            execution_request = {
+                "being_ulid": self.ulid,
+                "soul_hash": self.soul_hash,
+                "function_name": function_name,
+                "arguments": {"args": args, "kwargs": kwargs},
+                "request_type": "function_execution",
+                "timestamp": datetime.now().isoformat()
             }
             
-            # Sprawdź czy mamy dostęp do OpenAI
-            use_real_openai = kwargs.pop('use_openai', False)
-            openai_client = kwargs.pop('openai_client', None)
+            print(f"🏛️ Being {self.alias} delegating function '{function_name}' execution to Kernel")
             
-            if use_real_openai and openai_client:
-                # Prawdziwe wykonanie przez OpenAI
-                result = await self._execute_via_real_openai(
-                    function_name, function_schema, args, kwargs, openai_client
-                )
-            else:
-                # Symulacja wykonania przez OpenAI i Kernel
-                print(f"🤖 {self.alias} executing dynamic function {function_name} via OpenAI simulation")
-                
-                result = {
-                    "function_name": function_name,
-                    "executed_via": "openai_kernel_simulation",
-                    "arguments": {"args": args, "kwargs": kwargs},
-                    "result": f"Dynamic function {function_name} executed successfully",
-                    "simulated_response": self._simulate_function_execution(function_name, function_data, args, kwargs),
-                    "timestamp": datetime.now().isoformat()
-                }
-            
-            # Aktualizuj statystyki
-            self.data['_dynamic_functions'][function_name]['execution_count'] += 1
-            self.data['_dynamic_functions'][function_name]['last_executed'] = datetime.now().isoformat()
-            
-            if self.is_persistent():
-                await self.save()
+            # Kernel znajdzie odpowiedni Master Soul Being i wykona funkcję
+            result = await intelligent_kernel.execute_function_via_master_soul(
+                self.soul_hash,
+                function_name,
+                execution_request
+            )
             
             return GeneticResponseFormat.success_response(
-                data=result
+                data={
+                    "delegated_to": "kernel",
+                    "function_name": function_name,
+                    "execution_result": result,
+                    "being_role": "request_delegator_only"
+                }
             )
             
         except Exception as e:
             return GeneticResponseFormat.error_response(
-                error=f"Dynamic function execution failed: {str(e)}",
-                error_code="DYNAMIC_FUNCTION_EXECUTION_ERROR"
+                error=f"Function execution delegation failed: {str(e)}",
+                error_code="KERNEL_DELEGATION_ERROR"
             )
     
     def _simulate_function_execution(self, function_name: str, function_data: Dict[str, Any], args: tuple, kwargs: Dict[str, Any]) -> str:
@@ -663,15 +647,14 @@ class Being:
                     error_code="SOUL_NOT_FOUND"
                 )
 
-            # Sprawdź czy to jest dynamiczna funkcja
+            # Sprawdź czy to jest dynamiczna funkcja - deleguj do Kernel
             dynamic_functions = self.data.get('_dynamic_functions', {})
             
             if function_name in dynamic_functions:
-                # To jest dynamiczna funkcja - wykonaj przez OpenAI i Kernel
-                print(f"🔧 Executing dynamic function: {function_name}")
-                return await self.execute_dynamic_function_via_openai(
+                # To jest dynamiczna funkcja - deleguj do Kernel dla wykonania
+                print(f"🔧 Delegating dynamic function to Kernel: {function_name}")
+                return await self.request_function_execution_via_kernel(
                     function_name, 
-                    dynamic_functions[function_name], 
                     *args, 
                     **kwargs
                 )

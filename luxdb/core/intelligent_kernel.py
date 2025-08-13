@@ -590,6 +590,129 @@ def cleanup_expired_beings(being_context):
             print(f"❌ Session cleanup error: {e}")
             return {"success": False, "error": str(e)}
     
+    async def execute_function_via_master_soul(self, soul_hash: str, function_name: str, execution_request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Główna metoda wykonania funkcji przez Master Soul Being + Kernel.
+        To jest właściwe miejsce wykonania - nie w Being!
+        """
+        try:
+            print(f"🧠 Kernel executing function '{function_name}' via Master Soul {soul_hash[:8]}...")
+            
+            # 1. Znajdź Master Soul Being dla tego soul_hash
+            master_being = await self._find_or_create_master_soul_being(soul_hash)
+            
+            if not master_being:
+                return {
+                    "success": False,
+                    "error": f"No Master Soul Being found for hash {soul_hash[:8]}"
+                }
+            
+            # 2. Master Soul Being wykonuje funkcję przez OpenAI + Kernel
+            if master_being.is_function_master():
+                print(f"👑 Master Being {master_being.alias} executing function {function_name}")
+                
+                # Tutaj Master Soul Being używa swojej funkcjonalności do wykonania
+                result = await self._execute_via_master_being_and_openai(
+                    master_being, 
+                    function_name, 
+                    execution_request
+                )
+                
+                return {
+                    "success": True,
+                    "executed_by": "master_soul_being",
+                    "master_being_ulid": master_being.ulid,
+                    "function_name": function_name,
+                    "result": result,
+                    "execution_method": "openai_plus_kernel"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Being {master_being.alias} is not a function master"
+                }
+                
+        except Exception as e:
+            print(f"❌ Kernel function execution failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "execution_location": "kernel"
+            }
+    
+    async def _find_or_create_master_soul_being(self, soul_hash: str):
+        """Znajduje lub tworzy Master Soul Being dla danego soul_hash"""
+        try:
+            # Sprawdź registry
+            for alias, mapping in self.alias_mappings.items():
+                if (isinstance(mapping, dict) and 
+                    mapping.get("soul_hash") == soul_hash and 
+                    mapping.get("type") == "master"):
+                    
+                    being_ulid = mapping.get("being_ulid")
+                    if being_ulid in self.active_beings:
+                        return self.active_beings[being_ulid]
+                    
+                    # Załaduj z bazy
+                    from ..models.being import Being
+                    master_being = await Being._get_by_ulid_internal(being_ulid)
+                    if master_being:
+                        await self.register_active_being(master_being)
+                        return master_being
+            
+            # Jeśli nie znaleziono, spróbuj utworzyć nowego mastera
+            from ..repository.soul_repository import SoulRepository
+            soul_result = await SoulRepository.get_soul_by_hash(soul_hash)
+            
+            if soul_result.get('success'):
+                soul = soul_result.get('soul')
+                if soul and soul.has_init_function():
+                    # Utwórz nowy Master Soul Being
+                    from ..models.being import Being
+                    master_being = await Being.create(
+                        soul=soul,
+                        alias=f"master_{soul.alias}",
+                        attributes={"role": "function_master"},
+                        persistent=True
+                    )
+                    
+                    # Zarejestruj jako master
+                    await self.register_master_soul(
+                        f"master_{soul.alias}",
+                        soul_hash,
+                        master_being.ulid
+                    )
+                    
+                    return master_being
+            
+            return None
+            
+        except Exception as e:
+            print(f"❌ Error finding/creating master being: {e}")
+            return None
+    
+    async def _execute_via_master_being_and_openai(self, master_being, function_name: str, execution_request: Dict[str, Any]) -> Dict[str, Any]:
+        """Wykonuje funkcję przez Master Being + OpenAI"""
+        try:
+            # Master Being deleguje do OpenAI + swojego kodu
+            result = await master_being.execute_soul_function(
+                "execute", 
+                request={
+                    "action": "execute_dynamic_function",
+                    "function_name": function_name,
+                    "arguments": execution_request.get("arguments", {}),
+                    "delegated_from_kernel": True
+                }
+            )
+            
+            return result
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Master being execution failed: {str(e)}"
+            }
+
     async def cleanup_expired_beings(self) -> Dict[str, Any]:
         """Czyści wygasłe byty"""
         print("🧹 Kernel cleaning up expired beings...")
