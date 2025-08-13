@@ -218,6 +218,16 @@ class Being:
             persistent: Czy Being ma być zapisywane do bazy danych
         """
 
+        # DELEGACJA DO KERNEL - jeśli podano tylko alias bez soul
+        if (alias is not None and 
+            soul is None and 
+            soul_or_hash is None and 
+            soul_hash is None):
+            
+            print(f"🏛️ Delegating Being.create(alias='{alias}') to Kernel...")
+            from ..core.intelligent_kernel import intelligent_kernel
+            return await intelligent_kernel.create_being_by_alias(alias, attributes, persistent)
+
         # Standardowa logika rozpoznawania Soul
         if soul is not None:
             target_soul = soul

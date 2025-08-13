@@ -37,6 +37,11 @@ async def init_minimal_system() -> Dict[str, Any]:
         if not pool:
             raise Exception("Database connection failed")
 
+        # Inicjalizacja Intelligent Kernel
+        print("🧠 Initializing Intelligent Kernel...")
+        from luxdb.core.intelligent_kernel import intelligent_kernel
+        kernel_being = await intelligent_kernel.initialize()
+
         # Test podstawowych operacji Soul + Being
         print("🧬 Testing Soul operations...")
         souls = await Soul.get_all()
@@ -44,7 +49,7 @@ async def init_minimal_system() -> Dict[str, Any]:
         print("🤖 Testing Being operations...")
         beings = await Being.get_all()
 
-        print(f"✅ System OK: {len(souls)} souls, {len(beings)} beings")
+        print(f"✅ System OK: {len(souls)} souls, {len(beings)} beings, Kernel: {kernel_being.ulid[:8]}...")
 
         return {
             "status": "operational",
