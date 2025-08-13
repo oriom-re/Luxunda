@@ -18,6 +18,7 @@ class IntelligentKernel:
     - Kontroluje dostęp do zasobów
     - Zarządza TTL i cleanup
     - Jest singletonem systemu
+    - Zarządza aktywnymi instancjami Being
     """
     
     def __init__(self):
@@ -25,6 +26,13 @@ class IntelligentKernel:
         self.alias_mappings: Dict[str, str] = {}  # alias -> soul_hash
         self.alias_history: Dict[str, List[Dict]] = {}
         self.managed_beings: List[Dict] = []
+        
+        # Registry aktywnych instancji
+        self.active_beings: Dict[str, 'Being'] = {}  # ulid -> Being instance
+        self.soul_cache: Dict[str, 'Soul'] = {}      # soul_hash -> Soul instance
+        self.session_beings: Dict[str, List[str]] = {}  # session_id -> [being_ulids]
+        self.fingerprint_mappings: Dict[str, str] = {}  # fingerprint -> lux_being_ulid
+        
         self.active = False
         
     async def initialize(self):
@@ -207,8 +215,14 @@ def cleanup_expired_beings(being_context):
         self.alias_history = data.get('alias_history', {})
         self.managed_beings = data.get('managed_beings', [])
         self.auto_update_configs = data.get('auto_update_configs', {})
+        self.fingerprint_mappings = data.get('fingerprint_mappings', {})
         
-        print(f"🧠 Loaded registry: {len(self.alias_mappings)} aliases, {len(self.managed_beings)} beings, {len(self.auto_update_configs)} auto-update configs")
+        # Cache dla aktywnych instancji zaczyna się pusty (będzie się ładować na żądanie)
+        self.active_beings = {}
+        self.soul_cache = {}
+        self.session_beings = {}
+        
+        print(f"🧠 Loaded registry: {len(self.alias_mappings)} aliases, {len(self.managed_beings)} beings, {len(self.fingerprint_mappings)} fingerprints")
         
     async def _save_registry_data(self):
         """Zapisuje dane registry z pamięci do Being"""
@@ -219,9 +233,18 @@ def cleanup_expired_beings(being_context):
         self.kernel_being.data['alias_history'] = self.alias_history
         self.kernel_being.data['managed_beings'] = self.managed_beings
         self.kernel_being.data['auto_update_configs'] = getattr(self, 'auto_update_configs', {})
+        self.kernel_being.data['fingerprint_mappings'] = self.fingerprint_mappings
+        
+        # Statystyki bez aktywnych Being (tylko persistent)
+        persistent_beings = [ulid for ulid, being in self.active_beings.items() if being.is_persistent()]
+        
         self.kernel_being.data['registry_stats'] = {
             "aliases_count": len(self.alias_mappings),
-            "beings_count": len(self.managed_beings),
+            "managed_beings_count": len(self.managed_beings),
+            "active_beings_count": len(self.active_beings),
+            "persistent_active_count": len(persistent_beings),
+            "session_count": len(self.session_beings),
+            "fingerprint_count": len(self.fingerprint_mappings),
             "auto_update_aliases": len(getattr(self, 'auto_update_configs', {})),
             "last_update": datetime.now().isoformat()
         }
@@ -434,19 +457,166 @@ def cleanup_expired_beings(being_context):
         print(f"📝 Created being from template '{soul_alias}': {being.ulid}")
         return being
         
+    async def register_active_being(self, being: 'Being', session_id: str = None) -> bool:
+        """Rejestruje aktywną instancję Being w cache"""
+        try:
+            self.active_beings[being.ulid] = being
+            
+            # Dodaj do sesji jeśli podano session_id
+            if session_id:
+                if session_id not in self.session_beings:
+                    self.session_beings[session_id] = []
+                self.session_beings[session_id].append(being.ulid)
+            
+            print(f"🎯 Registered active being: {being.alias} ({being.ulid[:8]}...)")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to register active being: {e}")
+            return False
+    
+    async def get_active_being(self, ulid: str) -> Optional['Being']:
+        """Pobiera aktywną instancję Being z cache"""
+        return self.active_beings.get(ulid)
+    
+    async def handle_session_connection(self, fingerprint: str, session_id: str) -> Dict[str, Any]:
+        """Obsługuje połączenie sesji - rozpoznaje lub tworzy nowego użytkownika"""
+        try:
+            # Sprawdź czy fingerprint jest znany
+            if fingerprint in self.fingerprint_mappings:
+                lux_ulid = self.fingerprint_mappings[fingerprint]
+                lux_being = await self.get_active_being(lux_ulid)
+                
+                if not lux_being:
+                    # Załaduj z bazy jeśli nie ma w cache
+                    from ..models.being import Being
+                    lux_being = await Being._get_by_ulid_internal(lux_ulid)
+                    if lux_being:
+                        await self.register_active_being(lux_being, session_id)
+                
+                return {
+                    "success": True,
+                    "user_type": "returning",
+                    "lux_being_ulid": lux_ulid,
+                    "lux_being": lux_being.to_json_serializable() if lux_being else None
+                }
+            else:
+                # Nowy użytkownik - utwórz lux being i user_anonim
+                return await self._create_new_session_user(fingerprint, session_id)
+                
+        except Exception as e:
+            print(f"❌ Session connection error: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def _create_new_session_user(self, fingerprint: str, session_id: str) -> Dict[str, Any]:
+        """Tworzy nowego użytkownika sesyjnego"""
+        try:
+            from ..models.being import Being
+            
+            # 1. Utwórz lux being (persistentny)
+            lux_being = await Being.create(
+                alias="lux",
+                attributes={
+                    "fingerprint": fingerprint,
+                    "created_session": session_id,
+                    "user_type": "anonymous",
+                    "active_sessions": [session_id]
+                },
+                persistent=True
+            )
+            
+            # 2. Utwórz user_anonim being (sesyjny)
+            user_being = await Being.create(
+                alias="user_anonim", 
+                attributes={
+                    "lux_ulid": lux_being.ulid,
+                    "session_id": session_id,
+                    "fingerprint": fingerprint,
+                    "temporary": True
+                },
+                persistent=False  # Tylko w pamięci na czas sesji
+            )
+            
+            # 3. Zarejestruj w aktywnych instancjach
+            await self.register_active_being(lux_being, session_id)
+            await self.register_active_being(user_being, session_id)
+            
+            # 4. Zapisz mapowanie fingerprint
+            self.fingerprint_mappings[fingerprint] = lux_being.ulid
+            await self._save_registry_data()
+            
+            print(f"👤 Created new session user: lux={lux_being.ulid[:8]}..., user={user_being.ulid[:8]}...")
+            
+            return {
+                "success": True,
+                "user_type": "new",
+                "lux_being_ulid": lux_being.ulid,
+                "user_being_ulid": user_being.ulid,
+                "lux_being": lux_being.to_json_serializable(),
+                "user_being": user_being.to_json_serializable()
+            }
+            
+        except Exception as e:
+            print(f"❌ Failed to create new session user: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def cleanup_session(self, session_id: str) -> Dict[str, Any]:
+        """Czyści sesję - usuwa nietrwałe Being"""
+        try:
+            if session_id not in self.session_beings:
+                return {"success": True, "message": "Session not found", "removed_count": 0}
+            
+            removed_count = 0
+            being_ulids = self.session_beings[session_id].copy()
+            
+            for being_ulid in being_ulids:
+                being = self.active_beings.get(being_ulid)
+                if being and not being.is_persistent():
+                    # Usuń nietrwałe Being z cache
+                    del self.active_beings[being_ulid]
+                    removed_count += 1
+                    print(f"🗑️ Removed session being: {being.alias} ({being_ulid[:8]}...)")
+            
+            # Usuń sesję
+            del self.session_beings[session_id]
+            
+            return {
+                "success": True,
+                "session_id": session_id,
+                "removed_count": removed_count
+            }
+            
+        except Exception as e:
+            print(f"❌ Session cleanup error: {e}")
+            return {"success": False, "error": str(e)}
+    
     async def cleanup_expired_beings(self) -> Dict[str, Any]:
         """Czyści wygasłe byty"""
         print("🧹 Kernel cleaning up expired beings...")
         
-        # Tu będzie logika cleanup TTL
         removed_count = 0
+        expired_beings = []
+        
+        # Sprawdź TTL dla aktywnych Being
+        current_time = datetime.now()
+        for ulid, being in list(self.active_beings.items()):
+            if being.ttl_expires and current_time > being.ttl_expires:
+                expired_beings.append(ulid)
+        
+        # Usuń wygasłe
+        for ulid in expired_beings:
+            being = self.active_beings.pop(ulid, None)
+            if being:
+                removed_count += 1
+                print(f"⏰ Removed expired being: {being.alias} ({ulid[:8]}...)")
         
         await self._save_registry_data()
         
         return {
             "cleanup_completed": True,
             "removed_count": removed_count,
-            "kernel_managed": True
+            "kernel_managed": True,
+            "active_beings_count": len(self.active_beings)
         }
         
     async def get_system_status(self) -> Dict[str, Any]:

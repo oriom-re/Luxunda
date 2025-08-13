@@ -699,6 +699,10 @@ class Being:
             stats['successful_calls'] += 1
         stats['last_called'] = datetime.now().isoformat()
 
+    def is_persistent(self) -> bool:
+        """Sprawdza czy Being jest trwały (zapisany w bazie)"""
+        return self.data.get('_persistent', True)  # Domyślnie persistent=True
+    
     def get_function_mastery_info(self) -> Dict[str, Any]:
         """Zwraca informacje o masterowaniu funkcji przez tego Being"""
         return {

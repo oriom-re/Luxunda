@@ -40,11 +40,13 @@ class Soul:
 
         Args:
             genotype: Definicja struktury danych (słownik)
-            alias: Opcjonalny alias dla łatwego odszukiwania
+            alias: OBOWIĄZKOWY alias dla Soul
 
         Returns:
             Soul (nowy lub istniejący)
         """
+        if not alias:
+            raise ValueError("Alias is required for Soul creation")
         from ..utils.validators import validate_genotype
         from ..repository.soul_repository import SoulRepository
 
