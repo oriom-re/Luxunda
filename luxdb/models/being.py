@@ -246,7 +246,8 @@ class Being:
         being = cls()
         being.soul_hash = target_soul.soul_hash
         being.global_ulid = target_soul.global_ulid
-        being.alias = alias or f"being_{being.ulid[:8]}"
+        # Being NIE MA alias - tylko identyfikator ULID
+        being.alias = alias
 
         # Walidacja i serializacja danych
         if attributes:
@@ -327,7 +328,8 @@ class Being:
         being = cls()
         being.soul_hash = target_soul.soul_hash
         being.global_ulid = target_soul.global_ulid
-        being.alias = alias or f"being_{being.ulid[:8]}"
+        # Being NIE MA alias - tylko identyfikator ULID
+        being.alias = alias
         being.access_zone = access_zone
 
         # Walidacja i serializacja danych
@@ -1226,6 +1228,34 @@ class Being:
         return [being for being in beings if being is not None]
 
     @classmethod
+    async def get_by_soul_alias(cls, soul_alias: str) -> List['Being']:
+        """
+        Ładuje Beings po aliasie Soul.
+
+        Args:
+            soul_alias: Alias Soul
+
+        Returns:
+            Lista Being powiązanych z Soul o podanym aliasie
+        """
+        from ..repository.soul_repository import SoulRepository
+        from ..repository.being_repository import BeingRepository
+
+        soul_result = await SoulRepository.get_soul_by_alias(soul_alias)
+        if not soul_result or not soul_result.get('success'):
+            return []
+
+        target_soul = soul_result.get('soul')
+        if not target_soul:
+            return []
+
+        # Użyj metody repozytorium do pobrania bytów po soul_hash
+        beings_result = await BeingRepository.get_beings_by_soul_hash(target_soul.soul_hash)
+        beings = beings_result.get('beings', [])
+        return [being for being in beings if being is not None]
+
+
+    @classmethod
     async def get_all(cls, user_ulid: str = None, user_session: Dict[str, Any] = None) -> List['Being']:
         """
         Ładuje wszystkie Being z kontrolą dostępu.
@@ -1342,7 +1372,7 @@ class Being:
         being.ulid = data.get('ulid')
         being.global_ulid = data.get('global_ulid', Globals.GLOBAL_ULID)
         being.soul_hash = data.get('soul_hash')
-        being.alias = data.get('alias')
+        being.alias = data.get('alias') # Alias jest zachowany dla kompatybilności z danymi
         being.data = data.get('data', {})
         being.access_zone = data.get('access_zone', 'public_zone')
 
