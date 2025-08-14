@@ -4,8 +4,10 @@ Lux AI Assistant - Conversational AI that manages beings, tools and knowledge
 
 import asyncio
 import json
-from typing import Dict, Any, List, Optional, Tuple
+import time
+import ulid
 from datetime import datetime
+from typing import Dict, Any, List, Optional, Tuple
 import openai
 # Embedding będzie obsłużony przez OpenAI bezpośrednio
 from luxdb.models.soul import Soul
@@ -15,63 +17,210 @@ from luxdb.repository.soul_repository import BeingRepository
 class LuxAssistant:
     """Revolutionary AI Assistant that manages beings, tools and knowledge"""
 
-    def __init__(self, openai_api_key: str):
-        openai.api_key = openai_api_key
-        self.kernel_being = None
-        self.available_tools = {}
-        self.conversation_history = []
+    def __init__(self, openai_api_key: str = None):
+        self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY', 'demo-key')
+        self.client = None
+        self.is_initialized = False
+        self.using_demo_mode = self.openai_api_key == 'demo-key'
+
+        # Status i statystyki
+        self.conversation_count = 0
+        self.last_response_time = None
+        self.error_count = 0
+
+        # Self-Session Management
+        self.session_id = str(ulid.ulid())
+        self.session_manager = None
+        self.self_being = None  # Lux jako Being w swojej sesji
 
     async def initialize(self):
-        """Initialize Lux with Kernel being"""
-        # Create or load Kernel being
-        kernel_genotype = {
+        """Inicjalizuje asystenta AI"""
+        if self.is_initialized:
+            return
+
+        try:
+            # Inicjalizacja OpenAI (jeśli dostępny)
+            if not self.using_demo_mode:
+                import openai
+                self.client = openai.AsyncOpenAI(api_key=self.openai_api_key)
+
+                # Test połączenia
+                try:
+                    await self.client.models.list()
+                    print("✅ OpenAI connection successful")
+                except Exception as e:
+                    print(f"⚠️ OpenAI connection failed, switching to demo mode: {e}")
+                    self.using_demo_mode = True
+                    self.client = None
+
+            # Self-Session Initialization
+            await self._initialize_self_session()
+
+            self.is_initialized = True
+            print(f"🌟 Lux AI Assistant initialized! (Demo mode: {self.using_demo_mode})")
+            print(f"📋 Self-session ID: {self.session_id}")
+
+        except Exception as e:
+            print(f"❌ Failed to initialize Lux Assistant: {e}")
+            self.using_demo_mode = True
+            self.is_initialized = True
+
+    async def _initialize_self_session(self):
+        """Inicjalizuje własną sesję dla Lux"""
+        from .core.session_data_manager import global_session_registry
+        from .models.soul import Soul
+        from .models.being import Being
+
+        # Uzyskaj session manager dla tej instancji Lux
+        self.session_manager = await global_session_registry.get_session_manager(self.session_id)
+
+        print(f"🧠 Initializing self-session for Lux: {self.session_id}")
+
+        # Utwórz genotyp dla Lux Being
+        lux_genotype = {
             "genesis": {
-                "name": "lux_kernel",
-                "type": "ai_assistant",
-                "version": "1.0.0"
+                "name": f"lux_assistant_{self.session_id}",
+                "type": "lux_assistant", 
+                "version": "1.0.0",
+                "description": f"Self-contained Lux Assistant with session {self.session_id}"
             },
             "attributes": {
-                "conversation_context": {"py_type": "dict"},
-                "tool_memory": {"py_type": "dict"},
-                "user_preferences": {"py_type": "dict"},
-                "knowledge_embeddings": {"py_type": "List[float]"}
-            },
-            "genes": {
-                "search_tools": "luxdb.ai_lux_assistant.search_similar_tools",
-                "create_tool": "luxdb.ai_lux_assistant.create_new_tool", 
-                "analyze_request": "luxdb.ai_lux_assistant.analyze_user_request"
+                "session_id": {"py_type": "str"},
+                "conversation_history": {"py_type": "List[dict]"},
+                "performance_stats": {"py_type": "dict"},
+                "preferences": {"py_type": "dict"},
+                "memory_cache": {"py_type": "dict"}
             }
         }
 
-        kernel_soul = await Soul.create(kernel_genotype, alias="lux_kernel")
-        self.kernel_being = await Being.create(
-            soul=kernel_soul, 
-            attributes={
-                "conversation_context": {},
-                "tool_memory": {},
-                "user_preferences": {},
-                "knowledge_embeddings": []
+        # Utwórz Soul dla Lux
+        lux_soul = await Soul.create(lux_genotype, alias=f"lux_soul_{self.session_id}")
+
+        # Utwórz Being reprezentujący tę instancję Lux w sesji
+        self.self_being = await self.session_manager.create_being_safe(
+            lux_soul,
+            {
+                "session_id": self.session_id,
+                "conversation_history": [],
+                "performance_stats": {
+                    "conversations": 0,
+                    "errors": 0,
+                    "avg_response_time": 0
+                },
+                "preferences": {
+                    "demo_mode": self.using_demo_mode,
+                    "openai_available": not self.using_demo_mode
+                },
+                "memory_cache": {}
             },
-            alias="lux_main_kernel"
+            alias=f"lux_instance_{self.session_id}"
         )
 
-        print("🌟 Lux AI Assistant initialized!")
+        print(f"🎯 Lux self-being created: {self.self_being.ulid}")
 
-    async def chat(self, user_message: str) -> str:
-        """Main conversation interface"""
-        print(f"👤 User: {user_message}")
+    async def _update_self_stats(self, response_time: float, success: bool):
+        """Aktualizuje statystyki w self-being"""
+        if not self.self_being:
+            return
 
-        # Analyze user request
-        analysis = await self.analyze_user_request(user_message)
+        stats = self.self_being.data.get('performance_stats', {})
+        stats['conversations'] = stats.get('conversations', 0) + 1
 
-        if analysis["intent"] == "create_tool":
-            return await self.handle_tool_creation(analysis)
-        elif analysis["intent"] == "note":
-            return await self.handle_note_creation(analysis)
-        elif analysis["intent"] == "search":
-            return await self.handle_search(analysis)
-        else:
-            return await self.handle_general_chat(analysis)
+        if not success:
+            stats['errors'] = stats.get('errors', 0) + 1
+
+        # Aktualizuj średni czas odpowiedzi
+        current_avg = stats.get('avg_response_time', 0)
+        total_conversations = stats['conversations']
+        stats['avg_response_time'] = ((current_avg * (total_conversations - 1)) + response_time) / total_conversations
+
+        self.self_being.data['performance_stats'] = stats
+        self.self_being.data['last_activity'] = datetime.now().isoformat()
+
+        # Zapisz zmiany przez session manager
+        await self.session_manager.sync_changes()
+
+    async def _store_conversation_in_session(self, user_message: str, response: str):
+        """Przechowuje konwersację w session data"""
+        if not self.self_being:
+            return
+
+        conversation_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "user_message": user_message[:200],  # Limit długości
+            "response": response[:500],
+            "response_length": len(response)
+        }
+
+        history = self.self_being.data.get('conversation_history', [])
+        history.append(conversation_entry)
+
+        # Zachowaj tylko ostatnie 50 konwersacji
+        if len(history) > 50:
+            history = history[-50:]
+
+        self.self_being.data['conversation_history'] = history
+
+    def get_session_summary(self) -> Dict[str, Any]:
+        """Zwraca podsumowanie sesji Lux"""
+        if not self.session_manager or not self.self_being:
+            return {"error": "Session not initialized"}
+
+        session_info = self.session_manager.get_session_summary()
+        being_stats = self.self_being.data.get('performance_stats', {})
+
+        return {
+            "lux_session_id": self.session_id,
+            "lux_being_id": self.self_being.ulid,
+            "session_stats": session_info,
+            "performance": being_stats,
+            "conversation_count": len(self.self_being.data.get('conversation_history', [])),
+            "demo_mode": self.using_demo_mode,
+            "cache_stats": {
+                "hits": self.session_manager.cache_hits,
+                "misses": self.session_manager.cache_misses
+            }
+        }
+
+    async def chat(self, message: str, conversation_history: List[Dict] = None) -> str:
+        """
+        Główna metoda do rozmowy z asystentem
+
+        Args:
+            message: Wiadomość użytkownika
+            conversation_history: Historia konwersacji
+
+        Returns:
+            Odpowiedź asystenta
+        """
+        start_time = time.time()
+        success = True
+
+        try:
+            self.conversation_count += 1
+
+            if not self.using_demo_mode and self.client:
+                # Użyj prawdziwego OpenAI
+                response = await self._chat_with_openai(message, conversation_history)
+            else:
+                # Tryb demo
+                response = await self._chat_demo_mode(message)
+
+            response_time = time.time() - start_time
+            self.last_response_time = response_time
+
+            # Przechowaj konwersację w self-session
+            await self._store_conversation_in_session(message, response)
+            await self._update_self_stats(response_time, success)
+
+            return response
+
+        except Exception as e:
+            success = False
+            self.error_count += 1
+            response_time = time.time() - start_time
+            await self._update_self_stats(response_time, success)
+            return f"Przepraszam, wystąpił błąd: {str(e)}"
 
     async def analyze_user_request(self, message: str) -> Dict[str, Any]:
         """Analyze user intent using OpenAI"""
