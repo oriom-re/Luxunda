@@ -1,12 +1,13 @@
+
 #!/usr/bin/env python3
 """
-🌟 LuxOS Core - Prosty system Soul + Being
+🌟 LuxOS Unified System - Jeden punkt wejścia dla całego systemu
 
-Podstawa:
-- Soul: Niezmienny genotyp (szablon)  
-- Being: Instancja Soul (fenotyp)
-- Wszystko inne to Being (events, messages, relations)
-- Async bez własnej pętli - listener steruje cyklem
+Obsługuje:
+- Simple Kernel (szybki start, podstawowe funkcje)
+- Intelligent Kernel (zaawansowane funkcje, registry)
+- Web Interface (interfejs użytkownika)
+- Administration (zarządzanie systemem)
 """
 
 import sys
@@ -14,129 +15,182 @@ import asyncio
 import argparse
 from typing import Dict, Any
 from datetime import datetime
+from pathlib import Path
 
 # Core imports
 from luxdb.core.globals import Globals
 from luxdb.core.postgre_db import Postgre_db
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
-from luxdb.web_lux_interface import app
-from luxdb.core import genotype_system
 
-VERSION = "2.0.0-minimal"
-SYSTEM_NAME = "LuxOS Minimal"
+VERSION = "3.0.0-unified"
+SYSTEM_NAME = "LuxOS Unified"
 
-async def init_minimal_system() -> Dict[str, Any]:
-    """Inicjalizuje minimalny system Soul + Being - TYLKO PODSTAWA"""
-    print(f"\n🧬 {SYSTEM_NAME} v{VERSION} - Pure Soul + Being")
-
-    try:
-        # Połączenie z bazą
-        print("📊 PostgreSQL connection...")
+class UnifiedSystemManager:
+    """Unified manager for all LuxOS operations"""
+    
+    def __init__(self):
+        self.kernel_type = None
+        self.kernel_instance = None
+        self.web_app = None
+        self.status = "initializing"
+        
+    async def initialize_database(self):
+        """Initialize PostgreSQL connection"""
+        print("📊 Initializing PostgreSQL...")
         pool = await Postgre_db.get_db_pool()
         if not pool:
             raise Exception("Database connection failed")
-
-        # Wybór typu kernel
-        kernel_type = "simple"  # lub "intelligent" 
-
+        print("✅ Database connected")
+        return True
+        
+    async def initialize_kernel(self, kernel_type: str = "simple"):
+        """Initialize specified kernel type"""
+        self.kernel_type = kernel_type
+        
         if kernel_type == "simple":
             print("🧠 Initializing Simple Kernel...")
             from luxdb.core.simple_kernel import simple_kernel
-            kernel_being = await simple_kernel.initialize()
-        else:
+            self.kernel_instance = await simple_kernel.initialize()
+            
+        elif kernel_type == "intelligent":
             print("🧠 Initializing Intelligent Kernel...")
             from luxdb.core.intelligent_kernel import intelligent_kernel
-            kernel_being = await intelligent_kernel.initialize()
-
-        # Test podstawowych operacji Soul + Being
-        print("🧬 Testing Soul operations...")
+            self.kernel_instance = await intelligent_kernel.initialize()
+            
+        else:
+            raise ValueError(f"Unknown kernel type: {kernel_type}")
+            
+        print(f"✅ {kernel_type.title()} Kernel initialized")
+        return self.kernel_instance
+        
+    async def load_genotype_system(self):
+        """Load genotype system if needed"""
+        try:
+            from luxdb.core import genotype_system
+            print("🧬 Loading genotype system...")
+            result = await genotype_system.initialize_system()
+            
+            if result["success"]:
+                print(f"✅ Loaded {result['loaded_souls_count']} genotypes")
+            else:
+                print(f"⚠️ Genotype loading warning: {result.get('error')}")
+                
+        except Exception as e:
+            print(f"⚠️ Genotype system not available: {e}")
+            
+    async def start_web_interface(self, port: int = 5000):
+        """Start web interface"""
+        print(f"🚀 Starting Web Interface on port {port}...")
+        
+        from luxdb.web_lux_interface import app
+        import uvicorn
+        
+        config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info")
+        server = uvicorn.Server(config)
+        await server.serve()
+        
+    async def run_administration_mode(self):
+        """Run system administration"""
+        print("🔧 LuxOS Administration Mode")
+        
+        # Initialize core systems
+        await self.initialize_database()
+        await self.initialize_kernel("intelligent")
+        await self.load_genotype_system()
+        
+        # Status check
         souls = await Soul.get_all()
-
-        print("🤖 Testing Being operations...")
         beings = await Being.get_all()
-
-        print(f"✅ System OK: {len(souls)} souls, {len(beings)} beings, Kernel: {kernel_being.ulid[:8]}...")
-
+        
+        print(f"📊 System Status:")
+        print(f"   Souls: {len(souls)}")
+        print(f"   Beings: {len(beings)}")
+        print(f"   Kernel: {self.kernel_instance.ulid[:8] if self.kernel_instance else 'None'}")
+        
         return {
             "status": "operational",
             "souls_count": len(souls),
             "beings_count": len(beings),
-            "core_only": True,
-            "timestamp": datetime.now().isoformat()
+            "kernel_type": self.kernel_type
         }
+        
+    async def run_full_system(self):
+        """Run complete LuxOS system"""
+        print(f"🌟 {SYSTEM_NAME} v{VERSION} - Full System")
+        
+        # Initialize all components
+        await self.initialize_database()
+        await self.initialize_kernel("intelligent")
+        await self.load_genotype_system()
+        
+        # Start web interface
+        await self.start_web_interface()
+        
+    async def run_minimal_system(self):
+        """Run minimal system for development"""
+        print(f"🌟 {SYSTEM_NAME} v{VERSION} - Minimal Mode")
+        
+        await self.initialize_database()
+        await self.initialize_kernel("simple")
+        
+        # Quick test
+        souls = await Soul.get_all()
+        beings = await Being.get_all()
+        
+        print(f"✅ Minimal System OK: {len(souls)} souls, {len(beings)} beings")
+        
+        # Start simple web interface
+        await self.start_web_interface()
 
-    except Exception as e:
-        print(f"❌ Core system error: {e}")
-        return {"status": "error", "error": str(e)}
+# Global system manager
+system_manager = UnifiedSystemManager()
 
-async def run_web_mode():
-    """Serwer webowy"""
-    status = await init_minimal_system()
-    if status.get("status") != "operational":
-        print("❌ Cannot start server")
-        return
-
-    print("🚀 Starting FastAPI server on http://0.0.0.0:5000")
-    import uvicorn
-
-    # Fix: Create new event loop for uvicorn
-    config = uvicorn.Config(app, host="0.0.0.0", port=5000, log_level="info")
-    server = uvicorn.Server(config)
-    await server.serve()
-
-async def show_status():
-    """Status systemu"""
-    status = await init_minimal_system()
-
-    # Initialize genotype system first
-    if "--init-genotypes" in sys.argv or "--status" in sys.argv:
-        print("🧬 Inicjalizacja systemu genotypów...")
-        genotype_result = await genotype_system.initialize_system()
-
-        if genotype_result["success"]:
-            print(f"✅ Załadowano {genotype_result['loaded_souls_count']} genotypów")
-        else:
-            print(f"❌ Błąd ładowania genotypów: {genotype_result.get('error')}")
-
-    # System diagnostics
-    if "--status" in sys.argv:
-        print("🔍 LuxOS System Status Check")
-        print("=" * 50)
-
-        # Genotype system check
-        if genotype_system.initialization_complete:
-            print("✅ Genotype System: OK")
-            print(f"   Loaded souls: {len(genotype_system.loaded_souls)}")
-        else:
-            print("❌ Genotype System: NOT INITIALIZED")
-
-        # Database check
-        print(f"📊 PostgreSQL connection: {'OK' if status.get('status') == 'operational' else 'FAILED'}")
-        if status.get("status") == "operational":
-            print(f"   Souls: {status.get('souls_count', 0)}")
-            print(f"   Beings: {status.get('beings_count', 0)}")
-        else:
-            print(f"   Error: {status.get('error')}")
-
-def main():
+async def main():
+    """Main entry point with unified argument handling"""
     parser = argparse.ArgumentParser(description=f'{SYSTEM_NAME} v{VERSION}')
-    parser.add_argument('--mode', choices=['web'], default='web')
-    parser.add_argument('--status', action='store_true')
-    parser.add_argument('--init-genotypes', action='store_true', help="Initialize genotype system from files")
-
+    
+    # Primary modes
+    parser.add_argument('--mode', choices=['web', 'admin', 'minimal', 'full'], 
+                       default='web', help='System operation mode')
+    
+    # Additional options
+    parser.add_argument('--kernel', choices=['simple', 'intelligent'], 
+                       default='simple', help='Kernel type')
+    parser.add_argument('--port', type=int, default=5000, help='Web interface port')
+    parser.add_argument('--status', action='store_true', help='Show system status')
+    parser.add_argument('--init-genotypes', action='store_true', help='Initialize genotypes')
+    
     args = parser.parse_args()
-
+    
     try:
-        if args.status or args.init_genotypes: # Ensure init-genotypes is also handled by async run
-            asyncio.run(show_status())
-        else:
-            asyncio.run(run_web_mode())
+        if args.status:
+            result = await system_manager.run_administration_mode()
+            print("✅ Status check completed")
+            
+        elif args.mode == 'admin':
+            await system_manager.run_administration_mode()
+            
+        elif args.mode == 'minimal':
+            await system_manager.run_minimal_system()
+            
+        elif args.mode == 'full':
+            await system_manager.run_full_system()
+            
+        else:  # web mode (default)
+            await system_manager.initialize_database()
+            await system_manager.initialize_kernel(args.kernel)
+            
+            if args.init_genotypes:
+                await system_manager.load_genotype_system()
+                
+            await system_manager.start_web_interface(args.port)
+            
     except KeyboardInterrupt:
-        print("\n👋 Interrupted")
+        print("\n👋 System interrupted")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ System error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

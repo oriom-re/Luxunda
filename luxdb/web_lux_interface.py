@@ -17,9 +17,12 @@ import os
 from typing import Optional
 import asyncio
 from datetime import datetime
-from luxdb.ai_lux_assistant import LuxAssistant
-from luxdb.core.session_assistant import session_manager, SessionManager
+from luxdb.core.globals import Globals
 from luxdb.core.postgre_db import Postgre_db
+from luxdb.core.system_manager import system_manager
+from luxdb.models.soul import Soul
+from luxdb.models.being import Being
+from luxdb.ai_lux_assistant import LuxAIAssistant
 import hashlib
 
 app = FastAPI(title="Lux AI Assistant Web Interface")
@@ -50,18 +53,38 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize Lux on startup"""
+async def initialize_lux_assistant():
+    """Initialize Lux Assistant with system context"""
     global lux_assistant
-
-    await Postgre_db.initialize()
-
     api_key = os.getenv("OPENAI_API_KEY", "demo-key")
-    lux_assistant = LuxAssistant(api_key)
+    lux_assistant = LuxAIAssistant(api_key)
     await lux_assistant.initialize()
 
-    print("🌟 Lux AI Assistant Web Interface started!")
+@app.on_event("startup")
+async def startup_event():
+    """Initialize unified system"""
+    try:
+        # Initialize unified system manager
+        await system_manager.initialize_system(
+            kernel_type="simple",  # Start with simple kernel for web
+            load_genotypes=True
+        )
+
+        # Initialize OpenAI connection test
+        try:
+            import openai
+            openai.api_key = os.getenv('OPENAI_API_KEY')
+            print("✅ OpenAI connection successful")
+        except Exception as e:
+            print(f"⚠️ OpenAI connection warning: {e}")
+
+        # Initialize Lux Assistant with unified system
+        await initialize_lux_assistant()
+
+        print("🌟 Lux AI Assistant Web Interface started!")
+
+    except Exception as e:
+        print(f"❌ Startup error: {e}")
 
 # Pydantic models
 class LoginRequest(BaseModel):
@@ -85,7 +108,7 @@ class HeartbeatRequest(BaseModel):
 security = HTTPBearer()
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    from .core.auth_session import auth_manager
+    from luxdb.core.auth_session import auth_manager
 
     token = credentials.credentials
     session_data = await auth_manager.validate_session(token)
@@ -200,7 +223,7 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.post("/api/auth/login")
 async def login(request: LoginRequest):
     """Endpoint logowania"""
-    from .core.auth_session import auth_manager
+    from luxdb.core.auth_session import auth_manager
 
     try:
         session_data = await auth_manager.authenticate_user(
@@ -230,7 +253,7 @@ async def login(request: LoginRequest):
 @app.post("/api/auth/logout")
 async def logout(session_data: dict = Depends(verify_token)):
     """Endpoint wylogowania"""
-    from .core.auth_session import auth_manager
+    from luxdb.core.auth_session import auth_manager
 
     try:
         await auth_manager.invalidate_session(session_data["session_id"])
@@ -248,8 +271,6 @@ async def logout(session_data: dict = Depends(verify_token)):
 @app.get("/api/tools")
 async def get_available_tools():
     """Get list of available tools/beings"""
-    from luxdb.models.being import Being
-
     all_beings = await Being.get_all()
     tools = []
 
@@ -257,7 +278,7 @@ async def get_available_tools():
         # Get soul to access genotype
         soul = await being.get_soul()
         genotype = soul.genotype if soul else {}
-        
+
         tools.append({
             "ulid": being.ulid,
             "alias": being.alias,
@@ -282,7 +303,7 @@ async def search_tools(query: str):
 async def get_access_zones(request: Request):
     """Pobiera wszystkie strefy dostępu"""
     try:
-        from .core.access_control import access_controller
+        from luxdb.core.access_control import access_controller
 
         zones_data = {}
         for zone_id, zone in access_controller.zones.items():
@@ -304,7 +325,7 @@ async def get_access_summary(request: Request):
         token = auth_header[7:]
 
         # Waliduj sesję
-        from .core.auth_session import auth_manager
+        from luxdb.core.auth_session import auth_manager
         session_data = await auth_manager.validate_session(token)
         if not session_data:
             return {"error": "Invalid session"}
@@ -328,7 +349,7 @@ async def create_secured_being(request: Request):
         token = auth_header[7:]
 
         # Waliduj sesję
-        from .core.auth_session import auth_manager
+        from luxdb.core.auth_session import auth_manager
         session_data = await auth_manager.validate_session(token)
         if not session_data:
             return {"error": "Invalid session"}
@@ -345,7 +366,6 @@ async def create_secured_being(request: Request):
             return {"error": "soul_alias is required"}
 
         # Pobierz Soul
-        from .models.soul import Soul
         soul = await Soul.get_by_alias(soul_alias)
         if not soul:
             return {"error": f"Soul with alias '{soul_alias}' not found"}
@@ -382,14 +402,13 @@ async def get_beings_by_zone(request: Request):
 
         if auth_header.startswith('Bearer '):
             token = auth_header[7:]
-            from .core.auth_session import auth_manager
+            from luxdb.core.auth_session import auth_manager
             session_data = await auth_manager.validate_session(token)
             if session_data:
                 user_ulid = session_data["user_ulid"]
                 user_session = session_data
 
         # Pobierz byty ze strefy
-        from .models.being import Being
         beings = await Being.get_by_access_zone(zone_id, user_ulid, user_session)
 
         beings_data = []
@@ -419,4 +438,5 @@ if __name__ == "__main__":
     import asyncio
     from hypercorn.config import Config
     from hypercorn.asyncio import serve
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=3001)
