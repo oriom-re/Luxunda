@@ -27,6 +27,11 @@ class SessionDataManager:
         self.cache_hits = 0
         self.cache_misses = 0
         self.read_only_cache = {}  # Shared read-only data
+        
+        # Task queue system for beings
+        self.being_task_queues: Dict[str, asyncio.Queue] = {}
+        self.being_workers: Dict[str, asyncio.Task] = {}
+        self.queue_stats: Dict[str, Dict[str, int]] = {}
     
     async def get_being_safe(self, ulid: str):
         """Bezpieczne pobranie Being z kontrolą współbieżności"""
@@ -119,11 +124,27 @@ class SessionDataManager:
     
     def get_session_summary(self) -> Dict[str, Any]:
         """Zwraca podsumowanie stanu sesji"""
+        total_queued = sum(stats["queued"] for stats in self.queue_stats.values())
+        total_processed = sum(stats["processed"] for stats in self.queue_stats.values())
+        total_failed = sum(stats["failed"] for stats in self.queue_stats.values())
+        
         return {
             "session_id": self.session_id,
             "cached_objects": len(self.local_cache),
             "dirty_objects": sum(1 for dirty in self.dirty_flags.values() if dirty),
-            "last_sync": self.last_sync.isoformat()
+            "last_sync": self.last_sync.isoformat(),
+            "cache_performance": {
+                "hits": self.cache_hits,
+                "misses": self.cache_misses,
+                "hit_ratio": self.cache_hits / max(1, self.cache_hits + self.cache_misses)
+            },
+            "task_queues": {
+                "active_beings": len(self.being_task_queues),
+                "total_queued": total_queued,
+                "total_processed": total_processed,
+                "total_failed": total_failed,
+                "success_rate": total_processed / max(1, total_processed + total_failed)
+            }
         }
 
 class GlobalSessionRegistry:
@@ -150,6 +171,120 @@ class GlobalSessionRegistry:
                 await self.active_sessions[session_id].sync_changes()
                 del self.active_sessions[session_id]
     
+    async def enqueue_being_task(self, being_ulid: str, task: Dict[str, Any]) -> bool:
+        """
+        Dodaje zadanie do kolejki Being - WRITE-SAFE
+        Tylko właściciel Being może zapisywać
+        """
+        async with self.access_lock:
+            # Sprawdź czy Being należy do tej sesji
+            cache_key = f"being_{being_ulid}"
+            if cache_key not in self.local_cache:
+                return False  # Being nie należy do tej sesji
+            
+            # Utwórz kolejkę jeśli nie istnieje
+            if being_ulid not in self.being_task_queues:
+                self.being_task_queues[being_ulid] = asyncio.Queue(maxsize=100)
+                self.queue_stats[being_ulid] = {
+                    "queued": 0, "processed": 0, "failed": 0
+                }
+                
+                # Uruchom worker dla tego Being
+                self.being_workers[being_ulid] = asyncio.create_task(
+                    self._being_task_worker(being_ulid)
+                )
+            
+            # Dodaj zadanie do kolejki
+            try:
+                await self.being_task_queues[being_ulid].put(task)
+                self.queue_stats[being_ulid]["queued"] += 1
+                return True
+            except asyncio.QueueFull:
+                return False  # Kolejka pełna
+    
+    async def _being_task_worker(self, being_ulid: str):
+        """
+        Worker obsługujący kolejkę zadań dla konkretnego Being
+        SYNCHRONICZNE przetwarzanie - brak konfliktów
+        """
+        queue = self.being_task_queues[being_ulid]
+        stats = self.queue_stats[being_ulid]
+        
+        while True:
+            try:
+                # Pobierz zadanie z kolejki (czeka jeśli pusta)
+                task = await queue.get()
+                
+                # Pobierz Being z cache
+                cache_key = f"being_{being_ulid}"
+                being = self.local_cache.get(cache_key)
+                
+                if not being:
+                    stats["failed"] += 1
+                    continue
+                
+                # SYNCHRONICZNE wykonanie zadania
+                result = await self._execute_being_task(being, task)
+                
+                if result.get("success"):
+                    stats["processed"] += 1
+                    # Oznacz jako dirty do synchronizacji
+                    self.dirty_flags[cache_key] = True
+                else:
+                    stats["failed"] += 1
+                
+                # Oznacz zadanie jako zakończone
+                queue.task_done()
+                
+            except Exception as e:
+                stats["failed"] += 1
+                print(f"Task worker error for {being_ulid}: {e}")
+    
+    async def _execute_being_task(self, being, task: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Wykonuje zadanie na Being - THREAD-SAFE
+        """
+        try:
+            task_type = task.get("type")
+            task_data = task.get("data", {})
+            
+            # Różne typy zadań
+            if task_type == "execute_function":
+                return await being.execute_soul_function(
+                    task_data.get("function_name"),
+                    **task_data.get("kwargs", {})
+                )
+                
+            elif task_type == "update_data":
+                being.data.update(task_data)
+                being.updated_at = datetime.now()
+                return {"success": True, "message": "Data updated"}
+                
+            elif task_type == "add_dynamic_function":
+                return await being.add_dynamic_function(
+                    task_data.get("function_name"),
+                    task_data.get("function_definition"),
+                    task_data.get("source", "task_queue")
+                )
+                
+            else:
+                return {"success": False, "error": f"Unknown task type: {task_type}"}
+                
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def get_queue_status(self, being_ulid: str) -> Dict[str, Any]:
+        """Status kolejki dla Being"""
+        if being_ulid not in self.queue_stats:
+            return {"error": "No queue for this being"}
+            
+        queue = self.being_task_queues.get(being_ulid)
+        return {
+            "queue_size": queue.qsize() if queue else 0,
+            "stats": self.queue_stats[being_ulid],
+            "worker_active": being_ulid in self.being_workers
+        }
+
     def get_system_status(self) -> Dict[str, Any]:
         """Status wszystkich sesji"""
         return {
