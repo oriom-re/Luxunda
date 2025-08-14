@@ -11,7 +11,7 @@ import ulid
 class SessionDataManager:
     """
     Zarządza danymi w ramach sesji użytkownika
-    Zapewnia izolację i spójność danych
+    Zapewnia izolację i spójność danych - OPTIMIZED VERSION
     """
     
     def __init__(self, session_id: str):
@@ -20,6 +20,13 @@ class SessionDataManager:
         self.dirty_flags: Dict[str, bool] = {}
         self.access_lock = asyncio.Lock()
         self.last_sync = datetime.now()
+        
+        # Performance optimizations
+        self.batch_size = 10
+        self.sync_interval = 30  # seconds
+        self.cache_hits = 0
+        self.cache_misses = 0
+        self.read_only_cache = {}  # Shared read-only data
     
     async def get_being_safe(self, ulid: str):
         """Bezpieczne pobranie Being z kontrolą współbieżności"""
@@ -69,15 +76,46 @@ class SessionDataManager:
             return being
     
     async def sync_changes(self):
-        """Synchronizuje zmiany z bazą danych"""
+        """Synchronizuje zmiany z bazą danych - BATCH OPTIMIZED"""
         async with self.access_lock:
+            dirty_beings = []
+            
+            # Collect dirty beings
             for cache_key, is_dirty in self.dirty_flags.items():
                 if is_dirty and cache_key in self.local_cache:
-                    being = self.local_cache[cache_key]
-                    await being.save()
+                    dirty_beings.append(self.local_cache[cache_key])
+                    
+            # Batch save (up to batch_size at once)
+            for i in range(0, len(dirty_beings), self.batch_size):
+                batch = dirty_beings[i:i + self.batch_size]
+                
+                # Parallel save operations
+                save_tasks = [being.save() for being in batch]
+                await asyncio.gather(*save_tasks, return_exceptions=True)
+                
+                # Mark as clean
+                for being in batch:
+                    cache_key = f"being_{being.ulid}"
                     self.dirty_flags[cache_key] = False
             
             self.last_sync = datetime.now()
+    
+    async def fast_get_being(self, ulid: str):
+        """Fast read without lock for read-only operations"""
+        cache_key = f"being_{ulid}"
+        
+        # Quick cache hit
+        if cache_key in self.local_cache:
+            self.cache_hits += 1
+            return self.local_cache[cache_key]
+            
+        # Check shared read-only cache
+        if cache_key in self.read_only_cache:
+            self.cache_hits += 1
+            return self.read_only_cache[cache_key]
+            
+        self.cache_misses += 1
+        return None
     
     def get_session_summary(self) -> Dict[str, Any]:
         """Zwraca podsumowanie stanu sesji"""
