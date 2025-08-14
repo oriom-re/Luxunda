@@ -47,6 +47,11 @@ class SessionAssistant:
         self.is_active = True
         self.offline_mode = False
         
+        # Session-specific isolation
+        self.session_registry = {}  # Własny registry dla sesji
+        self.session_beings = {}    # Cache swoich beings
+        self.data_lock = False      # Simple lock mechanism
+        
     async def initialize(self):
         """Inicjalizuje asystenta dla sesji"""
         await self.lux_core.initialize()
@@ -95,6 +100,33 @@ class SessionAssistant:
         if 'database' in content_lower or 'soul' in content_lower or 'being' in content_lower:
             self.session.project_tags.add('database')
     
+    async def get_session_being(self, ulid: str):
+        """Pobiera Being z cache sesji lub bazy z izolacją"""
+        if ulid in self.session_beings:
+            return self.session_beings[ulid]
+        
+        # Pobierz z bazy i cache w sesji
+        from ..models.being import Being
+        being = await Being.get_by_ulid(ulid)
+        if being:
+            self.session_beings[ulid] = being
+        return being
+    
+    async def create_session_being(self, soul, data, alias=None):
+        """Tworzy Being w kontekście sesji"""
+        from ..models.being import Being
+        
+        # Dodaj identyfikator sesji do danych
+        session_data = data.copy()
+        session_data['_session_id'] = self.session.session_id
+        session_data['_session_fingerprint'] = self.session.user_fingerprint
+        
+        being = await Being.create(soul, session_data, alias)
+        
+        # Cache w sesji
+        self.session_beings[being.ulid] = being
+        return being
+
     async def process_message(self, message_content: str) -> str:
         """Przetwarza wiadomość użytkownika"""
         
