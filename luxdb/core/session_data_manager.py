@@ -1,6 +1,10 @@
 
 """
 Session Data Manager - Zarządza danymi w kontekście sesji
+
+UWAGA: W LuxOS z Kernel jako Being, ten manager może być zastąpiony
+przez bezpośrednią komunikację Being → Kernel → Being.
+Każdy Lux Being może mieć własne dane zarządzane przez Kernel Being.
 """
 
 import asyncio
