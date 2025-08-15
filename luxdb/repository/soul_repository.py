@@ -39,7 +39,7 @@ class SoulRepository:
             async with pool.acquire() as conn:
                 query = """
                     SELECT * FROM souls
-                    WHERE global_ulid = $1
+                    WHERE soul_hash = $1
                 """
                 row = await conn.fetchrow(query, soul_hash)
                 if row:
@@ -51,6 +51,7 @@ class SoulRepository:
                         global_ulid=row['global_ulid']
                     )
                     soul.created_at = row['created_at']
+                    soul.updated_at = row.get('updated_at')
                     return {"success": True, "soul": soul}
             return {"success": False}
         except Exception as e:
@@ -78,6 +79,7 @@ class SoulRepository:
                         global_ulid=row['global_ulid']
                     )
                     soul.created_at = row['created_at']
+                    soul.updated_at = row.get('updated_at')
                     souls.append(soul)
 
                 return {
@@ -123,6 +125,7 @@ class SoulRepository:
                         global_ulid=row['global_ulid']
                     )
                     soul.created_at = row['created_at']
+                    soul.updated_at = row.get('updated_at')
                     return {"success": True, "soul": soul}
                 else:
                     return {"success": False, "error": "Soul not found"}
