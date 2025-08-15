@@ -1,0 +1,222 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuxOS Astral Catamaran - VIP Sponsorship</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, #00b4db 0%, #0083b0 100%);
+            color: #fff;
+            overflow-x: hidden;
+        }
+        
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='2' fill='%23ffffff20'/></svg>") repeat;
+            position: relative;
+        }
+        
+        .floating-yacht {
+            position: absolute;
+            top: 20%;
+            right: 10%;
+            font-size: 4rem;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(-5deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+        }
+        
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .subtitle {
+            font-size: 1.8rem;
+            margin-bottom: 3rem;
+            opacity: 0.9;
+        }
+        
+        .sponsor-deck {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            max-width: 1200px;
+            margin: 3rem 0;
+            padding: 0 2rem;
+        }
+        
+        .yacht-tier {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            transition: transform 0.3s ease;
+        }
+        
+        .yacht-tier:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        
+        .tier-name {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #FFD700;
+        }
+        
+        .tier-price {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        
+        .tier-features {
+            text-align: left;
+            margin: 1.5rem 0;
+        }
+        
+        .tier-features li {
+            margin: 0.8rem 0;
+            font-size: 1.1rem;
+        }
+        
+        .sail-button {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            border: none;
+            color: #000;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+        
+        .sail-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.4);
+        }
+        
+        .ocean-waves {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(to right, rgba(0,180,219,0.8), rgba(0,131,176,0.8));
+            z-index: -1;
+            animation: waves 4s ease-in-out infinite;
+        }
+        
+        @keyframes waves {
+            0%, 100% { transform: translateX(0px); }
+            50% { transform: translateX(-20px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="floating-yacht">⛵</div>
+    
+    <section class="hero">
+        <h1>🏝️ LuxOS Astral Catamaran</h1>
+        <p class="subtitle">Exclusive Sponsorship na tropikalnych wodach przyszłości</p>
+        
+        <div class="sponsor-deck">
+            <div class="yacht-tier">
+                <div class="tier-name">⛵ Tropical Dinghy</div>
+                <div class="tier-price">$25K</div>
+                <ul class="tier-features">
+                    <li>🥥 Coconut API access z plaży</li>
+                    <li>🏖️ Beach-side code reviews</li>
+                    <li>🐚 Exclusive "Pearl" beings</li>
+                    <li>🌺 Tropical dashboard themes</li>
+                    <li>📧 Surfboard delivery of updates</li>
+                </ul>
+                <button class="sail-button">Sail Away! 🌊</button>
+            </div>
+            
+            <div class="yacht-tier">
+                <div class="tier-name">🛥️ Luxury Catamaran</div>
+                <div class="tier-price">$100K</div>
+                <ul class="tier-features">
+                    <li>🏴‍☠️ Captain's cabin w/ AI crew</li>
+                    <li>🗺️ Treasure map do hidden features</li>
+                    <li>🧜‍♀️ Mermaid Beings (AI assistants)</li>
+                    <li>⚓ Private harbor infrastructure</li>
+                    <li>🏝️ Island deployment on own server</li>
+                </ul>
+                <button class="sail-button">Set Sail! ⛵</button>
+            </div>
+            
+            <div class="yacht-tier">
+                <div class="tier-name">🚢 Astral Mega Yacht</div>
+                <div class="tier-price">$500K+</div>
+                <ul class="tier-features">
+                    <li>👑 Fleet Admiral status</li>
+                    <li>🌊 Own astral ocean (dedicated cloud)</li>
+                    <li>🧙‍♂️ Personal Chief Magic Officer</li>
+                    <li>🏰 Floating castle HQ</li>
+                    <li>🔮 Crystal ball analytics</li>
+                    <li>⭐ Name a constellation after you</li>
+                </ul>
+                <button class="sail-button">Command The Fleet! 👑</button>
+            </div>
+        </div>
+        
+        <div style="margin-top: 3rem;">
+            <h2>🌟 Dlaczego właśnie catamaran?</h2>
+            <p style="font-size: 1.3rem; max-width: 800px; margin: 1rem auto;">
+                Bo LuxOS to stabilny, dwukadłubowy system - jeden kadłub to <strong>Soul</strong> (genotyp), 
+                drugi to <strong>Being</strong> (instancja). Razem płyną spokojnie po oceanach danych! ⛵✨
+            </p>
+        </div>
+    </section>
+    
+    <div class="ocean-waves"></div>
+    
+    <script>
+        // Dodaj animowane delfiny i mewy
+        setInterval(() => {
+            const dolphin = document.createElement('div');
+            dolphin.style.position = 'fixed';
+            dolphin.style.bottom = '100px';
+            dolphin.style.left = '-100px';
+            dolphin.style.fontSize = '2rem';
+            dolphin.style.zIndex = '1000';
+            dolphin.innerHTML = '🐬';
+            dolphin.style.animation = 'swim 8s linear forwards';
+            
+            document.body.appendChild(dolphin);
+            
+            setTimeout(() => dolphin.remove(), 8000);
+        }, 3000);
+        
+        // CSS dla pływających delfinów
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes swim {
+                from { left: -100px; }
+                to { left: calc(100% + 100px); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
