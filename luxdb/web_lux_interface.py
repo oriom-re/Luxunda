@@ -22,7 +22,7 @@ from luxdb.core.postgre_db import Postgre_db
 from luxdb.core.system_manager import system_manager
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
-from luxdb.ai_lux_assistant import LuxAIAssistant
+from luxdb.ai_lux_assistant import LuxAssistant
 import hashlib
 
 app = FastAPI(title="Lux AI Assistant Web Interface")
@@ -57,7 +57,7 @@ async def initialize_lux_assistant():
     """Initialize Lux Assistant with system context"""
     global lux_assistant
     api_key = os.getenv("OPENAI_API_KEY", "demo-key")
-    lux_assistant = LuxAIAssistant(api_key)
+    lux_assistant = LuxAssistant(api_key)
     await lux_assistant.initialize()
 
 @app.on_event("startup")
