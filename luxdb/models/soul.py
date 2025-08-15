@@ -1030,7 +1030,7 @@ class Soul:
                 )
 
     @classmethod
-    async def create_function_soul(cls, name: str, func: Callable, description: str = None, alias: str = None, version: str = "1.0.0") -> 'Soul':
+    def create_function_soul(cls, name: str, func: Callable, description: str = None, alias: str = None, version: str = "1.0.0") -> 'Soul':
         """
         Tworzy specjalizowany Soul dla pojedynczej funkcji z niezmiennym genotypem.
 
@@ -1078,7 +1078,7 @@ class Soul:
 
         return soul
 
-    @classmethod 
+    @classmethod
     async def create_evolved_version(cls, original_soul: 'Soul', changes: Dict[str, Any], new_version: str = None) -> 'Soul':
         """
         Tworzy nową wersję Soul z ewolucją genotypu.
@@ -1123,7 +1123,7 @@ class Soul:
 
         # Utwórz nową Soul
         evolved_soul = await cls.create(evolved_genotype, original_soul.alias)
-        
+
         # Dodatkowe logowanie dla ewolucji
         try:
             from ..utils.soul_creation_logger import soul_creation_logger
@@ -1136,7 +1136,7 @@ class Soul:
             })
         except Exception as e:
             print(f"⚠️ Evolution logging failed: {e}")
-            
+
         return evolved_soul
 
     @classmethod

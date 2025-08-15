@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 🧠 Simple Kernel - Prosty asynchroniczny kernel z systemem zadań
@@ -36,18 +35,18 @@ class SimpleKernel:
     """
     Prosty Kernel działający jak master function z asynchronicznym systemem zadań
     """
-    
+
     def __init__(self):
         self.kernel_being: Optional[Being] = None
         self.active_tasks: Dict[str, Task] = {}
         self.task_listeners: Dict[str, List[Callable]] = {}
         self.modules: Dict[str, Being] = {}
         self.running = False
-        
+
     async def initialize(self):
         """Inicjalizuje prosty kernel"""
         print("🧠 Initializing Simple Kernel...")
-        
+
         # Utwórz Soul dla Kernel
         kernel_genotype = {
             "genesis": {
@@ -73,15 +72,15 @@ def init(being_context=None):
 def execute(request=None, being_context=None, **kwargs):
     """Main kernel execution - delegates to task system"""
     print(f"🧠 Kernel processing request: {request}")
-    
+
     if not request:
         return {"status": "kernel_ready", "active_tasks": len(being_context.get('data', {}).get('active_tasks', {}))}
-    
+
     # Wszystkie żądania stają się zadaniami
     task_type = request.get('task_type', 'generic')
     target_module = request.get('target_module', 'kernel')
     payload = request.get('payload', {})
-    
+
     return {
         "task_created": True,
         "task_type": task_type,
@@ -90,9 +89,9 @@ def execute(request=None, being_context=None, **kwargs):
     }
 '''
         }
-        
+
         kernel_soul = await Soul.create(kernel_genotype, alias="simple_kernel_soul")
-        
+
         # Utwórz Kernel Being
         self.kernel_being = await Being.create(
             soul=kernel_soul,
@@ -106,16 +105,16 @@ def execute(request=None, being_context=None, **kwargs):
                 "initialized_at": datetime.now().isoformat()
             }
         )
-        
+
         # Załaduj podstawowe moduły
         await self._load_core_modules()
-        
+
         # Załaduj tasks i dispenser
         await self._load_tasks_dispenser()
-        
+
         print(f"🧠 Simple Kernel initialized: {self.kernel_being.ulid}")
         return self.kernel_being
-        
+
     async def _load_core_modules(self):
         """Ładuje podstawowe moduły systemu"""
         try:
@@ -124,16 +123,16 @@ def execute(request=None, being_context=None, **kwargs):
             if auth_being:
                 self.modules["auth"] = auth_being
                 print("🔐 Auth module loaded")
-            
+
             # Task dispatcher module
             dispatcher_being = await self._create_dispatcher_module()
             if dispatcher_being:
                 self.modules["dispatcher"] = dispatcher_being
                 print("📤 Dispatcher module loaded")
-                
+
         except Exception as e:
             print(f"⚠️ Error loading modules: {e}")
-    
+
     async def _create_auth_module(self) -> Optional[Being]:
         """Tworzy moduł autoryzacji"""
         auth_genotype = {
@@ -148,11 +147,11 @@ from datetime import datetime
 def execute(request=None, being_context=None, **kwargs):
     """Handles authentication requests"""
     action = request.get('action') if request else 'status'
-    
+
     if action == 'authenticate':
         user_id = request.get('user_id')
         token = request.get('token')
-        
+
         # Simulacja sprawdzenia auth
         if user_id and token:
             return {
@@ -163,7 +162,7 @@ def execute(request=None, being_context=None, **kwargs):
             }
         else:
             return {"authenticated": False, "error": "Invalid credentials"}
-    
+
     elif action == 'check_session':
         session_id = request.get('session_id')
         # Simulacja sprawdzenia sesji
@@ -171,11 +170,11 @@ def execute(request=None, being_context=None, **kwargs):
             "valid": bool(session_id and session_id.startswith('sess_')),
             "session_id": session_id
         }
-    
+
     return {"status": "auth_module_ready", "supported_actions": ["authenticate", "check_session"]}
 '''
         }
-        
+
         try:
             auth_soul = await Soul.create(auth_genotype, alias="auth_module_soul")
             return await Being.create(
@@ -186,7 +185,7 @@ def execute(request=None, being_context=None, **kwargs):
         except Exception as e:
             print(f"❌ Failed to create auth module: {e}")
             return None
-    
+
     async def _create_dispatcher_module(self) -> Optional[Being]:
         """Tworzy moduł dispatcher"""
         dispatcher_genotype = {
@@ -199,38 +198,38 @@ def execute(request=None, being_context=None, **kwargs):
 def execute(request=None, being_context=None, **kwargs):
     """Handles task dispatching"""
     action = request.get('action', 'status')
-    
+
     if action == 'dispatch':
         task_data = request.get('task_data', {})
         target = request.get('target', 'unknown')
-        
+
         return {
             "dispatched": True,
             "task_id": task_data.get('task_id'),
             "target": target,
             "dispatch_time": datetime.now().isoformat()
         }
-    
+
     elif action == 'route':
         task_type = request.get('task_type')
-        
+
         # Routing logic
         routes = {
             "auth": "auth_module",
             "user": "user_manager",
             "data": "data_processor"
         }
-        
+
         return {
             "route_found": task_type in routes,
             "target_module": routes.get(task_type, "kernel"),
             "task_type": task_type
         }
-    
+
     return {"status": "dispatcher_ready", "supported_actions": ["dispatch", "route"]}
 '''
         }
-        
+
         try:
             dispatcher_soul = await Soul.create(dispatcher_genotype, alias="dispatcher_soul")
             return await Being.create(
@@ -241,18 +240,18 @@ def execute(request=None, being_context=None, **kwargs):
         except Exception as e:
             print(f"❌ Failed to create dispatcher module: {e}")
             return None
-    
+
     async def _load_tasks_dispenser(self):
         """Ładuje system zadań i dispenser"""
         try:
             # Simplified loading without GenotypeLoader for now
             from luxdb.models.soul import Soul
-            
+
             # Load tasks and dispenser souls by alias
             tasks_soul = await Soul.get_by_alias("tasks_soul")
             if tasks_soul:
                 print("🎯 Tasks soul found")
-            
+
             dispenser_soul = await Soul.get_by_alias("dispenser_soul")
             if dispenser_soul:
                 dispenser_being = await Being.get_or_create(
@@ -262,10 +261,10 @@ def execute(request=None, being_context=None, **kwargs):
                 )
                 self.modules["dispenser"] = dispenser_being
                 print("📦 Dispenser singleton loaded")
-                
+
         except Exception as e:
             print(f"⚠️ Error loading tasks/dispenser: {e}")
-    
+
     async def create_task(self, task_type: str, target_module: str, payload: Dict[str, Any]) -> str:
         """Tworzy nowe zadanie w systemie"""
         task = Task(
@@ -273,19 +272,19 @@ def execute(request=None, being_context=None, **kwargs):
             target_module=target_module,
             payload=payload
         )
-        
+
         self.active_tasks[task.task_id] = task
-        
+
         # Utwórz Task Being dla komunikacji
         await self._create_task_being(task)
-        
+
         print(f"📋 Created task {task.task_id}: {task_type} → {target_module}")
-        
+
         # Uruchom zadanie asynchronicznie
         asyncio.create_task(self._process_task(task.task_id))
-        
+
         return task.task_id
-    
+
     async def _create_task_being(self, task: Task) -> Being:
         """Tworzy Task Being dla komunikacji"""
         task_genotype = {
@@ -301,9 +300,9 @@ def execute(request=None, being_context=None, **kwargs):
                 "listeners": {"py_type": "list"}
             }
         }
-        
+
         task_soul = await Soul.create(task_genotype, alias=f"task_soul_{task.task_id[:8]}")
-        
+
         return await Being.create(
             soul=task_soul,
             alias=f"task_{task.task_id[:8]}",
@@ -316,78 +315,78 @@ def execute(request=None, being_context=None, **kwargs):
             },
             persistent=False  # Task beings są nietrwałe
         )
-    
+
     async def _process_task(self, task_id: str):
         """Przetwarza zadanie asynchronicznie"""
         if task_id not in self.active_tasks:
             return
-        
+
         task = self.active_tasks[task_id]
         task.status = "processing"
-        
+
         try:
             print(f"⚙️ Processing task {task_id}: {task.task_type}")
-            
+
             # Znajdź target module
             target_module = self.modules.get(task.target_module)
-            
+
             if target_module:
                 # Deleguj do modułu
                 result = await target_module.execute(task.payload)
-                
+
                 task.result = result
                 task.status = "completed"
                 task.completed_at = datetime.now()
-                
+
                 print(f"✅ Task {task_id} completed")
-                
+
             else:
                 # Fallback - kernel sam obsługuje
                 result = await self._kernel_fallback_processing(task)
                 task.result = result
                 task.status = "completed"
                 task.completed_at = datetime.now()
-                
+
                 print(f"🧠 Task {task_id} handled by kernel fallback")
-            
+
             # Powiadom listeners
             await self._notify_task_completion(task_id)
-            
+
         except Exception as e:
             task.status = "failed"
             task.error = str(e)
             task.completed_at = datetime.now()
             print(f"❌ Task {task_id} failed: {e}")
-        
+
         # Cleanup po czasie
         asyncio.create_task(self._cleanup_task_after_delay(task_id, delay=300))  # 5 min
-    
+
     async def _kernel_fallback_processing(self, task: Task) -> Dict[str, Any]:
         """Kernel sam obsługuje zadanie gdy nie ma odpowiedniego modułu"""
         if task.task_type == "ping":
             return {"pong": True, "timestamp": datetime.now().isoformat()}
-        
+
         elif task.task_type == "status":
             return {
                 "kernel_status": "running",
                 "active_tasks": len(self.active_tasks),
                 "loaded_modules": list(self.modules.keys())
             }
-        
+
         elif task.task_type == "echo":
             return {"echo": task.payload.get("message", "no message")}
-        
+
         else:
             return {
                 "processed_by": "kernel_fallback",
                 "task_type": task.task_type,
                 "warning": "No specific module found for this task type"
             }
-    
+
     async def _notify_task_completion(self, task_id: str):
         """Powiadamia listeners o zakończeniu zadania"""
         listeners = self.task_listeners.get(task_id, [])
-        
+
         for listener in listeners:
             try:
                 if asyncio.iscoroutinefunction(listener):
@@ -396,14 +395,14 @@ def execute(request=None, being_context=None, **kwargs):
                     listener(task_id, self.active_tasks[task_id])
             except Exception as e:
                 print(f"⚠️ Listener error for task {task_id}: {e}")
-    
+
     async def _cleanup_task_after_delay(self, task_id: str, delay: int = 300):
         """Usuwa zadanie z pamięci po określonym czasie"""
         await asyncio.sleep(delay)
-        
+
         if task_id in self.active_tasks:
             task = self.active_tasks.pop(task_id)
-            
+
             # Przenieś do historii w Kernel Being
             if self.kernel_being:
                 history = self.kernel_being.data.get('task_history', [])
@@ -414,25 +413,25 @@ def execute(request=None, being_context=None, **kwargs):
                     "completed_at": task.completed_at.isoformat() if task.completed_at else None,
                     "cleanup_at": datetime.now().isoformat()
                 })
-                
+
                 # Zachowaj tylko ostatnie 100 zadań w historii
                 self.kernel_being.data['task_history'] = history[-100:]
                 await self.kernel_being.save()
-            
+
             print(f"🗑️ Cleaned up task {task_id}")
-    
+
     def add_task_listener(self, task_id: str, listener: Callable):
         """Dodaje listener dla konkretnego zadania"""
         if task_id not in self.task_listeners:
             self.task_listeners[task_id] = []
-        
+
         self.task_listeners[task_id].append(listener)
-    
+
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Pobiera status zadania"""
         if task_id not in self.active_tasks:
             return None
-        
+
         task = self.active_tasks[task_id]
         return {
             "task_id": task.task_id,
@@ -443,7 +442,7 @@ def execute(request=None, being_context=None, **kwargs):
             "result": task.result,
             "error": task.error
         }
-    
+
     def get_system_status(self) -> Dict[str, Any]:
         """Status całego systemu"""
         return {
