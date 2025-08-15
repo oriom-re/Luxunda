@@ -1,0 +1,71 @@
+{
+  "soul_info": {
+    "soul_hash": "a70c7a10177638c60c6d8b4a3341344e588f84d5b3621915cb40afb3c6e86409",
+    "alias": "quick_test_soul",
+    "global_ulid": "01K16YDK7GNRBANHHQDMZVRGE7",
+    "version": "1.0.0",
+    "parent_hash": null,
+    "created_at": "2025-08-15T12:16:02.504480"
+  },
+  "genotype": {
+    "genesis": {
+      "name": "quick_test",
+      "version": "1.0.0",
+      "language": "python"
+    },
+    "attributes": {},
+    "functions": {
+      "greet": {
+        "py_type": "function",
+        "description": "Function greet",
+        "is_async": false,
+        "is_coroutine": false,
+        "signature": {
+          "parameters": {
+            "name": {
+              "type": "Any",
+              "default": null,
+              "required": true,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "Any"
+        }
+      }
+    },
+    "capabilities": {
+      "language": "python",
+      "has_init": false,
+      "has_execute": false,
+      "function_count": 1,
+      "public_function_count": 1,
+      "private_function_count": 0,
+      "attribute_count": 0,
+      "dependencies_count": 0,
+      "missing_dependencies": []
+    },
+    "dependencies": {}
+  },
+  "analysis": {
+    "has_module_source": true,
+    "language": "python",
+    "functions_count": 1,
+    "public_functions": [
+      "greet"
+    ],
+    "private_functions": [],
+    "attribute_types": {},
+    "is_evolution": false
+  },
+  "creation_context": {
+    "method": "Soul.create",
+    "genotype_processed": true,
+    "function_registry_loaded": true,
+    "validation_passed": true
+  },
+  "system_info": {
+    "timestamp": "2025-08-15T12:16:02.504480",
+    "luxos_version": "3.0.0-unified",
+    "creation_method": "Soul.create"
+  }
+}

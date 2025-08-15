@@ -1,0 +1,62 @@
+{
+  "soul_info": {
+    "soul_hash": "cd4b9d36387e7b526f4a2fd6436b4cc32e981f5205a045f9c04f8fbcbf10092d",
+    "alias": "test_soul",
+    "global_ulid": "01K16YDK7GNRBANHHQDMZVRGE7",
+    "version": "1.0.0",
+    "parent_hash": null,
+    "created_at": "2025-08-15T12:11:04.346973"
+  },
+  "genotype": {
+    "genesis": {
+      "name": "test_entity",
+      "type": "test",
+      "version": "1.0.0"
+    },
+    "attributes": {
+      "name": {
+        "py_type": "str",
+        "max_length": 100
+      },
+      "count": {
+        "py_type": "int",
+        "min_value": 0
+      },
+      "active": {
+        "py_type": "bool",
+        "default": true
+      },
+      "metadata": {
+        "py_type": "dict"
+      }
+    },
+    "functions": {},
+    "capabilities": {},
+    "dependencies": {}
+  },
+  "analysis": {
+    "has_module_source": false,
+    "language": "python",
+    "functions_count": 0,
+    "public_functions": [],
+    "private_functions": [],
+    "attribute_types": {
+      "name": "str",
+      "count": "int",
+      "active": "bool",
+      "metadata": "dict"
+    },
+    "is_evolution": false
+  },
+  "creation_context": {
+    "method": "Soul.create",
+    "genotype_processed": true,
+    "function_registry_loaded": false,
+    "validation_passed": true
+  },
+  "system_info": {
+    "timestamp": "2025-08-15T12:11:04.346973",
+    "luxos_version": "3.0.0-unified",
+    "creation_method": "Soul.create"
+  }
+}
