@@ -152,14 +152,16 @@ class SoulRepository:
                     soul.alias,
                     json.dumps(soul.genotype)
                 )
-                
+
                 if result:
                     soul.created_at = result['created_at']
                     # Zaktualizuj obiekt soul z czasami z bazy
-                
+
                 return {"success": True}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            error_msg = f"Database error while saving soul: {str(e)}"
+            print(f"❌ {error_msg}")
+            return {"success": False, "error": error_msg, "error_type": "database_error"}
 
 class BeingRepository:
     """Repository for Being operations"""

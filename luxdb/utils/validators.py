@@ -16,6 +16,10 @@ def validate_genotype(genotype: Dict[str, Any]) -> Tuple[bool, List[str]]:
         Tuple (is_valid, errors)
     """
     errors = []
+    
+    if not isinstance(genotype, dict):
+        errors.append("Genotype must be a dictionary")
+        return False, errors
 
     # Sprawdź wymagane sekcje
     required_sections = ["genesis"]

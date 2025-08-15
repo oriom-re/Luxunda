@@ -54,7 +54,11 @@ class Soul:
         processed_genotype = cls._process_module_source_for_genotype(genotype.copy())
 
         # Walidacja genotypu
-        validate_genotype(processed_genotype)
+        is_valid, validation_errors = validate_genotype(processed_genotype)
+        if not is_valid:
+            error_message = f"Genotype validation failed: {'; '.join(validation_errors)}"
+            print(f"❌ {error_message}")
+            raise ValueError(error_message)
 
         # Generuj hash z genotypu - to jest unikalny kod genetyczny
         soul_hash = hashlib.sha256(
@@ -84,7 +88,9 @@ class Soul:
         # Zapis do bazy danych - baza automatycznie ustawi created_at/updated_at
         result = await SoulRepository.set(soul)
         if not result.get('success'):
-            raise Exception("Failed to create soul")
+            error_details = result.get('error', 'Unknown database error')
+            error_type = result.get('error_type', 'general_error')
+            raise Exception(f"Failed to create soul ({error_type}): {error_details}")
 
         # Loguj utworzenie Soul z raportem
         try:
