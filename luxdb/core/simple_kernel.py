@@ -11,7 +11,7 @@ Kernel jako master function który:
 
 import asyncio
 import uuid
-import datetime as dt
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, field
 
@@ -51,14 +51,14 @@ class SimpleKernel:
         print("🧠 Initializing Simple Kernel...")
 
         # Kernel nie tworzy własnych bytów - tylko zarządza zadaniami
-        self.kernel_id = f"kernel_{dt.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.kernel_id = f"kernel_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.kernel_state = {
             "active_tasks": {},
             "modules": {},
             "task_history": [],
             "kernel_type": "simple_async",
             "max_concurrent_tasks": 100,
-            "initialized_at": dt.datetime.now().isoformat(),
+            "initialized_at": datetime.now().isoformat(),
             "kernel_id": self.kernel_id
         }
 
@@ -293,7 +293,7 @@ def execute(request=None, being_context=None, **kwargs):
 
                 task.result = result
                 task.status = "completed"
-                task.completed_at = dt.datetime.now()
+                task.completed_at = datetime.now()
 
                 print(f"✅ Task {task_id} completed")
 
@@ -302,7 +302,7 @@ def execute(request=None, being_context=None, **kwargs):
                 result = await self._kernel_fallback_processing(task)
                 task.result = result
                 task.status = "completed"
-                task.completed_at = dt.datetime.now()
+                task.completed_at = datetime.now()
 
                 print(f"🧠 Task {task_id} handled by kernel fallback")
 
@@ -312,7 +312,7 @@ def execute(request=None, being_context=None, **kwargs):
         except Exception as e:
             task.status = "failed"
             task.error = str(e)
-            task.completed_at = dt.datetime.now()
+            task.completed_at = datetime.now()
             print(f"❌ Task {task_id} failed: {e}")
 
         # Cleanup po czasie
@@ -321,7 +321,7 @@ def execute(request=None, being_context=None, **kwargs):
     async def _kernel_fallback_processing(self, task: Task) -> Dict[str, Any]:
         """Kernel sam obsługuje zadanie gdy nie ma odpowiedniego modułu"""
         if task.task_type == "ping":
-            return {"pong": True, "timestamp": dt.datetime.now().isoformat()}
+            return {"pong": True, "timestamp": datetime.now().isoformat()}
 
         elif task.task_type == "status":
             return {
@@ -367,7 +367,7 @@ def execute(request=None, being_context=None, **kwargs):
                 "task_type": task.task_type,
                 "status": task.status,
                 "completed_at": task.completed_at.isoformat() if task.completed_at else None,
-                "cleanup_at": dt.datetime.now().isoformat()
+                "cleanup_at": datetime.now().isoformat()
             })
 
             # Zachowaj tylko ostatnie 100 zadań w historii
