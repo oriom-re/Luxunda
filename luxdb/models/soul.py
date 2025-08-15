@@ -27,6 +27,7 @@ class Soul:
     alias: str = None
     genotype: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     # Function registry for this soul
     _function_registry: Dict[str, Callable] = field(default_factory=dict, init=False, repr=False)

@@ -143,8 +143,9 @@ class SoulRepository:
                     VALUES ($1, $2, $3, $4)
                     ON CONFLICT (soul_hash) DO UPDATE SET
                         alias = EXCLUDED.alias,
-                        genotype = EXCLUDED.genotype
-                    RETURNING created_at
+                        genotype = EXCLUDED.genotype,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING created_at, updated_at
                 """
                 result = await conn.fetchrow(query,
                     soul.soul_hash,
@@ -155,6 +156,7 @@ class SoulRepository:
 
                 if result:
                     soul.created_at = result['created_at']
+                    soul.updated_at = result['updated_at']
 
                 return {"success": True}
         except Exception as e:
