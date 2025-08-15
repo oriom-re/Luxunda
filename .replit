@@ -17,7 +17,7 @@ run = ["python3", "main.py", "--mode=full"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS Clean System"
+runButton = "LuxOS v1.0.0 Stable"
 
 [[workflows.workflow]]
 name = "LuxOS Full System"
@@ -156,6 +156,15 @@ args = "python main.py --mode=web --kernel=simple"
 
 [[workflows.workflow]]
 name = "LuxOS Clean System"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py --mode=web --kernel=simple"
+
+[[workflows.workflow]]
+name = "LuxOS v1.0.0 Stable"
 author = 43346420
 mode = "sequential"
 

@@ -73,7 +73,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="luxdb",
-    version="0.2.0",
+    version="1.0.0",
     author="LuxDB Team",
     author_email="contact@luxdb.dev",
     description="Genetic Database Library - Server and Client System",

@@ -518,6 +518,7 @@ class Soul:
                                 },
                                 "return_type": str(sig.return_annotation) if sig.return_annotation != sig.empty else "Any"
                             }
+                        }
 
 
                         # Sprawdź specjalne funkcje

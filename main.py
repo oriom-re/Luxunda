@@ -23,7 +23,7 @@ from luxdb.core.postgre_db import Postgre_db
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
 
-VERSION = "3.0.0-unified"
+VERSION = "1.0.0"
 SYSTEM_NAME = "LuxOS Unified"
 
 class UnifiedSystemManager:
