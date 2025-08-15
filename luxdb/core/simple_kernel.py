@@ -64,6 +64,8 @@ class SimpleKernel:
                 "initialized_at": {"py_type": "str"}
             },
             "module_source": '''
+from datetime import datetime
+
 def init(being_context=None):
     """Initialize simple kernel"""
     print(f"🧠 Simple Kernel {being_context.get('alias', 'unknown')} ready")
@@ -142,8 +144,6 @@ def execute(request=None, being_context=None, **kwargs):
                 "version": "1.0.0"
             },
             "module_source": '''
-from datetime import datetime
-
 def execute(request=None, being_context=None, **kwargs):
     """Handles authentication requests"""
     action = request.get('action') if request else 'status'
@@ -207,7 +207,7 @@ def execute(request=None, being_context=None, **kwargs):
             "dispatched": True,
             "task_id": task_data.get('task_id'),
             "target": target,
-            "dispatch_time": datetime.now().isoformat()
+            "dispatch_time": "processed"
         }
 
     elif action == 'route':
