@@ -11,7 +11,7 @@ Kernel jako master function który:
 
 import asyncio
 import uuid
-from datetime import datetime
+import datetime as dt
 from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, field
 
@@ -37,76 +37,33 @@ class SimpleKernel:
     """
 
     def __init__(self):
-        self.kernel_being: Optional[Being] = None
+        self.kernel_being: Optional[Being] = None # Zostawione dla kompatybilności, ale nieużywane do stanu
         self.active_tasks: Dict[str, Task] = {}
         self.task_listeners: Dict[str, List[Callable]] = {}
         self.modules: Dict[str, Being] = {}
         self.running = False
+        self.kernel_id: str = ""
+        self.kernel_state: Dict[str, Any] = {}
+
 
     async def initialize(self):
         """Inicjalizuje prosty kernel"""
         print("🧠 Initializing Simple Kernel...")
 
-        # Utwórz Soul dla Kernel
-        kernel_genotype = {
-            "genesis": {
-                "name": "simple_kernel",
-                "type": "async_kernel",
-                "version": "1.0.0",
-                "description": "Prosty asynchroniczny kernel z systemem zadań"
-            },
-            "attributes": {
-                "active_tasks": {"py_type": "dict", "default": {}},
-                "modules": {"py_type": "dict", "default": {}},
-                "task_history": {"py_type": "list", "default": []},
-                "kernel_type": {"py_type": "str", "default": "simple_async"},
-                "max_concurrent_tasks": {"py_type": "int", "default": 100},
-                "initialized_at": {"py_type": "str"}
-            },
-            "module_source": '''
-from datetime import datetime
-
-def init(being_context=None):
-    """Initialize simple kernel"""
-    print(f"🧠 Simple Kernel {being_context.get('alias', 'unknown')} ready")
-    return {"ready": True, "type": "async_kernel", "suggested_persistence": True}
-
-def execute(request=None, being_context=None, **kwargs):
-    """Main kernel execution - delegates to task system"""
-    print(f"🧠 Kernel processing request: {request}")
-
-    if not request:
-        return {"status": "kernel_ready", "active_tasks": len(being_context.get('data', {}).get('active_tasks', {}))}
-
-    # Wszystkie żądania stają się zadaniami
-    task_type = request.get('task_type', 'generic')
-    target_module = request.get('target_module', 'kernel')
-    payload = request.get('payload', {})
-
-    return {
-        "task_created": True,
-        "task_type": task_type,
-        "target_module": target_module,
-        "delegated_to": "async_task_system"
-    }
-'''
+        # Kernel nie tworzy własnych bytów - tylko zarządza zadaniami
+        self.kernel_id = f"kernel_{dt.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.kernel_state = {
+            "active_tasks": {},
+            "modules": {},
+            "task_history": [],
+            "kernel_type": "simple_async",
+            "max_concurrent_tasks": 100,
+            "initialized_at": dt.datetime.now().isoformat(),
+            "kernel_id": self.kernel_id
         }
 
-        kernel_soul = await Soul.create(kernel_genotype, alias="simple_kernel_soul")
-
-        # Utwórz Kernel Being
-        self.kernel_being = await Being.create(
-            soul=kernel_soul,
-            alias="simple_kernel",
-            attributes={
-                "active_tasks": {},
-                "modules": {},
-                "task_history": [],
-                "kernel_type": "simple_async",
-                "max_concurrent_tasks": 100,
-                "initialized_at": datetime.now().isoformat()
-            }
-        )
+        # Kernel nie jest Being - jest czystym koordynatorem
+        print(f"🧠 Simple Kernel ready: {self.kernel_id}")
 
         # Załaduj podstawowe moduły
         await self._load_core_modules()
@@ -114,8 +71,8 @@ def execute(request=None, being_context=None, **kwargs):
         # Załaduj tasks i dispenser
         await self._load_tasks_dispenser()
 
-        print(f"🧠 Simple Kernel initialized: {self.kernel_being.ulid}")
-        return self.kernel_being
+        self.running = True
+        return self.kernel_id # Zwraca ID kernela zamiast Being
 
     async def _load_core_modules(self):
         """Ładuje podstawowe moduły systemu"""
@@ -336,7 +293,7 @@ def execute(request=None, being_context=None, **kwargs):
 
                 task.result = result
                 task.status = "completed"
-                task.completed_at = datetime.now()
+                task.completed_at = dt.datetime.now()
 
                 print(f"✅ Task {task_id} completed")
 
@@ -345,7 +302,7 @@ def execute(request=None, being_context=None, **kwargs):
                 result = await self._kernel_fallback_processing(task)
                 task.result = result
                 task.status = "completed"
-                task.completed_at = datetime.now()
+                task.completed_at = dt.datetime.now()
 
                 print(f"🧠 Task {task_id} handled by kernel fallback")
 
@@ -355,7 +312,7 @@ def execute(request=None, being_context=None, **kwargs):
         except Exception as e:
             task.status = "failed"
             task.error = str(e)
-            task.completed_at = datetime.now()
+            task.completed_at = dt.datetime.now()
             print(f"❌ Task {task_id} failed: {e}")
 
         # Cleanup po czasie
@@ -364,7 +321,7 @@ def execute(request=None, being_context=None, **kwargs):
     async def _kernel_fallback_processing(self, task: Task) -> Dict[str, Any]:
         """Kernel sam obsługuje zadanie gdy nie ma odpowiedniego modułu"""
         if task.task_type == "ping":
-            return {"pong": True, "timestamp": datetime.now().isoformat()}
+            return {"pong": True, "timestamp": dt.datetime.now().isoformat()}
 
         elif task.task_type == "status":
             return {
@@ -403,20 +360,18 @@ def execute(request=None, being_context=None, **kwargs):
         if task_id in self.active_tasks:
             task = self.active_tasks.pop(task_id)
 
-            # Przenieś do historii w Kernel Being
-            if self.kernel_being:
-                history = self.kernel_being.data.get('task_history', [])
-                history.append({
-                    "task_id": task_id,
-                    "task_type": task.task_type,
-                    "status": task.status,
-                    "completed_at": task.completed_at.isoformat() if task.completed_at else None,
-                    "cleanup_at": datetime.now().isoformat()
-                })
+            # Przenieś do historii w pamięci kernel
+            history = self.kernel_state.get('task_history', [])
+            history.append({
+                "task_id": task_id,
+                "task_type": task.task_type,
+                "status": task.status,
+                "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                "cleanup_at": dt.datetime.now().isoformat()
+            })
 
-                # Zachowaj tylko ostatnie 100 zadań w historii
-                self.kernel_being.data['task_history'] = history[-100:]
-                await self.kernel_being.save()
+            # Zachowaj tylko ostatnie 100 zadań w historii
+            self.kernel_state['task_history'] = history[-100:]
 
             print(f"🗑️ Cleaned up task {task_id}")
 
@@ -447,7 +402,7 @@ def execute(request=None, being_context=None, **kwargs):
         """Status całego systemu"""
         return {
             "kernel_active": self.running,
-            "kernel_being_ulid": self.kernel_being.ulid if self.kernel_being else None,
+            "kernel_id": self.kernel_id,
             "active_tasks_count": len(self.active_tasks),
             "loaded_modules": list(self.modules.keys()),
             "task_listeners_count": sum(len(listeners) for listeners in self.task_listeners.values())
