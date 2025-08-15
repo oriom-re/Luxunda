@@ -1,0 +1,66 @@
+{
+  "soul_info": {
+    "soul_hash": "bd34967c18c39a4c4ff1dd8c9e9f2d510b824451074b8a5aafa56f85bc72226d",
+    "alias": "math_calculator",
+    "global_ulid": "01K16YDK7GNRBANHHQDMZVRGE7",
+    "version": "1.0.0",
+    "parent_hash": null,
+    "created_at": "2025-08-15T18:32:49.343701"
+  },
+  "genotype": {
+    "genesis": {
+      "name": "math_calculator",
+      "type": "computation_being",
+      "description": "Mathematical calculations being",
+      "version": "1.0.0",
+      "source_file": "genotypes/math_calculator.json",
+      "loaded_at": "2025-08-15T18:32:48.893799",
+      "loader_type": "dictionary_json"
+    },
+    "attributes": {
+      "precision": {
+        "py_type": "int",
+        "default": 10
+      },
+      "last_result": {
+        "py_type": "float",
+        "default": 0.0
+      },
+      "operation_history": {
+        "py_type": "List[str]",
+        "default": []
+      }
+    },
+    "functions": {},
+    "capabilities": {
+      "basic_math": true,
+      "advanced_math": false,
+      "statistics": true
+    },
+    "dependencies": {}
+  },
+  "analysis": {
+    "has_module_source": false,
+    "language": "python",
+    "functions_count": 0,
+    "public_functions": [],
+    "private_functions": [],
+    "attribute_types": {
+      "precision": "int",
+      "last_result": "float",
+      "operation_history": "List[str]"
+    },
+    "is_evolution": false
+  },
+  "creation_context": {
+    "method": "Soul.create",
+    "genotype_processed": true,
+    "function_registry_loaded": false,
+    "validation_passed": true
+  },
+  "system_info": {
+    "timestamp": "2025-08-15T18:32:49.343701",
+    "luxos_version": "3.0.0-unified",
+    "creation_method": "Soul.create"
+  }
+}
