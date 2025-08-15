@@ -144,13 +144,19 @@ class SoulRepository:
                     ON CONFLICT (soul_hash) DO UPDATE SET
                         alias = EXCLUDED.alias,
                         genotype = EXCLUDED.genotype
+                    RETURNING created_at, updated_at
                 """
-                await conn.execute(query,
+                result = await conn.fetchrow(query,
                     soul.soul_hash,
                     soul.global_ulid,
                     soul.alias,
                     json.dumps(soul.genotype)
                 )
+                
+                if result:
+                    soul.created_at = result['created_at']
+                    # Zaktualizuj obiekt soul z czasami z bazy
+                
                 return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -354,6 +360,7 @@ class BeingRepository:
                 )
 
                 if result:
+                    # Baza danych automatycznie ustawia created_at i updated_at
                     being.created_at = result['created_at']
                     being.updated_at = result['updated_at']
 

@@ -1,4 +1,3 @@
-
 # Adding the ensure_tables_exist method to the Postgre_db class and adjusting get_db_pool.
 import asyncpg
 
@@ -60,28 +59,32 @@ class Postgre_db:
                     await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
                 except:
                     print("⚠️ Vector extension not available, skipping...")
-                    
+
                 try:
                     await conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
                 except:
                     print("⚠️ Pgcrypto extension not available, skipping...")
-                    
+
                 try:
                     await conn.execute("CREATE EXTENSION IF NOT EXISTS btree_gin;")
                 except:
                     print("⚠️ Btree_gin extension not available, skipping...")
 
-                # Tabela souls - bez zmian
-                await conn.execute("""  
+                # Tabela souls
+                await conn.execute("""
                     CREATE TABLE IF NOT EXISTS souls (
-                        soul_hash CHAR(64) PRIMARY KEY,
-                        global_ulid CHAR(26) NOT NULL,
+                        soul_hash VARCHAR(255) PRIMARY KEY,
+                        global_ulid VARCHAR(255) NOT NULL,
                         alias VARCHAR(255),
                         genotype JSONB NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(soul_hash)
                     );
+                """)
 
-                    -- Indeksy dla souls
+                # Indeksy dla souls
+                await conn.execute("""
                     CREATE INDEX IF NOT EXISTS idx_souls_genotype ON souls USING gin (genotype);
                     CREATE INDEX IF NOT EXISTS idx_souls_alias ON souls (alias);
                     CREATE INDEX IF NOT EXISTS idx_souls_created_at ON souls (created_at);
@@ -90,18 +93,19 @@ class Postgre_db:
                 # Tabela beings - NOWA STRUKTURA Z JSONB
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS beings (
-                        ulid CHAR(26) PRIMARY KEY,
-                        soul_hash CHAR(64) NOT NULL,
+                        ulid VARCHAR(255) PRIMARY KEY,
+                        soul_hash VARCHAR(255) REFERENCES souls(soul_hash),
                         alias VARCHAR(255),
                         data JSONB DEFAULT '{}',
                         vector_embedding vector(1536),
                         table_type VARCHAR(50) DEFAULT 'being',
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (soul_hash) REFERENCES souls(soul_hash)
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     );
+                """)
 
-                    -- Główne indeksy dla beings
+                # Główne indeksy dla beings
+                await conn.execute("""
                     CREATE INDEX IF NOT EXISTS idx_beings_soul_hash ON beings (soul_hash);
                     CREATE INDEX IF NOT EXISTS idx_beings_data ON beings USING gin (data);
                     CREATE INDEX IF NOT EXISTS idx_beings_created_at ON beings (created_at);
@@ -117,11 +121,11 @@ class Postgre_db:
                 # Tabela relations - NOWA STRUKTURA Z JSONB
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS relations (
-                        ulid CHAR(26) PRIMARY KEY,
-                        soul_hash CHAR(64) NOT NULL,
+                        ulid VARCHAR(255) PRIMARY KEY,
+                        soul_hash VARCHAR(255) REFERENCES souls(soul_hash),
                         alias VARCHAR(255),
-                        source_ulid CHAR(26),
-                        target_ulid CHAR(26),
+                        source_ulid VARCHAR(255),
+                        target_ulid VARCHAR(255),
                         data JSONB DEFAULT '{}',
                         relation_type VARCHAR(100) DEFAULT 'connection',
                         strength FLOAT DEFAULT 1.0,
@@ -131,8 +135,10 @@ class Postgre_db:
                         FOREIGN KEY (source_ulid) REFERENCES beings(ulid) ON DELETE CASCADE,
                         FOREIGN KEY (target_ulid) REFERENCES beings(ulid) ON DELETE CASCADE
                     );
+                """)
 
-                    -- Indeksy dla relations
+                # Indeksy dla relations
+                await conn.execute("""
                     CREATE INDEX IF NOT EXISTS idx_relations_soul_hash ON relations (soul_hash);
                     CREATE INDEX IF NOT EXISTS idx_relations_source ON relations (source_ulid);
                     CREATE INDEX IF NOT EXISTS idx_relations_target ON relations (target_ulid);
@@ -142,6 +148,42 @@ class Postgre_db:
                     CREATE INDEX IF NOT EXISTS idx_relations_created_at ON relations (created_at);
                     CREATE INDEX IF NOT EXISTS idx_relations_updated_at ON relations (updated_at);
                     CREATE INDEX IF NOT EXISTS idx_relations_alias ON relations (alias);
+
+                # Funkcja do automatycznego aktualizowania updated_at
+                CREATE OR REPLACE FUNCTION update_modified_column()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    NEW.updated_at = CURRENT_TIMESTAMP;
+                    RETURN NEW;
+                END;
+                $$ language 'plpgsql';
+                """)
+
+                # Trigger dla tabeli souls
+                await conn.execute("""
+                    DROP TRIGGER IF EXISTS update_souls_modtime ON souls;
+                    CREATE TRIGGER update_souls_modtime
+                        BEFORE UPDATE ON souls
+                        FOR EACH ROW
+                        EXECUTE FUNCTION update_modified_column();
+                """)
+
+                # Trigger dla tabeli beings
+                await conn.execute("""
+                    DROP TRIGGER IF EXISTS update_beings_modtime ON beings;
+                    CREATE TRIGGER update_beings_modtime
+                        BEFORE UPDATE ON beings
+                        FOR EACH ROW
+                        EXECUTE FUNCTION update_modified_column();
+                """)
+
+                # Trigger dla tabeli relations
+                await conn.execute("""
+                    DROP TRIGGER IF EXISTS update_relations_modtime ON relations;
+                    CREATE TRIGGER update_relations_modtime
+                        BEFORE UPDATE ON relations
+                        FOR EACH ROW
+                        EXECUTE FUNCTION update_modified_column();
                 """)
 
                 # Tabela relationships - zachowana dla kompatybilności
@@ -161,8 +203,10 @@ class Postgre_db:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE(source_id, target_id, relation_type)
                     );
+                """)
 
-                    -- Indeksy dla relationships
+                # Indeksy dla relationships
+                await conn.execute("""
                     CREATE INDEX IF NOT EXISTS idx_relationships_source_id ON relationships (source_id);
                     CREATE INDEX IF NOT EXISTS idx_relationships_target_id ON relationships (target_id);
                     CREATE INDEX IF NOT EXISTS idx_relationships_source_type ON relationships (source_type);

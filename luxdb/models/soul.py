@@ -75,12 +75,13 @@ class Soul:
         soul.alias = alias
         soul.genotype = processed_genotype
         soul.soul_hash = soul_hash
+        # created_at będzie ustawione automatycznie przez bazę danych
 
         # Załaduj moduł i zarejestruj funkcje w rejestrze
         if soul.has_module_source():
             soul._load_and_register_module_functions()
 
-        # Zapis do bazy danych
+        # Zapis do bazy danych - baza automatycznie ustawi created_at/updated_at
         result = await SoulRepository.set(soul)
         if not result.get('success'):
             raise Exception("Failed to create soul")
@@ -1030,7 +1031,7 @@ class Soul:
                 )
 
     @classmethod
-    def create_function_soul(cls, name: str, func: Callable, description: str = None, alias: str = None, version: str = "1.0.0") -> 'Soul':
+    async def create_function_soul(cls, name: str, func: Callable, description: str = None, alias: str = None, version: str = "1.0.0") -> 'Soul':
         """
         Tworzy specjalizowany Soul dla pojedynczej funkcji z niezmiennym genotypem.
 
@@ -1051,8 +1052,7 @@ class Soul:
                 "type": "function_soul", 
                 "version": version,
                 "description": description or f"Soul for function {name}",
-                "immutable": True,
-                "created_at": datetime.now().isoformat()
+                "immutable": True
             },
             "attributes": {
                 "function_name": {"py_type": "str", "default": name},
