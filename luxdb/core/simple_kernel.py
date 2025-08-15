@@ -288,15 +288,26 @@ def execute(request=None, being_context=None, **kwargs):
             target_module = self.modules.get(task.target_module)
 
             if target_module:
-                # Deleguj do modułu - ensure payload is dict
-                payload = task.payload if isinstance(task.payload, dict) else {"data": task.payload}
-                result = await target_module.execute(payload)
-
-                task.result = result
-                task.status = "completed"
-                task.completed_at = datetime.now()
-
-                print(f"✅ Task {task_id} completed")
+                # Deleguj do modułu - ensure payload is dict and properly formatted
+                if isinstance(task.payload, dict):
+                    execution_payload = task.payload
+                else:
+                    execution_payload = {"data": task.payload}
+                
+                # Execute with proper error handling
+                try:
+                    result = await target_module.execute_soul_function("execute", execution_payload)
+                    task.result = result
+                    task.status = "completed"
+                    task.completed_at = datetime.now()
+                    print(f"✅ Task {task_id} completed")
+                except Exception as exec_e:
+                    print(f"⚠️ Module execution failed for {task_id}, trying direct call: {exec_e}")
+                    # Fallback to kernel processing
+                    result = await self._kernel_fallback_processing(task)
+                    task.result = result
+                    task.status = "completed"
+                    task.completed_at = datetime.now()
 
             else:
                 # Fallback - kernel sam obsługuje

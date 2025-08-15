@@ -521,36 +521,93 @@
             }
 
             connect() {
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.host}/ws`;
+                // WebSocket connection with automatic reconnection
+                let ws = null;
+                let reconnectTimeout = null;
+                let isConnecting = false;
+                let reconnectAttempts = 0;
+                const maxReconnectAttempts = 5;
 
-                this.ws = new WebSocket(wsUrl);
+                function connect() {
+                    if (isConnecting || (ws && ws.readyState === WebSocket.OPEN)) {
+                        return;
+                    }
 
-                this.ws.onopen = () => {
-                    console.log('🌟 Connected to Lux!');
-                    this.connectionStatus.innerHTML = '✅ Połączony z Lux';
-                    this.connectionStatus.style.background = 'rgba(0, 255, 0, 0.2)';
-                    this.connectionStatus.style.borderColor = 'rgba(0, 255, 0, 0.3)';
-                };
+                    if (reconnectAttempts >= maxReconnectAttempts) {
+                        addMessage('system', '❌ Max reconnection attempts reached. Please refresh the page.', 'now');
+                        return;
+                    }
 
-                this.ws.onmessage = (event) => {
-                    const data = JSON.parse(event.data);
-                    this.handleMessage(data);
-                };
+                    isConnecting = true;
+                    reconnectAttempts++;
+                    addMessage('system', `🔄 Connecting to Lux... (attempt ${reconnectAttempts})`, 'now');
 
-                this.ws.onclose = () => {
-                    console.log('❌ Disconnected from Lux');
-                    this.connectionStatus.innerHTML = '❌ Rozłączony';
-                    this.connectionStatus.style.background = 'rgba(255, 0, 0, 0.2)';
-                    this.connectionStatus.style.borderColor = 'rgba(255, 0, 0, 0.3)';
+                    try {
+                        ws = new WebSocket(`ws://${window.location.host}/ws`);
 
-                    // Reconnect after 3 seconds
-                    setTimeout(() => this.connect(), 3000);
-                };
+                        ws.onopen = function(event) {
+                            console.log('🌟 Connected to Lux!');
+                            isConnecting = false;
+                            reconnectAttempts = 0; // Reset on successful connection
+                            addMessage('system', '🌟 Connected to Lux!', 'now');
 
-                this.ws.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                };
+                            // Send session initialization
+                            const initData = {
+                                type: "init_session",
+                                user_info: getUserInfo()
+                            };
+                            ws.send(JSON.stringify(initData));
+
+                            // Clear any reconnection timeout
+                            if (reconnectTimeout) {
+                                clearTimeout(reconnectTimeout);
+                                reconnectTimeout = null;
+                            }
+                        };
+                        ws.onmessage = function(event) {
+                            const data = JSON.parse(event.data);
+                            handleMessage(data);
+                        };
+                        ws.onclose = function(event) {
+                            console.log('❌ Disconnected from Lux', event);
+                            isConnecting = false;
+
+                            if (event.wasClean) {
+                                addMessage('system', '👋 Connection closed cleanly', 'now');
+                            } else {
+                                addMessage('system', `❌ Connection lost (${event.code}: ${event.reason || 'Unknown error'})`, 'now');
+
+                                // Attempt to reconnect after increasing delays
+                                if (!reconnectTimeout && reconnectAttempts < maxReconnectAttempts) {
+                                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Exponential backoff, max 30s
+                                    reconnectTimeout = setTimeout(() => {
+                                        reconnectTimeout = null;
+                                        connect();
+                                    }, delay);
+                                }
+                            }
+                        };
+                        ws.onerror = function(error) {
+                            console.error('WebSocket error:', error);
+                            addMessage('system', '⚠️ WebSocket error occurred. See console for details.', 'now');
+                            // The onclose handler will typically be called after an error,
+                            // which will trigger the reconnection logic.
+                        };
+                    } catch (error) {
+                        console.error('Failed to initialize WebSocket:', error);
+                        addMessage('system', '❌ Failed to initialize WebSocket connection.', 'now');
+                        isConnecting = false;
+                        // Attempt to reconnect if initialization fails
+                        if (!reconnectTimeout && reconnectAttempts < maxReconnectAttempts) {
+                            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                            reconnectTimeout = setTimeout(() => {
+                                reconnectTimeout = null;
+                                connect();
+                            }, delay);
+                        }
+                    }
+                }
+                connect(); // Initial connection attempt
             }
 
             setupEventListeners() {
@@ -861,6 +918,51 @@
             }
         }
 
+        // Global helper functions for WebSocket
+        // Note: These should ideally be methods of LuxInterface or passed into it.
+        // For simplicity and direct replacement, they are kept global here.
+        function addMessage(type, content, timestamp) {
+            // This function is called from the WebSocket logic.
+            // It needs access to the chatMessages element.
+            // Ideally, this should be part of the LuxInterface class.
+            const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return;
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = content;
+
+            // Basic timestamping (replace with actual time if needed)
+            if (timestamp) {
+                const timeSpan = document.createElement('span');
+                timeSpan.style.fontSize = '0.7em';
+                timeSpan.style.opacity = '0.7';
+                timeSpan.style.marginLeft = '10px';
+                timeSpan.textContent = `(${timestamp})`;
+                messageDiv.appendChild(timeSpan);
+            }
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function getUserInfo() {
+            // Placeholder for user info - replace with actual logic to get user details
+            // e.g., from auth tokens, cookies, etc.
+            return { id: 'anonymous', username: 'Guest' };
+        }
+
+        function handleMessage(data) {
+            // This function is called from the WebSocket logic.
+            // It needs access to the LuxInterface instance to call its methods.
+            if (window.luxInterface && typeof window.luxInterface.handleMessage === 'function') {
+                window.luxInterface.handleMessage(data);
+            } else {
+                console.error("LuxInterface not initialized or handleMessage not found");
+            }
+        }
+
+        // Initialize LuxInterface
         const luxInterface = new LuxInterface();
 
         // Placeholder for sessionContext if it exists, otherwise define dummy functions
