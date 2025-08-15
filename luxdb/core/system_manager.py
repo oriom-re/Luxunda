@@ -18,7 +18,7 @@ import ulid
 from .simple_kernel import simple_kernel
 from .intelligent_kernel import intelligent_kernel
 from .session_data_manager import global_session_registry
-from .being_ownership_manager import KernelBeingManager
+from .being_ownership_manager import BeingOwnershipManager
 from ..models.soul import Soul
 from ..models.being import Being
 
@@ -57,7 +57,7 @@ class SystemManager:
         self.kernel_type = kernel_type
         
         # 2. Initialize Being ownership management
-        self.kernel_being_manager = KernelBeingManager(self.kernel_instance)
+        self.kernel_being_manager = BeingOwnershipManager()
         
         # 3. Load genotypes if requested
         if load_genotypes:
@@ -88,9 +88,14 @@ class SystemManager:
             
         session_id = str(ulid.ulid())
         
-        # Create Lux Being for user via Kernel Being Manager
-        lux_being = await self.kernel_being_manager.create_lux_being_for_user(
-            user_identifier, session_data
+        # Create Lux Being for user 
+        lux_being = await Being.create(
+            alias="lux",
+            attributes={
+                "user_identifier": user_identifier,
+                "session_data": session_data or {}
+            },
+            persistent=True
         )
         
         # Register session
@@ -124,10 +129,8 @@ class SystemManager:
         # Update last activity
         session["last_activity"] = datetime.now().isoformat()
         
-        # Get Lux Being through ownership manager
-        return await self.kernel_being_manager.ownership_manager.get_being_safe(
-            lux_ulid, lux_ulid
-        )
+        # Get Lux Being directly
+        return await Being._get_by_ulid_internal(lux_ulid)
         
     async def create_soul(self, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
         """
@@ -144,17 +147,17 @@ class SystemManager:
         """
         being = await Being.create(soul, attributes, persistent)
         
-        # Register ownership
+        # Register ownership (simplified for now)
         if owner_session and owner_session in self.active_sessions:
             session = self.active_sessions[owner_session]
             lux_ulid = session["lux_being_ulid"]
-            await self.kernel_being_manager.ownership_manager.register_being_ownership(
-                being, lux_ulid
+            await self.kernel_being_manager.register_being_as_resource_master(
+                lux_ulid, being.ulid, "being"
             )
         else:
             # Default to kernel ownership
-            await self.kernel_being_manager.ownership_manager.register_being_ownership(
-                being, self.kernel_instance.ulid
+            await self.kernel_being_manager.register_being_as_resource_master(
+                self.kernel_instance.ulid, being.ulid, "being"
             )
             
         self.system_stats["beings_created"] += 1
