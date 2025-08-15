@@ -90,15 +90,12 @@ class Postgre_db:
                     CREATE INDEX IF NOT EXISTS idx_souls_created_at ON souls (created_at);
                 """)
 
-                # Tabela beings - NOWA STRUKTURA Z JSONB
+                # Tabela beings - CZYSTA STRUKTURA JSONB
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS beings (
                         ulid VARCHAR(255) PRIMARY KEY,
                         soul_hash VARCHAR(255) REFERENCES souls(soul_hash),
-                        alias VARCHAR(255),
                         data JSONB DEFAULT '{}',
-                        vector_embedding vector(1536),
-                        table_type VARCHAR(50) DEFAULT 'being',
                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     );
@@ -110,12 +107,6 @@ class Postgre_db:
                     CREATE INDEX IF NOT EXISTS idx_beings_data ON beings USING gin (data);
                     CREATE INDEX IF NOT EXISTS idx_beings_created_at ON beings (created_at);
                     CREATE INDEX IF NOT EXISTS idx_beings_updated_at ON beings (updated_at);
-                    CREATE INDEX IF NOT EXISTS idx_beings_alias ON beings (alias);
-                    CREATE INDEX IF NOT EXISTS idx_beings_table_type ON beings (table_type);
-
-                    -- Indeks wektorowy
-                    CREATE INDEX IF NOT EXISTS idx_beings_vector ON beings USING ivfflat (vector_embedding vector_cosine_ops)
-                    WITH (lists = 100);
                 """)
 
                 # Tabela relations - NOWA STRUKTURA Z JSONB

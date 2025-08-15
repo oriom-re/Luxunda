@@ -184,7 +184,7 @@ class BeingRepository:
         try:
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
-                query = "SELECT ulid, soul_hash, alias, data, access_zone, created_at, updated_at FROM beings ORDER BY created_at DESC"
+                query = "SELECT ulid, soul_hash, data, created_at, updated_at FROM beings ORDER BY created_at DESC"
                 rows = await conn.fetch(query)
 
                 beings = []
@@ -222,7 +222,7 @@ class BeingRepository:
 
             async with pool.acquire() as conn:
                 query = """
-                    SELECT ulid, soul_hash, alias, data, created_at, updated_at
+                    SELECT ulid, soul_hash, data, created_at, updated_at
                     FROM beings
                     WHERE ulid = $1
                 """
@@ -249,7 +249,6 @@ class BeingRepository:
                 being_dict = {
                     'ulid': row['ulid'],
                     'soul_hash': row['soul_hash'],
-                    'alias': row['alias'],
                     'data': data,  # Teraz z deserializacją typów
                     'created_at': row['created_at'],
                     'updated_at': row['updated_at']
@@ -276,8 +275,8 @@ class BeingRepository:
 
             async with pool.acquire() as conn:
                 query = """
-                    SELECT * FROM beings
-                    WHERE alias = $1
+                    SELECT ulid, soul_hash, data, created_at, updated_at FROM beings
+                    WHERE data::jsonb->>'alias' = $1
                     ORDER BY created_at DESC
                 """
                 rows = await conn.fetch(query, alias)
@@ -288,12 +287,12 @@ class BeingRepository:
                     being = Being()
                     being.ulid = row['ulid']
                     being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
                     being.data = row['data'] or {}
-                    being.vector_embedding = row['vector_embedding']
-                    being.table_type = row['table_type']
                     being.created_at = row['created_at']
                     being.updated_at = row['updated_at']
+
+                    # Alias z danych JSONB jeśli istnieje
+                    being.alias = being.data.get('alias')
                     beings.append(being)
 
                 return {"success": True, "beings": beings}
@@ -315,16 +314,18 @@ class BeingRepository:
                 return {"success": False}
 
             async with pool.acquire() as conn:
+                # Zapisz alias w danych JSONB
+                if being.alias:
+                    being.data['alias'] = being.alias
+
                 query = """
-                    INSERT INTO beings (ulid, soul_hash, alias, data, vector_embedding, table_type)
-                    VALUES ($1, $2, $3, $4, $5, $6)
+                    INSERT INTO beings (ulid, soul_hash, data, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT (ulid) DO UPDATE SET
-                        alias = EXCLUDED.alias,
+                        soul_hash = EXCLUDED.soul_hash,
                         data = EXCLUDED.data,
-                        vector_embedding = EXCLUDED.vector_embedding,
-                        table_type = EXCLUDED.table_type,
-                        updated_at = CURRENT_TIMESTAMP
-                    RETURNING created_at, updated_at
+                        updated_at = EXCLUDED.updated_at
+                    RETURNING created_at
                 """
 
                 # Ensure ULID is generated if missing
@@ -332,32 +333,12 @@ class BeingRepository:
                     import ulid
                     being.ulid = str(ulid.ulid())
 
-                # Determine table_type
-                table_type = 'being'
-
-                # Spróbuj pobrać Soul dla określenia typu
-                try:
-                    soul = await being.get_soul() if hasattr(being, 'get_soul') else None
-                    if soul:
-                        soul_alias = getattr(soul, 'alias', None)
-                        genotype = getattr(soul, 'genotype', {})
-                        genesis_type = genotype.get('genesis', {}).get('type', None)
-
-                        if soul_alias in ['user_profile', 'ai_agent']:
-                            table_type = 'soul'
-                        elif genesis_type == 'relation' or soul_alias == 'basic_relation':
-                            table_type = 'relation'
-                except Exception as e:
-                    print(f"⚠️ Nie można określić table_type dla Being {being.ulid}: {e}")
-                    # Zostaw domyślny 'being'
-
                 result = await conn.fetchrow(query,
                     being.ulid,
                     being.soul_hash,
-                    being.alias,
                     json.dumps(being.data),
-                    getattr(being, 'vector_embedding', None),
-                    table_type
+                    being.created_at,
+                    being.updated_at
                 )
 
                 if result:
@@ -393,7 +374,7 @@ class BeingRepository:
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
                 rows = await conn.fetch(
-                    "SELECT * FROM beings ORDER BY created_at DESC LIMIT $1",
+                    "SELECT ulid, soul_hash, data, created_at, updated_at FROM beings ORDER BY created_at DESC LIMIT $1",
                     limit
                 )
 
@@ -402,7 +383,6 @@ class BeingRepository:
                 for row in rows:
                     being = Being(
                         soul_hash=row['soul_hash'],
-                        alias=row['alias'],
                         data=row['data'] or {},
                         ulid=row['ulid']
                     )
@@ -436,8 +416,8 @@ class BeingRepository:
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
                 rows = await conn.fetch("""
-                    SELECT * FROM beings
-                    WHERE alias ILIKE $1
+                    SELECT ulid, soul_hash, data, created_at, updated_at FROM beings
+                    WHERE data::jsonb->>'alias' ILIKE $1
                     OR data::text ILIKE $1
                     ORDER BY created_at DESC
                     LIMIT $2
@@ -448,7 +428,6 @@ class BeingRepository:
                 for row in rows:
                     being = Being(
                         soul_hash=row['soul_hash'],
-                        alias=row['alias'],
                         data=row['data'] or {},
                         ulid=row['ulid']
                     )
@@ -476,7 +455,7 @@ class BeingRepository:
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
                 rows = await conn.fetch(
-                    "SELECT * FROM beings WHERE soul_hash = $1 ORDER BY created_at DESC",
+                    "SELECT ulid, soul_hash, data, created_at, updated_at FROM beings WHERE soul_hash = $1 ORDER BY created_at DESC",
                     soul_hash
                 )
 
@@ -501,8 +480,8 @@ class BeingRepository:
 
             async with pool.acquire() as conn:
                 query = """
-                    SELECT * FROM beings
-                    WHERE alias = $1
+                    SELECT ulid, soul_hash, data, created_at, updated_at FROM beings
+                    WHERE data::jsonb->>'alias' = $1
                     ORDER BY created_at DESC
                 """
                 rows = await conn.fetch(query, alias)
@@ -513,12 +492,12 @@ class BeingRepository:
                     being = Being()
                     being.ulid = row['ulid']
                     being.soul_hash = row['soul_hash']
-                    being.alias = row['alias']
                     being.data = row['data'] or {}
-                    being.vector_embedding = row['vector_embedding']
-                    being.table_type = row['table_type']
                     being.created_at = row['created_at']
                     being.updated_at = row['updated_at']
+
+                    # Alias z danych JSONB jeśli istnieje
+                    being.alias = being.data.get('alias')
                     beings.append(being)
 
                 return {"success": True, "beings": beings}
@@ -540,6 +519,10 @@ class BeingRepository:
         try:
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
+                # Zapisz alias w danych JSONB jeśli istnieje
+                if being.alias:
+                    being.data['alias'] = being.alias
+
                 query = """
                     UPDATE beings 
                     SET data = $1, updated_at = $2
