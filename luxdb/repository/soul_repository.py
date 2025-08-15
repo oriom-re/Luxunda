@@ -144,7 +144,7 @@ class SoulRepository:
                     ON CONFLICT (soul_hash) DO UPDATE SET
                         alias = EXCLUDED.alias,
                         genotype = EXCLUDED.genotype
-                    RETURNING created_at, updated_at
+                    RETURNING created_at
                 """
                 result = await conn.fetchrow(query,
                     soul.soul_hash,
@@ -155,7 +155,6 @@ class SoulRepository:
 
                 if result:
                     soul.created_at = result['created_at']
-                    # Zaktualizuj obiekt soul z czasami z bazy
 
                 return {"success": True}
         except Exception as e:
