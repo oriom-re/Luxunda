@@ -30,8 +30,9 @@ app = FastAPI(title="Lux AI Assistant Web Interface")
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Global Session Manager - będzie zaimportowany z session_data_manager
-session_manager = None
+# Global Session Manager
+from luxdb.core.session_data_manager import SessionManager
+session_manager = SessionManager()
 
 class ConnectionManager:
     def __init__(self):
@@ -78,6 +79,9 @@ async def startup_event():
             print("✅ OpenAI connection successful")
         except Exception as e:
             print(f"⚠️ OpenAI connection warning: {e}")
+
+        # Initialize Session Manager
+        await session_manager.initialize()
 
         # Initialize Lux Assistant with unified system
         await initialize_lux_assistant()
