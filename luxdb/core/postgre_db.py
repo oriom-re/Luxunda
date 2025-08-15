@@ -90,7 +90,7 @@ class Postgre_db:
                     CREATE INDEX IF NOT EXISTS idx_souls_created_at ON souls (created_at);
                 """)
 
-                # Tabela beings - CZYSTA STRUKTURA JSONB
+                # Tabela beings - CZYSTA STRUKTURA JSONB (bez alias - alias jest w Soul)
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS beings (
                         ulid VARCHAR(255) PRIMARY KEY,

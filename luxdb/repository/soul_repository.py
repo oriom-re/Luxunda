@@ -314,9 +314,6 @@ class BeingRepository:
                 return {"success": False}
 
             async with pool.acquire() as conn:
-                # Zapisz alias w danych JSONB
-                if being.alias:
-                    being.data['alias'] = being.alias
 
                 query = """
                     INSERT INTO beings (ulid, soul_hash, data, created_at, updated_at)
@@ -519,9 +516,6 @@ class BeingRepository:
         try:
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
-                # Zapisz alias w danych JSONB jeśli istnieje
-                if being.alias:
-                    being.data['alias'] = being.alias
 
                 query = """
                     UPDATE beings 

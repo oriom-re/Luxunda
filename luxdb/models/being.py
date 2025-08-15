@@ -252,7 +252,6 @@ class Being:
         being = cls()
         being.soul_hash = target_soul.soul_hash
         being.global_ulid = target_soul.global_ulid
-        # Being NIE MA alias - tylko identyfikator ULID
         being.alias = alias
 
         # Walidacja i serializacja danych
@@ -334,7 +333,6 @@ class Being:
         being = cls()
         being.soul_hash = target_soul.soul_hash
         being.global_ulid = target_soul.global_ulid
-        # Being NIE MA alias - tylko identyfikator ULID
         being.alias = alias
         being.access_zone = access_zone
 
