@@ -55,6 +55,34 @@
       "parent_hash": null,
       "report_file": "3abf69635837ca00_20250815_131614.json",
       "created_at": "2025-08-15T13:16:14.504045"
+    },
+    "7c63fa4b08388ec55ef4f6687aa484a20c2d8f754eb00693a1aca32845cd5faa": {
+      "alias": "logger_being",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "7c63fa4b08388ec5_20250815_180504.json",
+      "created_at": "2025-08-15T18:05:04.921142"
+    },
+    "16ac4601901c3c0cd1f77d9b527f7c3ef74348e67845531c72f447ebb618cd6b": {
+      "alias": "math_calculator",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "16ac4601901c3c0c_20250815_180505.json",
+      "created_at": "2025-08-15T18:05:05.367499"
+    },
+    "b8d7ada4489d1e88ea57442ccd72b934863fa86cbd7b74158fe62384e93c96a7": {
+      "alias": "message_processor",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "b8d7ada4489d1e88_20250815_180505.json",
+      "created_at": "2025-08-15T18:05:05.815145"
+    },
+    "895befd638586eec623a635e094de46560c57445fb28d90e1c932eebd8da9a2f": {
+      "alias": "lux_soul_01K2QEG8WQ3BDC9A748YFVKSSV",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "895befd638586eec_20250815_180507.json",
+      "created_at": "2025-08-15T18:05:07.247713"
     }
   },
   "aliases": {
@@ -166,6 +194,34 @@
         "soul_hash": "a70c7a10177638c60c6d8b4a3341344e588f84d5b3621915cb40afb3c6e86409",
         "version": "1.0.0",
         "created_at": "2025-08-15T12:16:02.505102"
+      }
+    ],
+    "logger_being": [
+      {
+        "soul_hash": "7c63fa4b08388ec55ef4f6687aa484a20c2d8f754eb00693a1aca32845cd5faa",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T18:05:04.921153"
+      }
+    ],
+    "math_calculator": [
+      {
+        "soul_hash": "16ac4601901c3c0cd1f77d9b527f7c3ef74348e67845531c72f447ebb618cd6b",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T18:05:05.367508"
+      }
+    ],
+    "message_processor": [
+      {
+        "soul_hash": "b8d7ada4489d1e88ea57442ccd72b934863fa86cbd7b74158fe62384e93c96a7",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T18:05:05.815154"
+      }
+    ],
+    "lux_soul_01K2QEG8WQ3BDC9A748YFVKSSV": [
+      {
+        "soul_hash": "895befd638586eec623a635e094de46560c57445fb28d90e1c932eebd8da9a2f",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T18:05:07.247724"
       }
     ]
   }

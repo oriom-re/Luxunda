@@ -1,0 +1,27 @@
+{
+  "genesis": {
+    "name": "logger_being",
+    "type": "utility_being",
+    "description": "Simple logging utility being",
+    "version": "1.0.0"
+  },
+  "attributes": {
+    "log_level": {
+      "py_type": "str",
+      "default": "INFO"
+    },
+    "log_file": {
+      "py_type": "str",
+      "default": "app.log"
+    },
+    "max_file_size": {
+      "py_type": "int",
+      "default": 10485760
+    }
+  },
+  "capabilities": {
+    "can_log": true,
+    "can_rotate_logs": true,
+    "can_filter_levels": true
+  }
+}

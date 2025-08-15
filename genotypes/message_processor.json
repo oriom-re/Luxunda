@@ -1,0 +1,27 @@
+{
+  "genesis": {
+    "name": "message_processor",
+    "type": "communication_being",
+    "description": "Message processing and routing being",
+    "version": "1.0.0"
+  },
+  "attributes": {
+    "max_message_length": {
+      "py_type": "int",
+      "default": 1000
+    },
+    "encoding": {
+      "py_type": "str",
+      "default": "utf-8"
+    },
+    "processed_count": {
+      "py_type": "int",
+      "default": 0
+    }
+  },
+  "capabilities": {
+    "can_process": true,
+    "can_route": true,
+    "can_validate": true
+  }
+}
