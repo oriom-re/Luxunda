@@ -1,0 +1,142 @@
+{
+  "soul_info": {
+    "soul_hash": "7dfccc11847c7f386eeec4a0c971bf12c08a8bb213e653eb5f6a3e67ad5c8c09",
+    "alias": "simple_kernel_soul",
+    "global_ulid": "01K16YDK7GNRBANHHQDMZVRGE7",
+    "version": "1.0.0",
+    "parent_hash": null,
+    "created_at": "2025-08-15T13:07:47.847768"
+  },
+  "genotype": {
+    "genesis": {
+      "name": "simple_kernel",
+      "type": "async_kernel",
+      "version": "1.0.0",
+      "description": "Prosty asynchroniczny kernel z systemem zadań",
+      "language": "python"
+    },
+    "attributes": {
+      "active_tasks": {
+        "py_type": "dict",
+        "default": {}
+      },
+      "modules": {
+        "py_type": "dict",
+        "default": {}
+      },
+      "task_history": {
+        "py_type": "list",
+        "default": []
+      },
+      "kernel_type": {
+        "py_type": "str",
+        "default": "simple_async"
+      },
+      "max_concurrent_tasks": {
+        "py_type": "int",
+        "default": 100
+      },
+      "initialized_at": {
+        "py_type": "str"
+      }
+    },
+    "functions": {
+      "init": {
+        "py_type": "function",
+        "description": "Initialize simple kernel",
+        "is_async": false,
+        "is_coroutine": false,
+        "signature": {
+          "parameters": {
+            "being_context": {
+              "type": "Any",
+              "default": "None",
+              "required": false,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "Any"
+        }
+      },
+      "execute": {
+        "py_type": "function",
+        "description": "Main kernel execution - delegates to task system",
+        "is_async": false,
+        "is_coroutine": false,
+        "signature": {
+          "parameters": {
+            "request": {
+              "type": "Any",
+              "default": "None",
+              "required": false,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "being_context": {
+              "type": "Any",
+              "default": "None",
+              "required": false,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "kwargs": {
+              "type": "Any",
+              "default": null,
+              "required": true,
+              "kind": "VAR_KEYWORD"
+            }
+          },
+          "return_type": "Any"
+        }
+      }
+    },
+    "capabilities": {
+      "language": "python",
+      "has_init": true,
+      "has_execute": true,
+      "function_count": 2,
+      "public_function_count": 2,
+      "private_function_count": 0,
+      "attribute_count": 0,
+      "dependencies_count": 1,
+      "missing_dependencies": []
+    },
+    "dependencies": {
+      "datetime": {
+        "type": "standard",
+        "module": "datetime",
+        "imported_name": "datetime",
+        "alias": null,
+        "source": "from_import"
+      }
+    }
+  },
+  "analysis": {
+    "has_module_source": true,
+    "language": "python",
+    "functions_count": 3,
+    "public_functions": [
+      "init",
+      "execute"
+    ],
+    "private_functions": [],
+    "attribute_types": {
+      "active_tasks": "dict",
+      "modules": "dict",
+      "task_history": "list",
+      "kernel_type": "str",
+      "max_concurrent_tasks": "int",
+      "initialized_at": "str"
+    },
+    "is_evolution": false
+  },
+  "creation_context": {
+    "method": "Soul.create",
+    "genotype_processed": true,
+    "function_registry_loaded": true,
+    "validation_passed": true
+  },
+  "system_info": {
+    "timestamp": "2025-08-15T13:07:47.847768",
+    "luxos_version": "3.0.0-unified",
+    "creation_method": "Soul.create"
+  }
+}
