@@ -8,6 +8,7 @@ import json
 from luxdb.core.postgre_db import Postgre_db
 from luxdb.core.globals import Globals
 from typing import TYPE_CHECKING
+from datetime import datetime
 if TYPE_CHECKING:
     from luxdb.models.soul import Soul
     from luxdb.models.being import Being
@@ -523,7 +524,7 @@ class BeingRepository:
             async with pool.acquire() as conn:
 
                 query = """
-                    UPDATE beings 
+                    UPDATE beings
                     SET data = $1, updated_at = $2
                     WHERE ulid = $3
                 """
