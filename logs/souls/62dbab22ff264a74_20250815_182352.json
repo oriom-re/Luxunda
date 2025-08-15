@@ -1,0 +1,66 @@
+{
+  "soul_info": {
+    "soul_hash": "62dbab22ff264a743c936532fac38472e269a361fbbbc40efabb98abbb8a2b39",
+    "alias": "logger_being",
+    "global_ulid": "01K16YDK7GNRBANHHQDMZVRGE7",
+    "version": "1.0.0",
+    "parent_hash": null,
+    "created_at": "2025-08-15T18:23:52.091938"
+  },
+  "genotype": {
+    "genesis": {
+      "name": "logger_being",
+      "type": "utility_being",
+      "description": "Simple logging utility being",
+      "version": "1.0.0",
+      "source_file": "genotypes/logger_being.json",
+      "loaded_at": "2025-08-15T18:23:51.524183",
+      "loader_type": "dictionary_json"
+    },
+    "attributes": {
+      "log_level": {
+        "py_type": "str",
+        "default": "INFO"
+      },
+      "log_file": {
+        "py_type": "str",
+        "default": "app.log"
+      },
+      "max_file_size": {
+        "py_type": "int",
+        "default": 10485760
+      }
+    },
+    "functions": {},
+    "capabilities": {
+      "can_log": true,
+      "can_rotate_logs": true,
+      "can_filter_levels": true
+    },
+    "dependencies": {}
+  },
+  "analysis": {
+    "has_module_source": false,
+    "language": "python",
+    "functions_count": 0,
+    "public_functions": [],
+    "private_functions": [],
+    "attribute_types": {
+      "log_level": "str",
+      "log_file": "str",
+      "max_file_size": "int"
+    },
+    "is_evolution": false
+  },
+  "creation_context": {
+    "method": "Soul.create",
+    "genotype_processed": true,
+    "function_registry_loaded": false,
+    "validation_passed": true
+  },
+  "system_info": {
+    "timestamp": "2025-08-15T18:23:52.091938",
+    "luxos_version": "3.0.0-unified",
+    "creation_method": "Soul.create"
+  }
+}
