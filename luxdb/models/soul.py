@@ -455,7 +455,7 @@ class Soul:
 
             # Przygotuj środowisko z zależnościami
             temp_globals = {"__name__": "__temp_module__"}
-            
+
             # Próbuj załadować zależności
             missing_deps = []
             for dep_name, dep_info in dependencies.items():
@@ -475,7 +475,7 @@ class Soul:
                     validation_result["warnings"].append(f"Cannot import {dep_name}: {e}")
 
             validation_result["missing_dependencies"] = missing_deps
-            
+
             # Wykonaj kod w przygotowanym środowisku
             exec(module_source, temp_globals)
 
@@ -507,66 +507,6 @@ class Soul:
                                 "return_type": str(sig.return_annotation) if sig.return_annotation != sig.empty else "Any"
                             }
 
-
-    async def execute_directly(self, function_name: str, *args, **kwargs) -> Dict[str, Any]:
-        """
-        DIRECT SOUL EXECUTION - wykonuje funkcję bez tworzenia Being.
-        Używane gdy nie ma danych do zapisu.
-
-        Args:
-            function_name: Nazwa funkcji
-            *args, **kwargs: Argumenty
-
-        Returns:
-            Wynik funkcji w formacie genetycznym
-        """
-        from luxdb.utils.serializer import GeneticResponseFormat
-
-        print(f"🧬 Soul {self.alias} executing '{function_name}' directly (no Being)")
-        
-        try:
-            result = await self.execute_function(function_name, *args, **kwargs)
-            
-            if result.get('success'):
-                result['soul_context']['execution_mode'] = 'soul_direct'
-                result['soul_context']['performance_optimized'] = True
-                result['data']['execution_info'] = {
-                    "executed_by": "soul_direct",
-                    "being_avoided": True,
-                    "reason": "no_persistent_data_needed"
-                }
-            
-            return result
-        
-        except Exception as e:
-            return GeneticResponseFormat.error_response(
-                error=f"Direct Soul execution failed: {str(e)}",
-                error_code="SOUL_DIRECT_EXECUTION_ERROR",
-                soul_context={"soul_hash": self.soul_hash, "execution_mode": "soul_direct"}
-            )
-    
-    def can_execute_directly(self, data_context: Dict[str, Any] = None) -> bool:
-        """
-        Sprawdza czy Soul może wykonać operację bezpośrednio bez Being.
-        
-        Args:
-            data_context: Kontekst danych operacji
-            
-        Returns:
-            True jeśli Soul może działać bezpośrednio
-        """
-        # Soul może działać bezpośrednio jeśli:
-        # 1. Ma zarejestrowane funkcje
-        # 2. Nie ma danych do zapisu
-        # 3. To tylko obliczenia/przetwarzanie
-        
-        has_functions = len(self._function_registry) > 0
-        needs_persistence = self.should_create_persistent_being(data_context)
-        
-        return has_functions and not needs_persistence
-
-
-                        }
 
                         # Sprawdź specjalne funkcje
                         if name == 'init':
@@ -607,6 +547,64 @@ class Soul:
 
         return validation_result
 
+    async def execute_directly(self, function_name: str, *args, **kwargs) -> Dict[str, Any]:
+        """
+        DIRECT SOUL EXECUTION - wykonuje funkcję bez tworzenia Being.
+        Używane gdy nie ma danych do zapisu.
+
+        Args:
+            function_name: Nazwa funkcji
+            *args, **kwargs: Argumenty
+
+        Returns:
+            Wynik funkcji w formacie genetycznym
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+
+        print(f"🧬 Soul {self.alias} executing '{function_name}' directly (no Being)")
+
+        try:
+            result = await self.execute_function(function_name, *args, **kwargs)
+
+            if result.get('success'):
+                result['soul_context']['execution_mode'] = 'soul_direct'
+                result['soul_context']['performance_optimized'] = True
+                result['data']['execution_info'] = {
+                    "executed_by": "soul_direct",
+                    "being_avoided": True,
+                    "reason": "no_persistent_data_needed"
+                }
+
+            return result
+
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Direct Soul execution failed: {str(e)}",
+                error_code="SOUL_DIRECT_EXECUTION_ERROR",
+                soul_context={"soul_hash": self.soul_hash, "execution_mode": "soul_direct"}
+            )
+
+    def can_execute_directly(self, data_context: Dict[str, Any] = None) -> bool:
+        """
+        Sprawdza czy Soul może wykonać operację bezpośrednio bez Being.
+
+        Args:
+            data_context: Kontekst danych operacji
+
+        Returns:
+            True jeśli Soul może działać bezpośrednio
+        """
+        # Soul może działać bezpośrednio jeśli:
+        # 1. Ma zarejestrowane funkcje
+        # 2. Nie ma danych do zapisu
+        # 3. To tylko obliczenia/przetwarzanie
+
+        has_functions = len(self._function_registry) > 0
+        needs_persistence = self.should_create_persistent_being(data_context)
+
+        return has_functions and not needs_persistence
+
+
     def load_module_dynamically(self) -> Optional[Any]:
         """Ładuje moduł dynamicznie z kodu źródłowego - obsługuje różne języki"""
         if not self.has_module_source():
@@ -618,7 +616,7 @@ class Soul:
             return self._loaded_module
 
         language = self.get_language()
-        
+
         try:
             if language == "python":
                 return self._load_python_module(module_name)
@@ -676,16 +674,16 @@ class Soul:
         try:
             # Wrapper dla JavaScript - może być rozszerzony o PyV8, Node.js bridge itp.
             js_wrapper = JavaScriptWrapper(self.get_module_source(), module_name)
-            
+
             # Zarejestruj funkcje JavaScript jako callable Python objects
             for func_name in js_wrapper.get_function_names():
                 if func_name not in self._function_registry:
                     self._function_registry[func_name] = js_wrapper.create_python_callable(func_name)
-            
+
             self._loaded_module = js_wrapper
             print(f"✅ Loaded JavaScript module {module_name}")
             return js_wrapper
-            
+
         except Exception as e:
             print(f"❌ JavaScript loading failed: {e}")
             return None
@@ -695,30 +693,30 @@ class Soul:
         try:
             # Multi-language modules mają sekcje dla różnych języków
             module_source = self.get_module_source()
-            
+
             # Parsuj sekcje językowe (format: ```python ... ``` ```javascript ... ```)
             language_sections = self._parse_multi_language_source(module_source)
-            
+
             combined_module = MultiLanguageModule(module_name)
-            
+
             for lang, code in language_sections.items():
                 if lang == "python":
                     python_funcs = self._extract_python_functions(code)
                     for name, func in python_funcs.items():
                         self._function_registry[name] = func
                         combined_module.add_function(name, func, "python")
-                        
+
                 elif lang == "javascript":
                     js_wrapper = JavaScriptWrapper(code, f"{module_name}_{lang}")
                     for func_name in js_wrapper.get_function_names():
                         js_callable = js_wrapper.create_python_callable(func_name)
                         self._function_registry[func_name] = js_callable
                         combined_module.add_function(func_name, js_callable, "javascript")
-            
+
             self._loaded_module = combined_module
             print(f"✅ Loaded multi-language module {module_name}")
             return combined_module
-            
+
         except Exception as e:
             print(f"❌ Multi-language loading failed: {e}")
             return None
@@ -726,28 +724,28 @@ class Soul:
     def _parse_multi_language_source(self, source: str) -> Dict[str, str]:
         """Parsuje kod wielojęzyczny na sekcje"""
         import re
-        
+
         sections = {}
         pattern = r'```(\w+)\n(.*?)\n```'
         matches = re.findall(pattern, source, re.DOTALL)
-        
+
         for language, code in matches:
             sections[language.lower()] = code.strip()
-            
+
         return sections
 
     def _extract_python_functions(self, code: str) -> Dict[str, Any]:
         """Wyciąga funkcje z kodu Python"""
         import types
-        
+
         temp_globals = {}
         exec(code, temp_globals)
-        
+
         functions = {}
         for name, obj in temp_globals.items():
             if callable(obj) and not name.startswith('_'):
                 functions[name] = obj
-                
+
         return functions
 
     def extract_functions_from_module(self, module: Any) -> Dict[str, Callable]:
@@ -824,7 +822,7 @@ class Soul:
     async def auto_init(self, being_context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Automatyczne wywołanie funkcji init jeśli istnieje.
-        
+
         Soul.init() może zdecydować czy Being powinno być persistent na podstawie:
         - Obecności atrybutów (dane do zapisania)
         - Typu operacji (message, log, temp processing)
@@ -844,44 +842,44 @@ class Soul:
                 'has_attributes': len(enhanced_context.get('data', {})) > 0,
                 'persistence_hint': self._suggest_persistence(enhanced_context)
             })
-            
+
             return await self.execute_function('init', being_context=enhanced_context)
         else:
             from luxdb.utils.serializer import GeneticResponseFormat
             return GeneticResponseFormat.success_response(
                 data={"message": "No init function found, skipping auto-initialization"}
             )
-    
+
     def _suggest_persistence(self, being_context: Dict[str, Any]) -> bool:
         """
         Sugeruje czy Being powinno być persistent na podstawie kontekstu.
-        
+
         Returns:
             True jeśli Being powinno być zapisane do bazy
         """
         # Sprawdź typ Soul
         soul_type = self.genotype.get('genesis', {}).get('type', '')
-        
+
         # Typy które zazwyczaj są persistent
         persistent_types = ['message', 'log', 'user_data', 'relation', 'registry']
         if soul_type in persistent_types:
             return True
-            
+
         # Typy które zazwyczaj są temporary  
         temp_types = ['processor', 'calculator', 'validator', 'transformer']
         if soul_type in temp_types:
             return False
-            
+
         # Sprawdź czy ma dane do zapisania
         data = being_context.get('data', {})
         if data and len(data) > 0:
             return True
-            
+
         # Sprawdź czy ma alias (sugeruje trwałość)
         alias = being_context.get('alias')
         if alias and not alias.startswith('temp_'):
             return True
-            
+
         # Domyślnie temporary
         return False
 
@@ -924,7 +922,7 @@ class Soul:
         metadata_only_keys = ['_temp', '_cache', '_session', '_debug']
         non_metadata_attrs = {k: v for k, v in attributes.items() 
                              if not any(k.startswith(meta) for meta in metadata_only_keys)}
-        
+
         # Jeśli są tylko metadane = Soul wykonuje bezpośrednio
         if len(non_metadata_attrs) == 0:
             return False
@@ -936,7 +934,7 @@ class Soul:
     async def execute_or_create_being(self, function_name: str = None, attributes: Dict[str, Any] = None, alias: str = None, force_being: bool = False, *args, **kwargs) -> Dict[str, Any]:
         """
         LAZY BEING CREATION: Soul wykonuje funkcje bezpośrednio, Being tworzy się tylko gdy zajdzie potrzeba zapisu.
-        
+
         Logika:
         1. Jeśli nie ma atrybutów do zapisu -> Soul wykonuje bezpośrednio
         2. Jeśli są atrybuty -> Utwórz Being i wykonaj przez niego
@@ -957,15 +955,15 @@ class Soul:
         # TRYB 1: Bezpośrednie wykonanie przez Soul (bez Being)
         if not attributes and not force_being:
             print(f"🧬 Soul {self.alias} executing function '{function_name}' directly (no Being needed)")
-            
+
             if function_name:
                 result = await self.execute_function(function_name, *args, **kwargs)
-                
+
                 # Dodaj informację o trybie wykonania
                 if result.get('success'):
                     result['soul_context']['execution_mode'] = 'soul_direct'
                     result['soul_context']['being_created'] = False
-                
+
                 return result
             else:
                 return GeneticResponseFormat.success_response(
@@ -976,11 +974,11 @@ class Soul:
                         "being_created": False
                     }
                 )
-        
+
         # TRYB 2: Lazy Being Creation - tworzymy Being bo są dane do zapisu
         else:
             print(f"🧬 Soul {self.alias} creating Being for persistent execution")
-            
+
             from .being import Being
 
             being = await Being.create(
@@ -1130,11 +1128,11 @@ class Soul:
             return genotype
 
         module_source = genotype["module_source"]
-        
+
         # Automatycznie wykryj język jeśli nie podano
         if "genesis" not in genotype:
             genotype["genesis"] = {}
-            
+
         if "language" not in genotype["genesis"]:
             from ..utils.language_bridge import LanguageDetector
             detected_language = LanguageDetector.detect_language(module_source)
@@ -1204,7 +1202,7 @@ class Soul:
         """Waliduje kod JavaScript"""
         # Podstawowa walidacja JavaScript - można rozszerzyć
         import re
-        
+
         validation_result = {
             "valid": True,
             "functions": {},
@@ -1212,17 +1210,17 @@ class Soul:
             "warnings": [],
             "language": "javascript"
         }
-        
+
         try:
             # Znajdź funkcje
             function_pattern = r'function\s+(\w+)\s*\([^)]*\)'
             arrow_pattern = r'(?:const|let|var)\s+(\w+)\s*=\s*\([^)]*\)\s*=>'
-            
+
             functions = re.findall(function_pattern, source)
             arrow_functions = re.findall(arrow_pattern, source)
-            
+
             all_functions = functions + arrow_functions
-            
+
             for func_name in all_functions:
                 validation_result["functions"][func_name] = {
                     "py_type": "function",
@@ -1230,23 +1228,23 @@ class Soul:
                     "is_async": False,  # Można rozszerzyć o async detection
                     "language": "javascript"
                 }
-                
+
                 if func_name == 'init':
                     validation_result["has_init"] = True
                 elif func_name == 'execute':
                     validation_result["has_execute"] = True
-                    
+
         except Exception as e:
             validation_result["valid"] = False
             validation_result["errors"].append(f"JavaScript validation error: {str(e)}")
-            
+
         return validation_result
 
     @classmethod 
     def _validate_multi_language_source(cls, source: str) -> Dict[str, Any]:
         """Waliduje kod wielojęzyczny"""
         import re
-        
+
         validation_result = {
             "valid": True,
             "functions": {},
@@ -1256,55 +1254,55 @@ class Soul:
             "has_init": False,
             "has_execute": False
         }
-        
+
         try:
             # Parsuj sekcje językowe
             pattern = r'```(\w+)\n(.*?)\n```'
             matches = re.findall(pattern, source, re.DOTALL)
-            
+
             if not matches:
                 validation_result["valid"] = False
                 validation_result["errors"].append("No language sections found in multi-language source")
                 return validation_result
-            
+
             for language, code in matches:
                 lang = language.lower()
-                
+
                 if lang == "python":
                     py_validation = cls.validate_module_source(code)
                     if py_validation["valid"]:
                         for func_name, func_info in py_validation["functions"].items():
                             func_info["source_language"] = "python"
                             validation_result["functions"][func_name] = func_info
-                            
+
                         if py_validation.get("has_init"):
                             validation_result["has_init"] = True
                         if py_validation.get("has_execute"):
                             validation_result["has_execute"] = True
                     else:
                         validation_result["warnings"].extend(py_validation["errors"])
-                        
+
                 elif lang == "javascript":
                     js_validation = cls._validate_javascript_source(code)
                     if js_validation["valid"]:
                         for func_name, func_info in js_validation["functions"].items():
                             func_info["source_language"] = "javascript"
                             validation_result["functions"][func_name] = func_info
-                            
+
                         if js_validation.get("has_init"):
                             validation_result["has_init"] = True
                         if js_validation.get("has_execute"):
                             validation_result["has_execute"] = True
                     else:
                         validation_result["warnings"].extend(js_validation["errors"])
-                        
+
                 else:
                     validation_result["warnings"].append(f"Unsupported language section: {language}")
-                    
+
         except Exception as e:
             validation_result["valid"] = False
             validation_result["errors"].append(f"Multi-language validation error: {str(e)}")
-            
+
         return validation_result
 
     def _load_and_register_module_functions(self):
@@ -1326,7 +1324,7 @@ class Soul:
         """Wyciąga zależności z AST"""
         import ast
         dependencies = {}
-        
+
         class DependencyVisitor(ast.NodeVisitor):
             def visit_Import(self, node):
                 for alias in node.names:
@@ -1338,7 +1336,7 @@ class Soul:
                         "source": "import"
                     }
                 self.generic_visit(node)
-            
+
             def visit_ImportFrom(self, node):
                 if node.module:
                     for alias in node.names:
@@ -1351,22 +1349,22 @@ class Soul:
                             "source": "from_import"
                         }
                 self.generic_visit(node)
-        
+
         visitor = DependencyVisitor()
         visitor.visit(tree)
         return dependencies
-    
+
     @classmethod
     def _classify_dependency(cls, module_name: str) -> str:
         """Klasyfikuje zależność jako standard/external/local"""
         import sys
-        
+
         standard_libs = {
             'os', 'sys', 'json', 'asyncio', 'datetime', 'time', 'math', 
             'random', 'hashlib', 'uuid', 'logging', 'pathlib', 'typing',
             'collections', 'itertools', 'functools', 're', 'urllib', 'http'
         }
-        
+
         if module_name in standard_libs or module_name in sys.stdlib_module_names:
             return "standard"
         elif module_name.startswith('.'):
@@ -1461,18 +1459,18 @@ class Soul:
                                        reason: str = "Function enhancement") -> 'Soul':
         """
         Ewolucja Soul z nowymi funkcjami spoza module_source.
-        
+
         Args:
             new_functions: Nowe funkcje do dodania
             reason: Powód ewolucji
-            
+
         Returns:
             Nowa Soul z rozszerzonymi funkcjami
         """
         # Przygotuj zmiany
         current_functions = self.genotype.get("functions", {}).copy()
         current_functions.update(new_functions)
-        
+
         changes = {
             "functions": current_functions,
             "evolution_info": {
@@ -1481,26 +1479,26 @@ class Soul:
                 "evolution_type": "function_enhancement"
             }
         }
-        
+
         # Aktualizuj capabilities
         if "capabilities" not in changes:
             changes["capabilities"] = self.genotype.get("capabilities", {}).copy()
-        
+
         changes["capabilities"]["function_count"] = len(current_functions)
         changes["capabilities"]["evolved_function_count"] = len(new_functions)
-        
+
         return await self.create_evolved_version(self, changes)
 
     def can_accept_new_functions(self) -> bool:
         """Sprawdza czy Soul może przyjąć nowe funkcje"""
         # Soul może ewoluować jeśli ma podstawowe możliwości
         capabilities = self.genotype.get("capabilities", {})
-        
+
         # Wymagania: ma init lub execute, nie jest immutable
         has_init = capabilities.get("has_init", False)
         has_execute = capabilities.get("has_execute", False)
         is_immutable = self.genotype.get("genesis", {}).get("immutable", False)
-        
+
         return (has_init or has_execute) and not is_immutable
 
     @classmethod
