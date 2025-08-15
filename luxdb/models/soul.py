@@ -85,6 +85,18 @@ class Soul:
         if not result.get('success'):
             raise Exception("Failed to create soul")
 
+        # Loguj utworzenie Soul z raportem
+        try:
+            from ..utils.soul_creation_logger import soul_creation_logger
+            soul_creation_logger.log_soul_creation(soul, {
+                "method": "Soul.create",
+                "genotype_processed": True,
+                "function_registry_loaded": bool(soul.has_module_source()),
+                "validation_passed": True
+            })
+        except Exception as e:
+            print(f"⚠️ Soul creation logging failed: {e}")
+
         return soul
 
     @classmethod
@@ -1110,7 +1122,22 @@ class Soul:
                 evolved_genotype[key] = value
 
         # Utwórz nową Soul
-        return await cls.create(evolved_genotype, original_soul.alias)
+        evolved_soul = await cls.create(evolved_genotype, original_soul.alias)
+        
+        # Dodatkowe logowanie dla ewolucji
+        try:
+            from ..utils.soul_creation_logger import soul_creation_logger
+            soul_creation_logger.log_soul_creation(evolved_soul, {
+                "method": "Soul.create_evolved_version",
+                "original_hash": original_soul.soul_hash,
+                "evolution_changes": changes,
+                "version_increment": new_version,
+                "evolution_type": "version_update"
+            })
+        except Exception as e:
+            print(f"⚠️ Evolution logging failed: {e}")
+            
+        return evolved_soul
 
     @classmethod
     def _process_module_source_for_genotype(cls, genotype: Dict[str, Any]) -> Dict[str, Any]:
