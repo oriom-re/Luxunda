@@ -28,7 +28,7 @@ async def quick_test():
         print("2. 🧬 Testing Soul creation...")
         simple_genotype = {
             "genesis": {"name": "quick_test", "version": "1.0.0"},
-            "module_source": "def greet(name=\"World\"):\n    import datetime\n    return f\"Hello, {name}! Current time: {datetime.datetime.now()}\""
+            "module_source": "def greet(name=\"World\"):\n    return f\"Hello, {name}! Test completed successfully.\""
         }
         soul = await Soul.create(simple_genotype, "quick_test_soul")
         print("📝 Soul creation report generated:", report_path)
