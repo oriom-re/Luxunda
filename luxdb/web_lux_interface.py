@@ -42,7 +42,8 @@ class ConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def send_personal_message(self, message: str, websocket: WebSocket):
         await websocket.send_text(message)
@@ -133,7 +134,7 @@ async def login_page(request: Request):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for Session-based Lux conversations"""
+    """WebSocket endpoint for real-time communication with heartbeat support"""
     await manager.connect(websocket)
 
     # Initialize session
@@ -165,6 +166,21 @@ async def websocket_endpoint(websocket: WebSocket):
                 "session_context": context,
                 "timestamp": "now"
             }))
+        elif init_data.get('type') == 'ping':
+            await websocket.send_text(json.dumps({
+                'type': 'pong',
+                'timestamp': init_data.get('timestamp'),
+                'server_time': datetime.now().isoformat()
+            }))
+            return # Pong handled, don't proceed further in this loop
+        elif init_data.get('type') == 'connection':
+            print(f"🔗 Client connected: {init_data.get('fingerprint', 'unknown')}")
+            await websocket.send_text(json.dumps({
+                'type': 'connection_ack',
+                'status': 'connected',
+                'server_time': datetime.now().isoformat()
+            }))
+            return # Connection ack handled, don't proceed further in this loop
         else:
             await websocket.send_text(json.dumps({
                 "type": "error",
@@ -176,6 +192,25 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             message_data = json.loads(data)
+
+            if message_data.get('type') == 'ping':
+                await websocket.send_text(json.dumps({
+                    'type': 'pong',
+                    'timestamp': message_data.get('timestamp'),
+                    'server_time': datetime.now().isoformat()
+                }))
+                continue
+
+            # Handle connection info (if client reconnects or sends it again)
+            if message_data.get('type') == 'connection':
+                print(f"🔗 Client connected: {message_data.get('fingerprint', 'unknown')}")
+                await websocket.send_text(json.dumps({
+                    'type': 'connection_ack',
+                    'status': 'connected',
+                    'server_time': datetime.now().isoformat()
+                }))
+                continue
+
 
             if message_data["type"] == "user_message":
                 user_message = message_data["message"]
@@ -192,7 +227,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Send contextual response
                 context = await user_session.build_conversation_context()
                 await websocket.send_text(json.dumps({
-                    "type": "lux_response", 
+                    "type": "lux_response",
                     "message": response,
                     "session_context": context,
                     "active_projects": list(user_session.session.project_tags),
@@ -211,12 +246,51 @@ async def websocket_endpoint(websocket: WebSocket):
                 }))
 
     except WebSocketDisconnect:
+        print("🔌 WebSocket disconnected normally")
         manager.disconnect(websocket)
         # Session will be cleaned up automatically by TTL
 
     except Exception as e:
         print(f"❌ WebSocket error: {e}")
-        await websocket.close()
+        manager.disconnect(websocket)
+        # Consider sending an error message to the client before closing if possible
+        try:
+            await websocket.send_text(json.dumps({
+                'type': 'error',
+                'message': f'Server error: {str(e)}',
+                'timestamp': datetime.now().isoformat()
+            }))
+            await websocket.close()
+        except:
+            pass # Ignore errors during closing
+
+# Helper function to process websocket messages (moved from main loop for clarity)
+async def process_websocket_message(message_data: Dict[str, Any]):
+    """Processes a message received from the WebSocket client."""
+    # This function would contain the logic to handle different message types
+    # For now, it's a placeholder. The original code's logic is integrated above.
+    # If this function were to be used, it would need access to user_session.
+    # For demonstration, we'll return a dummy response.
+    # In a real scenario, you'd pass user_session to this function.
+
+    # Placeholder for actual message processing logic.
+    # The logic from the original websocket_endpoint is now directly in the endpoint.
+    # If this function were to be called, it would need access to `user_session`.
+    # Example:
+    # if message_data["type"] == "user_message":
+    #     user_message = message_data["message"]
+    #     response = await user_session.process_message(user_message)
+    #     context = await user_session.build_conversation_context()
+    #     return {
+    #         "type": "lux_response",
+    #         "message": response,
+    #         "session_context": context,
+    #         "active_projects": list(user_session.session.project_tags),
+    #         "recent_activity": user_session.get_recent_actions_summary(),
+    #         "timestamp": "now"
+    #     }
+    raise NotImplementedError("Message processing logic needs to be implemented or integrated.")
+
 
 # API Endpoints dla systemu komunikacji
 
@@ -227,8 +301,8 @@ async def login(request: LoginRequest):
 
     try:
         session_data = await auth_manager.authenticate_user(
-            request.username, 
-            request.password, 
+            request.username,
+            request.password,
             request.fingerprint
         )
 

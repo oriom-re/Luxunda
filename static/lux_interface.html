@@ -674,7 +674,14 @@
 
         class LuxInterface {
             constructor() {
-                this.ws = null; // This will be managed by connectWebSocket directly now
+                this.ws = null;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 10;
+                this.reconnectDelay = 1000;
+                this.isConnected = false;
+                this.messageQueue = [];
+                this.toolsRefreshTimeout = null;
+
                 this.messageInput = document.getElementById('messageInput');
                 this.chatMessages = document.getElementById('chatMessages');
                 this.toolsList = document.getElementById('toolsList');
@@ -682,9 +689,82 @@
                 this.accessBtn = document.querySelector('.access-btn');
                 this.backBtn = document.querySelector('.back-btn');
 
-                connectWebSocket(); // Initiate WebSocket connection
                 this.setupEventListeners();
+                this.connect();
                 this.loadTools();
+            }
+
+            connect() {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    return;
+                }
+
+                const wsUrl = `ws://${window.location.host}/ws`;
+                console.log('🔌 Connecting to:', wsUrl);
+
+                this.ws = new WebSocket(wsUrl);
+
+                this.ws.onopen = (event) => {
+                    console.log('🌟 Connected to Lux!');
+                    this.isConnected = true;
+                    this.reconnectAttempts = 0;
+                    this.updateConnectionStatus('🟢 Połączono');
+
+                    // Send queued messages
+                    while (this.messageQueue.length > 0) {
+                        const queuedMessage = this.messageQueue.shift();
+                        this.ws.send(JSON.stringify(queuedMessage));
+                    }
+
+                    // Initialize session
+                    this.sendMessage({
+                        type: "init_session",
+                        user_info: {
+                            user_agent: navigator.userAgent,
+                            screen_resolution: `${screen.width}x${screen.height}`,
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                        }
+                    });
+                };
+
+                this.ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        this.handleMessage(data);
+                    } catch (error) {
+                        console.error('❌ Error parsing message:', error);
+                    }
+                };
+
+                this.ws.onclose = (event) => {
+                    this.isConnected = false;
+                    console.log('❌ Disconnected from Lux');
+                    this.updateConnectionStatus('🔴 Rozłączono');
+
+                    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                        const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts), 10000);
+                        this.reconnectAttempts++;
+
+                        setTimeout(() => {
+                            console.log(`🔄 Reconnecting... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+                            this.connect();
+                        }, delay);
+                    } else {
+                        this.updateConnectionStatus('❌ Błąd połączenia');
+                    }
+                };
+
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    this.isConnected = false;
+                };
+            }
+
+            updateConnectionStatus(status) {
+                if (this.connectionStatus) {
+                    this.connectionStatus.textContent = status;
+                    this.connectionStatus.className = this.isConnected ? 'status connected' : 'status disconnected';
+                }
             }
 
             setupEventListeners() {
@@ -753,20 +833,34 @@
                 });
             }
 
-            sendMessage() {
-                const message = this.messageInput.value.trim();
-                if (!message || !ws || ws.readyState !== WebSocket.OPEN) return;
+            sendMessage(messageData = null) {
+                let data;
 
-                // Add user message to chat
-                this.addMessage(message, 'user');
+                if (messageData) {
+                    data = messageData;
+                } else {
+                    const message = this.messageInput.value.trim();
+                    if (!message) return;
 
-                // Send to Lux
-                ws.send(JSON.stringify({
-                    type: 'user_message',
-                    message: message
-                }));
+                    data = {
+                        type: 'user_message',
+                        message: message
+                    };
 
-                this.messageInput.value = '';
+                    // Add user message to UI immediately
+                    this.addMessage(message, 'user');
+                    this.messageInput.value = '';
+                }
+
+                // Send message or queue if not connected
+                if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify(data));
+                } else {
+                    this.messageQueue.push(data);
+                    if (!messageData) {
+                        this.addMessage('📤 Wiadomość w kolejce...', 'system');
+                    }
+                }
             }
 
             handleMessage(data) {
@@ -780,8 +874,12 @@
                     case 'lux_response':
                         this.removeThinkingMessage();
                         this.addMessage(data.message, 'lux');
-                        this.loadTools(); // Refresh tools after response
+                        // Refresh tools after response (debounced)
+                        clearTimeout(this.toolsRefreshTimeout);
+                        this.toolsRefreshTimeout = setTimeout(() => this.loadTools(), 500);
                         break;
+                    default:
+                        console.log('📨 Unknown message type:', data.type, data);
                 }
             }
 
@@ -844,7 +942,7 @@
 
                 try {
                     const summaryResponse = await fetch('/api/access/summary', {
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                     });
                     const summaryData = await summaryResponse.json();
 
