@@ -6,7 +6,7 @@ Zawiera funkcje registry i zarządza całym systemem
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
