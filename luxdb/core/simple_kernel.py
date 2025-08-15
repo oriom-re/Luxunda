@@ -288,8 +288,9 @@ def execute(request=None, being_context=None, **kwargs):
             target_module = self.modules.get(task.target_module)
 
             if target_module:
-                # Deleguj do modułu
-                result = await target_module.execute(task.payload)
+                # Deleguj do modułu - ensure payload is dict
+                payload = task.payload if isinstance(task.payload, dict) else {"data": task.payload}
+                result = await target_module.execute(payload)
 
                 task.result = result
                 task.status = "completed"

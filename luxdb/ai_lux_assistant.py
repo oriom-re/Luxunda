@@ -9,6 +9,7 @@ import ulid
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 import openai
+import os
 # Embedding będzie obsłużony przez OpenAI bezpośrednio
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
@@ -34,39 +35,28 @@ class LuxAssistant:
         self.self_being = None  # Lux jako Being w swojej sesji
 
     async def initialize(self):
-        """Inicjalizuje asystenta AI"""
-        if self.is_initialized:
-            return
-
+        """Initialize Lux Assistant with self-session"""
         try:
-            # Inicjalizacja OpenAI (jeśli dostępny)
-            if not self.using_demo_mode:
-                import openai
-                self.client = openai.AsyncOpenAI(api_key=self.openai_api_key)
+            # Create self-session for Lux
+            self.lux_session_ulid = str(ulid.ulid())
+            print(f"🧠 Initializing self-session for Lux: {self.lux_session_ulid}")
 
-                # Test połączenia
-                try:
-                    await self.client.models.list()
-                    print("✅ OpenAI connection successful")
-                except Exception as e:
-                    print(f"⚠️ OpenAI connection failed, switching to demo mode: {e}")
-                    self.using_demo_mode = True
-                    self.client = None
+            # Create Lux Being for self-awareness
+            try:
+                self.lux_being = await self._create_lux_being()
+            except Exception as being_error:
+                print(f"⚠️ Lux Being creation failed, continuing without: {being_error}")
+                self.lux_being = None
 
-            # Self-Session Initialization
-            await self._initialize_self_session()
-
-            self.is_initialized = True
-            print(f"🌟 Lux AI Assistant initialized! (Demo mode: {self.using_demo_mode})")
-            print(f"📋 Self-session ID: {self.session_id}")
+            print("✅ Lux Assistant initialized")
+            return True
 
         except Exception as e:
             print(f"❌ Failed to initialize Lux Assistant: {e}")
-            self.using_demo_mode = True
-            self.is_initialized = True
+            return False
 
-    async def _initialize_self_session(self):
-        """Inicjalizuje własną sesję dla Lux"""
+    async def _create_lux_being(self):
+        """Creates the Soul and Being for the Lux Assistant itself."""
         from .core.session_data_manager import global_session_registry
         from .models.soul import Soul
         from .models.being import Being
@@ -80,7 +70,7 @@ class LuxAssistant:
         lux_genotype = {
             "genesis": {
                 "name": f"lux_assistant_{self.session_id}",
-                "type": "lux_assistant", 
+                "type": "lux_assistant",
                 "version": "1.0.0",
                 "description": f"Self-contained Lux Assistant with session {self.session_id}"
             },
@@ -117,6 +107,7 @@ class LuxAssistant:
         )
 
         print(f"🎯 Lux self-being created: {self.self_being.ulid}")
+        return self.self_being
 
     async def _update_self_stats(self, response_time: float, success: bool):
         """Aktualizuje statystyki w self-being"""
@@ -248,7 +239,7 @@ class LuxAssistant:
         except Exception as e:
             print(f"❌ Analysis error: {e}")
             return {
-                "intent": "general", 
+                "intent": "general",
                 "description": message,
                 "keywords": message.split(),
                 "complexity": 5
@@ -270,7 +261,7 @@ class LuxAssistant:
 
             Should I:
             1. Use existing tool
-            2. Modify existing tool  
+            2. Modify existing tool
             3. Create completely new tool
 
             Provide recommendation and code if needed.
@@ -334,7 +325,7 @@ class LuxAssistant:
         try:
             genotype = json.loads(response.choices[0].message.content)
 
-            # Create embeddings for the tool  
+            # Create embeddings for the tool
             description = genotype.get("genesis", {}).get("description", analysis["description"])
             embeddings = []  # Tymczasowo pusta lista
 
@@ -454,6 +445,43 @@ class LuxAssistant:
 
         return response.choices[0].message.content
 
+    async def _chat_with_openai(self, message: str, conversation_history: List[Dict] = None) -> str:
+        """Handles chat with OpenAI API"""
+        if not self.client:
+            return "OpenAI client not available."
+
+        # Construct messages for OpenAI API
+        messages = []
+        if conversation_history:
+            for entry in conversation_history:
+                messages.append({"role": "user", "content": entry["user_message"]})
+                messages.append({"role": "assistant", "content": entry["response"]})
+
+        messages.append({"role": "user", "content": message})
+
+        try:
+            completion = await self.client.chat.completions.create(
+                model="gpt-4",  # Or any other suitable model
+                messages=messages
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            print(f"❌ Error calling OpenAI API: {e}")
+            raise e
+
+    async def _chat_demo_mode(self, message: str) -> str:
+        """Handles chat in demo mode (simulated responses)"""
+        time.sleep(0.5) # Simulate processing time
+        if "hello" in message.lower():
+            return "Hello there! I'm Lux, your AI assistant. How can I help you today?"
+        elif "how are you" in message.lower():
+            return "I'm doing great, thanks for asking! Ready to assist you."
+        elif "create tool" in message.lower():
+            return "I can help with that! Tell me more about the tool you want to create."
+        elif "search" in message.lower():
+            return "Sure, what are you looking for?"
+        else:
+            return f"I received your message: '{message}'. In demo mode, I can't process complex requests yet."
 
 # Gene functions that can be executed by beings
 async def search_similar_tools(being, keywords: List[str]) -> List[Dict[str, Any]]:
