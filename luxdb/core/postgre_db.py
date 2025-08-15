@@ -149,7 +149,7 @@ class Postgre_db:
                     CREATE INDEX IF NOT EXISTS idx_relations_updated_at ON relations (updated_at);
                     CREATE INDEX IF NOT EXISTS idx_relations_alias ON relations (alias);
 
-                # Funkcja do automatycznego aktualizowania updated_at
+                -- Funkcja do automatycznego aktualizowania updated_at
                 CREATE OR REPLACE FUNCTION update_modified_column()
                 RETURNS TRIGGER AS $$
                 BEGIN
