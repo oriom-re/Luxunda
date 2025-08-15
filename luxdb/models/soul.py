@@ -497,6 +497,66 @@ class Soul:
                                 },
                                 "return_type": str(sig.return_annotation) if sig.return_annotation != sig.empty else "Any"
                             }
+
+
+    async def execute_directly(self, function_name: str, *args, **kwargs) -> Dict[str, Any]:
+        """
+        DIRECT SOUL EXECUTION - wykonuje funkcję bez tworzenia Being.
+        Używane gdy nie ma danych do zapisu.
+
+        Args:
+            function_name: Nazwa funkcji
+            *args, **kwargs: Argumenty
+
+        Returns:
+            Wynik funkcji w formacie genetycznym
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+
+        print(f"🧬 Soul {self.alias} executing '{function_name}' directly (no Being)")
+        
+        try:
+            result = await self.execute_function(function_name, *args, **kwargs)
+            
+            if result.get('success'):
+                result['soul_context']['execution_mode'] = 'soul_direct'
+                result['soul_context']['performance_optimized'] = True
+                result['data']['execution_info'] = {
+                    "executed_by": "soul_direct",
+                    "being_avoided": True,
+                    "reason": "no_persistent_data_needed"
+                }
+            
+            return result
+        
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Direct Soul execution failed: {str(e)}",
+                error_code="SOUL_DIRECT_EXECUTION_ERROR",
+                soul_context={"soul_hash": self.soul_hash, "execution_mode": "soul_direct"}
+            )
+    
+    def can_execute_directly(self, data_context: Dict[str, Any] = None) -> bool:
+        """
+        Sprawdza czy Soul może wykonać operację bezpośrednio bez Being.
+        
+        Args:
+            data_context: Kontekst danych operacji
+            
+        Returns:
+            True jeśli Soul może działać bezpośrednio
+        """
+        # Soul może działać bezpośrednio jeśli:
+        # 1. Ma zarejestrowane funkcje
+        # 2. Nie ma danych do zapisu
+        # 3. To tylko obliczenia/przetwarzanie
+        
+        has_functions = len(self._function_registry) > 0
+        needs_persistence = self.should_create_persistent_being(data_context)
+        
+        return has_functions and not needs_persistence
+
+
                         }
 
                         # Sprawdź specjalne funkcje
@@ -746,31 +806,48 @@ class Soul:
                 error_code="EXECUTE_FUNCTION_NOT_FOUND"
             )
 
-    def should_create_persistent_being(self, attributes: Dict[str, Any] = None) -> bool:
+    def should_create_persistent_being(self, attributes: Dict[str, Any] = None, operation_type: str = "function") -> bool:
         """
-        Decyduje czy Being powinno być trwałe na podstawie obecności atrybutów.
+        LAZY CREATION LOGIC: Decyduje czy potrzebne jest Being czy Soul może wykonać bezpośrednio.
 
         Args:
             attributes: Atrybuty do sprawdzenia
+            operation_type: Typ operacji ("function", "data_storage", "relationship")
 
         Returns:
-            True jeśli Being powinno być zapisywane
+            True jeśli Being jest potrzebne (są dane do zapisu)
         """
-        # Bez atrybutów = tymczasowe wykonanie
-        if not attributes:
+        # Bez atrybutów = Soul wykonuje bezpośrednio
+        if not attributes or len(attributes) == 0:
             return False
 
-        # Z atrybutami = trwały Being
+        # Sprawdź czy to tylko metadane (nie wymagają Being)
+        metadata_only_keys = ['_temp', '_cache', '_session', '_debug']
+        non_metadata_attrs = {k: v for k, v in attributes.items() 
+                             if not any(k.startswith(meta) for meta in metadata_only_keys)}
+        
+        # Jeśli są tylko metadane = Soul wykonuje bezpośrednio
+        if len(non_metadata_attrs) == 0:
+            return False
+
+        # Z rzeczywistymi danymi = potrzebne Being
+        print(f"🧬 Being needed for {len(non_metadata_attrs)} persistent attributes")
         return True
 
-    async def execute_or_create_being(self, function_name: str = None, attributes: Dict[str, Any] = None, alias: str = None, *args, **kwargs) -> Dict[str, Any]:
+    async def execute_or_create_being(self, function_name: str = None, attributes: Dict[str, Any] = None, alias: str = None, force_being: bool = False, *args, **kwargs) -> Dict[str, Any]:
         """
-        Inteligentnie decyduje czy wykonać funkcję bezpośrednio czy utworzyć Being.
+        LAZY BEING CREATION: Soul wykonuje funkcje bezpośrednio, Being tworzy się tylko gdy zajdzie potrzeba zapisu.
+        
+        Logika:
+        1. Jeśli nie ma atrybutów do zapisu -> Soul wykonuje bezpośrednio
+        2. Jeśli są atrybuty -> Utwórz Being i wykonaj przez niego
+        3. Jeśli force_being=True -> Zawsze utwórz Being
 
         Args:
-            function_name: Nazwa funkcji do wykonania (opcjonalne)
-            attributes: Atrybuty dla potencjalnego Being
-            alias: Alias dla potencjalnego Being
+            function_name: Nazwa funkcji do wykonania
+            attributes: Atrybuty - jeśli podane, wymusza utworzenie Being
+            alias: Alias dla Being (jeśli zostanie utworzony)
+            force_being: Wymusza utworzenie Being nawet bez atrybutów
             *args, **kwargs: Argumenty dla funkcji
 
         Returns:
@@ -778,19 +855,43 @@ class Soul:
         """
         from luxdb.utils.serializer import GeneticResponseFormat
 
-        # Sprawdź czy potrzebne Being
-        if self.should_create_persistent_being(attributes):
-            # Utwórz trwały Being z atrybutami
+        # TRYB 1: Bezpośrednie wykonanie przez Soul (bez Being)
+        if not attributes and not force_being:
+            print(f"🧬 Soul {self.alias} executing function '{function_name}' directly (no Being needed)")
+            
+            if function_name:
+                result = await self.execute_function(function_name, *args, **kwargs)
+                
+                # Dodaj informację o trybie wykonania
+                if result.get('success'):
+                    result['soul_context']['execution_mode'] = 'soul_direct'
+                    result['soul_context']['being_created'] = False
+                
+                return result
+            else:
+                return GeneticResponseFormat.success_response(
+                    data={"message": "Soul ready for execution, no function specified"},
+                    soul_context={
+                        "soul_hash": self.soul_hash,
+                        "execution_mode": "soul_ready",
+                        "being_created": False
+                    }
+                )
+        
+        # TRYB 2: Lazy Being Creation - tworzymy Being bo są dane do zapisu
+        else:
+            print(f"🧬 Soul {self.alias} creating Being for persistent execution")
+            
             from .being import Being
 
             being = await Being.create(
                 soul=self,
-                attributes=attributes,
+                attributes=attributes or {},
                 alias=alias,
                 persistent=True
             )
 
-            # Jeśli podano funkcję - wykonaj ją przez Being
+            # Wykonaj funkcję przez Being jeśli podana
             if function_name:
                 result = await being.execute_soul_function(function_name, *args, **kwargs)
 
@@ -798,38 +899,25 @@ class Soul:
                     data={
                         "being_created": True,
                         "being": being.to_json_serializable(),
-                        "function_result": result.get('data', {})
+                        "function_result": result.get('data', {}),
+                        "lazy_creation_reason": "attributes_provided" if attributes else "force_being"
                     },
                     soul_context={
                         "soul_hash": self.soul_hash,
-                        "execution_mode": "persistent_being"
+                        "execution_mode": "lazy_being_creation"
                     }
                 )
             else:
                 return GeneticResponseFormat.success_response(
                     data={
                         "being_created": True,
-                        "being": being.to_json_serializable()
+                        "being": being.to_json_serializable(),
+                        "lazy_creation_reason": "attributes_provided" if attributes else "force_being"
                     },
                     soul_context={
                         "soul_hash": self.soul_hash,
-                        "execution_mode": "persistent_being"
+                        "execution_mode": "lazy_being_creation"
                     }
-                )
-        else:
-            # Bez atrybutów = bezpośrednie wykonanie funkcji
-            if function_name:
-                result = await self.execute_function(function_name, *args, **kwargs)
-
-                # Dodaj informację o trybie wykonania
-                if result.get('success'):
-                    result['soul_context']['execution_mode'] = 'direct_function'
-
-                return result
-            else:
-                return GeneticResponseFormat.error_response(
-                    error="No function specified for execution",
-                    error_code="NO_FUNCTION_SPECIFIED"
                 )
 
     @classmethod
