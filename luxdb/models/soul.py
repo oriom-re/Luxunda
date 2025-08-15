@@ -404,6 +404,15 @@ class Soul:
         """Sprawdza czy Soul zawiera kod źródłowy modułu"""
         return "module_source" in self.genotype and self.genotype["module_source"] is not None
 
+    def get_language(self) -> str:
+        """Zwraca język modułu z genotypu"""
+        return self.genotype.get("genesis", {}).get("language", "python")
+
+    def is_executable_in_language(self, language: str) -> bool:
+        """Sprawdza czy Soul może być wykonana w danym języku"""
+        soul_language = self.get_language()
+        return soul_language == language or soul_language == "multi"
+
     def get_module_source(self) -> Optional[str]:
         """Zwraca kod źródłowy modułu"""
         return self.genotype.get("module_source")
@@ -599,7 +608,7 @@ class Soul:
         return validation_result
 
     def load_module_dynamically(self) -> Optional[Any]:
-        """Ładuje moduł dynamicznie z kodu źródłowego - bez cykliczności"""
+        """Ładuje moduł dynamicznie z kodu źródłowego - obsługuje różne języki"""
         if not self.has_module_source():
             return None
 
@@ -608,48 +617,138 @@ class Soul:
         if hasattr(self, '_loaded_module') and self._loaded_module is not None:
             return self._loaded_module
 
+        language = self.get_language()
+        
         try:
-            import types
-            import sys
-
-            # Utwórz nowy moduł
-            module = types.ModuleType(module_name)
-
-            # Przygotuj bezpieczne środowisko wykonania
-            safe_globals = {
-                "__name__": module_name,
-                "__file__": f"<dynamic_soul_{self.soul_hash[:8]}>",
-                "__builtins__": __builtins__
-            }
-
-            # Wykonaj kod w kontekście modułu
-            exec(self.get_module_source(), safe_globals, module.__dict__)
-
-            # Zarejestruj funkcje TYLKO RAZ
-            functions = {}
-            for attr_name in dir(module):
-                if not attr_name.startswith('_'):
-                    attr = getattr(module, attr_name)
-                    if callable(attr):
-                        functions[attr_name] = attr
-                        # Rejestruj bez wywoływania innych metod Soul
-                        if attr_name not in self._function_registry:
-                            self._function_registry[attr_name] = attr
-
-            # Cache'uj moduł
-            self._loaded_module = module
-
-            # Opcjonalnie dodaj do sys.modules
-            if module_name not in sys.modules:
-                sys.modules[module_name] = module
-
-            print(f"✅ Loaded dynamic module {module_name} with {len(functions)} functions")
-
-            return module
+            if language == "python":
+                return self._load_python_module(module_name)
+            elif language == "javascript":
+                return self._load_javascript_module(module_name)
+            elif language == "multi":
+                return self._load_multi_language_module(module_name)
+            else:
+                print(f"⚠️ Unsupported language: {language}")
+                return None
 
         except Exception as e:
-            print(f"❌ Error loading dynamic module: {e}")
+            print(f"❌ Error loading dynamic module ({language}): {e}")
             return None
+
+    def _load_python_module(self, module_name: str) -> Optional[Any]:
+        """Ładuje moduł Python"""
+        import types
+        import sys
+
+        # Utwórz nowy moduł
+        module = types.ModuleType(module_name)
+
+        # Przygotuj bezpieczne środowisko wykonania
+        safe_globals = {
+            "__name__": module_name,
+            "__file__": f"<dynamic_soul_{self.soul_hash[:8]}>",
+            "__builtins__": __builtins__
+        }
+
+        # Wykonaj kod w kontekście modułu
+        exec(self.get_module_source(), safe_globals, module.__dict__)
+
+        # Zarejestruj funkcje
+        functions = {}
+        for attr_name in dir(module):
+            if not attr_name.startswith('_'):
+                attr = getattr(module, attr_name)
+                if callable(attr):
+                    functions[attr_name] = attr
+                    if attr_name not in self._function_registry:
+                        self._function_registry[attr_name] = attr
+
+        # Cache'uj moduł
+        self._loaded_module = module
+
+        if module_name not in sys.modules:
+            sys.modules[module_name] = module
+
+        print(f"✅ Loaded Python module {module_name} with {len(functions)} functions")
+        return module
+
+    def _load_javascript_module(self, module_name: str) -> Optional[Any]:
+        """Ładuje moduł JavaScript przez bridge"""
+        try:
+            # Wrapper dla JavaScript - może być rozszerzony o PyV8, Node.js bridge itp.
+            js_wrapper = JavaScriptWrapper(self.get_module_source(), module_name)
+            
+            # Zarejestruj funkcje JavaScript jako callable Python objects
+            for func_name in js_wrapper.get_function_names():
+                if func_name not in self._function_registry:
+                    self._function_registry[func_name] = js_wrapper.create_python_callable(func_name)
+            
+            self._loaded_module = js_wrapper
+            print(f"✅ Loaded JavaScript module {module_name}")
+            return js_wrapper
+            
+        except Exception as e:
+            print(f"❌ JavaScript loading failed: {e}")
+            return None
+
+    def _load_multi_language_module(self, module_name: str) -> Optional[Any]:
+        """Ładuje moduł wielojęzyczny"""
+        try:
+            # Multi-language modules mają sekcje dla różnych języków
+            module_source = self.get_module_source()
+            
+            # Parsuj sekcje językowe (format: ```python ... ``` ```javascript ... ```)
+            language_sections = self._parse_multi_language_source(module_source)
+            
+            combined_module = MultiLanguageModule(module_name)
+            
+            for lang, code in language_sections.items():
+                if lang == "python":
+                    python_funcs = self._extract_python_functions(code)
+                    for name, func in python_funcs.items():
+                        self._function_registry[name] = func
+                        combined_module.add_function(name, func, "python")
+                        
+                elif lang == "javascript":
+                    js_wrapper = JavaScriptWrapper(code, f"{module_name}_{lang}")
+                    for func_name in js_wrapper.get_function_names():
+                        js_callable = js_wrapper.create_python_callable(func_name)
+                        self._function_registry[func_name] = js_callable
+                        combined_module.add_function(func_name, js_callable, "javascript")
+            
+            self._loaded_module = combined_module
+            print(f"✅ Loaded multi-language module {module_name}")
+            return combined_module
+            
+        except Exception as e:
+            print(f"❌ Multi-language loading failed: {e}")
+            return None
+
+    def _parse_multi_language_source(self, source: str) -> Dict[str, str]:
+        """Parsuje kod wielojęzyczny na sekcje"""
+        import re
+        
+        sections = {}
+        pattern = r'```(\w+)\n(.*?)\n```'
+        matches = re.findall(pattern, source, re.DOTALL)
+        
+        for language, code in matches:
+            sections[language.lower()] = code.strip()
+            
+        return sections
+
+    def _extract_python_functions(self, code: str) -> Dict[str, Any]:
+        """Wyciąga funkcje z kodu Python"""
+        import types
+        
+        temp_globals = {}
+        exec(code, temp_globals)
+        
+        functions = {}
+        for name, obj in temp_globals.items():
+            if callable(obj) and not name.startswith('_'):
+                functions[name] = obj
+                
+        return functions
 
     def extract_functions_from_module(self, module: Any) -> Dict[str, Callable]:
         """Wyciąga funkcje z załadowanego modułu"""
@@ -1019,6 +1118,7 @@ class Soul:
     def _process_module_source_for_genotype(cls, genotype: Dict[str, Any]) -> Dict[str, Any]:
         """
         Przetwarza module_source w genotypie i automatycznie dodaje funkcje publiczne do functions.
+        Obsługuje różne języki programowania.
 
         Args:
             genotype: Oryginalny genotyp
@@ -1030,9 +1130,29 @@ class Soul:
             return genotype
 
         module_source = genotype["module_source"]
+        
+        # Automatycznie wykryj język jeśli nie podano
+        if "genesis" not in genotype:
+            genotype["genesis"] = {}
+            
+        if "language" not in genotype["genesis"]:
+            from ..utils.language_bridge import LanguageDetector
+            detected_language = LanguageDetector.detect_language(module_source)
+            genotype["genesis"]["language"] = detected_language
+            print(f"🔍 Auto-detected language: {detected_language}")
 
-        # Waliduj i wyciągnij funkcje z module_source
-        validation = cls.validate_module_source(module_source)
+        language = genotype["genesis"]["language"]
+
+        # Waliduj i wyciągnij funkcje z module_source zgodnie z językiem
+        if language == "python":
+            validation = cls.validate_module_source(module_source)
+        elif language == "javascript":
+            validation = cls._validate_javascript_source(module_source)
+        elif language == "multi":
+            validation = cls._validate_multi_language_source(module_source)
+        else:
+            print(f"⚠️ Unsupported language: {language}")
+            validation = {"valid": False, "functions": {}, "errors": [f"Unsupported language: {language}"]}
 
         if not validation["valid"]:
             print(f"⚠️ Warning: Invalid module_source in genotype: {validation['errors']}")
@@ -1052,12 +1172,13 @@ class Soul:
             genotype["capabilities"] = {}
 
         genotype["capabilities"].update({
-            "has_init": validation["has_init"],
-            "has_execute": validation["has_execute"],
+            "language": language,
+            "has_init": validation.get("has_init", False),
+            "has_execute": validation.get("has_execute", False),
             "function_count": len(validation["functions"]),
             "public_function_count": len([f for f in validation["functions"] if not f.startswith('_')]),
             "private_function_count": len([f for f in validation["functions"] if f.startswith('_')]),
-            "attribute_count": len(validation["attributes"]),
+            "attribute_count": len(validation.get("attributes", {})),
             "dependencies_count": len(validation.get("dependencies", {})),
             "missing_dependencies": validation.get("missing_dependencies", [])
         })
@@ -1066,16 +1187,125 @@ class Soul:
         if validation.get("dependencies"):
             genotype["dependencies"] = validation["dependencies"]
 
-        # Dodaj attributes z modułu jeśli nie istnieją
-        if "attributes" not in genotype:
-            genotype["attributes"] = {}
+        # Dodaj attributes z modułu jeśli nie istnieją (tylko dla Python)
+        if language == "python":
+            if "attributes" not in genotype:
+                genotype["attributes"] = {}
 
-        # Merge attributes z modułu (module attributes mają niższy priorytet)
-        for attr_name, attr_info in validation["attributes"].items():
-            if attr_name not in genotype["attributes"]:
-                genotype["attributes"][attr_name] = attr_info
+            # Merge attributes z modułu (module attributes mają niższy priorytet)
+            for attr_name, attr_info in validation.get("attributes", {}).items():
+                if attr_name not in genotype["attributes"]:
+                    genotype["attributes"][attr_name] = attr_info
 
         return genotype
+
+    @classmethod
+    def _validate_javascript_source(cls, source: str) -> Dict[str, Any]:
+        """Waliduje kod JavaScript"""
+        # Podstawowa walidacja JavaScript - można rozszerzyć
+        import re
+        
+        validation_result = {
+            "valid": True,
+            "functions": {},
+            "errors": [],
+            "warnings": [],
+            "language": "javascript"
+        }
+        
+        try:
+            # Znajdź funkcje
+            function_pattern = r'function\s+(\w+)\s*\([^)]*\)'
+            arrow_pattern = r'(?:const|let|var)\s+(\w+)\s*=\s*\([^)]*\)\s*=>'
+            
+            functions = re.findall(function_pattern, source)
+            arrow_functions = re.findall(arrow_pattern, source)
+            
+            all_functions = functions + arrow_functions
+            
+            for func_name in all_functions:
+                validation_result["functions"][func_name] = {
+                    "py_type": "function",
+                    "description": f"JavaScript function {func_name}",
+                    "is_async": False,  # Można rozszerzyć o async detection
+                    "language": "javascript"
+                }
+                
+                if func_name == 'init':
+                    validation_result["has_init"] = True
+                elif func_name == 'execute':
+                    validation_result["has_execute"] = True
+                    
+        except Exception as e:
+            validation_result["valid"] = False
+            validation_result["errors"].append(f"JavaScript validation error: {str(e)}")
+            
+        return validation_result
+
+    @classmethod 
+    def _validate_multi_language_source(cls, source: str) -> Dict[str, Any]:
+        """Waliduje kod wielojęzyczny"""
+        import re
+        
+        validation_result = {
+            "valid": True,
+            "functions": {},
+            "errors": [],
+            "warnings": [],
+            "language": "multi",
+            "has_init": False,
+            "has_execute": False
+        }
+        
+        try:
+            # Parsuj sekcje językowe
+            pattern = r'```(\w+)\n(.*?)\n```'
+            matches = re.findall(pattern, source, re.DOTALL)
+            
+            if not matches:
+                validation_result["valid"] = False
+                validation_result["errors"].append("No language sections found in multi-language source")
+                return validation_result
+            
+            for language, code in matches:
+                lang = language.lower()
+                
+                if lang == "python":
+                    py_validation = cls.validate_module_source(code)
+                    if py_validation["valid"]:
+                        for func_name, func_info in py_validation["functions"].items():
+                            func_info["source_language"] = "python"
+                            validation_result["functions"][func_name] = func_info
+                            
+                        if py_validation.get("has_init"):
+                            validation_result["has_init"] = True
+                        if py_validation.get("has_execute"):
+                            validation_result["has_execute"] = True
+                    else:
+                        validation_result["warnings"].extend(py_validation["errors"])
+                        
+                elif lang == "javascript":
+                    js_validation = cls._validate_javascript_source(code)
+                    if js_validation["valid"]:
+                        for func_name, func_info in js_validation["functions"].items():
+                            func_info["source_language"] = "javascript"
+                            validation_result["functions"][func_name] = func_info
+                            
+                        if js_validation.get("has_init"):
+                            validation_result["has_init"] = True
+                        if js_validation.get("has_execute"):
+                            validation_result["has_execute"] = True
+                    else:
+                        validation_result["warnings"].extend(js_validation["errors"])
+                        
+                else:
+                    validation_result["warnings"].append(f"Unsupported language section: {language}")
+                    
+        except Exception as e:
+            validation_result["valid"] = False
+            validation_result["errors"].append(f"Multi-language validation error: {str(e)}")
+            
+        return validation_result
 
     def _load_and_register_module_functions(self):
         """Ładuje moduł i rejestruje funkcje w _function_registry"""
