@@ -1,4 +1,3 @@
-
 """
 Definicje typów dla LuxDB.
 """
@@ -43,17 +42,23 @@ SoulHash = str
 BeingULID = str
 RelationshipID = str
 
-# Supported Python types
+# Obsługiwane typy danych w LuxDB
 SUPPORTED_TYPES = {
     "str": str,
     "int": int,
     "float": float,
     "bool": bool,
     "dict": dict,
+    "list": list,  # Podstawowy typ list
     "List[str]": list,
-    "List[float]": list,
     "List[int]": list,
+    "List[float]": list,
     "List[dict]": list,
+    "Optional[str]": str,
+    "Optional[int]": int,
+    "Optional[float]": float,
+    "Optional[bool]": bool,
+    "function": type(lambda: None)
 }
 
 # SQL type mapping
