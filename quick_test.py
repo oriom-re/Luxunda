@@ -31,7 +31,6 @@ async def quick_test():
             "module_source": "def greet(name=\"World\"):\n    return f\"Hello, {name}! Test completed successfully.\""
         }
         soul = await Soul.create(simple_genotype, "quick_test_soul")
-        print("📝 Soul creation report generated:", report_path)
         print(f"   Soul hash: {soul.soul_hash[:16]}...")
         print("3. ⚙️ Testing function execution...")
 
