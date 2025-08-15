@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
-from database.postgre_db import Postgre_db
+from luxdb.core.postgre_db import Postgre_db
 
 async def demo_funkcje_soul():
     print("🧬 Demo: System Funkcji Soul w Praktyce")

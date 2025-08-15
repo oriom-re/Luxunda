@@ -16,7 +16,7 @@ from ..models.being import Being
 from ..models.soul import Soul
 from ..models.event import Event
 from ..models.relationship import Relationship
-from database.postgre_db import Postgre_db
+from luxdb.core.postgre_db import Postgre_db
 
 class AuthenticationManager:
     """

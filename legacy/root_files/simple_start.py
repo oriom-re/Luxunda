@@ -42,7 +42,7 @@ class SimpleLuxOSStarter:
         self.log("INFO", "Testowanie połączenia z bazą PostgreSQL...")
         
         try:
-            from database.postgre_db import Postgre_db
+            from luxdb.core.postgre_db import Postgre_db
             db_pool = await Postgre_db.get_db_pool()
             
             if db_pool:

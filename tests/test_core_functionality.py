@@ -15,7 +15,7 @@ import traceback
 
 from luxdb import LuxDB, Soul, Being
 from luxdb.utils.validators import validate_genotype
-from database.postgre_db import Postgre_db
+from luxdb.core.postgre_db import Postgre_db
 
 
 class CoreFunctionalityTester:

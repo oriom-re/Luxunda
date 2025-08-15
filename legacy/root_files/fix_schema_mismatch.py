@@ -11,7 +11,7 @@ from pathlib import Path
 # Dodaj główny katalog do ścieżki Python
 sys.path.insert(0, str(Path(__file__).parent))
 
-from database.postgre_db import Postgre_db
+from luxdb.core.postgre_db import Postgre_db
 
 async def fix_schema_mismatch():
     """Naprawia problem z niezgodnością schematu tabeli beings"""

@@ -79,7 +79,7 @@ class LuxDB:
 
         if self.use_existing_pool:
             # Użyj istniejącej puli z database.postgre_db
-            from database.postgre_db import Postgre_db
+            from luxdb.core.postgre_db import Postgre_db
             self.pool = await Postgre_db.get_db_pool()
         else:
             # Użyj własnego connection manager
@@ -107,7 +107,7 @@ class LuxDB:
             if self.connection_manager:
                 self.pool = await self.connection_manager.get_pool()
             else:
-                from database.postgre_db import Postgre_db
+                from luxdb.core.postgre_db import Postgre_db
                 self.pool = await Postgre_db.get_db_pool()
 
         async with self.pool.acquire() as conn:
@@ -185,7 +185,7 @@ class LuxDB:
                 if self.connection_manager:
                     self.pool = await self.connection_manager.get_pool()
                 else:
-                    from database.postgre_db import Postgre_db
+                    from luxdb.core.postgre_db import Postgre_db
                     self.pool = await Postgre_db.get_db_pool()
 
             async with self.pool.acquire() as conn:
