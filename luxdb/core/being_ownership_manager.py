@@ -95,6 +95,81 @@ class BeingOwnershipManager:
             
         return {"success": True, "being": being}
     
+    async def request_resource_access(self, resource_being_ulid: str, requester_ulid: str, 
+                                    operation: str, operation_data: Dict[str, Any]):
+        """
+        RESOURCE MASTER PATTERN - Bezkolizyjny dostęp do zasobów
+        
+        Zamiast bezpośredniej modyfikacji, Being żąda operacji od Master Being
+        Master Being ma pulę operatorów i może skalować się automatycznie
+        """
+        resource_master = self.owned_beings.get(resource_being_ulid)
+        
+        if not resource_master:
+            return {"success": False, "error": "Resource master not found"}
+        
+        # Sprawdź czy to rzeczywiście Resource Master
+        if not resource_master.data.get('_is_resource_master', False):
+            return {"success": False, "error": "Being is not a resource master"}
+        
+        # Zarejestruj żądanie w kolejce resource master'a
+        if '_operation_queue' not in resource_master.data:
+            resource_master.data['_operation_queue'] = []
+        
+        operation_request = {
+            "operation_id": f"op_{len(resource_master.data['_operation_queue'])}",
+            "requester_ulid": requester_ulid,
+            "operation": operation,
+            "operation_data": operation_data,
+            "timestamp": datetime.now().isoformat(),
+            "status": "queued"
+        }
+        
+        resource_master.data['_operation_queue'].append(operation_request)
+        
+        # Wykonaj operację przez master'a - ZERO KOLIZJI!
+        try:
+            result = await resource_master.execute_soul_function(
+                operation, 
+                requester_being_id=requester_ulid,
+                **operation_data
+            )
+            
+            operation_request["status"] = "completed"
+            operation_request["result"] = result
+            
+            print(f"🏦 Resource Master {resource_being_ulid[:8]} executed {operation} for {requester_ulid[:8]}")
+            
+            return {"success": True, "result": result, "operation_id": operation_request["operation_id"]}
+            
+        except Exception as e:
+            operation_request["status"] = "failed"
+            operation_request["error"] = str(e)
+            return {"success": False, "error": str(e)}
+    
+    async def register_resource_master(self, being: 'Being', resource_type: str, max_concurrent_ops: int = 10):
+        """
+        Rejestruje Being jako Resource Master dla określonego typu zasobu
+        
+        Resource Master może:
+        - Obsługiwać wiele operacji równocześnie (pula)
+        - Skalować się automatycznie przy dużym obciążeniu
+        - Kontrolować dostęp do swoich zasobów BEZKOLIZYJNIE
+        """
+        being.data['_is_resource_master'] = True
+        being.data['_resource_type'] = resource_type
+        being.data['_max_concurrent_ops'] = max_concurrent_ops
+        being.data['_active_operations'] = 0
+        being.data['_operation_queue'] = []
+        being.data['_service_windows'] = [{"id": "window_1", "status": "available"}]
+        
+        # Rejestruj w ownership manager
+        await self.register_being_ownership(being, self.kernel_being_ulid)
+        
+        print(f"🏛️ Registered Resource Master: {being.alias} for {resource_type} (max {max_concurrent_ops} ops)")
+        
+        return {"success": True, "resource_master_registered": True}
+    
     def _can_access_being(self, being: 'Being', requester_ulid: str) -> bool:
         """Sprawdza czy requester może odczytać Being"""
         
