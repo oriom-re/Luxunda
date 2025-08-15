@@ -11,15 +11,15 @@ from pathlib import Path
 
 # Mapowanie starych importów na nowe
 IMPORT_MIGRATIONS = {
-    'from ai.': 'from luxdb.ai.',
-    'from core.': 'from luxdb.core.',
-    'from database.': 'from luxdb.core.',
-    'import ai.': 'import luxdb.ai.',
-    'import core.': 'import luxdb.core.',
-    'import database.': 'import luxdb.core.',
-    'from database.postgre_db': 'from luxdb.core.postgre_db',
-    'from core.globals': 'from luxdb.core.globals',
-    'from genes.': 'from luxdb.utils.',
+    'from luxdb.ai.': 'from luxdb.ai.',
+    'from luxdb.core.': 'from luxdb.core.',
+    'from luxdb.core.': 'from luxdb.core.',
+    'import luxdb.ai.': 'import luxdb.ai.',
+    'import luxdb.core.': 'import luxdb.core.',
+    'import luxdb.core.': 'import luxdb.core.',
+    'from luxdb.core.postgre_db': 'from luxdb.core.postgre_db',
+    'from luxdb.core.globals': 'from luxdb.core.globals',
+    'from luxdb.utils.': 'from luxdb.utils.',
 }
 
 def migrate_file_imports(file_path: Path):

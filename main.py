@@ -17,7 +17,7 @@ from typing import Dict, Any
 from datetime import datetime
 from pathlib import Path
 
-# Core imports
+# Core imports - tylko z luxdb
 from luxdb.core.globals import Globals
 from luxdb.core.postgre_db import Postgre_db
 from luxdb.models.soul import Soul
