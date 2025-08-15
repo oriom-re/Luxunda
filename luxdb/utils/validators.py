@@ -44,10 +44,8 @@ def validate_genotype(genotype: Dict[str, Any]) -> Tuple[bool, List[str]]:
         attributes = genotype["attributes"]
         if not isinstance(attributes, dict):
             errors.append("Attributes section must be a dictionary")
-        elif not attributes:  # Pusta sekcja attributes
-            errors.append("Attributes section cannot be empty")
         else:
-            # Waliduj każdy atrybut
+            # Waliduj każdy atrybut (pusta sekcja {} jest OK)
             for attr_name, attr_config in attributes.items():
                 if not isinstance(attr_config, dict):
                     errors.append(f"Attribute '{attr_name}' must be a dictionary")
@@ -122,10 +120,7 @@ def validate_attributes(attributes: Dict[str, Any]) -> List[str]:
     """
     errors = []
 
-    if not attributes:
-        errors.append("Attributes section cannot be empty")
-        return errors
-
+    # Pusta sekcja attributes jest OK - niektóre Soul mają tylko funkcje
     for attr_name, attr_config in attributes.items():
         attr_errors = validate_single_attribute(attr_name, attr_config)
         errors.extend(attr_errors)
