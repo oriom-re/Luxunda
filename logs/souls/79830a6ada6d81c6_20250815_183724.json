@@ -1,0 +1,64 @@
+{
+  "soul_info": {
+    "soul_hash": "79830a6ada6d81c656e3f34d29ba7b1c3b562da49d2b18515398980822974f5e",
+    "alias": "lux_soul_01K2QGBE2DD46640C8JEFJ8ZT4",
+    "global_ulid": "01K16YDK7GNRBANHHQDMZVRGE7",
+    "version": "1.0.0",
+    "parent_hash": null,
+    "created_at": "2025-08-15T18:37:24.877552"
+  },
+  "genotype": {
+    "genesis": {
+      "name": "lux_assistant_01K2QGBE2DD46640C8JEFJ8ZT4",
+      "type": "lux_assistant",
+      "version": "1.0.0",
+      "description": "Self-contained Lux Assistant with session 01K2QGBE2DD46640C8JEFJ8ZT4"
+    },
+    "attributes": {
+      "session_id": {
+        "py_type": "str"
+      },
+      "conversation_history": {
+        "py_type": "List[dict]"
+      },
+      "performance_stats": {
+        "py_type": "dict"
+      },
+      "preferences": {
+        "py_type": "dict"
+      },
+      "memory_cache": {
+        "py_type": "dict"
+      }
+    },
+    "functions": {},
+    "capabilities": {},
+    "dependencies": {}
+  },
+  "analysis": {
+    "has_module_source": false,
+    "language": "python",
+    "functions_count": 0,
+    "public_functions": [],
+    "private_functions": [],
+    "attribute_types": {
+      "session_id": "str",
+      "conversation_history": "List[dict]",
+      "performance_stats": "dict",
+      "preferences": "dict",
+      "memory_cache": "dict"
+    },
+    "is_evolution": false
+  },
+  "creation_context": {
+    "method": "Soul.create",
+    "genotype_processed": true,
+    "function_registry_loaded": false,
+    "validation_passed": true
+  },
+  "system_info": {
+    "timestamp": "2025-08-15T18:37:24.877552",
+    "luxos_version": "3.0.0-unified",
+    "creation_method": "Soul.create"
+  }
+}
