@@ -30,8 +30,8 @@ app = FastAPI(title="Lux AI Assistant Web Interface")
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Global Session Manager
-session_manager = SessionManager()
+# Global Session Manager - będzie zaimportowany z session_data_manager
+session_manager = None
 
 class ConnectionManager:
     def __init__(self):

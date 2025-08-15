@@ -299,5 +299,33 @@ class GlobalSessionRegistry:
             }
         }
 
-# Globalna instancja
+class SessionManager:
+    """
+    Główny manager sesji - pojedyncza instancja dla całego systemu
+    """
+    
+    def __init__(self):
+        self.registry = GlobalSessionRegistry()
+        self.is_initialized = False
+    
+    async def initialize(self):
+        """Inicjalizuje system sesji"""
+        self.is_initialized = True
+        print("🎯 Session Manager initialized")
+        return True
+    
+    async def create_session(self, user_fingerprint: str, user_ulid: str = None, ttl_minutes: int = 30):
+        """Tworzy nową sesję"""
+        return await self.registry.get_session_manager(user_fingerprint)
+    
+    async def get_session(self, session_id: str):
+        """Pobiera sesję"""
+        return await self.registry.get_session_manager(session_id)
+    
+    async def cleanup_session(self, session_id: str):
+        """Czyści sesję"""
+        await self.registry.cleanup_session(session_id)
+
+# Globalne instancje
 global_session_registry = GlobalSessionRegistry()
+session_manager = SessionManager()

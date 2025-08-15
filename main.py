@@ -181,8 +181,7 @@ async def main():
             await system_manager.initialize_kernel(args.kernel)
 
             # 4. Initialize session manager for web interface
-            from luxdb.core.session_data_manager import SessionManager
-            session_manager = SessionManager()
+            from luxdb.core.session_data_manager import session_manager
             await session_manager.initialize()
 
             if args.init_genotypes:

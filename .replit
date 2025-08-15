@@ -17,7 +17,7 @@ run = ["python3", "main.py", "--mode=full"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "LuxOS v1.0.0 Stable"
+runButton = "LuxOS v1.0.0 Fixed"
 
 [[workflows.workflow]]
 name = "LuxOS Full System"
@@ -189,6 +189,15 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python quick_test.py"
+
+[[workflows.workflow]]
+name = "LuxOS v1.0.0 Fixed"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py --mode=web --kernel=simple"
 
 # === PORTY ===
 
