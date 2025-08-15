@@ -34,6 +34,13 @@
       "parent_hash": null,
       "report_file": "a70c7a10177638c6_20250815_121602.json",
       "created_at": "2025-08-15T12:16:02.505096"
+    },
+    "7dfccc11847c7f386eeec4a0c971bf12c08a8bb213e653eb5f6a3e67ad5c8c09": {
+      "alias": "simple_kernel_soul",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "7dfccc11847c7f38_20250815_124427.json",
+      "created_at": "2025-08-15T12:44:27.769176"
     }
   },
   "aliases": {
@@ -52,6 +59,11 @@
         "soul_hash": "dda8ec6c3165aaa46ba1ae9dbb4bacb9282b642f4de920da7edf9268c8b9e3ae",
         "version": "1.0.0",
         "created_at": "2025-08-15T12:12:37.281098"
+      },
+      {
+        "soul_hash": "7dfccc11847c7f386eeec4a0c971bf12c08a8bb213e653eb5f6a3e67ad5c8c09",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T12:44:27.769185"
       }
     ],
     "auth_module_soul": [
