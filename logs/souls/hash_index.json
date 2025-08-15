@@ -1,0 +1,63 @@
+{
+  "souls": {
+    "dda8ec6c3165aaa46ba1ae9dbb4bacb9282b642f4de920da7edf9268c8b9e3ae": {
+      "alias": "simple_kernel_soul",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "dda8ec6c3165aaa4_20250815_115403.json",
+      "created_at": "2025-08-15T11:54:03.895394"
+    },
+    "58284c7d1ff256b314756ead2c3a2f70f65730bacf6760f0bae33756d57a46b5": {
+      "alias": "auth_module_soul",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "58284c7d1ff256b3_20250815_115404.json",
+      "created_at": "2025-08-15T11:54:04.345961"
+    },
+    "4c6de60160573a4aee3677da4c2c7224f3361e331649232a46f79014dddb4a65": {
+      "alias": "dispatcher_soul",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "4c6de60160573a4a_20250815_115404.json",
+      "created_at": "2025-08-15T11:54:04.797845"
+    }
+  },
+  "aliases": {
+    "simple_kernel_soul": [
+      {
+        "soul_hash": "dda8ec6c3165aaa46ba1ae9dbb4bacb9282b642f4de920da7edf9268c8b9e3ae",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T11:53:07.619920"
+      },
+      {
+        "soul_hash": "dda8ec6c3165aaa46ba1ae9dbb4bacb9282b642f4de920da7edf9268c8b9e3ae",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T11:54:03.895402"
+      }
+    ],
+    "auth_module_soul": [
+      {
+        "soul_hash": "58284c7d1ff256b314756ead2c3a2f70f65730bacf6760f0bae33756d57a46b5",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T11:53:08.080778"
+      },
+      {
+        "soul_hash": "58284c7d1ff256b314756ead2c3a2f70f65730bacf6760f0bae33756d57a46b5",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T11:54:04.345970"
+      }
+    ],
+    "dispatcher_soul": [
+      {
+        "soul_hash": "4c6de60160573a4aee3677da4c2c7224f3361e331649232a46f79014dddb4a65",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T11:53:08.528756"
+      },
+      {
+        "soul_hash": "4c6de60160573a4aee3677da4c2c7224f3361e331649232a46f79014dddb4a65",
+        "version": "1.0.0",
+        "created_at": "2025-08-15T11:54:04.797853"
+      }
+    ]
+  }
+}

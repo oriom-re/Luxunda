@@ -1,0 +1,92 @@
+{
+  "soul_info": {
+    "soul_hash": "58284c7d1ff256b314756ead2c3a2f70f65730bacf6760f0bae33756d57a46b5",
+    "alias": "auth_module_soul",
+    "global_ulid": "01K16YDK7GNRBANHHQDMZVRGE7",
+    "version": "1.0.0",
+    "parent_hash": null,
+    "created_at": "2025-08-15T11:53:08.079979"
+  },
+  "genotype": {
+    "genesis": {
+      "name": "auth_module",
+      "type": "authentication_service",
+      "version": "1.0.0",
+      "language": "python"
+    },
+    "attributes": {},
+    "functions": {
+      "execute": {
+        "py_type": "function",
+        "description": "Handles authentication requests",
+        "is_async": false,
+        "is_coroutine": false,
+        "signature": {
+          "parameters": {
+            "request": {
+              "type": "Any",
+              "default": "None",
+              "required": false,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "being_context": {
+              "type": "Any",
+              "default": "None",
+              "required": false,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "kwargs": {
+              "type": "Any",
+              "default": null,
+              "required": true,
+              "kind": "VAR_KEYWORD"
+            }
+          },
+          "return_type": "Any"
+        }
+      }
+    },
+    "capabilities": {
+      "language": "python",
+      "has_init": false,
+      "has_execute": true,
+      "function_count": 1,
+      "public_function_count": 1,
+      "private_function_count": 0,
+      "attribute_count": 0,
+      "dependencies_count": 1,
+      "missing_dependencies": []
+    },
+    "dependencies": {
+      "datetime": {
+        "type": "standard",
+        "module": "datetime",
+        "imported_name": "datetime",
+        "alias": null,
+        "source": "from_import"
+      }
+    }
+  },
+  "analysis": {
+    "has_module_source": true,
+    "language": "python",
+    "functions_count": 2,
+    "public_functions": [
+      "execute"
+    ],
+    "private_functions": [],
+    "attribute_types": {},
+    "is_evolution": false
+  },
+  "creation_context": {
+    "method": "Soul.create",
+    "genotype_processed": true,
+    "function_registry_loaded": true,
+    "validation_passed": true
+  },
+  "system_info": {
+    "timestamp": "2025-08-15T11:53:08.079979",
+    "luxos_version": "3.0.0-unified",
+    "creation_method": "Soul.create"
+  }
+}
