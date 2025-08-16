@@ -21,6 +21,7 @@ from luxdb.core.globals import Globals
 from luxdb.core.postgre_db import Postgre_db
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
+from luxdb.core import unified_kernel # Import zunifikowanego kernel
 
 VERSION = "1.0.0"
 SYSTEM_NAME = "LuxOS Unified"
@@ -178,7 +179,10 @@ async def main():
 
         else:  # web mode (default)
             await system_manager.initialize_database()
-            await system_manager.initialize_kernel(args.kernel)
+            # Użycie zunifikowanego Kernel
+            kernel_mode = "advanced" if args.kernel == "intelligent" else "simple"
+            kernel_id = await unified_kernel.initialize(mode=kernel_mode)
+            kernel = unified_kernel
 
             # 4. Initialize session manager for web interface
             from luxdb.core.session_data_manager import GlobalSessionRegistry
