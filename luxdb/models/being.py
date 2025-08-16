@@ -104,57 +104,26 @@ class Being:
                 error_code="BEING_SET_ERROR"
             )
 
-    @classmethod
-    async def _get_by_ulid_internal(cls, ulid_value: str) -> Optional['Being']:
-        """Wewnętrzna metoda get_by_ulid zwracająca obiekt Being"""
-        from ..repository.soul_repository import BeingRepository
-
-        result = await BeingRepository.get_by_ulid(ulid_value)
-        return result.get('being') if result.get('success') else None
+    
 
     @classmethod
     async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, **kwargs) -> 'Being':
         """Wewnętrzna metoda create zwracająca obiekt Being"""
 
     @classmethod
-    async def get(cls, ulid_value: str) -> Dict[str, Any]:
+    async def get(cls, ulid_value: str) -> Optional['Being']:
         """
-        Standardowa metoda get dla Being zgodna z formatem genetycznym.
+        Standardowa metoda get dla Being - tylko po ULID.
 
         Args:
             ulid_value: ULID bytu
 
         Returns:
-            Standardowy słownik odpowiedzi z Being lub błędem
+            Being lub None jeśli nie znaleziono
         """
-        from luxdb.utils.serializer import GeneticResponseFormat
-
-        try:
-            being = await cls._get_by_ulid_internal(ulid_value)
-
-            if being:
-                # Pobierz kontekst Soul
-                soul = await being.get_soul()
-                soul_context = {
-                    "soul_hash": being.soul_hash,
-                    "genotype": soul.genotype if soul else {}
-                }
-
-                return GeneticResponseFormat.success_response(
-                    data={"being": being.to_json_serializable()},
-                    soul_context=soul_context
-                )
-            else:
-                return GeneticResponseFormat.error_response(
-                    error="Being not found",
-                    error_code="BEING_NOT_FOUND"
-                )
-
-        except Exception as e:
-            return GeneticResponseFormat.error_response(
-                error=str(e),
-                error_code="BEING_GET_ERROR"
-            )
+        from ..repository.soul_repository import BeingRepository
+        result = await BeingRepository.get_by_ulid(ulid_value)
+        return result.get('being') if result.get('success') else None
 
     @classmethod
     async def get_by_alias(cls, alias: str) -> List['Being']:

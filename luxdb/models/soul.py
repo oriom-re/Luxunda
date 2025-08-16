@@ -108,32 +108,19 @@ class Soul:
         return soul
 
     @classmethod
-    async def get(cls, **kwargs) -> Optional['Soul']:
+    async def get(cls, soul_hash: str) -> Optional['Soul']:
         """
-        Uniwersalna metoda get dla Soul.
+        Standardowa metoda get dla Soul - tylko po hash.
 
         Args:
-            **kwargs: Parametry wyszukiwania (alias, hash, itp.)
+            soul_hash: Hash Soul (unikalny identyfikator)
 
         Returns:
             Soul lub None jeśli nie znaleziono
         """
-        if 'alias' in kwargs:
-            return await cls.get_by_alias(kwargs['alias'])
-        elif 'hash' in kwargs:
-            return await cls.get_by_hash(kwargs['hash'])
-        elif 'soul_hash' in kwargs:
-            return await cls.get_by_hash(kwargs['soul_hash'])
-        else:
-            # Jeśli podano tylko alias jako pierwszy argument
-            for value in kwargs.values():
-                if isinstance(value, str):
-                    # Próbuj najpierw alias, potem hash
-                    soul = await cls.get_by_alias(value)
-                    if soul:
-                        return soul
-                    return await cls.get_by_hash(value)
-        return None
+        from ..repository.soul_repository import SoulRepository
+        result = await SoulRepository.get_by_hash(soul_hash)
+        return result.get('soul') if result.get('success') else None
 
     @classmethod
     async def set(cls, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
@@ -151,19 +138,8 @@ class Soul:
 
     @classmethod
     async def get_by_hash(cls, soul_hash: str) -> Optional['Soul']:
-        """
-        Ładuje Soul po jego hash (kodzie genetycznym).
-
-        Args:
-            soul_hash: Hash wygenerowany z genotypu - unikalny kod genetyczny
-
-        Returns:
-            Soul lub None jeśli nie znaleziono
-        """
-        from ..repository.soul_repository import SoulRepository
-
-        result = await SoulRepository.get_soul_by_hash(soul_hash)
-        return result.get('soul') if result.get('success') else None
+        """Handler do get() - deleguje do standardowego get()"""
+        return await cls.get(soul_hash)
 
     @classmethod
     async def get_by_alias(cls, alias: str) -> Optional['Soul']:

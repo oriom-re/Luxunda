@@ -5,6 +5,7 @@
 
 from typing import Dict, Any, Optional, List
 import json
+import time
 from luxdb.core.postgre_db import Postgre_db
 from luxdb.core.globals import Globals
 from typing import TYPE_CHECKING
@@ -22,7 +23,44 @@ def get_being_class():
     return Being
 
 class SoulRepository:
-    """Repository for Soul operations"""
+    """Repository for Soul operations z automatycznym rejestrem"""
+    
+    # Automatyczny rejestr Soul - bezmyślny i prosty
+    _soul_registry: Dict[str, Dict[str, Any]] = {}
+    _registry_ttl = 3600  # 1 godzina TTL
+
+    @staticmethod
+    def _check_registry(soul_hash: str) -> Optional['Soul']:
+        """Sprawdza rejestr - bezmyślnie zwraca Soul jeśli jest"""
+        if soul_hash in SoulRepository._soul_registry:
+            return SoulRepository._soul_registry[soul_hash]['soul']
+        return None
+    
+    @staticmethod
+    def _check_ttl(soul_hash: str) -> bool:
+        """Sprawdza TTL - automatycznie czyści wygasłe"""
+        if soul_hash not in SoulRepository._soul_registry:
+            return False
+            
+        current_time = time.time()
+        entry = SoulRepository._soul_registry[soul_hash]
+        
+        if current_time > entry['expires_at']:
+            # TTL wygasł - automatycznie usuń
+            del SoulRepository._soul_registry[soul_hash]
+            return False
+        
+        return True
+    
+    @staticmethod
+    def _add_to_registry(soul_hash: str, soul: 'Soul'):
+        """Dodaje Soul do rejestru z TTL - automatycznie"""
+        current_time = time.time()
+        SoulRepository._soul_registry[soul_hash] = {
+            'soul': soul,
+            'added_at': current_time,
+            'expires_at': current_time + SoulRepository._registry_ttl
+        }
 
     @staticmethod
     async def get_soul_by_hash(soul_hash: str) -> dict:
@@ -31,8 +69,17 @@ class SoulRepository:
 
     @staticmethod
     async def get_by_hash(soul_hash: str) -> dict:
-        """Ładuje soul z bazy danych na podstawie jego unikalnego global_ulid"""
+        """
+        Ładuje soul z bazy danych i automatycznie dodaje do rejestru.
+        Rejestr jest automatyczny i bezmyślny - sprawdza TTL i czyści wygasłe.
+        """
         try:
+            # Sprawdź rejestr najpierw
+            registry_soul = SoulRepository._check_registry(soul_hash)
+            if registry_soul and SoulRepository._check_ttl(soul_hash):
+                return {"success": True, "soul": registry_soul}
+
+            # Pobierz z bazy danych
             pool = await Postgre_db.get_db_pool()
             if not pool:
                 return {"success": False}
@@ -53,6 +100,10 @@ class SoulRepository:
                     )
                     soul.created_at = row['created_at']
                     soul.updated_at = row.get('updated_at')
+                    
+                    # Automatycznie dodaj do rejestru
+                    SoulRepository._add_to_registry(soul_hash, soul)
+                    
                     return {"success": True, "soul": soul}
             return {"success": False}
         except Exception as e:
@@ -169,7 +220,44 @@ class SoulRepository:
             return {"success": False, "error": error_msg, "error_type": "database_error"}
 
 class BeingRepository:
-    """Repository for Being operations"""
+    """Repository for Being operations z automatycznym rejestrem"""
+    
+    # Automatyczny rejestr Being - bezmyślny i prosty
+    _being_registry: Dict[str, Dict[str, Any]] = {}
+    _registry_ttl = 1800  # 30 minut TTL dla Being
+
+    @staticmethod
+    def _check_being_registry(ulid: str) -> Optional['Being']:
+        """Sprawdza rejestr Being - bezmyślnie zwraca Being jeśli jest"""
+        if ulid in BeingRepository._being_registry:
+            return BeingRepository._being_registry[ulid]['being']
+        return None
+    
+    @staticmethod
+    def _check_being_ttl(ulid: str) -> bool:
+        """Sprawdza TTL Being - automatycznie czyści wygasłe"""
+        if ulid not in BeingRepository._being_registry:
+            return False
+            
+        current_time = time.time()
+        entry = BeingRepository._being_registry[ulid]
+        
+        if current_time > entry['expires_at']:
+            # TTL wygasł - automatycznie usuń
+            del BeingRepository._being_registry[ulid]
+            return False
+        
+        return True
+    
+    @staticmethod
+    def _add_being_to_registry(ulid: str, being: 'Being'):
+        """Dodaje Being do rejestru z TTL - automatycznie"""
+        current_time = time.time()
+        BeingRepository._being_registry[ulid] = {
+            'being': being,
+            'added_at': current_time,
+            'expires_at': current_time + BeingRepository._registry_ttl
+        }
 
     @staticmethod
     async def create_being(soul_hash: str, alias: str = None, data: Dict[str, Any] = None) -> 'Being':
@@ -220,8 +308,17 @@ class BeingRepository:
 
     @staticmethod
     async def get_by_ulid(ulid: str) -> dict:
-        """Pobiera being z bazy danych na podstawie ULID"""
+        """
+        Pobiera being z bazy danych i automatycznie dodaje do rejestru.
+        Rejestr jest automatyczny i bezmyślny - sprawdza TTL i czyści wygasłe.
+        """
         try:
+            # Sprawdź rejestr najpierw
+            registry_being = BeingRepository._check_being_registry(ulid)
+            if registry_being and BeingRepository._check_being_ttl(ulid):
+                return {"success": True, "being": registry_being}
+
+            # Pobierz z bazy danych
             pool = await Postgre_db.get_db_pool()
             if not pool:
                 return {"success": False}
@@ -264,6 +361,9 @@ class BeingRepository:
 
                 Being = get_being_class()
                 being = Being.from_dict(being_dict)
+                
+                # Automatycznie dodaj do rejestru
+                BeingRepository._add_being_to_registry(ulid, being)
 
                 return {
                     "success": True,
