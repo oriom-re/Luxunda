@@ -208,12 +208,10 @@ class Being:
                     break
 
         elif unique_by == "soul_hash":
-            # Dla bytów typu Kernel - jeden per soul_hash
-            from ..repository.soul_repository import BeingRepository
-            result = await BeingRepository.get_by_soul_hash(target_soul.soul_hash)
-            beings = result.get('beings', [])
-            if beings:
-                existing_being = beings[0]  # Bierz pierwszy (powinien być jeden)
+            # PRECYZYJNE zapytanie - jeden Being per soul_hash (Kernel style)
+            beings_for_soul = await cls.get_by_soul_hash(target_soul.soul_hash)
+            if beings_for_soul:
+                existing_being = beings_for_soul[0]  # Pierwszy Being od tego Soul
 
         # Jeśli istnieje - zwróć go (opcjonalnie aktualizuj dane)
         if existing_being:
@@ -1423,6 +1421,23 @@ class Being:
         # Użyj metody repozytorium do pobrania bytów po soul_hash
         beings_result = await BeingRepository.get_beings_by_soul_hash(target_soul.soul_hash)
         beings = beings_result.get('beings', [])
+        return [being for being in beings if being is not None]
+
+    @classmethod
+    async def get_by_soul_hash(cls, soul_hash: str) -> List['Being']:
+        """
+        PRECYZYJNE zapytanie - tylko Being od konkretnego Soul hash.
+
+        Args:
+            soul_hash: Dokładny hash Soul - żadnych losowych danych!
+
+        Returns:
+            Lista Being TYLKO dla tego Soul hash
+        """
+        from ..repository.soul_repository import BeingRepository
+
+        result = await BeingRepository.get_by_soul_hash(soul_hash)
+        beings = result.get('beings', []) if result.get('success') else []
         return [being for being in beings if being is not None]
 
 

@@ -183,15 +183,14 @@ class LuxDBDiscordBot(commands.Bot):
 
         except Exception as e:
             print(f"⚠️ Using existing Discord bot being due to: {e}")
-            # Try to find existing being by soul hash
+            # Precise query by soul_hash - NO random loading
             try:
-                existing_beings = await Being.load_all_by_soul_hash(bot_soul.soul_hash)
-                if existing_beings:
-                    self.bot_being = existing_beings[0]  # Use first being from this soul
+                beings_for_soul = await Being.get_by_soul_hash(bot_soul.soul_hash)
+                if beings_for_soul:
+                    self.bot_being = beings_for_soul[0]  # First Being from this exact Soul
                     print(f"✅ Loaded existing Discord bot being: {self.bot_being.ulid}")
                 else:
                     print("❌ Could not create or load Discord bot being")
-                    self.bot_being = None
             except Exception as load_error:
                 print(f"❌ Error loading existing being: {load_error}")
                 self.bot_being = None
