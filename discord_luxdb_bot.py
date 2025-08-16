@@ -26,7 +26,7 @@ from luxdb.core.luxdb import LuxDB
 from luxdb.core.session_data_manager import SessionDataManager
 from luxdb.ai_lux_assistant import LuxAssistant
 from luxdb.core.session_data_manager import global_session_registry
-from luxdb.utils.ulid import ulid
+import ulid
 
 class LuxDBDiscordBot(commands.Bot):
     """Main Discord bot class integrated with LuxDB"""
@@ -151,7 +151,7 @@ class LuxDBDiscordBot(commands.Bot):
         }
 
         # Prepare being data as a dictionary - ACCORDING TO GENOTYPE
-        serialized_being_data = {
+        bot_attributes = {
             "name": "Discord Bot Instance",
             "description": "LuxDB Discord Bot Assistant",
             "features": bot_features,
@@ -164,58 +164,49 @@ class LuxDBDiscordBot(commands.Bot):
             bot_soul = await Soul.create(bot_genotype, alias="discord_bot_soul")
             print(f"✅ Created Discord bot soul: {bot_soul.soul_hash[:8]}...")
 
-            # Sprawdź czy bot już ma Being dla tej duszy
-            self.bot_being = await Being.get_latest_by_soul_hash(bot_soul.soul_hash)
+            # Use get_or_create with max_instances=1 for singleton behavior
+            self.bot_being = await Being.get_or_create(
+                soul=bot_soul,
+                alias="discord_bot_singleton",
+                attributes=bot_attributes,
+                max_instances=1  # Limit to one active Discord bot Being per soul
+            )
 
-            if not self.bot_being:
-                # Utwórz Being reprezentujący tę instancję Lux w sesji z limitem 1 per soul
-                bot_being_result = await Being.set(
-                    soul=bot_soul,
-                    data={
-                        "session_id": self.session_id, # Assuming session_id is available or defined elsewhere
-                        "conversation_history": [],
-                        "performance_stats": {
-                            "messages_processed": 0,
-                            "commands_executed": 0,
-                            "errors_encountered": 0,
-                            "uptime_start": datetime.now().isoformat()
-                        },
-                        "bot_config": {
-                            "languages": list(self.languages.keys()),
-                            "moderation_enabled": True,
-                            "memory_limit": 1000
-                        },
-                        "memory": {
-                            "recent_messages": [],
-                            "development_notes": [],
-                            "moderation_actions": []
-                        },
-                        # Zapisz ULID bota w danych
-                        "bot_ulid": None  # Zostanie ustawiony po utworzeniu
+            if self.bot_being:
+                # Initialize additional data (conversation memory, performance stats)
+                if not hasattr(self.bot_being, 'data') or not self.bot_being.data:
+                    self.bot_being.data = {}
+
+                # Update with extended data
+                self.bot_being.data.update({
+                    "conversation_history": [],
+                    "performance_stats": {
+                        "messages_processed": 0,
+                        "commands_executed": 0,
+                        "errors_encountered": 0,
+                        "uptime_start": datetime.now().isoformat()
                     },
-                    alias=f"discord_bot_{self.session_id}" # Assuming session_id is available or defined elsewhere
-                )
+                    "bot_config": {
+                        "languages": list(self.languages.keys()),
+                        "moderation_enabled": True,
+                        "memory_limit": 1000
+                    },
+                    "memory": {
+                        "recent_messages": [],
+                        "development_notes": [],
+                        "moderation_actions": []
+                    },
+                    "bot_ulid": self.bot_being.ulid
+                })
 
-                if bot_being_result.get('success'):
-                    self.bot_being = bot_being_result['data']['being']
-                    # Zapisz ULID bota w jego własnych danych
-                    self.bot_being.data['bot_ulid'] = self.bot_being.ulid
-                    await self.bot_being.save()
-                else:
-                    print(f"❌ Failed to create bot being: {bot_being_result.get('error')}")
-                    self.bot_being = None
+                print(f"✅ Discord bot being ready: {self.bot_being.ulid}")
             else:
-                print(f"✅ Using existing bot being: {self.bot_being.ulid}")
-                # Aktualizuj session_id w istniejącym Being
-                self.bot_being.data['session_id'] = self.session_id # Assuming session_id is available or defined elsewhere
-                self.bot_being.data['performance_stats']['uptime_start'] = datetime.now().isoformat()
-                await self.bot_being.save()
+                print("❌ Failed to create/get bot being")
 
         except Exception as e:
-            print(f"⚠️ Using existing Discord bot being due to: {e}")
-            # Precise query by soul_hash - NO random loading
+            print(f"❌ Error creating Discord bot being: {e}")
+            # Fallback - try to load existing bot being
             try:
-                # Load the soul first to get its hash
                 existing_soul = await Soul.get_by_alias("discord_bot_soul")
                 if existing_soul:
                     beings_for_soul = await Being.get_by_soul_hash(existing_soul.soul_hash)
@@ -224,8 +215,10 @@ class LuxDBDiscordBot(commands.Bot):
                         print(f"✅ Loaded existing Discord bot being: {self.bot_being.ulid}")
                     else:
                         print("❌ Could not load existing Discord bot being - no beings found for soul.")
+                        self.bot_being = None
                 else:
                     print("❌ Could not load existing Discord bot being - soul not found.")
+                    self.bot_being = None
             except Exception as load_error:
                 print(f"❌ Error loading existing being: {load_error}")
                 self.bot_being = None
