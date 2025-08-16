@@ -1,4 +1,3 @@
-
 """
 🤖 LuxDB Discord Assistant Bot
 ============================
@@ -29,7 +28,7 @@ from luxdb.core.session_data_manager import global_session_registry
 
 class LuxDBDiscordBot(commands.Bot):
     """Main Discord bot class integrated with LuxDB"""
-    
+
     def __init__(self):
         # Discord setup
         intents = discord.Intents.default()
@@ -37,19 +36,19 @@ class LuxDBDiscordBot(commands.Bot):
         intents.guilds = True
         intents.members = True
         intents.reactions = True
-        
+
         super().__init__(
             command_prefix=['!lux ', '!luxdb ', '@LuxDB '],
             intents=intents,
             help_command=None
         )
-        
+
         # LuxDB integration
         self.luxdb = None
         self.lux_assistant = None
         self.bot_being = None
         self.session_manager = None
-        
+
         # Bot personality and memory
         self.owner_id = int(os.getenv('DISCORD_USER_ID', 0)) if os.getenv('DISCORD_USER_ID') else None
         self.languages = {
@@ -60,39 +59,49 @@ class LuxDBDiscordBot(commands.Bot):
             'de': 'Deutsch',
             'ja': '日本語'
         }
-        
+
         # Status tracking
         self.owner_status = "offline"  # online, offline, busy, away
         self.development_channel = None
         self.announcement_channels = []
-        
+
         # Conversation memory
         self.conversation_memory = {}
         self.project_updates = []
-        
+
     async def setup_hook(self):
         """Initialize LuxDB connection and bot being"""
         try:
             # Initialize LuxDB
             from luxdb.core.postgre_db import Postgre_db
-            await Postgre_db.initialize_pool()
-            
+            # Initialize database
+            try:
+                pool = await Postgre_db.get_db_pool()
+                if pool:
+                    print("✅ Database initialized for Discord bot")
+                else:
+                    print("❌ Failed to get database pool")
+                    return
+            except Exception as db_e:
+                print(f"❌ Failed to initialize bot: {db_e}")
+                return
+
             # Create LuxDB bot being
             await self.create_bot_being()
-            
+
             # Initialize Lux Assistant
             self.lux_assistant = LuxAssistant()
             await self.lux_assistant.initialize()
-            
+
             # Start background tasks
             self.status_updater.start()
             self.memory_sync.start()
-            
+
             print("🤖 LuxDB Discord Bot initialized successfully!")
-            
+
         except Exception as e:
             print(f"❌ Failed to initialize bot: {e}")
-    
+
     async def create_bot_being(self):
         """Create a Being representation of the Discord bot"""
         bot_genotype = {
@@ -131,10 +140,10 @@ class LuxDBDiscordBot(commands.Bot):
                 }
             }
         }
-        
+
         # Create Soul for the bot
         bot_soul = await Soul.create(bot_genotype, alias="luxdb_discord_bot")
-        
+
         # Create Being instance
         self.bot_being = await Being.create(
             bot_soul,
@@ -156,14 +165,14 @@ class LuxDBDiscordBot(commands.Bot):
             },
             alias="discord_bot_instance"
         )
-        
+
         print(f"🧠 Bot Being created: {self.bot_being.ulid}")
-    
+
     async def on_ready(self):
         """Called when bot is ready"""
         print(f'🚀 {self.user} is now online!')
         print(f'📊 Connected to {len(self.guilds)} servers')
-        
+
         # Set bot status
         await self.change_presence(
             activity=discord.Activity(
@@ -172,7 +181,7 @@ class LuxDBDiscordBot(commands.Bot):
             ),
             status=discord.Status.online
         )
-        
+
         # Update bot being status
         if self.bot_being:
             self.bot_being.data["owner_status"] = "bot_online"
@@ -180,34 +189,34 @@ class LuxDBDiscordBot(commands.Bot):
                 {"id": guild.id, "name": guild.name, "members": guild.member_count}
                 for guild in self.guilds
             ]
-    
+
     async def on_message(self, message):
         """Handle incoming messages with intelligent intent detection"""
         if message.author == self.user:
             return
-        
+
         # Store conversation in memory
         await self.store_conversation(message)
-        
+
         # Check if bot is mentioned or message contains LuxDB-related keywords
         bot_mentioned = self.user in message.mentions
         luxdb_keywords = ['lux', 'luxdb', 'status', 'projekt', 'rozwój', 'project', 'development']
         contains_keywords = any(keyword.lower() in message.content.lower() for keyword in luxdb_keywords)
-        
+
         if bot_mentioned or contains_keywords or self.owner_status == "offline":
             await self.handle_intelligent_response(message)
-        
+
         # Still process traditional commands for backwards compatibility
         await self.process_commands(message)
-    
+
     async def store_conversation(self, message):
         """Store conversation in bot's memory"""
         if not self.bot_being:
             return
-        
+
         server_id = str(message.guild.id if message.guild else "DM")
         channel_id = str(message.channel.id)
-        
+
         conversation_entry = {
             "timestamp": datetime.now().isoformat(),
             "server_id": server_id,
@@ -219,33 +228,33 @@ class LuxDBDiscordBot(commands.Bot):
             "content": message.content[:500],  # Limit content length
             "type": "message"
         }
-        
+
         # Store in memory (limit to last 1000 messages)
         memory = self.bot_being.data.get("conversation_memory", {})
         if server_id not in memory:
             memory[server_id] = []
-        
+
         memory[server_id].append(conversation_entry)
         if len(memory[server_id]) > 1000:
             memory[server_id] = memory[server_id][-1000:]
-        
+
         self.bot_being.data["conversation_memory"] = memory
-    
+
     async def handle_intelligent_response(self, message):
         """Handle message with intelligent intent detection and function execution"""
         if not self.lux_assistant:
             await message.reply("🤖 LuxDB Assistant is not available right now.")
             return
-        
+
         # Prepare context for LuxAssistant
         context = f"""
         You are LuxDB Discord Assistant. Analyze this message and determine the user's intent.
-        
+
         Message: {message.content}
         Server: {message.guild.name if message.guild else 'DM'}
         Author: {message.author.display_name}
         Bot mentioned: {self.user in message.mentions}
-        
+
         Available functions you can call:
         - show_status: Show bot and project status
         - project_info: Share LuxDB project information  
@@ -255,18 +264,18 @@ class LuxDBDiscordBot(commands.Bot):
         - search_memory: Search conversation memory
         - show_roadmap: Show project roadmap
         - moderate_content: Check content for moderation
-        
+
         Analyze the intent and respond naturally while calling appropriate functions if needed.
         If user asks about status, project, development, help, translation, memory, roadmap - use the corresponding function.
         """
-        
+
         try:
             # Use LuxAssistant to determine intent and generate response
             response = await self.lux_assistant.chat(context)
-            
+
             # Detect function calls from the response
             detected_functions = await self.detect_and_execute_functions(message, response)
-            
+
             # If no specific functions were called, send the response directly
             if not detected_functions:
                 embed = discord.Embed(
@@ -277,10 +286,10 @@ class LuxDBDiscordBot(commands.Bot):
                 )
                 embed.set_footer(text="Powered by LuxDB Assistant")
                 await message.reply(embed=embed)
-            
+
         except Exception as e:
             await message.reply("🔧 I'm experiencing some technical difficulties. Please try again later.")
-    
+
     @commands.command(name='status')
     async def status_command(self, ctx):
         """Show bot and project status"""
@@ -289,39 +298,39 @@ class LuxDBDiscordBot(commands.Bot):
             color=0x00ff88,
             timestamp=datetime.now()
         )
-        
+
         embed.add_field(
             name="🔋 Bot Status",
             value="Online & Active",
             inline=True
         )
-        
+
         embed.add_field(
             name="👤 Owner Status", 
             value=self.owner_status.title(),
             inline=True
         )
-        
+
         embed.add_field(
             name="🌐 Servers",
             value=len(self.guilds),
             inline=True
         )
-        
+
         embed.add_field(
             name="🧠 Memory",
             value=f"{len(self.bot_being.data.get('conversation_memory', {}))} conversations stored",
             inline=False
         )
-        
+
         embed.add_field(
             name="🚀 LuxDB Version",
             value="v1.0.0 - Genotypic Evolution System",
             inline=False
         )
-        
+
         await ctx.send(embed=embed)
-    
+
     @commands.command(name='project')
     async def project_info(self, ctx):
         """Share LuxDB project information"""
@@ -331,59 +340,59 @@ class LuxDBDiscordBot(commands.Bot):
             color=0x00ff88,
             url="https://github.com/your-repo/luxdb"
         )
-        
+
         embed.add_field(
             name="🎯 Core Concept",
             value="• **Soul (Genotype)**: Immutable templates with SHA-256 hash\n• **Being (Instance)**: Living data based on genotypes\n• **Evolution**: Changes through evolution, not mutation",
             inline=False
         )
-        
+
         embed.add_field(
             name="⚡ Key Features",
             value="• Hash-based immutability\n• Lazy execution\n• Multi-language support\n• Being ownership management",
             inline=False
         )
-        
+
         embed.add_field(
             name="🔧 Technology Stack",
             value="Python 3.11+, PostgreSQL, asyncpg, FastAPI",
             inline=True
         )
-        
+
         embed.add_field(
             name="📈 Status",
             value="v1.0.0 Stable Release",
             inline=True
         )
-        
+
         await ctx.send(embed=embed)
-    
+
     async def detect_and_execute_functions(self, message, response):
         """Detect intent from message content and execute appropriate functions"""
         content_lower = message.content.lower()
         executed_functions = []
-        
+
         # Intent detection patterns
         if any(word in content_lower for word in ['status', 'stan', 'jak się masz', 'how are you']):
             await self.execute_status_function(message)
             executed_functions.append('status')
-            
+
         elif any(word in content_lower for word in ['projekt', 'project', 'luxdb', 'o projekcie', 'about']):
             await self.execute_project_info_function(message)
             executed_functions.append('project_info')
-            
+
         elif any(word in content_lower for word in ['aktualizacje', 'updates', 'rozwój', 'development', 'postęp', 'progress']):
             await self.execute_development_update_function(message)
             executed_functions.append('development_update')
-            
+
         elif any(word in content_lower for word in ['plan', 'roadmap', 'mapa', 'przyszłość', 'future']):
             await self.execute_roadmap_function(message)
             executed_functions.append('roadmap')
-            
+
         elif any(word in content_lower for word in ['pomoc', 'help', 'co potrafisz', 'what can you do']):
             await self.execute_help_function(message)
             executed_functions.append('help')
-            
+
         elif any(word in content_lower for word in ['przetłumacz', 'translate', 'tłumaczenie']):
             # Extract text to translate
             text_to_translate = message.content
@@ -393,7 +402,7 @@ class LuxDBDiscordBot(commands.Bot):
                     break
             await self.execute_translate_function(message, text_to_translate)
             executed_functions.append('translate')
-            
+
         elif any(word in content_lower for word in ['pamięć', 'memory', 'szukaj', 'search', 'znajdź']):
             # Extract search query
             query = message.content
@@ -403,7 +412,7 @@ class LuxDBDiscordBot(commands.Bot):
                     break
             await self.execute_memory_search_function(message, query)
             executed_functions.append('memory_search')
-        
+
         return executed_functions
 
     async def execute_status_function(self, message):
@@ -413,17 +422,17 @@ class LuxDBDiscordBot(commands.Bot):
             color=0x00ff88,
             timestamp=datetime.now()
         )
-        
+
         embed.add_field(name="🔋 Bot Status", value="Online & Active", inline=True)
         embed.add_field(name="👤 Owner Status", value=self.owner_status.title(), inline=True)
         embed.add_field(name="🌐 Servers", value=len(self.guilds), inline=True)
-        
+
         if self.bot_being:
             memory_count = len(self.bot_being.data.get('conversation_memory', {}))
             embed.add_field(name="🧠 Memory", value=f"{memory_count} conversations stored", inline=False)
-        
+
         embed.add_field(name="🚀 LuxDB Version", value="v1.0.0 - Genotypic Evolution System", inline=False)
-        
+
         await message.reply(embed=embed)
 
     async def execute_project_info_function(self, message):
@@ -434,19 +443,19 @@ class LuxDBDiscordBot(commands.Bot):
             color=0x00ff88,
             url="https://github.com/your-repo/luxdb"
         )
-        
+
         embed.add_field(
             name="🎯 Core Concept",
             value="• **Soul (Genotype)**: Immutable templates with SHA-256 hash\n• **Being (Instance)**: Living data based on genotypes\n• **Evolution**: Changes through evolution, not mutation",
             inline=False
         )
-        
+
         embed.add_field(
             name="⚡ Key Features", 
             value="• Hash-based immutability\n• Lazy execution\n• Multi-language support\n• Being ownership management",
             inline=False
         )
-        
+
         await message.reply(embed=embed)
 
     async def execute_development_update_function(self, message):
@@ -459,17 +468,17 @@ class LuxDBDiscordBot(commands.Bot):
             "🌐 Web interface with reactive components",
             "📊 Production hash management system"
         ]
-        
+
         embed = discord.Embed(
             title="🚀 Latest LuxDB Development Updates",
             description="Current progress and achievements:",
             color=0x00ff88,
             timestamp=datetime.now()
         )
-        
+
         for i, update in enumerate(updates, 1):
             embed.add_field(name=f"Update #{i}", value=update, inline=False)
-        
+
         embed.set_footer(text="Updates tracked by LuxDB Assistant")
         await message.reply(embed=embed)
 
@@ -489,18 +498,18 @@ class LuxDBDiscordBot(commands.Bot):
                 "items": ["📋 Advanced security features", "📋 Distributed beings network", "📋 Real-time collaboration", "📋 Enterprise deployment tools"]
             }
         ]
-        
+
         embed = discord.Embed(
             title="🗺️ LuxDB Development Roadmap",
             description="Current development phases and progress",
             color=0x00ff88,
             timestamp=datetime.now()
         )
-        
+
         for phase in roadmap_items:
             items_text = "\n".join(phase["items"])
             embed.add_field(name=phase["phase"], value=items_text, inline=False)
-        
+
         await message.reply(embed=embed)
 
     async def execute_help_function(self, message):
@@ -510,7 +519,7 @@ class LuxDBDiscordBot(commands.Bot):
             description="I understand natural language! Just talk to me about:",
             color=0x00ff88
         )
-        
+
         capabilities = [
             ("📊 Status", "Ask about my status or the project status"),
             ("🧬 Project Info", "Ask about LuxDB, the project, or how it works"),
@@ -520,10 +529,10 @@ class LuxDBDiscordBot(commands.Bot):
             ("🧠 Memory", "Ask me to search through our conversation history"),
             ("💬 Natural Chat", "Just talk to me naturally - I'll understand!")
         ]
-        
+
         for capability, description in capabilities:
             embed.add_field(name=capability, value=description, inline=False)
-        
+
         embed.set_footer(text="No need for exact commands - I understand context! 🤖")
         await message.reply(embed=embed)
 
@@ -532,7 +541,7 @@ class LuxDBDiscordBot(commands.Bot):
         if not text or text == message.content:
             await message.reply("Please tell me what text you'd like me to translate!")
             return
-            
+
         translations = {
             'en': text,  # Original
             'pl': f"[PL] {text}",  # Placeholder - integrate with translation service
@@ -541,20 +550,20 @@ class LuxDBDiscordBot(commands.Bot):
             'de': f"[DE] {text}",
             'ja': f"[JA] {text}"
         }
-        
+
         embed = discord.Embed(
             title="🌍 Multilingual Translation",
             description="LuxDB Assistant supports multiple languages:",
             color=0x00ff88
         )
-        
+
         for lang_code, lang_name in self.languages.items():
             embed.add_field(
                 name=f"{lang_name} ({lang_code})",
                 value=translations.get(lang_code, "Translation pending..."),
                 inline=False
             )
-        
+
         await message.reply(embed=embed)
 
     async def execute_memory_search_function(self, message, query):
@@ -562,43 +571,43 @@ class LuxDBDiscordBot(commands.Bot):
         if not query or query == message.content:
             await message.reply("Please tell me what you'd like me to search for in our conversation history!")
             return
-            
+
         if not self.bot_being:
             await message.reply("Memory system not initialized.")
             return
-        
+
         memory = self.bot_being.data.get("conversation_memory", {})
         server_id = str(message.guild.id if message.guild else "DM")
-        
+
         results = []
         if server_id in memory:
             for entry in memory[server_id][-100:]:  # Search last 100 messages
                 if query.lower() in entry.get("content", "").lower():
                     results.append(entry)
-        
+
         embed = discord.Embed(
             title=f"🧠 Memory Search: '{query}'",
             description=f"Found {len(results)} relevant conversations",
             color=0x00ff88
         )
-        
+
         for i, result in enumerate(results[-5:], 1):  # Show last 5 results
             embed.add_field(
                 name=f"Result #{i}",
                 value=f"**{result['author']['name']}**: {result['content'][:100]}...\n*{result['timestamp'][:19]}*",
                 inline=False
             )
-        
+
         if not results:
             embed.description = "No matching conversations found in memory."
-        
+
         await message.reply(embed=embed)
 
     @commands.command(name='help')
     async def help_command(self, ctx):
         """Legacy command - redirect to intelligent help"""
         await self.execute_help_function(ctx.message)
-    
+
     @commands.command(name='update')
     async def development_update(self, ctx):
         """Share latest development updates"""
@@ -610,24 +619,24 @@ class LuxDBDiscordBot(commands.Bot):
             "🌐 Web interface with reactive components",
             "📊 Production hash management system"
         ]
-        
+
         embed = discord.Embed(
             title="🚀 Latest LuxDB Development Updates",
             description="Current progress and achievements:",
             color=0x00ff88,
             timestamp=datetime.now()
         )
-        
+
         for i, update in enumerate(updates, 1):
             embed.add_field(
                 name=f"Update #{i}",
                 value=update,
                 inline=False
             )
-        
+
         embed.set_footer(text="Updates tracked by LuxDB Assistant")
         await ctx.send(embed=embed)
-    
+
     @commands.command(name='translate')
     async def translate_command(self, ctx, *, text: str):
         """Translate text to multiple languages"""
@@ -639,73 +648,73 @@ class LuxDBDiscordBot(commands.Bot):
             'de': f"[DE] {text}",
             'ja': f"[JA] {text}"
         }
-        
+
         embed = discord.Embed(
             title="🌍 Multilingual Translation",
             description="LuxDB Assistant supports multiple languages:",
             color=0x00ff88
         )
-        
+
         for lang_code, lang_name in self.languages.items():
             embed.add_field(
                 name=f"{lang_name} ({lang_code})",
                 value=translations.get(lang_code, "Translation pending..."),
                 inline=False
             )
-        
+
         await ctx.send(embed=embed)
-    
+
     @commands.command(name='memory')
     async def search_memory(self, ctx, *, query: str = None):
         """Search conversation memory"""
         if not query:
             await ctx.send("Please provide a search query: `!lux memory [your query]`")
             return
-        
+
         if not self.bot_being:
             await ctx.send("Memory system not initialized.")
             return
-        
+
         memory = self.bot_being.data.get("conversation_memory", {})
         server_id = str(ctx.guild.id if ctx.guild else "DM")
-        
+
         results = []
         if server_id in memory:
             for entry in memory[server_id][-100:]:  # Search last 100 messages
                 if query.lower() in entry.get("content", "").lower():
                     results.append(entry)
-        
+
         embed = discord.Embed(
             title=f"🧠 Memory Search: '{query}'",
             description=f"Found {len(results)} relevant conversations",
             color=0x00ff88
         )
-        
+
         for i, result in enumerate(results[-5:], 1):  # Show last 5 results
             embed.add_field(
                 name=f"Result #{i}",
                 value=f"**{result['author']['name']}**: {result['content'][:100]}...\n*{result['timestamp'][:19]}*",
                 inline=False
             )
-        
+
         if not results:
             embed.description = "No matching conversations found in memory."
-        
+
         await ctx.send(embed=embed)
-    
+
     @tasks.loop(minutes=5)
     async def status_updater(self):
         """Update bot status periodically"""
         if self.bot_being:
             self.bot_being.data["last_activity"] = datetime.now().isoformat()
-    
+
     @tasks.loop(minutes=30)
     async def memory_sync(self):
         """Sync conversation memory to database"""
         if self.bot_being:
             # This would sync the bot's memory to the database
             print("🔄 Syncing conversation memory to LuxDB...")
-    
+
     async def close(self):
         """Cleanup when bot shuts down"""
         if self.lux_assistant:
@@ -717,10 +726,10 @@ class LuxDBDiscordBot(commands.Bot):
 async def main():
     """Main function to run the bot"""
     bot = LuxDBDiscordBot()
-    
+
     # Set your Discord user ID here
     bot.owner_id = 123456789012345678  # Replace with your actual Discord user ID
-    
+
     # Get bot token from environment variable
     token = os.getenv('DISCORD_BOT_TOKEN')
     if not token:
@@ -729,7 +738,7 @@ async def main():
         print("   Key: DISCORD_BOT_TOKEN")
         print("   Value: Your Discord bot token")
         return
-    
+
     try:
         await bot.start(token)
     except Exception as e:

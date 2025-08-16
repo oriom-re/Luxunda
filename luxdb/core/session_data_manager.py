@@ -235,5 +235,8 @@ class SessionDataManager:
 
     # ... rest of methods remain unchanged
 
+# SessionManager alias for backward compatibility
+SessionManager = SessionDataManager
+
 # Global instance for backward compatibility
 global_session_registry = GlobalSessionRegistry()

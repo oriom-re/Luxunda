@@ -293,7 +293,7 @@ def execute(request=None, being_context=None, **kwargs):
                     execution_payload = task.payload
                 else:
                     execution_payload = {"data": task.payload}
-                
+
                 # Execute with proper error handling
                 try:
                     result = await target_module.execute_soul_function("execute", execution_payload)
@@ -419,6 +419,33 @@ def execute(request=None, being_context=None, **kwargs):
             "loaded_modules": list(self.modules.keys()),
             "task_listeners_count": sum(len(listeners) for listeners in self.task_listeners.values())
         }
+
+    async def create_default_module(self, module_type: str, config):
+        """Create default modules for kernel"""
+        try:
+            # Ensure config is a dict
+            if isinstance(config, str):
+                config = {"config_string": config}
+            elif config is None:
+                config = {}
+
+            # Create being for module
+            being = await Being.create(
+                alias=f"{module_type}_module",
+                attributes={
+                    "module_type": module_type,
+                    "config": config,
+                    "status": "active"
+                }
+            )
+
+            self.modules[module_type] = being
+            print(f"✅ Created {module_type} module: {being.ulid[:8]}")
+            return being
+
+        except Exception as e:
+            print(f"❌ Failed to create {module_type} module: {e}")
+            return None
 
 # Globalna instancja
 simple_kernel = SimpleKernel()
