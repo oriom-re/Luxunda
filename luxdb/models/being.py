@@ -57,7 +57,7 @@ class Being:
                   access_zone: str = "public_zone", ttl_hours: int = None) -> Dict[str, Any]:
         """
         Metoda set dla Being - tworzy i automatycznie zapisuje do bazy.
-        
+
         Args:
             soul: Obiekt Soul (genotyp)
             data: Dane bytu
@@ -82,7 +82,7 @@ class Being:
 
             # ZAWSZE zapisz przez set()
             save_result = await being.save()
-            
+
             if not save_result.get('success'):
                 return save_result  # Zwróć błąd zapisu
 
@@ -242,7 +242,7 @@ class Being:
     async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
         """
         Tworzy nowy Being w pamięci (nie zapisuje do bazy automatycznie).
-        
+
         Do zapisu używaj being.set() lub Being.set()
         """
 
@@ -814,7 +814,7 @@ class Being:
         stats['last_called'] = datetime.now().isoformat()
 
     def is_persistent(self) -> bool:
-        """Sprawdza czy Being jest trwałe (zapisane w bazie)"""
+        """Sprawdza czy Being jest trwałe (zapisywane w bazie)"""
         return self.data.get('_persistent', False)
 
     async def save(self) -> Dict[str, Any]:
@@ -971,7 +971,8 @@ class Being:
                 self.data['evolution_requests'] = []
 
             self.data['evolution_requests'].append(evolution_request)
-            await self.save()
+            from ..repository.soul_repository import BeingRepository
+            await BeingRepository.set(self)
 
             return GeneticResponseFormat.success_response(
                 data={
@@ -1195,7 +1196,8 @@ class Being:
                 "soul_name": new_soul.alias
             })
 
-            await self.save()
+            from ..repository.soul_repository import BeingRepository
+            await BeingRepository.set(self)
 
             return GeneticResponseFormat.success_response(
                 data={
