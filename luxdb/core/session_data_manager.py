@@ -207,3 +207,33 @@ class GlobalSessionRegistry:
             print(f"🧹 Cleaned up {len(sessions_to_remove)} old sessions")
 
         return len(sessions_to_remove)
+
+# Add missing method to SessionDataManager
+class SessionDataManager:
+    """Extended with missing methods for compatibility"""
+    
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.templates = {}
+        self.instances = {}
+        self.relations = {}
+        self.user_context = {}
+        self.conversation_history = []
+        self.created_at = datetime.now()
+        self.last_activity = datetime.now()
+
+    async def build_conversation_context(self, message: str) -> Dict[str, Any]:
+        """Build conversation context for this session"""
+        return {
+            "session_id": self.session_id,
+            "message": message,
+            "user_context": self.user_context,
+            "conversation_history": self.conversation_history,
+            "timestamp": datetime.now().isoformat(),
+            "system_status": "active"
+        }
+
+    # ... rest of methods remain unchanged
+
+# Global instance for backward compatibility
+global_session_registry = GlobalSessionRegistry()
