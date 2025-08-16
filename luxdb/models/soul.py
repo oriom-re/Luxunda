@@ -108,19 +108,23 @@ class Soul:
         return soul
 
     @classmethod
-    async def get(cls, soul_hash: str) -> Optional['Soul']:
+    async def get(cls, identifier: str) -> Optional['Soul']:
         """
-        Standardowa metoda get dla Soul - tylko po hash.
+        Inteligentny handler Soul - rozpoznaje hash vs alias.
 
         Args:
-            soul_hash: Hash Soul (unikalny identyfikator)
+            identifier: Hash Soul (64 znaki hex) lub alias
 
         Returns:
             Soul lub None jeśli nie znaleziono
         """
-        from ..repository.soul_repository import SoulRepository
-        result = await SoulRepository.get_by_hash(soul_hash)
-        return result.get('soul') if result.get('success') else None
+        # Rozpoznaj czy to hash (64 znaki hex) czy alias
+        if len(identifier) == 64 and all(c in '0123456789abcdef' for c in identifier.lower()):
+            # To jest hash
+            return await cls.get_by_hash(identifier)
+        else:
+            # To jest alias
+            return await cls.get_by_alias(identifier)
 
     @classmethod
     async def set(cls, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
@@ -138,8 +142,10 @@ class Soul:
 
     @classmethod
     async def get_by_hash(cls, soul_hash: str) -> Optional['Soul']:
-        """Handler do get() - deleguje do standardowego get()"""
-        return await cls.get(soul_hash)
+        """Bezpośredni handler do repository po hash"""
+        from ..repository.soul_repository import SoulRepository
+        result = await SoulRepository.get_by_hash(soul_hash)
+        return result.get('soul') if result.get('success') else None
 
     @classmethod
     async def get_by_alias(cls, alias: str) -> Optional['Soul']:
