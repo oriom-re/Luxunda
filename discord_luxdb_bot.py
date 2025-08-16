@@ -161,21 +161,13 @@ class LuxDBDiscordBot(commands.Bot):
 
         # Create Soul for the bot
         try:
-            # Create soul for bot with proper dict structure
-            from luxdb.utils.serializer import JSONBSerializer
-
-            # Ensure genotype is properly serialized
-            serialized_genotype = JSONBSerializer.prepare_for_jsonb(bot_genotype)
-
-            bot_soul = await Soul.create(serialized_genotype, alias="discord_bot_soul")
+            bot_soul = await Soul.create(bot_genotype, alias="discord_bot_soul")
             print(f"✅ Created Discord bot soul: {bot_soul.soul_hash[:8]}...")
 
-            # Create being from soul with serialized data
-            serialized_being_data_for_db = JSONBSerializer.prepare_for_jsonb(serialized_being_data)
-
+            # Create being from soul - serialization happens inside Being.create()
             self.bot_being = await Being.create(
                 bot_soul,
-                serialized_being_data_for_db
+                serialized_being_data
             )
             print(f"✅ Created Discord bot being: {self.bot_being.ulid}")
 

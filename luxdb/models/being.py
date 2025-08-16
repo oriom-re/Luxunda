@@ -282,12 +282,12 @@ class Being:
         being.global_ulid = target_soul.global_ulid
         being.alias = alias
 
-        # Walidacja i serializacja danych
+        # Walidacja danych (bez serializacji - tylko przy zapisie do bazy)
         if attributes:
-            serialized_data, errors = JSONBSerializer.validate_and_serialize(attributes, target_soul)
+            errors = target_soul.validate_data(attributes)
             if errors:
                 raise ValueError(f"Validation errors: {', '.join(errors)}")
-            being.data = serialized_data
+            being.data = attributes
         else:
             being.data = {}
 
@@ -335,13 +335,12 @@ class Being:
         being.global_ulid = target_soul.global_ulid
         being.access_zone = access_zone
 
-        # Walidacja i serializacja danych
+        # Walidacja danych (bez serializacji - tylko przy zapisie do bazy)
         if attributes:
-            from luxdb.utils.serializer import JSONBSerializer
-            serialized_data, errors = JSONBSerializer.validate_and_serialize(attributes, target_soul)
+            errors = target_soul.validate_data(attributes)
             if errors:
                 raise ValueError(f"Validation errors: {', '.join(errors)}")
-            being.data = serialized_data
+            being.data = attributes
         else:
             being.data = {}
 
@@ -821,7 +820,7 @@ class Being:
     async def save(self) -> Dict[str, Any]:
         """
         Zapisuje Being do bazy danych (transactional).
-        Zwraca wynik w formacie genetycznym.
+        Serializacja odbywa się TYLKO tutaj, przy zapisie do bazy.
         """
         from luxdb.utils.serializer import GeneticResponseFormat
 
@@ -833,9 +832,26 @@ class Being:
                     error_code="NO_SOUL_FOR_SAVE"
                 )
 
-            # Zapisz do bazy w transakcji
-            from ..repository.soul_repository import BeingRepository
-            await BeingRepository.insert_data_transaction(self, soul.genotype)
+            # TUTAJ ODBYWA SIĘ JEDYNA SERIALIZACJA - przy zapisie do bazy
+            from luxdb.utils.serializer import JSONBSerializer
+            serialized_data, errors = JSONBSerializer.validate_and_serialize(self.data, soul)
+            if errors:
+                return GeneticResponseFormat.error_response(
+                    error=f"Serialization errors: {', '.join(errors)}",
+                    error_code="SERIALIZATION_ERROR"
+                )
+
+            # Tymczasowo podmień dane na zserializowane do zapisu
+            original_data = self.data
+            self.data = serialized_data
+
+            try:
+                # Zapisz do bazy w transakcji
+                from ..repository.soul_repository import BeingRepository
+                await BeingRepository.insert_data_transaction(self, soul.genotype)
+            finally:
+                # Przywróć oryginalne dane do pamięci
+                self.data = original_data
 
             # Przypisanie do strefy dostępu
             from ..core.access_control import access_controller

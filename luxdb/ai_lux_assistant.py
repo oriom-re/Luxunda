@@ -86,25 +86,26 @@ class LuxAssistant:
         # Utwórz Soul dla Lux
         lux_soul = await Soul.create(lux_genotype, alias=f"lux_soul_{self.session_id}")
 
-        # Utwórz Being reprezentujący tę instancję Lux w sesji
-        self.self_being = await Being.set(
-            soul=lux_soul,
-            data={
-                "session_id": self.session_id,
-                "conversation_history": [],
-                "performance_stats": {
-                    "conversations": 0,
-                    "errors": 0,
-                    "avg_response_time": 0
-                },
-                "preferences": {
-                    "demo_mode": self.using_demo_mode,
-                    "openai_available": not self.using_demo_mode
-                },
-                "memory_cache": {}
+        # Dane dla Lux Being
+        being_data = {
+            "session_id": self.session_id,
+            "conversation_history": [],
+            "performance_stats": {
+                "conversations": 0,
+                "errors": 0,
+                "avg_response_time": 0,
+                "errors_handled": 0,
+                "suggestions_made": 0
             },
-            alias=f"lux_instance_{self.session_id}"
-        )
+            "preferences": {
+                "demo_mode": self.using_demo_mode,
+                "openai_available": not self.using_demo_mode
+            },
+            "memory_cache": {}
+        }
+
+        # Being.create() will handle serialization internally
+        self.self_being = await Being.create(lux_soul, being_data)
 
         print(f"🎯 Lux self-being created: {self.self_being.ulid}")
         return self.self_being
