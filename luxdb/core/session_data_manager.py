@@ -19,7 +19,7 @@ class SessionDataManager:
     - Relations (connections between instances with observer context)
     """
 
-    def __init__(self, session_id: str = None):
+    def __init__(self, session_id: str):
         self.session_id = session_id or str(_ulid.ulid())
         self.templates = {}  # Template cache
         self.instances = {}  # Instance cache

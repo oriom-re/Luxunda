@@ -100,10 +100,19 @@ class SimpleKernel:
                 "type": "authentication_service",
                 "version": "1.0.0"
             },
+            "attributes": {
+                "module_type": {
+                    "py_type": "str",
+                    "description": "Type of module"
+                }
+            },
             "module_source": '''
 def execute(request=None, being_context=None, **kwargs):
     """Handles authentication requests"""
-    action = request.get('action') if request else 'status'
+    if request is None:
+        request = {}
+        
+    action = request.get('action', 'status')
 
     if action == 'authenticate':
         user_id = request.get('user_id')
@@ -151,9 +160,18 @@ def execute(request=None, being_context=None, **kwargs):
                 "type": "task_distribution_service",
                 "version": "1.0.0"
             },
+            "attributes": {
+                "module_type": {
+                    "py_type": "str",
+                    "description": "Type of module"
+                }
+            },
             "module_source": '''
 def execute(request=None, being_context=None, **kwargs):
     """Handles task dispatching"""
+    if request is None:
+        request = {}
+        
     action = request.get('action', 'status')
 
     if action == 'dispatch':
