@@ -1,0 +1,66 @@
+{
+  "soul_info": {
+    "soul_hash": "a8de45f435c400d31ef1ac8976a59ebe1762f1cf568f25345f44608936ecb444",
+    "alias": "message_processor",
+    "global_ulid": "01K16YDK7GNRBANHHQDMZVRGE7",
+    "version": "1.0.0",
+    "parent_hash": null,
+    "created_at": "2025-08-16T04:46:01.689147"
+  },
+  "genotype": {
+    "genesis": {
+      "name": "message_processor",
+      "type": "communication_being",
+      "description": "Message processing and routing being",
+      "version": "1.0.0",
+      "source_file": "genotypes/message_processor.json",
+      "loaded_at": "2025-08-16T04:46:01.240301",
+      "loader_type": "dictionary_json"
+    },
+    "attributes": {
+      "max_message_length": {
+        "py_type": "int",
+        "default": 1000
+      },
+      "encoding": {
+        "py_type": "str",
+        "default": "utf-8"
+      },
+      "processed_count": {
+        "py_type": "int",
+        "default": 0
+      }
+    },
+    "functions": {},
+    "capabilities": {
+      "can_process": true,
+      "can_route": true,
+      "can_validate": true
+    },
+    "dependencies": {}
+  },
+  "analysis": {
+    "has_module_source": false,
+    "language": "python",
+    "functions_count": 0,
+    "public_functions": [],
+    "private_functions": [],
+    "attribute_types": {
+      "max_message_length": "int",
+      "encoding": "str",
+      "processed_count": "int"
+    },
+    "is_evolution": false
+  },
+  "creation_context": {
+    "method": "Soul.create",
+    "genotype_processed": true,
+    "function_registry_loaded": false,
+    "validation_passed": true
+  },
+  "system_info": {
+    "timestamp": "2025-08-16T04:46:01.689147",
+    "luxos_version": "3.0.0-unified",
+    "creation_method": "Soul.create"
+  }
+}
