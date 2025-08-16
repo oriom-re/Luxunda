@@ -274,6 +274,63 @@ class BeingRepository:
             return {"success": False, "error": str(e)}
 
     @staticmethod
+    async def get_by_soul_hash(soul_hash: str) -> dict:
+        """Pobiera wszystkie beings dla danego soul_hash"""
+        try:
+            pool = await Postgre_db.get_db_pool()
+            if not pool:
+                return {"success": False, "error": "No database connection"}
+
+            async with pool.acquire() as conn:
+                query = """
+                    SELECT ulid, soul_hash, data, created_at, updated_at
+                    FROM beings
+                    WHERE soul_hash = $1
+                    ORDER BY created_at DESC
+                """
+                rows = await conn.fetch(query, soul_hash)
+
+                beings = []
+                for row in rows:
+                    # Pobierz Soul dla deserializacji
+                    Soul = get_soul_class()
+                    soul = None
+                    if row['soul_hash']:
+                        soul_result = await SoulRepository.get_soul_by_hash(row['soul_hash'])
+                        if soul_result.get('success'):
+                            soul = soul_result.get('soul')
+
+                    # Deserializuj dane przez JSONBSerializer
+                    from ..utils.serializer import JSONBSerializer
+                    data = JSONBSerializer.deserialize(row['data']) if row['data'] else {}
+                    
+                    # Dodatkowo deserializuj według schematu Soul jeśli dostępne
+                    if soul:
+                        data = JSONBSerializer.deserialize_being_data(data, soul)
+
+                    # Deserializuj Being z bazy
+                    being_dict = {
+                        '_ulid': row['ulid'],  # Użyj _ulid dla wewnętrznego pola
+                        'soul_hash': row['soul_hash'],
+                        'data': data,  # Teraz z deserializacją typów
+                        'created_at': row['created_at'],
+                        'updated_at': row['updated_at']
+                    }
+
+                    Being = get_being_class()
+                    being = Being.from_dict(being_dict)
+                    beings.append(being)
+
+                return {
+                    "success": True,
+                    "beings": beings
+                }
+                
+        except Exception as e:
+            print(f"❌ Error getting beings by soul_hash: {e}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
     async def get_by_alias(alias: str) -> dict:
         """Pobiera wszystkie beings o danym aliasie"""
         try:

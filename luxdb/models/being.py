@@ -27,6 +27,7 @@ class Being:
     """
 
     ulid: str = None
+    _ulid: str = field(default=None, init=False, repr=False) # Internal ULID storage
     global_ulid: str = field(default=Globals.GLOBAL_ULID)
     soul_hash: str = None
     alias: str = None
@@ -42,8 +43,11 @@ class Being:
 
     def __post_init__(self):
         """Inicjalizacja po utworzeniu obiektu"""
-        if not self.ulid:
+        if not self.ulid and not self._ulid: # Use _ulid if provided by from_dict
             self.ulid = str(ulid.ulid())
+        elif self._ulid:
+            self.ulid = self._ulid # Set public ulid from internal _ulid
+
         if not self.created_at:
             self.created_at = datetime.now()
         self.updated_at = datetime.now()
@@ -1601,7 +1605,9 @@ class Being:
     def from_dict(cls, data: Dict[str, Any]) -> 'Being':
         """Tworzy Being z słownika"""
         being = cls()
-        being.ulid = data.get('ulid')
+        being._ulid = data.get('ulid') # Use _ulid for internal field
+        being.ulid = data.get('ulid')  # Also set public ulid for consistency
+
         being.global_ulid = data.get('global_ulid', Globals.GLOBAL_ULID)
         being.soul_hash = data.get('soul_hash')
         being.alias = data.get('alias') # Alias jest zachowany dla kompatybilności z danymi

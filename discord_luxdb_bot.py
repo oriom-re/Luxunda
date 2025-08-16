@@ -4,7 +4,7 @@
 
 Intelligent Discord bot powered by LuxDB that serves as:
 - Personal assistant and representative
-- Multilingual moderator 
+- Multilingual moderator
 - Development communication hub
 - Project narrator and memory keeper
 """
@@ -55,7 +55,7 @@ class LuxDBDiscordBot(commands.Bot):
         self.owner_id = int(os.getenv('DISCORD_USER_ID', 0)) if os.getenv('DISCORD_USER_ID') else None
         self.languages = {
             'en': 'English',
-            'pl': 'Polski', 
+            'pl': 'Polski',
             'es': 'Español',
             'fr': 'Français',
             'de': 'Deutsch',
@@ -110,7 +110,7 @@ class LuxDBDiscordBot(commands.Bot):
         bot_genotype = {
             "genesis": {
                 "name": "Discord Bot Assistant",
-                "version": "1.0.0", 
+                "version": "1.0.0",
                 "type": "assistant",
                 "description": "LuxDB Discord Bot with advanced features"
             },
@@ -121,7 +121,7 @@ class LuxDBDiscordBot(commands.Bot):
                     "max_length": 100
                 },
                 "description": {
-                    "py_type": "str", 
+                    "py_type": "str",
                     "description": "Bot description",
                     "max_length": 500
                 },
@@ -164,12 +164,52 @@ class LuxDBDiscordBot(commands.Bot):
             bot_soul = await Soul.create(bot_genotype, alias="discord_bot_soul")
             print(f"✅ Created Discord bot soul: {bot_soul.soul_hash[:8]}...")
 
-            # Create being from soul - serialization happens inside Being.create()
-            self.bot_being = await Being.create(
-                bot_soul,
-                serialized_being_data
-            )
-            print(f"✅ Created Discord bot being: {self.bot_being.ulid}")
+            # Sprawdź czy bot już ma Being dla tej duszy
+            self.bot_being = await Being.get_latest_by_soul_hash(bot_soul.soul_hash)
+
+            if not self.bot_being:
+                # Utwórz Being reprezentujący tę instancję Lux w sesji z limitem 1 per soul
+                bot_being_result = await Being.set(
+                    soul=bot_soul,
+                    data={
+                        "session_id": self.session_id, # Assuming session_id is available or defined elsewhere
+                        "conversation_history": [],
+                        "performance_stats": {
+                            "messages_processed": 0,
+                            "commands_executed": 0,
+                            "errors_encountered": 0,
+                            "uptime_start": datetime.now().isoformat()
+                        },
+                        "bot_config": {
+                            "languages": list(self.languages.keys()),
+                            "moderation_enabled": True,
+                            "memory_limit": 1000
+                        },
+                        "memory": {
+                            "recent_messages": [],
+                            "development_notes": [],
+                            "moderation_actions": []
+                        },
+                        # Zapisz ULID bota w danych
+                        "bot_ulid": None  # Zostanie ustawiony po utworzeniu
+                    },
+                    alias=f"discord_bot_{self.session_id}" # Assuming session_id is available or defined elsewhere
+                )
+
+                if bot_being_result.get('success'):
+                    self.bot_being = bot_being_result['data']['being']
+                    # Zapisz ULID bota w jego własnych danych
+                    self.bot_being.data['bot_ulid'] = self.bot_being.ulid
+                    await self.bot_being.save()
+                else:
+                    print(f"❌ Failed to create bot being: {bot_being_result.get('error')}")
+                    self.bot_being = None
+            else:
+                print(f"✅ Using existing bot being: {self.bot_being.ulid}")
+                # Aktualizuj session_id w istniejącym Being
+                self.bot_being.data['session_id'] = self.session_id # Assuming session_id is available or defined elsewhere
+                self.bot_being.data['performance_stats']['uptime_start'] = datetime.now().isoformat()
+                await self.bot_being.save()
 
         except Exception as e:
             print(f"⚠️ Using existing Discord bot being due to: {e}")
@@ -285,7 +325,7 @@ class LuxDBDiscordBot(commands.Bot):
 
         Available functions you can call:
         - show_status: Show bot and project status
-        - project_info: Share LuxDB project information  
+        - project_info: Share LuxDB project information
         - development_update: Share latest development updates
         - show_help: Show available capabilities
         - translate_text: Translate text to multiple languages
@@ -334,7 +374,7 @@ class LuxDBDiscordBot(commands.Bot):
         )
 
         embed.add_field(
-            name="👤 Owner Status", 
+            name="👤 Owner Status",
             value=self.owner_status.title(),
             inline=True
         )
@@ -479,7 +519,7 @@ class LuxDBDiscordBot(commands.Bot):
         )
 
         embed.add_field(
-            name="⚡ Key Features", 
+            name="⚡ Key Features",
             value="• Hash-based immutability\n• Lazy execution\n• Multi-language support\n• Being ownership management",
             inline=False
         )
@@ -490,7 +530,7 @@ class LuxDBDiscordBot(commands.Bot):
         """Execute development update function"""
         updates = [
             "✅ v1.0.0 Stable Release - Genetic OS architecture completed",
-            "🧬 Soul/Being system with hash-based immutability", 
+            "🧬 Soul/Being system with hash-based immutability",
             "⚡ Lazy execution and multi-language bridge implemented",
             "🤖 Discord bot with intelligent intent detection",
             "🌐 Web interface with reactive components",
@@ -518,7 +558,7 @@ class LuxDBDiscordBot(commands.Bot):
                 "items": ["✅ Soul/Being architecture", "✅ Hash-based immutability", "✅ PostgreSQL integration", "✅ Basic function execution"]
             },
             {
-                "phase": "Phase 2: Advanced Features 🔄", 
+                "phase": "Phase 2: Advanced Features 🔄",
                 "items": ["✅ Multi-language support", "✅ Discord bot integration", "🔄 AI assistant enhancement", "🔄 Web interface expansion"]
             },
             {
@@ -551,7 +591,7 @@ class LuxDBDiscordBot(commands.Bot):
         capabilities = [
             ("📊 Status", "Ask about my status or the project status"),
             ("🧬 Project Info", "Ask about LuxDB, the project, or how it works"),
-            ("🚀 Development", "Ask about updates, progress, or development"), 
+            ("🚀 Development", "Ask about updates, progress, or development"),
             ("🗺️ Roadmap", "Ask about plans, roadmap, or future features"),
             ("🌍 Translation", "Ask me to translate text to multiple languages"),
             ("🧠 Memory", "Ask me to search through our conversation history"),
@@ -642,7 +682,7 @@ class LuxDBDiscordBot(commands.Bot):
         updates = [
             "✅ v1.0.0 Stable Release - Genetic OS architecture completed",
             "🧬 Soul/Being system with hash-based immutability",
-            "⚡ Lazy execution and multi-language bridge implemented", 
+            "⚡ Lazy execution and multi-language bridge implemented",
             "🤖 Discord bot integration with LuxDB Assistant",
             "🌐 Web interface with reactive components",
             "📊 Production hash management system"
