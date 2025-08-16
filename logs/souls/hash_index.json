@@ -447,6 +447,13 @@
       "parent_hash": null,
       "report_file": "d14934a90e2dee24_20250816_171633.json",
       "created_at": "2025-08-16T17:16:33.055292"
+    },
+    "443136d4053ccae876cb839b9478b00525670698b541ab1595f0ba8a3ab26a1a": {
+      "alias": "lux_soul_01K2SYC3R5Y2AEFDSNAX2SKG75",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "443136d4053ccae8_20250816_172056.json",
+      "created_at": "2025-08-16T17:20:56.119217"
     }
   },
   "aliases": {
@@ -880,6 +887,13 @@
         "soul_hash": "d2803edde27d5b215ee5699570852326811ff408d714ae9f3226da659f19c41f",
         "version": "1.0.0",
         "created_at": "2025-08-16T17:12:21.753096"
+      }
+    ],
+    "lux_soul_01K2SYC3R5Y2AEFDSNAX2SKG75": [
+      {
+        "soul_hash": "443136d4053ccae876cb839b9478b00525670698b541ab1595f0ba8a3ab26a1a",
+        "version": "1.0.0",
+        "created_at": "2025-08-16T17:20:56.119224"
       }
     ]
   }
