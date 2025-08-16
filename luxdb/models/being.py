@@ -153,7 +153,7 @@ class Being:
             Lista Being o podanym aliasie
         """
         from ..repository.soul_repository import BeingRepository
-        
+
         result = await BeingRepository.get_by_alias(alias)
         beings = result.get('beings', []) if result.get('success') else []
         return [being for being in beings if being is not None]
@@ -269,7 +269,6 @@ class Being:
         being = cls()
         being.soul_hash = target_soul.soul_hash
         being.global_ulid = target_soul.global_ulid
-        being.alias = alias
 
         # Walidacja i serializacja danych
         if attributes:
@@ -350,7 +349,6 @@ class Being:
         being = cls()
         being.soul_hash = target_soul.soul_hash
         being.global_ulid = target_soul.global_ulid
-        being.alias = alias
         being.access_zone = access_zone
 
         # Walidacja i serializacja danych
