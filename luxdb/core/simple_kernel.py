@@ -142,12 +142,20 @@ def execute(request=None, being_context=None, **kwargs):
         }
 
         try:
+            from luxdb.repository.soul_repository import SoulRepository, BeingRepository
+            
+            # Create Soul through repository
             auth_soul = await Soul.create(auth_genotype, alias="auth_module_soul")
-            return await Being.create(
-                soul=auth_soul,
+            if not auth_soul:
+                return None
+                
+            # Create Being through repository only
+            being = await BeingRepository.create_being(
+                soul_hash=auth_soul.soul_hash,
                 alias="auth_module",
-                attributes={"module_type": "authentication"}
+                data={"module_type": "authentication"}
             )
+            return being
         except Exception as e:
             print(f"❌ Failed to create auth module: {e}")
             return None
@@ -206,12 +214,20 @@ def execute(request=None, being_context=None, **kwargs):
         }
 
         try:
+            from luxdb.repository.soul_repository import SoulRepository, BeingRepository
+            
+            # Create Soul through repository
             dispatcher_soul = await Soul.create(dispatcher_genotype, alias="dispatcher_soul")
-            return await Being.create(
-                soul=dispatcher_soul,
-                alias="task_dispatcher",
-                attributes={"module_type": "dispatcher"}
+            if not dispatcher_soul:
+                return None
+                
+            # Create Being through repository only
+            being = await BeingRepository.create_being(
+                soul_hash=dispatcher_soul.soul_hash,
+                alias="task_dispatcher", 
+                data={"module_type": "dispatcher"}
             )
+            return being
         except Exception as e:
             print(f"❌ Failed to create dispatcher module: {e}")
             return None
@@ -276,19 +292,24 @@ def execute(request=None, being_context=None, **kwargs):
             }
         }
 
+        from luxdb.repository.soul_repository import SoulRepository, BeingRepository
+        
         task_soul = await Soul.create(task_genotype, alias=f"task_soul_{task.task_id[:8]}")
+        if not task_soul:
+            return None
 
-        return await Being.create(
-            soul=task_soul,
+        # Create Being through repository only - no persistence for tasks
+        return await BeingRepository.create_being(
+            soul_hash=task_soul.soul_hash,
             alias=f"task_{task.task_id[:8]}",
-            attributes={
+            data={
                 "task_id": task.task_id,
                 "task_type": task.task_type,
                 "target_module": task.target_module,
                 "status": task.status,
-                "created_at": task.created_at.isoformat()
-            },
-            persistent=False  # Task beings są nietrwałe
+                "created_at": task.created_at.isoformat(),
+                "persistent": False
+            }
         )
 
     async def _process_task(self, task_id: str):
@@ -441,16 +462,19 @@ def execute(request=None, being_context=None, **kwargs):
     async def create_default_module(self, module_type: str, config):
         """Create default modules for kernel"""
         try:
+            from luxdb.repository.soul_repository import SoulRepository, BeingRepository
+            
             # Ensure config is a dict
             if isinstance(config, str):
                 config = {"config_string": config}
             elif config is None:
                 config = {}
 
-            # Create being for module
-            being = await Being.create(
+            # Create being through repository only
+            being = await BeingRepository.create_being(
+                soul_hash=None,  # Generic module without specific soul
                 alias=f"{module_type}_module",
-                attributes={
+                data={
                     "module_type": module_type,
                     "config": config,
                     "status": "active"
