@@ -391,6 +391,20 @@
       "parent_hash": null,
       "report_file": "dd55240d275d7acc_20250816_151728.json",
       "created_at": "2025-08-16T15:17:28.331471"
+    },
+    "f65f22f456e05bbc717e6229fa4e736ac0acaa66721e10b40ae5e5484037d24f": {
+      "alias": "discord_bot_soul",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "f65f22f456e05bbc_20250816_153309.json",
+      "created_at": "2025-08-16T15:33:09.316203"
+    },
+    "02fe46185c16985f5ba93db183675682166493e4c6c461531dcc1dd6d8e5e304": {
+      "alias": "lux_soul_01K2SR6S2BTMYP7ETK7KHHHRD2",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "02fe46185c16985f_20250816_153309.json",
+      "created_at": "2025-08-16T15:33:09.773874"
     }
   },
   "aliases": {
@@ -774,6 +788,18 @@
         "soul_hash": "dd55240d275d7acc08f23359fca0a8587b119c47caad8fcdb8acfe0ad1337203",
         "version": "1.0.0",
         "created_at": "2025-08-16T15:17:28.331477"
+      },
+      {
+        "soul_hash": "f65f22f456e05bbc717e6229fa4e736ac0acaa66721e10b40ae5e5484037d24f",
+        "version": "1.0.0",
+        "created_at": "2025-08-16T15:33:09.316212"
+      }
+    ],
+    "lux_soul_01K2SR6S2BTMYP7ETK7KHHHRD2": [
+      {
+        "soul_hash": "02fe46185c16985f5ba93db183675682166493e4c6c461531dcc1dd6d8e5e304",
+        "version": "1.0.0",
+        "created_at": "2025-08-16T15:33:09.773883"
       }
     ]
   }
