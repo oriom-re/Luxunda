@@ -377,6 +377,13 @@
       "parent_hash": null,
       "report_file": "0f39b726949501f3_20250816_150026.json",
       "created_at": "2025-08-16T15:00:26.809454"
+    },
+    "c97077a59f199e3f99a56c268a939697f0e6475eb6a2873ded99051bfce89975": {
+      "alias": "luxdb_discord_bot",
+      "version": "1.2.0",
+      "parent_hash": null,
+      "report_file": "c97077a59f199e3f_20250816_150205.json",
+      "created_at": "2025-08-16T15:02:05.321654"
     }
   },
   "aliases": {
@@ -748,6 +755,11 @@
         "soul_hash": "0f39b726949501f3eec56f93ee756008d47b50732e2ed27dbbe66c94dc66fc76",
         "version": "1.2.0",
         "created_at": "2025-08-16T15:00:26.809463"
+      },
+      {
+        "soul_hash": "c97077a59f199e3f99a56c268a939697f0e6475eb6a2873ded99051bfce89975",
+        "version": "1.2.0",
+        "created_at": "2025-08-16T15:02:05.321664"
       }
     ]
   }
