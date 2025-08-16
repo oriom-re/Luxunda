@@ -182,9 +182,7 @@ async def main():
 
             # 4. Initialize session manager for web interface
             from luxdb.core.session_data_manager import GlobalSessionRegistry
-
-# Singleton instance
-session_manager = GlobalSessionRegistry()
+            session_manager = GlobalSessionRegistry()
             await session_manager.initialize()
 
             if args.init_genotypes:
