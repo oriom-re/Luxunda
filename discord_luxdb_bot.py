@@ -177,22 +177,18 @@ class LuxDBDiscordBot(commands.Bot):
 
             self.bot_being = await Being.create(
                 bot_soul,
-                serialized_being_data,
-                alias="discord_bot_instance",
-                unique_by="alias"
+                serialized_being_data
             )
             print(f"✅ Created Discord bot being: {self.bot_being.ulid}")
 
         except Exception as e:
             print(f"⚠️ Using existing Discord bot being due to: {e}")
-            # Try to find existing being
+            # Try to find existing being by soul hash
             try:
-                existing_beings = await Being.get_all()
-                for being in existing_beings:
-                    if hasattr(being, 'alias') and being.alias == "discord_bot_instance":
-                        self.bot_being = being
-                        print(f"✅ Loaded existing Discord bot being: {self.bot_being.ulid}")
-                        break
+                existing_beings = await Being.load_all_by_soul_hash(bot_soul.soul_hash)
+                if existing_beings:
+                    self.bot_being = existing_beings[0]  # Use first being from this soul
+                    print(f"✅ Loaded existing Discord bot being: {self.bot_being.ulid}")
                 else:
                     print("❌ Could not create or load Discord bot being")
                     self.bot_being = None
