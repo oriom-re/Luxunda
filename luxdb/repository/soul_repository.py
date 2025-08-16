@@ -248,7 +248,7 @@ class BeingRepository:
                 # Deserializuj dane przez JSONBSerializer
                 from ..utils.serializer import JSONBSerializer
                 data = JSONBSerializer.deserialize(row['data']) if row['data'] else {}
-                
+
                 # Dodatkowo deserializuj według schematu Soul jeśli dostępne
                 if soul:
                     data = JSONBSerializer.deserialize_being_data(data, soul)
@@ -303,7 +303,7 @@ class BeingRepository:
                     # Deserializuj dane przez JSONBSerializer
                     from ..utils.serializer import JSONBSerializer
                     data = JSONBSerializer.deserialize(row['data']) if row['data'] else {}
-                    
+
                     # Dodatkowo deserializuj według schematu Soul jeśli dostępne
                     if soul:
                         data = JSONBSerializer.deserialize_being_data(data, soul)
@@ -325,7 +325,7 @@ class BeingRepository:
                     "success": True,
                     "beings": beings
                 }
-                
+
         except Exception as e:
             print(f"❌ Error getting beings by soul_hash: {e}")
             return {"success": False, "error": str(e)}
@@ -398,7 +398,7 @@ class BeingRepository:
                 # Serializuj dane przez JSONBSerializer zamiast json.dumps
                 from ..utils.serializer import JSONBSerializer
                 serialized_data = JSONBSerializer.serialize(being.data)
-                
+
                 result = await conn.fetchrow(query,
                     being.ulid,
                     being.soul_hash,
@@ -602,23 +602,23 @@ class BeingRepository:
     async def insert_data_transaction(being, genotype_data) -> Dict[str, Any]:
         """
         Transakcyjne wstawienie Being do bazy danych z automatyczną serializacją.
-        
+
         Args:
             being: Obiekt Being do zapisania
             genotype_data: Dane genotypu (dla kompatybilności)
-            
+
         Returns:
             Dict z wynikiem operacji
         """
         try:
             from ..utils.serializer import JSONBSerializer
-            
+
             pool = await Postgre_db.get_db_pool()
             async with pool.acquire() as conn:
                 async with conn.transaction():
                     # Serializuj dane przez JSONBSerializer
                     serialized_data = JSONBSerializer.serialize(being.data)
-                    
+
                     query = """
                         INSERT INTO beings (ulid, soul_hash, data, created_at, updated_at)
                         VALUES ($1, $2, $3, $4, $5)
@@ -628,7 +628,7 @@ class BeingRepository:
                             updated_at = EXCLUDED.updated_at
                         RETURNING created_at, updated_at
                     """
-                    
+
                     result = await conn.fetchrow(query,
                         being.ulid,
                         being.soul_hash,
@@ -636,13 +636,13 @@ class BeingRepository:
                         being.created_at,
                         being.updated_at
                     )
-                    
+
                     if result:
                         being.created_at = result['created_at']
                         being.updated_at = result['updated_at']
-                    
+
                     return {"success": True, "being_saved": True}
-                    
+
         except Exception as e:
             return {"success": False, "error": str(e)}
 

@@ -238,7 +238,19 @@ class Soul:
             Lista błędów walidacji (pusta jeśli brak błędów)
         """
         errors = []
-        attributes = self.genotype.get("attributes", {})
+        
+        # Fix: Ensure genotype is dict, not string
+        if isinstance(self.genotype, str):
+            try:
+                import json
+                genotype_dict = json.loads(self.genotype)
+            except:
+                print(f"❌ ERROR: genotype is string but cannot parse as JSON: {self.genotype}")
+                return ["Invalid genotype format - cannot parse as JSON"]
+        else:
+            genotype_dict = self.genotype
+            
+        attributes = genotype_dict.get("attributes", {})
 
         for attr_name, attr_config in attributes.items():
             py_type = attr_config.get("py_type", "str")
