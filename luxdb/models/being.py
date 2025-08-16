@@ -295,15 +295,7 @@ class Being:
         Do zapisu używaj being.set() lub Being.set()
         """
 
-        # DELEGACJA DO KERNEL - jeśli podano tylko alias bez soul
-        if (alias is not None and
-            soul is None and
-            soul_or_hash is None and
-            soul_hash is None):
-
-            print(f"🏛️ Delegating Being.create(alias='{alias}') to Kernel...")
-            from ..core.intelligent_kernel import intelligent_kernel
-            return await intelligent_kernel.create_being_by_alias(alias, attributes, persistent=False)
+        # Being nie ma alias - usunięta niepotrzebna logika
 
         # Standardowa logika rozpoznawania Soul
         if soul is not None:
@@ -355,7 +347,7 @@ class Being:
         return being
 
     @classmethod
-    async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
+    async def _create_internal(cls, soul_or_hash=None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, access_zone: str = "public_zone", ttl_hours: int = None) -> 'Being':
         """Wewnętrzna metoda create - kopia oryginalnej logiki"""
         # Backward compatibility handling
         if soul is not None:
@@ -399,7 +391,7 @@ class Being:
 
         # NIE zapisuj automatycznie - tylko przez set() lub save()
         being.data['_persistent'] = False
-        print(f"💭 Created internal being: {being.alias or being.ulid[:8]} (transient)")
+        print(f"💭 Created internal being: {being.ulid[:8]} (transient)")
 
         # *** AUTOMATYCZNA INICJALIZACJA PO UTWORZENIU ***
         await being._auto_initialize_after_creation(target_soul)
@@ -444,12 +436,11 @@ class Being:
         """
         try:
             if soul.has_init_function():
-                print(f"🧬 Auto-initializing master being {self.alias} with init function")
+                print(f"🧬 Auto-initializing master being {self.ulid[:8]} with init function")
 
                 # Przygotuj kontekst Being (NIE są to atrybuty!)
                 being_context = {
                     'ulid': self.ulid,
-                    'alias': self.alias,
                     'creation_time': datetime.now().isoformat(),
                     'data': self.data.copy(),
                     'soul_functions': soul.list_functions(),
@@ -459,7 +450,7 @@ class Being:
                 result = await soul.auto_init(being_context=being_context)
 
                 if result.get('success'):
-                    print(f"🎯 Being {self.alias} is now a function master - knows {soul.get_functions_count()} functions")
+                    print(f"🎯 Being {self.ulid[:8]} is now a function master - knows {soul.get_functions_count()} functions")
                     # Being staje się masterem swoich funkcji
                     self.data['_function_master'] = True
                     self.data['_initialized'] = True
@@ -473,11 +464,11 @@ class Being:
                         await self.save()
                     return result # Return result for persistence check
                 else:
-                    print(f"❌ Being {self.alias} initialization failed: {result.get('error')}")
+                    print(f"❌ Being {self.ulid[:8]} initialization failed: {result.get('error')}")
                     return result # Return result for persistence check
 
         except Exception as e:
-            print(f"💥 Auto-initialization failed for being {self.alias}: {e}")
+            print(f"💥 Auto-initialization failed for being {self.ulid[:8]}: {e}")
             return {'success': False, 'error': str(e)} # Return error result
 
     async def _initialize_dynamic_handlers(self, soul):
@@ -499,7 +490,7 @@ class Being:
                             soul._register_immutable_function(func_name, func)
 
                     self._module_loaded = True
-                    print(f"Loaded {len(module_functions)} dynamic handlers for being {self.alias}")
+                    print(f"Loaded {len(module_functions)} dynamic handlers for being {self.ulid[:8]}")
 
         except Exception as e:
             print(f"Failed to initialize dynamic handlers: {e}")
@@ -528,7 +519,6 @@ class Being:
             if 'being_context' not in kwargs:
                 kwargs['being_context'] = {
                     'ulid': self.ulid,
-                    'alias': self.alias,
                     'data': self.data
                 }
 
@@ -578,7 +568,7 @@ class Being:
                 "timestamp": datetime.now().isoformat()
             }
 
-            print(f"🏛️ Being {self.alias} delegating function '{function_name}' execution to Kernel")
+            print(f"🏛️ Being {self.ulid[:8]} delegating function '{function_name}' execution to Kernel")
 
             # Kernel znajdzie odpowiedni Master Soul Being i wykona funkcję
             result = await intelligent_kernel.execute_function_via_master_soul(
@@ -689,7 +679,6 @@ class Being:
         # Przygotuj being_context dla funkcji Soul
         being_context = {
             "ulid": self.ulid,
-            "alias": self.alias,
             "data": self.data,
             "soul_hash": soul.soul_hash,
             "attributes": self.data  # Alias dla kompatybilności
@@ -766,7 +755,7 @@ class Being:
             if self.is_persistent():
                 await self.save()
 
-            print(f"🔧 Master {self.alias} added dynamic function: {function_name}")
+            print(f"🔧 Master {self.ulid[:8]} added dynamic function: {function_name}")
 
             return GeneticResponseFormat.success_response(
                 data={
