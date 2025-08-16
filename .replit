@@ -217,6 +217,15 @@ mode = "sequential"
 task = "shell.exec"
 args = "python main.py --mode=web --kernel=simple"
 
+[[workflows.workflow]]
+name = "Discord Bot"
+author = 43346420
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python run_discord_bot.py"
+
 # === PORTY ===
 
 [[ports]]
