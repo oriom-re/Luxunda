@@ -56,8 +56,8 @@ class Being:
     async def set(cls, soul, data: Dict[str, Any], alias: str = None,
                   access_zone: str = "public_zone", ttl_hours: int = None) -> Dict[str, Any]:
         """
-        Metoda set dla Being zgodna z formatem genetycznym.
-
+        Metoda set dla Being - tworzy i automatycznie zapisuje do bazy.
+        
         Args:
             soul: Obiekt Soul (genotyp)
             data: Dane bytu
@@ -71,7 +71,20 @@ class Being:
         from luxdb.utils.serializer import GeneticResponseFormat
 
         try:
-            being = await cls._create_internal(soul, alias=alias, attributes=data, access_zone=access_zone, ttl_hours=ttl_hours)
+            # Utwórz Being w pamięci
+            being = await cls.create(soul, alias=alias, attributes=data)
+            being.access_zone = access_zone
+
+            # TTL
+            if ttl_hours:
+                from datetime import timedelta
+                being.ttl_expires = datetime.now() + timedelta(hours=ttl_hours)
+
+            # ZAWSZE zapisz przez set()
+            save_result = await being.save()
+            
+            if not save_result.get('success'):
+                return save_result  # Zwróć błąd zapisu
 
             soul_context = {
                 "soul_hash": being.soul_hash,
@@ -226,11 +239,11 @@ class Being:
         return await cls.create(target_soul, alias=alias, attributes=attributes)
 
     @classmethod
-    async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None, persistent: bool = True) -> 'Being':
-        """Tworzy nowy Being na podstawie Soul - z kompatybilnością wsteczną
-
-        Args:
-            persistent: Czy Being ma być zapisywane do bazy danych
+    async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
+        """
+        Tworzy nowy Being w pamięci (nie zapisuje do bazy automatycznie).
+        
+        Do zapisu używaj being.set() lub Being.set()
         """
 
         # DELEGACJA DO KERNEL - jeśli podano tylko alias bez soul
@@ -241,7 +254,7 @@ class Being:
 
             print(f"🏛️ Delegating Being.create(alias='{alias}') to Kernel...")
             from ..core.intelligent_kernel import intelligent_kernel
-            return await intelligent_kernel.create_being_by_alias(alias, attributes, persistent)
+            return await intelligent_kernel.create_being_by_alias(alias, attributes, persistent=False)
 
         # Standardowa logika rozpoznawania Soul
         if soul is not None:
@@ -267,6 +280,7 @@ class Being:
         being = cls()
         being.soul_hash = target_soul.soul_hash
         being.global_ulid = target_soul.global_ulid
+        being.alias = alias
 
         # Walidacja i serializacja danych
         if attributes:
@@ -277,46 +291,18 @@ class Being:
         else:
             being.data = {}
 
+        # Oznacz jako nietrwałe (domyślnie w pamięci)
+        being.data['_persistent'] = False
+
         # Ustawienie pozostałych atrybutów z metadanych Soul
         for key, value in target_soul.genotype.items():
             if key != 'attributes':
                 setattr(being, key, value)
 
-        # Zapis do bazy danych tylko jeśli persistent=True
-        if persistent:
-            from ..repository.soul_repository import BeingRepository
-            await BeingRepository.insert_data_transaction(being, target_soul.genotype)
-
-            # Przypisanie do strefy dostępu
-            from ..core.access_control import access_controller
-            access_controller.assign_being_to_zone(being.ulid, being.access_zone)
-        else:
-            # Dla nietrwałych Being, dodaj flagę w danych
-            being.data['_persistent'] = False
-            print(f"💨 Created transient being: {being.alias} (not persisted)")
+        print(f"💭 Created transient being: {being.alias or being.ulid[:8]} (use .set() to persist)")
 
         # *** AUTOMATYCZNA INICJALIZACJA PO UTWORZENIU ***
-        init_result = await being._auto_initialize_after_creation(target_soul)
-
-        # Sprawdź czy init funkcja zaleciła zmianę persistence
-        if init_result and init_result.get('success'):
-            init_data = init_result.get('data', {})
-            suggested_persistence = init_data.get('suggested_persistence')
-
-            if suggested_persistence is not None and suggested_persistence != persistent:
-                print(f"🧬 Soul {target_soul.alias} suggests persistence: {suggested_persistence} (current: {persistent})")
-
-                # Jeśli Soul sugeruje zapisanie, a Being nie jest persistent
-                if suggested_persistence and not persistent:
-                    print(f"🔄 Converting Being {being.alias} to persistent based on Soul recommendation")
-                    being.data['_persistent'] = True
-                    # Zapisz do bazy
-                    from ..repository.soul_repository import BeingRepository
-                    await BeingRepository.insert_data_transaction(being, target_soul.genotype)
-
-                    # Przypisanie do strefy dostępu
-                    from ..core.access_control import access_controller
-                    access_controller.assign_being_to_zone(being.ulid, being.access_zone)
+        await being._auto_initialize_after_creation(target_soul)
 
         return being
 
@@ -364,13 +350,9 @@ class Being:
             from datetime import timedelta
             being.ttl_expires = datetime.now() + timedelta(hours=hours)
 
-        # Zapis do bazy danych
-        from ..repository.soul_repository import BeingRepository
-        await BeingRepository.insert_data_transaction(being, target_soul.genotype)
-
-        # Przypisanie do strefy dostępu
-        from ..core.access_control import access_controller
-        access_controller.assign_being_to_zone(being.ulid, being.access_zone)
+        # NIE zapisuj automatycznie - tylko przez set() lub save()
+        being.data['_persistent'] = False
+        print(f"💭 Created internal being: {being.alias or being.ulid[:8]} (transient)")
 
         # *** AUTOMATYCZNA INICJALIZACJA PO UTWORZENIU ***
         await being._auto_initialize_after_creation(target_soul)
@@ -834,7 +816,51 @@ class Being:
 
     def is_persistent(self) -> bool:
         """Sprawdza czy Being jest trwałe (zapisane w bazie)"""
-        return self.data.get('_persistent', True)
+        return self.data.get('_persistent', False)
+
+    async def save(self) -> Dict[str, Any]:
+        """
+        Zapisuje Being do bazy danych (transactional).
+        Zwraca wynik w formacie genetycznym.
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+
+        try:
+            soul = await self.get_soul()
+            if not soul:
+                return GeneticResponseFormat.error_response(
+                    error="Cannot save being without soul",
+                    error_code="NO_SOUL_FOR_SAVE"
+                )
+
+            # Zapisz do bazy w transakcji
+            from ..repository.soul_repository import BeingRepository
+            await BeingRepository.insert_data_transaction(self, soul.genotype)
+
+            # Przypisanie do strefy dostępu
+            from ..core.access_control import access_controller
+            access_controller.assign_being_to_zone(self.ulid, self.access_zone)
+
+            # Oznacz jako trwałe
+            self.data['_persistent'] = True
+            self.updated_at = datetime.now()
+
+            print(f"💾 Being {self.alias or self.ulid[:8]} saved to database")
+
+            return GeneticResponseFormat.success_response(
+                data={
+                    "being_saved": True,
+                    "ulid": self.ulid,
+                    "persistent": True
+                },
+                soul_context={"soul_hash": self.soul_hash}
+            )
+
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Failed to save being: {str(e)}",
+                error_code="BEING_SAVE_ERROR"
+            )
 
     def get_function_mastery_info(self) -> Dict[str, Any]:
         """Zwraca informacje o masterowaniu funkcji przez tego Being"""
