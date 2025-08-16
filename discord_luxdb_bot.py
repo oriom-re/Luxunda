@@ -51,7 +51,7 @@ class LuxDBDiscordBot(commands.Bot):
         self.session_manager = None
         
         # Bot personality and memory
-        self.owner_id = None  # Set this to your Discord user ID
+        self.owner_id = int(os.getenv('DISCORD_USER_ID', 0)) if os.getenv('DISCORD_USER_ID') else None
         self.languages = {
             'en': 'English',
             'pl': 'Polski', 

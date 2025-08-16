@@ -32,11 +32,22 @@ async def main():
         print("4. Click 'Reset Token' and copy it")
         return
     
+    if not os.getenv('DISCORD_USER_ID'):
+        print("❌ Missing DISCORD_USER_ID!")
+        print("\n🔧 Setup Instructions:")
+        print("1. Go to Replit Secrets tab")
+        print("2. Add key: DISCORD_USER_ID")
+        print("3. Add value: Your Discord user ID")
+        print("\n📖 How to get your Discord user ID:")
+        print("1. Enable Developer Mode in Discord settings")
+        print("2. Right-click your username")
+        print("3. Select 'Copy ID'")
+        return
+    
     # Initialize bot
     bot = LuxDBDiscordBot()
     
-    # Set your Discord user ID (replace with your actual ID)
-    bot.owner_id = 123456789012345678  # REPLACE WITH YOUR DISCORD USER ID
+    # Owner ID is now set from DISCORD_USER_ID environment variable
     
     # Setup advanced features
     setup_advanced_features(bot)

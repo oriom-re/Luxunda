@@ -100,19 +100,16 @@ Add these secrets in Replit:
 
 ```
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_USER_ID=your_discord_user_id_here
 ```
 
-### 3. Set Your Discord User ID
-
-Edit `run_discord_bot.py` and replace:
-```python
-bot.owner_id = 123456789012345678  # REPLACE WITH YOUR DISCORD USER ID
-```
+### 3. Get Your Discord User ID
 
 To get your Discord ID:
 1. Enable Developer Mode in Discord settings
 2. Right-click your username
 3. Select "Copy ID"
+4. Add this ID to DISCORD_USER_ID in Replit Secrets
 
 ### 4. Invite Bot to Server
 
