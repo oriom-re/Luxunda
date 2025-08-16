@@ -174,7 +174,6 @@ class LuxDBDiscordBot(commands.Bot):
             print("🔍 DEBUG: Calling Being.get_or_create...")
             self.bot_being = await Being.get_or_create(
                 soul=bot_soul,
-                alias="discord_bot_singleton",
                 attributes=bot_attributes,
                 max_instances=1  # Limit to one active Discord bot Being per soul
             )

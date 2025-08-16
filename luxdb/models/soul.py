@@ -305,7 +305,18 @@ class Soul:
         soul.soul_hash = data.get('soul_hash')
         soul.global_ulid = data.get('global_ulid', Globals.GLOBAL_ULID)
         soul.alias = data.get('alias')
-        soul.genotype = data.get('genotype', {})
+        
+        # Deserializacja genotype - może być string (JSON z bazy) lub dict
+        genotype_data = data.get('genotype', {})
+        if isinstance(genotype_data, str):
+            try:
+                soul.genotype = json.loads(genotype_data)
+            except json.JSONDecodeError:
+                print(f"⚠️ Failed to parse genotype JSON: {genotype_data}")
+                soul.genotype = {}
+        else:
+            soul.genotype = genotype_data
+            
         if data.get('created_at'):
             if isinstance(data['created_at'], str):
                 soul.created_at = datetime.fromisoformat(data['created_at'])

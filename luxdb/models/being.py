@@ -30,7 +30,6 @@ class Being:
     _ulid: str = field(default=None, init=False, repr=False) # Internal ULID storage
     global_ulid: str = field(default=Globals.GLOBAL_ULID)
     soul_hash: str = None
-    alias: str = None
     data: Dict[str, Any] = field(default_factory=dict)
     access_zone: str = "public_zone"  # Domyślnie publiczne
     ttl_expires: Optional[datetime] = None
@@ -192,8 +191,8 @@ class Being:
         return [being for being in beings if being is not None]
 
     @classmethod
-    async def get_or_create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None,
-                           unique_by: str = "alias", soul: 'Soul' = None, soul_hash: str = None, 
+    async def get_or_create(cls, soul_or_hash=None, attributes: Dict[str, Any] = None,
+                           unique_by: str = "soul_hash", soul: 'Soul' = None, soul_hash: str = None, 
                            max_instances: int = None) -> 'Being':
         """
         Pobiera istniejący Being lub tworzy nowy z obsługą poolingu.
@@ -251,26 +250,18 @@ class Being:
                         existing_being.data.update(attributes)
                     
                     await existing_being.save()
-                    print(f"🔄 Reactivated pooled Being: {existing_being.alias or existing_being.ulid[:8]} ({len(active_beings)+1}/{max_instances})")
+                    print(f"🔄 Reactivated pooled Being: {existing_being.ulid[:8]} ({len(active_beings)+1}/{max_instances})")
                     return existing_being
             else:
                 # Limit osiągnięty, zwróć pierwszy aktywny
                 first_active = active_beings[0]
-                print(f"⚠️ Pool limit reached ({max_instances}), returning existing Being: {first_active.alias or first_active.ulid[:8]}")
+                print(f"⚠️ Pool limit reached ({max_instances}), returning existing Being: {first_active.ulid[:8]}")
                 return first_active
 
-        # STANDARDOWA LOGIKA - alias lub inne
+        # STANDARDOWA LOGIKA - soul_hash
         existing_being = None
 
-        if unique_by == "alias" and alias:
-            beings_with_alias = await cls.get_by_alias(alias)
-            # Znajdź Being z tym samym soul_hash
-            for b in beings_with_alias:
-                if b.soul_hash == target_soul.soul_hash:
-                    existing_being = b
-                    break
-
-        elif unique_by == "soul_hash":
+        if unique_by == "soul_hash":
             # PRECYZYJNE zapytanie - jeden Being per soul_hash (Kernel style)
             beings_for_soul = await cls.get_by_soul_hash(target_soul.soul_hash)
             if beings_for_soul:
@@ -286,18 +277,18 @@ class Being:
             return existing_being
 
         # Jeśli nie istnieje - utwórz nowy
-        new_being = await cls.create(target_soul, alias=alias, attributes=attributes)
+        new_being = await cls.create(target_soul, attributes=attributes)
         
         # Ustaw active dla poolingu
         if max_instances is not None:
             new_being.data['active'] = True
             await new_being.save()
-            print(f"🆕 Created new pooled Being: {new_being.alias or new_being.ulid[:8]} (active)")
+            print(f"🆕 Created new pooled Being: {new_being.ulid[:8]} (active)")
         
         return new_being
 
     @classmethod
-    async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
+    async def create(cls, soul_or_hash=None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
         """
         Tworzy nowy Being w pamięci (nie zapisuje do bazy automatycznie).
 
@@ -338,7 +329,6 @@ class Being:
         being = cls()
         being.soul_hash = target_soul.soul_hash
         being.global_ulid = target_soul.global_ulid
-        being.alias = alias
 
         # Walidacja danych (bez serializacji - tylko przy zapisie do bazy)
         if attributes:
@@ -357,7 +347,7 @@ class Being:
             if key != 'attributes':
                 setattr(being, key, value)
 
-        print(f"💭 Created transient being: {being.alias or being.ulid[:8]} (use .set() to persist)")
+        print(f"💭 Created transient being: {being.ulid[:8]} (use .set() to persist)")
 
         # *** AUTOMATYCZNA INICJALIZACJA PO UTWORZENIU ***
         await being._auto_initialize_after_creation(target_soul)
