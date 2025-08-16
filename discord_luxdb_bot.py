@@ -89,6 +89,7 @@ class LuxDBDiscordBot(commands.Bot):
                 return
 
             # Create bot being
+            print("🔍 DEBUG: Starting bot being creation...")
             await self.create_bot_being()
 
             # Initialize Lux Assistant
@@ -161,16 +162,23 @@ class LuxDBDiscordBot(commands.Bot):
 
         # Create Soul for the bot
         try:
+            print("🔍 DEBUG: Creating bot soul...")
+            print(f"🔍 DEBUG: bot_genotype type: {type(bot_genotype)}")
             bot_soul = await Soul.create(bot_genotype, alias="discord_bot_soul")
             print(f"✅ Created Discord bot soul: {bot_soul.soul_hash[:8]}...")
+            print(f"🔍 DEBUG: bot_soul type: {type(bot_soul)}")
+            print(f"🔍 DEBUG: bot_attributes type: {type(bot_attributes)}")
+            print(f"🔍 DEBUG: bot_attributes content: {bot_attributes}")
 
             # Use get_or_create with max_instances=1 for singleton behavior
+            print("🔍 DEBUG: Calling Being.get_or_create...")
             self.bot_being = await Being.get_or_create(
                 soul=bot_soul,
                 alias="discord_bot_singleton",
                 attributes=bot_attributes,
                 max_instances=1  # Limit to one active Discord bot Being per soul
             )
+            print(f"🔍 DEBUG: bot_being result type: {type(self.bot_being)}")
 
             if self.bot_being:
                 # Initialize additional data (conversation memory, performance stats)
@@ -204,7 +212,10 @@ class LuxDBDiscordBot(commands.Bot):
                 print("❌ Failed to create/get bot being")
 
         except Exception as e:
+            import traceback
             print(f"❌ Error creating Discord bot being: {e}")
+            print(f"🔍 DEBUG: Full traceback:")
+            print(traceback.format_exc())
             # Fallback - try to load existing bot being
             try:
                 existing_soul = await Soul.get_by_alias("discord_bot_soul")
