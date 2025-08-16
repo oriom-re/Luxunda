@@ -433,6 +433,20 @@
       "parent_hash": null,
       "report_file": "d2803edde27d5b21_20250816_171221.json",
       "created_at": "2025-08-16T17:12:21.753089"
+    },
+    "76f4b02cdbb3732934b246520a45449f53fd157fc730c0fc76aaa12e106daa08": {
+      "alias": "auth_module_soul",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "76f4b02cdbb37329_20250816_171632.json",
+      "created_at": "2025-08-16T17:16:32.606966"
+    },
+    "d14934a90e2dee2417bf969b17e7f27813fc27ef38e288eca9752cf6541a4d27": {
+      "alias": "dispatcher_soul",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "d14934a90e2dee24_20250816_171633.json",
+      "created_at": "2025-08-16T17:16:33.055292"
     }
   },
   "aliases": {
@@ -508,6 +522,11 @@
         "soul_hash": "a524046dc87e18268c255de2602664b3726162aa62bc0796a04f73e148221a1c",
         "version": "1.0.0",
         "created_at": "2025-08-15T13:16:14.044663"
+      },
+      {
+        "soul_hash": "76f4b02cdbb3732934b246520a45449f53fd157fc730c0fc76aaa12e106daa08",
+        "version": "1.0.0",
+        "created_at": "2025-08-16T17:16:32.606974"
       }
     ],
     "dispatcher_soul": [
@@ -530,6 +549,11 @@
         "soul_hash": "3abf69635837ca005da41e21df5de0ad6a511c2095f3dbad20abf26886603a69",
         "version": "1.0.0",
         "created_at": "2025-08-15T13:16:14.504053"
+      },
+      {
+        "soul_hash": "d14934a90e2dee2417bf969b17e7f27813fc27ef38e288eca9752cf6541a4d27",
+        "version": "1.0.0",
+        "created_at": "2025-08-16T17:16:33.055299"
       }
     ],
     "test_soul": [
