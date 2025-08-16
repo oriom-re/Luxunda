@@ -48,8 +48,7 @@ class Being:
         elif self._ulid:
             self.ulid = self._ulid # Set public ulid from internal _ulid
 
-        if not self.created_at:
-            self.created_at = datetime.now()
+        # NIE ustawiamy automatycznie created_at - tylko przy zapisie do bazy
         self.updated_at = datetime.now()
 
         # Cache dla dynamicznie załadowanych handlerów
@@ -176,10 +175,28 @@ class Being:
         return [being for being in beings if being is not None]
 
     @classmethod
-    async def get_or_create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None,
-                           unique_by: str = "alias", soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
+    async def get_by_soul_hash(cls, soul_hash: str) -> List['Being']:
         """
-        Pobiera istniejący Being lub tworzy nowy.
+        Pobiera wszystkie Being dla danego soul_hash.
+
+        Args:
+            soul_hash: Hash Soul
+
+        Returns:
+            Lista Being o podanym soul_hash
+        """
+        from ..repository.soul_repository import BeingRepository
+
+        result = await BeingRepository.get_by_soul_hash(soul_hash)
+        beings = result.get('beings', []) if result.get('success') else []
+        return [being for being in beings if being is not None]
+
+    @classmethod
+    async def get_or_create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None,
+                           unique_by: str = "alias", soul: 'Soul' = None, soul_hash: str = None, 
+                           singleton: bool = False, max_instances: int = None) -> 'Being':
+        """
+        Pobiera istniejący Being lub tworzy nowy z obsługą singleton i poolingu.
 
         Args:
             soul_or_hash: Soul lub hash do bytu
@@ -188,6 +205,8 @@ class Being:
             unique_by: Sposób szukania unikalności ("alias", "soul_hash", "custom")
             soul: Soul object (nowy styl)
             soul_hash: Hash soul (legacy)
+            singleton: Czy byt ma być singletonem (jeden na soul_hash)
+            max_instances: Maksymalna liczba aktywnych instancji (None = bez limitu)
 
         Returns:
             Istniejący lub nowy Being
@@ -213,7 +232,52 @@ class Being:
         if not target_soul:
             raise ValueError("Soul object or hash must be provided.")
 
-        # Szukaj istniejącego Being
+        # SINGLETON LOGIC - jeden Being per soul_hash
+        if singleton or unique_by == "singleton":
+            beings_for_soul = await cls.get_by_soul_hash(target_soul.soul_hash)
+            if beings_for_soul:
+                # Pobierz ostatni Being dla tego Soul
+                existing_being = beings_for_soul[0]
+                
+                # Oznacz jako aktywny w poolingu
+                existing_being.data['active'] = True
+                existing_being.updated_at = datetime.now()
+                
+                # Aktualizuj atrybuty jeśli podano
+                if attributes:
+                    existing_being.data.update(attributes)
+                
+                await existing_being.save()
+                print(f"🎯 Retrieved singleton Being: {existing_being.alias or existing_being.ulid[:8]} (active)")
+                return existing_being
+
+        # POOLING LOGIC - ograniczona liczba aktywnych instancji
+        if max_instances is not None:
+            beings_for_soul = await cls.get_by_soul_hash(target_soul.soul_hash)
+            active_beings = [b for b in beings_for_soul if b.data.get('active', False)]
+            
+            if len(active_beings) < max_instances:
+                # Sprawdź czy są nieaktywne do reaktywacji
+                inactive_beings = [b for b in beings_for_soul if not b.data.get('active', False)]
+                if inactive_beings:
+                    # Reaktywuj nieaktywny Being
+                    existing_being = inactive_beings[0]
+                    existing_being.data['active'] = True
+                    existing_being.updated_at = datetime.now()
+                    
+                    if attributes:
+                        existing_being.data.update(attributes)
+                    
+                    await existing_being.save()
+                    print(f"🔄 Reactivated pooled Being: {existing_being.alias or existing_being.ulid[:8]} ({len(active_beings)+1}/{max_instances})")
+                    return existing_being
+            else:
+                # Limit osiągnięty, zwróć pierwszy aktywny
+                first_active = active_beings[0]
+                print(f"⚠️ Pool limit reached ({max_instances}), returning existing Being: {first_active.alias or first_active.ulid[:8]}")
+                return first_active
+
+        # STANDARDOWA LOGIKA - alias lub inne
         existing_being = None
 
         if unique_by == "alias" and alias:
@@ -240,7 +304,15 @@ class Being:
             return existing_being
 
         # Jeśli nie istnieje - utwórz nowy
-        return await cls.create(target_soul, alias=alias, attributes=attributes)
+        new_being = await cls.create(target_soul, alias=alias, attributes=attributes)
+        
+        # Ustaw active dla poolingu/singleton
+        if singleton or max_instances is not None:
+            new_being.data['active'] = True
+            await new_being.save()
+            print(f"🆕 Created new pooled Being: {new_being.alias or new_being.ulid[:8]} (active)")
+        
+        return new_being
 
     @classmethod
     async def create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, force_new: bool = False, soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
@@ -820,6 +892,76 @@ class Being:
     def is_persistent(self) -> bool:
         """Sprawdza czy Being jest trwałe (zapisywane w bazie)"""
         return self.data.get('_persistent', False)
+
+    def is_active(self) -> bool:
+        """Sprawdza czy Being jest aktywny w puli"""
+        return self.data.get('active', False)
+
+    async def activate(self) -> Dict[str, Any]:
+        """Aktywuje Being w puli"""
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        self.data['active'] = True
+        self.updated_at = datetime.now()
+        
+        save_result = await self.save()
+        if save_result.get('success'):
+            print(f"🟢 Activated Being: {self.alias or self.ulid[:8]}")
+            return GeneticResponseFormat.success_response(
+                data={"being_activated": True, "ulid": self.ulid}
+            )
+        else:
+            return save_result
+
+    async def deactivate(self) -> Dict[str, Any]:
+        """Deaktywuje Being w puli (zwraca do pool)"""
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        self.data['active'] = False
+        self.updated_at = datetime.now()
+        
+        save_result = await self.save()
+        if save_result.get('success'):
+            print(f"🔴 Deactivated Being: {self.alias or self.ulid[:8]} (returned to pool)")
+            return GeneticResponseFormat.success_response(
+                data={"being_deactivated": True, "ulid": self.ulid}
+            )
+        else:
+            return save_result
+
+    @classmethod
+    async def get_pool_status(cls, soul_hash: str) -> Dict[str, Any]:
+        """Zwraca status puli dla danego Soul"""
+        beings_for_soul = await cls.get_by_soul_hash(soul_hash)
+        
+        active_beings = [b for b in beings_for_soul if b.data.get('active', False)]
+        inactive_beings = [b for b in beings_for_soul if not b.data.get('active', False)]
+        
+        return {
+            'success': True,
+            'soul_hash': soul_hash,
+            'total_beings': len(beings_for_soul),
+            'active_count': len(active_beings),
+            'inactive_count': len(inactive_beings),
+            'active_beings': [
+                {
+                    'ulid': b.ulid,
+                    'alias': b.alias,
+                    'created_at': b.created_at.isoformat() if b.created_at else None,
+                    'updated_at': b.updated_at.isoformat() if b.updated_at else None
+                }
+                for b in active_beings
+            ],
+            'inactive_beings': [
+                {
+                    'ulid': b.ulid,
+                    'alias': b.alias,
+                    'created_at': b.created_at.isoformat() if b.created_at else None,
+                    'updated_at': b.updated_at.isoformat() if b.updated_at else None
+                }
+                for b in inactive_beings
+            ]
+        }
 
     async def save(self) -> Dict[str, Any]:
         """
