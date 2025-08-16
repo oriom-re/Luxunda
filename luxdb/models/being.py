@@ -194,18 +194,17 @@ class Being:
     @classmethod
     async def get_or_create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None,
                            unique_by: str = "alias", soul: 'Soul' = None, soul_hash: str = None, 
-                           singleton: bool = False, max_instances: int = None) -> 'Being':
+                           max_instances: int = None) -> 'Being':
         """
-        Pobiera istniejący Being lub tworzy nowy z obsługą singleton i poolingu.
+        Pobiera istniejący Being lub tworzy nowy z obsługą poolingu.
 
         Args:
             soul_or_hash: Soul lub hash do bytu
             alias: Alias bytu
             attributes: Atrybuty do ustawienia
-            unique_by: Sposób szukania unikalności ("alias", "soul_hash", "custom")
+            unique_by: Sposób szukania unikalności ("alias", "soul_hash")
             soul: Soul object (nowy styl)
             soul_hash: Hash soul (legacy)
-            singleton: Czy byt ma być singletonem (jeden na soul_hash)
             max_instances: Maksymalna liczba aktywnych instancji (None = bez limitu)
 
         Returns:
@@ -232,24 +231,7 @@ class Being:
         if not target_soul:
             raise ValueError("Soul object or hash must be provided.")
 
-        # SINGLETON LOGIC - jeden Being per soul_hash
-        if singleton or unique_by == "singleton":
-            beings_for_soul = await cls.get_by_soul_hash(target_soul.soul_hash)
-            if beings_for_soul:
-                # Pobierz ostatni Being dla tego Soul
-                existing_being = beings_for_soul[0]
-                
-                # Oznacz jako aktywny w poolingu
-                existing_being.data['active'] = True
-                existing_being.updated_at = datetime.now()
-                
-                # Aktualizuj atrybuty jeśli podano
-                if attributes:
-                    existing_being.data.update(attributes)
-                
-                await existing_being.save()
-                print(f"🎯 Retrieved singleton Being: {existing_being.alias or existing_being.ulid[:8]} (active)")
-                return existing_being
+        
 
         # POOLING LOGIC - ograniczona liczba aktywnych instancji
         if max_instances is not None:
@@ -306,8 +288,8 @@ class Being:
         # Jeśli nie istnieje - utwórz nowy
         new_being = await cls.create(target_soul, alias=alias, attributes=attributes)
         
-        # Ustaw active dla poolingu/singleton
-        if singleton or max_instances is not None:
+        # Ustaw active dla poolingu
+        if max_instances is not None:
             new_being.data['active'] = True
             await new_being.save()
             print(f"🆕 Created new pooled Being: {new_being.alias or new_being.ulid[:8]} (active)")
