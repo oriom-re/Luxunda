@@ -23,8 +23,10 @@ import re
 from luxdb.models.soul import Soul
 from luxdb.models.being import Being
 from luxdb.core.luxdb import LuxDB
+from luxdb.core.session_data_manager import SessionDataManager
 from luxdb.ai_lux_assistant import LuxAssistant
 from luxdb.core.session_data_manager import global_session_registry
+from luxdb.utils.ulid import ulid
 
 class LuxDBDiscordBot(commands.Bot):
     """Main Discord bot class integrated with LuxDB"""

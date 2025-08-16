@@ -87,9 +87,9 @@ class LuxAssistant:
         lux_soul = await Soul.create(lux_genotype, alias=f"lux_soul_{self.session_id}")
 
         # Utwórz Being reprezentujący tę instancję Lux w sesji
-        self.self_being = await self.session_manager.create_being_safe(
-            lux_soul,
-            {
+        self.self_being = await Being.set(
+            soul=lux_soul,
+            data={
                 "session_id": self.session_id,
                 "conversation_history": [],
                 "performance_stats": {
@@ -391,7 +391,7 @@ class LuxAssistant:
         if not vec1 or not vec2 or len(vec1) != len(vec2):
             return 0.0
 
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        dot_product = sum(a * b for a in zip(vec1, vec2))
         magnitude1 = sum(a * a for a in vec1) ** 0.5
         magnitude2 = sum(a * a for a in vec2) ** 0.5
 
