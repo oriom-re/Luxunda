@@ -166,18 +166,7 @@ class GlobalSessionRegistry:
                 self.active_sessions[session_id] = SessionDataManager(session_id)
             return self.active_sessions[session_id]
 
-    async def build_conversation_context(self, session_id: str, message: str) -> Dict[str, Any]:
-        """Build conversation context for AI processing"""
-        session = self.active_sessions.get(session_id, {})
-
-        return {
-            "session_id": session_id,
-            "message": message,
-            "user_context": session.get("user_context", {}),
-            "conversation_history": session.get("conversation_history", []),
-            "timestamp": datetime.now().isoformat(),
-            "system_status": "active"
-        }
+    
 
     async def cleanup_session(self, session_id: str):
         """Cleanup session and associated data"""
@@ -315,6 +304,35 @@ class GlobalSessionRegistry:
                 sid: manager.get_session_summary() 
                 for sid, manager in self.active_sessions.items()
             }
+        }
+
+    async def build_conversation_context(self, session_id: str, message: str) -> Dict[str, Any]:
+        """Build conversation context for AI processing"""
+        session_manager = self.active_sessions.get(session_id)
+        
+        if not session_manager:
+            return {
+                "session_id": session_id,
+                "message": message,
+                "user_context": {},
+                "conversation_history": [],
+                "timestamp": datetime.now().isoformat(),
+                "system_status": "no_session"
+            }
+
+        return {
+            "session_id": session_id,
+            "message": message,
+            "user_context": getattr(session_manager, 'user_context', {}),
+            "conversation_history": getattr(session_manager, 'conversation_history', []),
+            "cached_objects": len(session_manager.local_cache),
+            "cache_performance": {
+                "hits": session_manager.cache_hits,
+                "misses": session_manager.cache_misses,
+                "hit_ratio": session_manager.cache_hits / max(1, session_manager.cache_hits + session_manager.cache_misses)
+            },
+            "timestamp": datetime.now().isoformat(),
+            "system_status": "active"
         }
 
 class SessionManager:
