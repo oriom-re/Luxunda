@@ -86,7 +86,7 @@ class LuxDBDiscordBot(commands.Bot):
                 print(f"❌ Failed to initialize bot: {db_e}")
                 return
 
-            # Create LuxDB bot being
+            # Create bot being
             await self.create_bot_being()
 
             # Initialize Lux Assistant
@@ -104,69 +104,101 @@ class LuxDBDiscordBot(commands.Bot):
 
     async def create_bot_being(self):
         """Create a Being representation of the Discord bot"""
-        # Genotyp Discord Bot Being - z możliwościami komunikacyjnymi
+        # Create Discord bot being genotype
         bot_genotype = {
             "genesis": {
-                "name": "discord_communication_bot",
-                "type": "communication_assistant", 
-                "version": "1.2.0",
-                "description": "LuxDB Discord Bot with multilingual support and development tracking",
-                "language": "python"
+                "name": "discord_bot",
+                "type": "communication_bot",
+                "version": "1.0.0",
+                "description": "LuxDB Discord Assistant Bot",
+                "compatibility": ["1.0.0"]
             },
             "attributes": {
                 "bot_name": {"py_type": "str", "default": "LuxDB Assistant"},
                 "server_count": {"py_type": "int", "default": 0},
-                "active_channels": {"py_type": "dict", "default": {}},
-                "conversation_memory": {"py_type": "dict", "default": {}},
-                "development_notes": {"py_type": "list", "default": []},
-                "moderation_actions": {"py_type": "list", "default": []},
-                "project_milestones": {"py_type": "dict", "default": {}},
+                "commands_processed": {"py_type": "int", "default": 0},
+                "personality_traits": {"py_type": "dict", "default": {}},
+                "languages": {"py_type": "dict", "default": {}},
+                "memory_storage": {"py_type": "dict", "default": {}},
+                "moderation_actions": {"py_type": "List[dict]", "default": []},
+                "conversation_history": {"py_type": "List[dict]", "default": []},
+                "development_notes": {"py_type": "List[dict]", "default": []},
+                "project_milestones": {"py_type": "List[dict]", "default": []},
                 "user_preferences": {"py_type": "dict", "default": {}},
                 "last_activity": {"py_type": "str", "default": ""},
-                "message_count": {"py_type": "int", "default": 0}
-            },
-            "capabilities": {
-                "multilingual": True,
-                "memory_system": True,
-                "development_tracking": True,
-                "moderation": True,
-                "owner_representation": True,
-                "project_management": True
+                "active_since": {"py_type": "str", "default": ""}
             }
         }
 
-        # Create Soul for the bot
-        bot_soul = await Soul.create(bot_genotype, alias="luxdb_discord_bot")
+        # Initialize being data with proper structure
+        being_data = {
+            "bot_name": "LuxDB Assistant",
+            "server_count": len(self.guilds),
+            "commands_processed": 0,
+            "personality_traits": {
+                "helpful": True,
+                "professional": True,
+                "memory_focused": True,
+                "development_oriented": True,
+                "multilingual": True
+            },
+            "languages": {
+                'en': 'English',
+                'pl': 'Polski', 
+                'es': 'Español',
+                'fr': 'Français',
+                'de': 'Deutsch',
+                'ja': '日本語'
+            },
+            "memory_storage": {},
+            "moderation_actions": [],
+            "conversation_history": [],
+            "development_notes": [],
+            "project_milestones": [],
+            "user_preferences": {},
+            "last_activity": datetime.now().isoformat(),
+            "active_since": datetime.now().isoformat()
+        }
 
-        # Create or get existing Being instance
+        # Create Soul for the bot
+        # Create Soul for the bot
         try:
-            self.bot_being = await Being.get_or_create(
+            # Create soul for bot with proper dict structure
+            from luxdb.utils.serializer import JSONBSerializer
+
+            # Ensure genotype is properly serialized
+            serialized_genotype = JSONBSerializer.prepare_for_jsonb(bot_genotype)
+
+            bot_soul = await Soul.create(serialized_genotype, alias="discord_bot_soul")
+            print(f"✅ Created Discord bot soul: {bot_soul.soul_hash[:8]}...")
+
+            # Create being from soul with serialized data
+            serialized_being_data = JSONBSerializer.prepare_for_jsonb(being_data)
+
+            self.bot_being = await Being.create(
                 bot_soul,
+                serialized_being_data,
                 alias="discord_bot_instance",
-                attributes={
-                    "bot_name": "LuxDB Assistant",
-                    "server_count": 0,
-                    "active_channels": {},
-                    "conversation_memory": {},
-                    "development_notes": [],
-                    "moderation_actions": [],
-                    "project_milestones": {},
-                    "user_preferences": {"default": "en"},
-                    "last_activity": datetime.now().isoformat(),
-                    "message_count": 0
-                },
                 unique_by="alias"
             )
+            print(f"✅ Created Discord bot being: {self.bot_being.ulid}")
+
         except Exception as e:
             print(f"⚠️ Using existing Discord bot being due to: {e}")
-            # Spróbuj załadować istniejący Being
-            existing_beings = await Being.get_by_alias("discord_bot_instance")
-            if existing_beings:
-                self.bot_being = existing_beings[0]
-                print(f"✅ Loaded existing Discord bot being: {self.bot_being.ulid}")
-            else:
-                print("❌ Could not create or load Discord bot being")
-                raise e
+            # Try to find existing being
+            try:
+                existing_beings = await Being.get_all()
+                for being in existing_beings:
+                    if hasattr(being, 'alias') and being.alias == "discord_bot_instance":
+                        self.bot_being = being
+                        print(f"✅ Loaded existing Discord bot being: {self.bot_being.ulid}")
+                        break
+                else:
+                    print("❌ Could not create or load Discord bot being")
+                    self.bot_being = None
+            except Exception as load_error:
+                print(f"❌ Error loading existing being: {load_error}")
+                self.bot_being = None
 
         print(f"🧠 Bot Being created: {self.bot_being.ulid}")
 
