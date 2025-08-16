@@ -1713,4 +1713,4 @@ class Being:
 
     def __repr__(self):
         status = "EXPIRED" if self.is_expired() else "ACTIVE"
-        return f"Being(ulid={self.ulid[:8]}..., alias={self.alias}, zone={self.access_zone}, status={status})"
+        return f"Being(ulid={self.ulid[:8]}..., zone={self.access_zone}, status={status})"

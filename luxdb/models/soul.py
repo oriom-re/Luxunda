@@ -47,22 +47,23 @@ class Soul:
             Soul (nowy lub istniejący)
         """
         if not alias:
+            raise ValueError("Alias is required for Soul creation")
 
 class LazyBeingCreator:
     """
-    Lazy creator dla Being - umożliwia elegancie API:
-    Soul().init(alias="message", data=data).set()
+    Lazy creator dla Being - umożliwia eleganckie API:
+    Soul().get_or_create(data=data, max_instances=5).set()
     """
     
-    def __init__(self, soul: 'Soul', alias: str = None, data: Dict[str, Any] = None, **kwargs):
+    def __init__(self, soul: 'Soul', data: Dict[str, Any] = None, max_instances: int = None, **kwargs):
         self.soul = soul
-        self.alias = alias
         self.data = data or {}
+        self.max_instances = max_instances
         self.kwargs = kwargs
         
     async def set(self) -> Dict[str, Any]:
         """
-        Materializuje Being i zapisuje do bazy.
+        Materializuje Being przez get_or_create z poolingiem.
         
         Returns:
             Wynik w formacie genetycznym
@@ -70,32 +71,34 @@ class LazyBeingCreator:
         from luxdb.utils.serializer import GeneticResponseFormat
         
         try:
-            # Utwórz Being
+            # Użyj get_or_create z poolingiem
             from .being import Being
-            being = await Being.create(
+            being = await Being.get_or_create(
                 soul=self.soul,
                 attributes=self.data,
-                alias=self.alias,
+                max_instances=self.max_instances,
                 **self.kwargs
             )
             
-            # Zapisz do bazy
-            save_result = await being.save()
+            # Zapisz do bazy jeśli nowy
+            if not being.is_persistent():
+                save_result = await being.save()
+                
+                if not save_result.get('success'):
+                    return save_result
             
-            if save_result.get('success'):
-                return GeneticResponseFormat.success_response(
-                    data={
-                        "being_created": True,
-                        "being": being.to_json_serializable(),
-                        "api_style": "elegant_lazy_creation"
-                    },
-                    soul_context={
-                        "soul_hash": self.soul.soul_hash,
-                        "execution_mode": "lazy_being_creation"
-                    }
-                )
-            else:
-                return save_result
+            return GeneticResponseFormat.success_response(
+                data={
+                    "being_resolved": True,
+                    "being": being.to_json_serializable(),
+                    "api_style": "elegant_pooled_creation",
+                    "pooling_used": self.max_instances is not None
+                },
+                soul_context={
+                    "soul_hash": self.soul.soul_hash,
+                    "execution_mode": "lazy_pooled_creation"
+                }
+            )
                 
         except Exception as e:
             return GeneticResponseFormat.error_response(
@@ -1058,13 +1061,13 @@ class LazyBeingCreator:
         print(f"🧬 Being needed for {len(non_metadata_attrs)} persistent attributes")
         return True
 
-    async def init(self, alias: str = None, data: Dict[str, Any] = None, **kwargs) -> 'LazyBeingCreator':
+    async def get_or_create(self, data: Dict[str, Any] = None, max_instances: int = None, **kwargs) -> 'LazyBeingCreator':
         """
-        NOWE API: Inicjalizuje Soul z danymi i zwraca lazy creator.
+        NOWE API: Pobiera lub tworzy Being z poolingiem.
         
         Args:
-            alias: Alias dla przyszłego Being
             data: Dane dla Being
+            max_instances: Limit aktywnych instancji (None = bez limitu)
             **kwargs: Dodatkowe argumenty
             
         Returns:
@@ -1074,8 +1077,8 @@ class LazyBeingCreator:
         
         return LazyBeingCreator(
             soul=self,
-            alias=alias,
             data=data or {},
+            max_instances=max_instances,
             **kwargs
         )
 
