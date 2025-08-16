@@ -384,6 +384,13 @@
       "parent_hash": null,
       "report_file": "c97077a59f199e3f_20250816_150205.json",
       "created_at": "2025-08-16T15:02:05.321654"
+    },
+    "dd55240d275d7acc08f23359fca0a8587b119c47caad8fcdb8acfe0ad1337203": {
+      "alias": "discord_bot_soul",
+      "version": "1.0.0",
+      "parent_hash": null,
+      "report_file": "dd55240d275d7acc_20250816_151728.json",
+      "created_at": "2025-08-16T15:17:28.331471"
     }
   },
   "aliases": {
@@ -760,6 +767,13 @@
         "soul_hash": "c97077a59f199e3f99a56c268a939697f0e6475eb6a2873ded99051bfce89975",
         "version": "1.2.0",
         "created_at": "2025-08-16T15:02:05.321664"
+      }
+    ],
+    "discord_bot_soul": [
+      {
+        "soul_hash": "dd55240d275d7acc08f23359fca0a8587b119c47caad8fcdb8acfe0ad1337203",
+        "version": "1.0.0",
+        "created_at": "2025-08-16T15:17:28.331477"
       }
     ]
   }

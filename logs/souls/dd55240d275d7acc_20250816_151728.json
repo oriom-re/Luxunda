@@ -1,0 +1,112 @@
+{
+  "soul_info": {
+    "soul_hash": "dd55240d275d7acc08f23359fca0a8587b119c47caad8fcdb8acfe0ad1337203",
+    "alias": "discord_bot_soul",
+    "global_ulid": "01K16YDK7GNRBANHHQDMZVRGE7",
+    "version": "1.0.0",
+    "parent_hash": null,
+    "created_at": "2025-08-16T15:17:28.330661"
+  },
+  "genotype": {
+    "genesis": {
+      "name": "discord_bot",
+      "type": "communication_bot",
+      "version": "1.0.0",
+      "description": "LuxDB Discord Assistant Bot",
+      "compatibility": [
+        "1.0.0"
+      ]
+    },
+    "attributes": {
+      "bot_name": {
+        "py_type": "str",
+        "default": "LuxDB Assistant"
+      },
+      "server_count": {
+        "py_type": "int",
+        "default": 0
+      },
+      "commands_processed": {
+        "py_type": "int",
+        "default": 0
+      },
+      "personality_traits": {
+        "py_type": "dict",
+        "default": {}
+      },
+      "languages": {
+        "py_type": "dict",
+        "default": {}
+      },
+      "memory_storage": {
+        "py_type": "dict",
+        "default": {}
+      },
+      "moderation_actions": {
+        "py_type": "List[dict]",
+        "default": []
+      },
+      "conversation_history": {
+        "py_type": "List[dict]",
+        "default": []
+      },
+      "development_notes": {
+        "py_type": "List[dict]",
+        "default": []
+      },
+      "project_milestones": {
+        "py_type": "List[dict]",
+        "default": []
+      },
+      "user_preferences": {
+        "py_type": "dict",
+        "default": {}
+      },
+      "last_activity": {
+        "py_type": "str",
+        "default": ""
+      },
+      "active_since": {
+        "py_type": "str",
+        "default": ""
+      }
+    },
+    "functions": {},
+    "capabilities": {},
+    "dependencies": {}
+  },
+  "analysis": {
+    "has_module_source": false,
+    "language": "python",
+    "functions_count": 0,
+    "public_functions": [],
+    "private_functions": [],
+    "attribute_types": {
+      "bot_name": "str",
+      "server_count": "int",
+      "commands_processed": "int",
+      "personality_traits": "dict",
+      "languages": "dict",
+      "memory_storage": "dict",
+      "moderation_actions": "List[dict]",
+      "conversation_history": "List[dict]",
+      "development_notes": "List[dict]",
+      "project_milestones": "List[dict]",
+      "user_preferences": "dict",
+      "last_activity": "str",
+      "active_since": "str"
+    },
+    "is_evolution": false
+  },
+  "creation_context": {
+    "method": "Soul.create",
+    "genotype_processed": true,
+    "function_registry_loaded": false,
+    "validation_passed": true
+  },
+  "system_info": {
+    "timestamp": "2025-08-16T15:17:28.330661",
+    "luxos_version": "3.0.0-unified",
+    "creation_method": "Soul.create"
+  }
+}
