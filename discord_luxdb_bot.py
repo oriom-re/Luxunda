@@ -122,7 +122,7 @@ class LuxDBDiscordBot(commands.Bot):
                 "moderation_actions": {"py_type": "list", "default": []},
                 "project_milestones": {"py_type": "dict", "default": {}},
                 "user_preferences": {"py_type": "dict", "default": {}},
-                "last_activity": {"py_type": "str"},
+                "last_activity": {"py_type": "str", "default": ""},
                 "message_count": {"py_type": "int", "default": 0}
             },
             "capabilities": {
@@ -144,20 +144,16 @@ class LuxDBDiscordBot(commands.Bot):
                 bot_soul,
                 alias="discord_bot_instance",
                 attributes={
-                    "owner_status": "initializing",
-                    "active_servers": [],
+                    "bot_name": "LuxDB Assistant",
+                    "server_count": 0,
+                    "active_channels": {},
                     "conversation_memory": {},
-                    "project_updates": [],
-                    "language_preferences": {"default": "en"},
-                    "moderation_actions": [],
                     "development_notes": [],
-                    "personality_traits": {
-                        "helpful": True,
-                        "professional": True,
-                        "multilingual": True,
-                        "project_focused": True,
-                        "memory_keeper": True
-                    }
+                    "moderation_actions": [],
+                    "project_milestones": {},
+                    "user_preferences": {"default": "en"},
+                    "last_activity": datetime.now().isoformat(),
+                    "message_count": 0
                 },
                 unique_by="alias"
             )
