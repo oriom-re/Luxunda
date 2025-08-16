@@ -104,44 +104,34 @@ class LuxDBDiscordBot(commands.Bot):
 
     async def create_bot_being(self):
         """Create a Being representation of the Discord bot"""
+        # Genotyp Discord Bot Being - z możliwościami komunikacyjnymi
         bot_genotype = {
             "genesis": {
-                "name": "LuxDB_Discord_Assistant",
-                "type": "discord_bot",
-                "version": "1.0.0",
-                "description": "Intelligent Discord assistant for LuxDB project"
+                "name": "discord_communication_bot",
+                "type": "communication_assistant", 
+                "version": "1.2.0",
+                "description": "LuxDB Discord Bot with multilingual support and development tracking",
+                "language": "python"
             },
             "attributes": {
-                "owner_status": {"py_type": "str"},
-                "active_servers": {"py_type": "List[dict]"},
-                "conversation_memory": {"py_type": "dict"},
-                "project_updates": {"py_type": "List[dict]"},
-                "language_preferences": {"py_type": "dict"},
-                "moderation_actions": {"py_type": "List[dict]"},
-                "development_notes": {"py_type": "List[dict]"},
-                "personality_traits": {"py_type": "dict"}
+                "bot_name": {"py_type": "str", "default": "LuxDB Assistant"},
+                "server_count": {"py_type": "int", "default": 0},
+                "active_channels": {"py_type": "dict", "default": {}},
+                "conversation_memory": {"py_type": "dict", "default": {}},
+                "development_notes": {"py_type": "list", "default": []},
+                "moderation_actions": {"py_type": "list", "default": []},
+                "project_milestones": {"py_type": "dict", "default": {}},
+                "user_preferences": {"py_type": "dict", "default": {}},
+                "last_activity": {"py_type": "str"},
+                "message_count": {"py_type": "int", "default": 0}
             },
-            "functions": {
-                "moderate_message": {
-                    "py_type": "function",
-                    "description": "Moderate messages in multiple languages",
-                    "parameters": ["message", "language", "context"]
-                },
-                "represent_owner": {
-                    "py_type": "function", 
-                    "description": "Respond as owner's representative when offline",
-                    "parameters": ["query", "context", "urgency"]
-                },
-                "update_project_status": {
-                    "py_type": "function",
-                    "description": "Share project updates and development progress", 
-                    "parameters": ["update_type", "content", "audience"]
-                },
-                "facilitate_development": {
-                    "py_type": "function",
-                    "description": "Help with LuxDB development communication",
-                    "parameters": ["discussion_topic", "participants", "context"]
-                }
+            "capabilities": {
+                "multilingual": True,
+                "memory_system": True,
+                "development_tracking": True,
+                "moderation": True,
+                "owner_representation": True,
+                "project_management": True
             }
         }
 
