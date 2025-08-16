@@ -104,63 +104,59 @@ class LuxDBDiscordBot(commands.Bot):
 
     async def create_bot_being(self):
         """Create a Being representation of the Discord bot"""
-        # Create Discord bot being genotype
+        # Genotype for Discord bot - CORRECT STRUCTURE
         bot_genotype = {
             "genesis": {
-                "name": "discord_bot",
-                "type": "communication_bot",
-                "version": "1.0.0",
-                "description": "LuxDB Discord Assistant Bot",
-                "compatibility": ["1.0.0"]
+                "name": "Discord Bot Assistant",
+                "version": "1.0.0", 
+                "type": "assistant",
+                "description": "LuxDB Discord Bot with advanced features"
             },
             "attributes": {
-                "bot_name": {"py_type": "str", "default": "LuxDB Assistant"},
-                "server_count": {"py_type": "int", "default": 0},
-                "commands_processed": {"py_type": "int", "default": 0},
-                "personality_traits": {"py_type": "dict", "default": {}},
-                "languages": {"py_type": "dict", "default": {}},
-                "memory_storage": {"py_type": "dict", "default": {}},
-                "moderation_actions": {"py_type": "List[dict]", "default": []},
-                "conversation_history": {"py_type": "List[dict]", "default": []},
-                "development_notes": {"py_type": "List[dict]", "default": []},
-                "project_milestones": {"py_type": "List[dict]", "default": []},
-                "user_preferences": {"py_type": "dict", "default": {}},
-                "last_activity": {"py_type": "str", "default": ""},
-                "active_since": {"py_type": "str", "default": ""}
+                "name": {
+                    "py_type": "str",
+                    "description": "Bot instance name",
+                    "max_length": 100
+                },
+                "description": {
+                    "py_type": "str", 
+                    "description": "Bot description",
+                    "max_length": 500
+                },
+                "features": {
+                    "py_type": "dict",
+                    "description": "Bot feature configuration"
+                },
+                "status": {
+                    "py_type": "str",
+                    "description": "Current bot status",
+                    "max_length": 50
+                },
+                "created_at": {
+                    "py_type": "str",
+                    "description": "Creation timestamp"
+                }
             }
         }
 
         # Initialize being data with proper structure
-        being_data = {
-            "bot_name": "LuxDB Assistant",
-            "server_count": len(self.guilds),
-            "commands_processed": 0,
-            "personality_traits": {
-                "helpful": True,
-                "professional": True,
-                "memory_focused": True,
-                "development_oriented": True,
-                "multilingual": True
-            },
-            "languages": {
-                'en': 'English',
-                'pl': 'Polski', 
-                'es': 'Español',
-                'fr': 'Français',
-                'de': 'Deutsch',
-                'ja': '日本語'
-            },
-            "memory_storage": {},
-            "moderation_actions": [],
-            "conversation_history": [],
-            "development_notes": [],
-            "project_milestones": [],
-            "user_preferences": {},
-            "last_activity": datetime.now().isoformat(),
-            "active_since": datetime.now().isoformat()
+        bot_features = {
+            "helpful": True,
+            "professional": True,
+            "memory_focused": True,
+            "development_oriented": True,
+            "multilingual": True
         }
 
-        # Create Soul for the bot
+        # Prepare being data as a dictionary - ACCORDING TO GENOTYPE
+        serialized_being_data = {
+            "name": "Discord Bot Instance",
+            "description": "LuxDB Discord Bot Assistant",
+            "features": bot_features,
+            "status": "active",
+            "created_at": datetime.now().isoformat()
+        }
+
         # Create Soul for the bot
         try:
             # Create soul for bot with proper dict structure
@@ -173,11 +169,11 @@ class LuxDBDiscordBot(commands.Bot):
             print(f"✅ Created Discord bot soul: {bot_soul.soul_hash[:8]}...")
 
             # Create being from soul with serialized data
-            serialized_being_data = JSONBSerializer.prepare_for_jsonb(being_data)
+            serialized_being_data_for_db = JSONBSerializer.prepare_for_jsonb(serialized_being_data)
 
             self.bot_being = await Being.create(
                 bot_soul,
-                serialized_being_data
+                serialized_being_data_for_db
             )
             print(f"✅ Created Discord bot being: {self.bot_being.ulid}")
 
@@ -185,17 +181,26 @@ class LuxDBDiscordBot(commands.Bot):
             print(f"⚠️ Using existing Discord bot being due to: {e}")
             # Precise query by soul_hash - NO random loading
             try:
-                beings_for_soul = await Being.get_by_soul_hash(bot_soul.soul_hash)
-                if beings_for_soul:
-                    self.bot_being = beings_for_soul[0]  # First Being from this exact Soul
-                    print(f"✅ Loaded existing Discord bot being: {self.bot_being.ulid}")
+                # Load the soul first to get its hash
+                existing_soul = await Soul.get_by_alias("discord_bot_soul")
+                if existing_soul:
+                    beings_for_soul = await Being.get_by_soul_hash(existing_soul.soul_hash)
+                    if beings_for_soul:
+                        self.bot_being = beings_for_soul[0]  # First Being from this exact Soul
+                        print(f"✅ Loaded existing Discord bot being: {self.bot_being.ulid}")
+                    else:
+                        print("❌ Could not load existing Discord bot being - no beings found for soul.")
                 else:
-                    print("❌ Could not create or load Discord bot being")
+                    print("❌ Could not load existing Discord bot being - soul not found.")
             except Exception as load_error:
                 print(f"❌ Error loading existing being: {load_error}")
                 self.bot_being = None
 
-        print(f"🧠 Bot Being created: {self.bot_being.ulid}")
+        if self.bot_being:
+            print(f"🧠 Bot Being initialized: {self.bot_being.ulid}")
+        else:
+            print("❌ Failed to initialize bot being.")
+
 
     async def on_ready(self):
         """Called when bot is ready"""
@@ -213,7 +218,7 @@ class LuxDBDiscordBot(commands.Bot):
 
         # Update bot being status
         if self.bot_being:
-            self.bot_being.data["owner_status"] = "bot_online"
+            self.bot_being.data["status"] = "bot_online"
             self.bot_being.data["active_servers"] = [
                 {"id": guild.id, "name": guild.name, "members": guild.member_count}
                 for guild in self.guilds
@@ -735,6 +740,7 @@ class LuxDBDiscordBot(commands.Bot):
     async def status_updater(self):
         """Update bot status periodically"""
         if self.bot_being:
+            self.bot_being.data["status"] = "bot_online"
             self.bot_being.data["last_activity"] = datetime.now().isoformat()
 
     @tasks.loop(minutes=30)
