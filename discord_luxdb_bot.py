@@ -123,18 +123,22 @@ class LuxDBDiscordBot(commands.Bot):
             },
             "functions": {
                 "moderate_message": {
+                    "py_type": "function",
                     "description": "Moderate messages in multiple languages",
                     "parameters": ["message", "language", "context"]
                 },
                 "represent_owner": {
+                    "py_type": "function", 
                     "description": "Respond as owner's representative when offline",
                     "parameters": ["query", "context", "urgency"]
                 },
                 "update_project_status": {
-                    "description": "Share project updates and development progress",
+                    "py_type": "function",
+                    "description": "Share project updates and development progress", 
                     "parameters": ["update_type", "content", "audience"]
                 },
                 "facilitate_development": {
+                    "py_type": "function",
                     "description": "Help with LuxDB development communication",
                     "parameters": ["discussion_topic", "participants", "context"]
                 }

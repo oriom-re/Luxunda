@@ -209,6 +209,12 @@ class GlobalSessionRegistry:
         return len(sessions_to_remove)
 
 # Add missing method to SessionDataManager
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+
+# Global session registry
+global_session_registry = {}
+
 class SessionDataManager:
     """Extended with missing methods for compatibility"""
     
