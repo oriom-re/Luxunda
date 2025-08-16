@@ -148,27 +148,39 @@ class LuxDBDiscordBot(commands.Bot):
         # Create Soul for the bot
         bot_soul = await Soul.create(bot_genotype, alias="luxdb_discord_bot")
 
-        # Create Being instance
-        self.bot_being = await Being.create(
-            bot_soul,
-            {
-                "owner_status": "initializing",
-                "active_servers": [],
-                "conversation_memory": {},
-                "project_updates": [],
-                "language_preferences": {"default": "en"},
-                "moderation_actions": [],
-                "development_notes": [],
-                "personality_traits": {
-                    "helpful": True,
-                    "professional": True,
-                    "multilingual": True,
-                    "project_focused": True,
-                    "memory_keeper": True
-                }
-            },
-            alias="discord_bot_instance"
-        )
+        # Create or get existing Being instance
+        try:
+            self.bot_being = await Being.get_or_create(
+                bot_soul,
+                alias="discord_bot_instance",
+                attributes={
+                    "owner_status": "initializing",
+                    "active_servers": [],
+                    "conversation_memory": {},
+                    "project_updates": [],
+                    "language_preferences": {"default": "en"},
+                    "moderation_actions": [],
+                    "development_notes": [],
+                    "personality_traits": {
+                        "helpful": True,
+                        "professional": True,
+                        "multilingual": True,
+                        "project_focused": True,
+                        "memory_keeper": True
+                    }
+                },
+                unique_by="alias"
+            )
+        except Exception as e:
+            print(f"⚠️ Using existing Discord bot being due to: {e}")
+            # Spróbuj załadować istniejący Being
+            existing_beings = await Being.get_by_alias("discord_bot_instance")
+            if existing_beings:
+                self.bot_being = existing_beings[0]
+                print(f"✅ Loaded existing Discord bot being: {self.bot_being.ulid}")
+            else:
+                print("❌ Could not create or load Discord bot being")
+                raise e
 
         print(f"🧠 Bot Being created: {self.bot_being.ulid}")
 

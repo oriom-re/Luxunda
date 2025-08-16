@@ -142,6 +142,23 @@ class Being:
             )
 
     @classmethod
+    async def get_by_alias(cls, alias: str) -> List['Being']:
+        """
+        Pobiera wszystkie Being o danym aliasie.
+
+        Args:
+            alias: Alias bytu
+
+        Returns:
+            Lista Being o podanym aliasie
+        """
+        from ..repository.soul_repository import BeingRepository
+        
+        result = await BeingRepository.get_by_alias(alias)
+        beings = result.get('beings', []) if result.get('success') else []
+        return [being for being in beings if being is not None]
+
+    @classmethod
     async def get_or_create(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None,
                            unique_by: str = "alias", soul: 'Soul' = None, soul_hash: str = None) -> 'Being':
         """
