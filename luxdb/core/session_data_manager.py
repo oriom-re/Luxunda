@@ -19,8 +19,8 @@ class SessionDataManager:
     - Relations (connections between instances with observer context)
     """
 
-    def __init__(self, session_id: str):
-        self.session_id = session_id
+    def __init__(self, session_id: str = None):
+        self.session_id = session_id or str(_ulid.ulid())
         self.templates = {}  # Template cache
         self.instances = {}  # Instance cache
         self.relations = {}  # Relations cache
@@ -144,8 +144,11 @@ class GlobalSessionRegistry:
         self.initialized = True
         print(f"✅ Session registry ready")
 
-    async def get_or_create_session_manager(self, session_id: str) -> SessionDataManager:
+    async def get_or_create_session_manager(self, session_id: str = None) -> SessionDataManager:
         """Get or create session manager"""
+        if session_id is None:
+            session_id = str(_ulid.ulid())
+            
         if session_id not in self.active_sessions:
             print(f"🆕 Creating new session: {session_id}")
             self.active_sessions[session_id] = SessionDataManager(session_id)
@@ -153,6 +156,10 @@ class GlobalSessionRegistry:
             self.active_sessions[session_id].last_activity = datetime.now()
 
         return self.active_sessions[session_id]
+
+    async def get_session_manager(self, session_id: str = None) -> SessionDataManager:
+        """Alias for get_or_create_session_manager for backward compatibility"""
+        return await self.get_or_create_session_manager(session_id)
 
     async def get_session(self, session_id: str) -> Optional[SessionDataManager]:
         """Get session without creating new one"""
