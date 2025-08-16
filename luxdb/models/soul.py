@@ -47,6 +47,63 @@ class Soul:
             Soul (nowy lub istniejący)
         """
         if not alias:
+
+class LazyBeingCreator:
+    """
+    Lazy creator dla Being - umożliwia elegancie API:
+    Soul().init(alias="message", data=data).set()
+    """
+    
+    def __init__(self, soul: 'Soul', alias: str = None, data: Dict[str, Any] = None, **kwargs):
+        self.soul = soul
+        self.alias = alias
+        self.data = data or {}
+        self.kwargs = kwargs
+        
+    async def set(self) -> Dict[str, Any]:
+        """
+        Materializuje Being i zapisuje do bazy.
+        
+        Returns:
+            Wynik w formacie genetycznym
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        try:
+            # Utwórz Being
+            from .being import Being
+            being = await Being.create(
+                soul=self.soul,
+                attributes=self.data,
+                alias=self.alias,
+                **self.kwargs
+            )
+            
+            # Zapisz do bazy
+            save_result = await being.save()
+            
+            if save_result.get('success'):
+                return GeneticResponseFormat.success_response(
+                    data={
+                        "being_created": True,
+                        "being": being.to_json_serializable(),
+                        "api_style": "elegant_lazy_creation"
+                    },
+                    soul_context={
+                        "soul_hash": self.soul.soul_hash,
+                        "execution_mode": "lazy_being_creation"
+                    }
+                )
+            else:
+                return save_result
+                
+        except Exception as e:
+            return GeneticResponseFormat.error_response(
+                error=f"Lazy Being creation failed: {str(e)}",
+                error_code="LAZY_CREATION_ERROR"
+            )
+
+
             raise ValueError("Alias is required for Soul creation")
         from ..utils.validators import validate_genotype
         from ..repository.soul_repository import SoulRepository
@@ -107,6 +164,20 @@ class Soul:
 
         return soul
 
+    def __init__(self, alias: str = None, hash: str = None, **kwargs):
+        """
+        Nowy konstruktor Soul - umożliwia bezpośrednie ładowanie.
+        
+        Args:
+            alias: Alias Soul do załadowania
+            hash: Hash Soul do załadowania (alternatywnie do alias)
+            **kwargs: Pozostałe argumenty dla dataclass
+        """
+        super().__init__(**kwargs)
+        self._target_alias = alias
+        self._target_hash = hash
+        self._lazy_loaded = False
+
     @classmethod
     async def get(cls, identifier: str) -> Optional['Soul']:
         """
@@ -125,6 +196,37 @@ class Soul:
         else:
             # To jest alias
             return await cls.get_by_alias(identifier)
+
+    async def _ensure_loaded(self) -> bool:
+        """
+        Zapewnia że Soul jest załadowany z bazy danych.
+        
+        Returns:
+            True jeśli załadowano pomyślnie
+        """
+        if self._lazy_loaded and self.soul_hash:
+            return True
+            
+        if self._target_alias:
+            loaded_soul = await self.get_by_alias(self._target_alias)
+        elif self._target_hash:
+            loaded_soul = await self.get_by_hash(self._target_hash)
+        else:
+            return False
+            
+        if loaded_soul:
+            # Skopiuj dane z załadowanej Soul
+            self.soul_hash = loaded_soul.soul_hash
+            self.genotype = loaded_soul.genotype
+            self.alias = loaded_soul.alias
+            self.global_ulid = loaded_soul.global_ulid
+            self.created_at = loaded_soul.created_at
+            self.updated_at = loaded_soul.updated_at
+            self._function_registry = loaded_soul._function_registry.copy()
+            self._lazy_loaded = True
+            return True
+            
+        return False
 
     @classmethod
     async def set(cls, genotype: Dict[str, Any], alias: str = None) -> 'Soul':
@@ -955,6 +1057,75 @@ class Soul:
         # Z rzeczywistymi danymi = potrzebne Being
         print(f"🧬 Being needed for {len(non_metadata_attrs)} persistent attributes")
         return True
+
+    async def init(self, alias: str = None, data: Dict[str, Any] = None, **kwargs) -> 'LazyBeingCreator':
+        """
+        NOWE API: Inicjalizuje Soul z danymi i zwraca lazy creator.
+        
+        Args:
+            alias: Alias dla przyszłego Being
+            data: Dane dla Being
+            **kwargs: Dodatkowe argumenty
+            
+        Returns:
+            LazyBeingCreator z metodą set()
+        """
+        await self._ensure_loaded()
+        
+        return LazyBeingCreator(
+            soul=self,
+            alias=alias,
+            data=data or {},
+            **kwargs
+        )
+
+    async def execute(self, data: Dict[str, Any] = None, hash: str = None, **kwargs) -> Dict[str, Any]:
+        """
+        NOWE GŁÓWNE API: Wykonuje Soul bezpośrednio.
+        
+        Filozofia:
+        - Funkcje publiczne = tylko te dostępne przez execute()  
+        - Funkcje prywatne = wewnętrzne zdolności Soul
+        - Being = tylko kontener danych, zero logiki
+        
+        Args:
+            data: Dane do przetworzenia
+            hash: Opcjonalny hash innej Soul do wykonania
+            **kwargs: Dodatkowe argumenty
+            
+        Returns:
+            Wynik wykonania w formacie genetycznym
+        """
+        from luxdb.utils.serializer import GeneticResponseFormat
+        
+        # Jeśli podano hash - wykonaj inną Soul
+        if hash:
+            target_soul = await self.get_by_hash(hash)
+            if not target_soul:
+                return GeneticResponseFormat.error_response(
+                    error=f"Soul with hash {hash} not found",
+                    error_code="TARGET_SOUL_NOT_FOUND"
+                )
+            return await target_soul.execute(data=data, **kwargs)
+        
+        # Zapewnij że Soul jest załadowany
+        if not await self._ensure_loaded():
+            return GeneticResponseFormat.error_response(
+                error="Failed to load Soul",
+                error_code="SOUL_LOAD_FAILED"
+            )
+        
+        print(f"🧬 Soul '{self.alias}' executing with data: {data}")
+        
+        # Sprawdź czy ma funkcję execute
+        if not self.has_execute_function():
+            return GeneticResponseFormat.error_response(
+                error=f"Soul '{self.alias}' has no execute function",
+                error_code="NO_EXECUTE_FUNCTION"
+            )
+        
+        # Wykonaj funkcję execute z danymi
+        return await self.execute_function('execute', data=data, **kwargs)
 
     async def execute_or_create_being(self, function_name: str = None, attributes: Dict[str, Any] = None, alias: str = None, force_being: bool = False, *args, **kwargs) -> Dict[str, Any]:
         """
