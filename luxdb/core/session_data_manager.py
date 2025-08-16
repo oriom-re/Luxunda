@@ -1,315 +1,173 @@
 """
-Session Data Manager - Zarządza danymi w kontekście sesji
+Session Data Manager - Three-Table Architecture
+Templates -> Instances -> Relations
 
-UWAGA: W LuxOS z Kernel jako Being, ten manager może być zastąpiony
-przez bezpośrednią komunikację Being → Kernel → Being.
-Każdy Lux Being może mieć własne dane zarządzane przez Kernel Being.
+Simplified session management without complex typing.
 """
 
 import asyncio
+import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-import ulid
+import ulid as _ulid
 
 class SessionDataManager:
     """
-    Zarządza danymi w ramach sesji użytkownika
-    Zapewnia izolację i spójność danych - OPTIMIZED VERSION
+    Simple session data manager for three-table architecture:
+    - Templates (genotypes/patterns)
+    - Instances (concrete objects)
+    - Relations (connections between instances with observer context)
     """
 
     def __init__(self, session_id: str):
         self.session_id = session_id
-        self.local_cache: Dict[str, Any] = {}
-        self.dirty_flags: Dict[str, bool] = {}
-        self.access_lock = asyncio.Lock()
-        self.last_sync = datetime.now()
+        self.templates = {}  # Template cache
+        self.instances = {}  # Instance cache
+        self.relations = {}  # Relations cache
+        self.user_context = {}
+        self.conversation_history = []
+        self.created_at = datetime.now()
+        self.last_activity = datetime.now()
 
-        # Performance optimizations
-        self.batch_size = 10
-        self.sync_interval = 30  # seconds
-        self.cache_hits = 0
-        self.cache_misses = 0
-        self.read_only_cache = {}  # Shared read-only data
+    async def store_template(self, template_id: str, template_data: Dict[str, Any]):
+        """Store template in session cache"""
+        self.templates[template_id] = {
+            "id": template_id,
+            "data": template_data,
+            "created_at": datetime.now().isoformat(),
+            "type": "template"
+        }
+        self.last_activity = datetime.now()
 
-        # Task queue system for beings
-        self.being_task_queues: Dict[str, asyncio.Queue] = {}
-        self.being_workers: Dict[str, asyncio.Task] = {}
-        self.queue_stats: Dict[str, Dict[str, int]] = {}
+    async def store_instance(self, instance_id: str, template_id: str, instance_data: Dict[str, Any]):
+        """Store instance linked to template"""
+        self.instances[instance_id] = {
+            "id": instance_id,
+            "template_id": template_id,
+            "data": instance_data,
+            "created_at": datetime.now().isoformat(),
+            "type": "instance"
+        }
+        self.last_activity = datetime.now()
 
-    async def get_being_safe(self, ulid: str):
-        """Bezpieczne pobranie Being z kontrolą współbieżności"""
-        async with self.access_lock:
-            # Sprawdź cache sesji
-            cache_key = f"being_{ulid}"
-            if cache_key in self.local_cache:
-                return self.local_cache[cache_key]
+    async def store_relation(self, relation_id: str, source_id: str, target_id: str, 
+                           observer_context: Dict[str, Any], relation_data: Dict[str, Any]):
+        """Store relation with observer context"""
+        self.relations[relation_id] = {
+            "id": relation_id,
+            "source_id": source_id,
+            "target_id": target_id,
+            "observer_context": observer_context,
+            "data": relation_data,
+            "created_at": datetime.now().isoformat(),
+            "type": "relation"
+        }
+        self.last_activity = datetime.now()
 
-            # Pobierz z bazy
-            from ..models.being import Being
-            being = await Being.get_by_ulid(ulid)
+    async def get_template(self, template_id: str) -> Optional[Dict[str, Any]]:
+        """Get template by ID"""
+        return self.templates.get(template_id)
 
-            if being:
-                # Oznacz jako należący do sesji
-                being_data = being.data.copy()
-                being_data['_accessed_by_session'] = self.session_id
-                being_data['_access_time'] = datetime.now().isoformat()
+    async def get_instance(self, instance_id: str) -> Optional[Dict[str, Any]]:
+        """Get instance by ID"""
+        return self.instances.get(instance_id)
 
-                # Cache w sesji
-                self.local_cache[cache_key] = being
-                self.dirty_flags[cache_key] = False
+    async def get_relation(self, relation_id: str) -> Optional[Dict[str, Any]]:
+        """Get relation by ID"""
+        return self.relations.get(relation_id)
 
-            return being
+    async def get_instances_by_template(self, template_id: str) -> List[Dict[str, Any]]:
+        """Get all instances created from a template"""
+        return [instance for instance in self.instances.values() 
+                if instance.get("template_id") == template_id]
 
-    async def create_being_safe(self, soul, data: Dict[str, Any], alias: str = None):
-        """Bezpieczne tworzenie Being w kontekście sesji"""
-        async with self.access_lock:
-            from ..models.being import Being
+    async def get_relations_for_instance(self, instance_id: str) -> List[Dict[str, Any]]:
+        """Get all relations where instance is source or target"""
+        return [relation for relation in self.relations.values()
+                if relation.get("source_id") == instance_id or relation.get("target_id") == instance_id]
 
-            # Dodaj metadane sesji
-            session_data = data.copy()
-            session_data.update({
-                '_session_id': self.session_id,
-                '_created_in_session': True,
-                '_creation_time': datetime.now().isoformat()
-            })
+    async def update_user_context(self, key: str, value: Any):
+        """Update user context"""
+        self.user_context[key] = value
+        self.last_activity = datetime.now()
 
-            # Utwórz Being
-            being = await Being.create(soul, session_data, alias)
+    async def add_conversation_entry(self, message: str, response: str, metadata: Dict[str, Any] = None):
+        """Add conversation entry"""
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "message": message,
+            "response": response,
+            "metadata": metadata or {}
+        }
+        self.conversation_history.append(entry)
 
-            # Cache w sesji
-            cache_key = f"being_{being.ulid}"
-            self.local_cache[cache_key] = being
-            self.dirty_flags[cache_key] = True  # Nowo utworzony
+        # Keep last 100 entries
+        if len(self.conversation_history) > 100:
+            self.conversation_history = self.conversation_history[-100:]
 
-            return being
+        self.last_activity = datetime.now()
 
-    async def sync_changes(self):
-        """Synchronizuje zmiany z bazą danych - BATCH OPTIMIZED"""
-        async with self.access_lock:
-            dirty_beings = []
-
-            # Collect dirty beings
-            for cache_key, is_dirty in self.dirty_flags.items():
-                if is_dirty and cache_key in self.local_cache:
-                    dirty_beings.append(self.local_cache[cache_key])
-
-            # Batch save (up to batch_size at once)
-            for i in range(0, len(dirty_beings), self.batch_size):
-                batch = dirty_beings[i:i + self.batch_size]
-
-                # Parallel save operations
-                save_tasks = [being.save() for being in batch]
-                await asyncio.gather(*save_tasks, return_exceptions=True)
-
-                # Mark as clean
-                for being in batch:
-                    cache_key = f"being_{being.ulid}"
-                    self.dirty_flags[cache_key] = False
-
-            self.last_sync = datetime.now()
-
-    async def fast_get_being(self, ulid: str):
-        """Fast read without lock for read-only operations"""
-        cache_key = f"being_{ulid}"
-
-        # Quick cache hit
-        if cache_key in self.local_cache:
-            self.cache_hits += 1
-            return self.local_cache[cache_key]
-
-        # Check shared read-only cache
-        if cache_key in self.read_only_cache:
-            self.cache_hits += 1
-            return self.read_only_cache[cache_key]
-
-        self.cache_misses += 1
-        return None
-
-    def get_session_summary(self) -> Dict[str, Any]:
-        """Zwraca podsumowanie stanu sesji"""
-        total_queued = sum(stats["queued"] for stats in self.queue_stats.values())
-        total_processed = sum(stats["processed"] for stats in self.queue_stats.values())
-        total_failed = sum(stats["failed"] for stats in self.queue_stats.values())
-
+    def get_session_stats(self) -> Dict[str, Any]:
+        """Get session statistics"""
         return {
             "session_id": self.session_id,
-            "cached_objects": len(self.local_cache),
-            "dirty_objects": sum(1 for dirty in self.dirty_flags.values() if dirty),
-            "last_sync": self.last_sync.isoformat(),
-            "cache_performance": {
-                "hits": self.cache_hits,
-                "misses": self.cache_misses,
-                "hit_ratio": self.cache_hits / max(1, self.cache_hits + self.cache_misses)
-            },
-            "task_queues": {
-                "active_beings": len(self.being_task_queues),
-                "total_queued": total_queued,
-                "total_processed": total_processed,
-                "total_failed": total_failed,
-                "success_rate": total_processed / max(1, total_processed + total_failed)
-            }
+            "created_at": self.created_at.isoformat(),
+            "last_activity": self.last_activity.isoformat(),
+            "templates_count": len(self.templates),
+            "instances_count": len(self.instances),
+            "relations_count": len(self.relations),
+            "conversation_entries": len(self.conversation_history),
+            "context_keys": len(self.user_context)
         }
 
 class GlobalSessionRegistry:
     """
-    Globalny rejestr sesji dla koordynacji
+    Global registry for all active sessions.
+    Simplified for three-table architecture.
     """
 
-    def __init__(self):
-        self.active_sessions: Dict[str, SessionDataManager] = {}
-        self.global_lock = asyncio.Lock()
+    _instance = None
 
-    async def get_session_manager(self, session_id: str) -> SessionDataManager:
-        """Pobiera lub tworzy manager dla sesji"""
-        async with self.global_lock:
-            if session_id not in self.active_sessions:
-                self.active_sessions[session_id] = SessionDataManager(session_id)
-            return self.active_sessions[session_id]
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.active_sessions = {}
+            cls._instance.initialized = False
+        return cls._instance
 
-    
+    async def initialize(self):
+        """Initialize session registry"""
+        if self.initialized:
+            return
+
+        print("🎯 Session registry initializing...")
+        self.initialized = True
+        print(f"✅ Session registry ready")
+
+    async def get_or_create_session_manager(self, session_id: str) -> SessionDataManager:
+        """Get or create session manager"""
+        if session_id not in self.active_sessions:
+            print(f"🆕 Creating new session: {session_id}")
+            self.active_sessions[session_id] = SessionDataManager(session_id)
+        else:
+            self.active_sessions[session_id].last_activity = datetime.now()
+
+        return self.active_sessions[session_id]
+
+    async def get_session(self, session_id: str) -> Optional[SessionDataManager]:
+        """Get session without creating new one"""
+        return self.active_sessions.get(session_id)
 
     async def cleanup_session(self, session_id: str):
         """Cleanup session and associated data"""
         if session_id in self.active_sessions:
-            session_data = self.active_sessions[session_id]
-
-            # Cleanup Lux Being if exists
-            if 'lux_being_ulid' in session_data:
-                # Being cleanup would be handled by Being ownership manager
-                pass
-
-            # Remove from active sessions
+            print(f"🗑️ Cleaning up session: {session_id}")
             del self.active_sessions[session_id]
-            print(f"🗑️ Session {session_id[:8]} cleaned up")
-
-    async def enqueue_being_task(self, being_ulid: str, task: Dict[str, Any]) -> bool:
-        """
-        Dodaje zadanie do kolejki Being - WRITE-SAFE
-        Tylko właściciel Being może zapisywać
-        """
-        async with self.access_lock:
-            # Sprawdź czy Being należy do tej sesji
-            cache_key = f"being_{being_ulid}"
-            if cache_key not in self.local_cache:
-                return False  # Being nie należy do tej sesji
-
-            # Utwórz kolejkę jeśli nie istnieje
-            if being_ulid not in self.being_task_queues:
-                self.being_task_queues[being_ulid] = asyncio.Queue(maxsize=100)
-                self.queue_stats[being_ulid] = {
-                    "queued": 0, "processed": 0, "failed": 0
-                }
-
-                # Uruchom worker dla tego Being
-                self.being_workers[being_ulid] = asyncio.create_task(
-                    self._being_task_worker(being_ulid)
-                )
-
-            # Dodaj zadanie do kolejki
-            try:
-                await self.being_task_queues[being_ulid].put(task)
-                self.queue_stats[being_ulid]["queued"] += 1
-                return True
-            except asyncio.QueueFull:
-                return False  # Kolejka pełna
-
-    async def _being_task_worker(self, being_ulid: str):
-        """
-        Worker obsługujący kolejkę zadań dla konkretnego Being
-        SYNCHRONICZNE przetwarzanie - brak konfliktów
-        """
-        queue = self.being_task_queues[being_ulid]
-        stats = self.queue_stats[being_ulid]
-
-        while True:
-            try:
-                # Pobierz zadanie z kolejki (czeka jeśli pusta)
-                task = await queue.get()
-
-                # Pobierz Being z cache
-                cache_key = f"being_{being_ulid}"
-                being = self.local_cache.get(cache_key)
-
-                if not being:
-                    stats["failed"] += 1
-                    continue
-
-                # SYNCHRONICZNE wykonanie zadania
-                result = await self._execute_being_task(being, task)
-
-                if result.get("success"):
-                    stats["processed"] += 1
-                    # Oznacz jako dirty do synchronizacji
-                    self.dirty_flags[cache_key] = True
-                else:
-                    stats["failed"] += 1
-
-                # Oznacz zadanie jako zakończone
-                queue.task_done()
-
-            except Exception as e:
-                stats["failed"] += 1
-                print(f"Task worker error for {being_ulid}: {e}")
-
-    async def _execute_being_task(self, being, task: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Wykonuje zadanie na Being - THREAD-SAFE
-        """
-        try:
-            task_type = task.get("type")
-            task_data = task.get("data", {})
-
-            # Różne typy zadań
-            if task_type == "execute_function":
-                return await being.execute_soul_function(
-                    task_data.get("function_name"),
-                    **task_data.get("kwargs", {})
-                )
-
-            elif task_type == "update_data":
-                being.data.update(task_data)
-                being.updated_at = datetime.now()
-                return {"success": True, "message": "Data updated"}
-
-            elif task_type == "add_dynamic_function":
-                return await being.add_dynamic_function(
-                    task_data.get("function_name"),
-                    task_data.get("function_definition"),
-                    task_data.get("source", "task_queue")
-                )
-
-            else:
-                return {"success": False, "error": f"Unknown task type: {task_type}"}
-
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    def get_queue_status(self, being_ulid: str) -> Dict[str, Any]:
-        """Status kolejki dla Being"""
-        if being_ulid not in self.queue_stats:
-            return {"error": "No queue for this being"}
-
-        queue = self.being_task_queues.get(being_ulid)
-        return {
-            "queue_size": queue.qsize() if queue else 0,
-            "stats": self.queue_stats[being_ulid],
-            "worker_active": being_ulid in self.being_workers
-        }
-
-    def get_system_status(self) -> Dict[str, Any]:
-        """Status wszystkich sesji"""
-        return {
-            "active_sessions": len(self.active_sessions),
-            "sessions": {
-                sid: manager.get_session_summary() 
-                for sid, manager in self.active_sessions.items()
-            }
-        }
 
     async def build_conversation_context(self, session_id: str, message: str) -> Dict[str, Any]:
         """Build conversation context for AI processing"""
         session_manager = self.active_sessions.get(session_id)
-        
+
         if not session_manager:
             return {
                 "session_id": session_id,
@@ -317,51 +175,35 @@ class GlobalSessionRegistry:
                 "user_context": {},
                 "conversation_history": [],
                 "timestamp": datetime.now().isoformat(),
-                "system_status": "no_session"
+                "system_status": "no_session",
+                "architecture": "three_table"
             }
 
+        stats = session_manager.get_session_stats()
         return {
             "session_id": session_id,
             "message": message,
-            "user_context": getattr(session_manager, 'user_context', {}),
-            "conversation_history": getattr(session_manager, 'conversation_history', []),
-            "cached_objects": len(session_manager.local_cache),
-            "cache_performance": {
-                "hits": session_manager.cache_hits,
-                "misses": session_manager.cache_misses,
-                "hit_ratio": session_manager.cache_hits / max(1, session_manager.cache_hits + session_manager.cache_misses)
-            },
+            "user_context": session_manager.user_context,
+            "conversation_history": session_manager.conversation_history,
+            "session_stats": stats,
             "timestamp": datetime.now().isoformat(),
-            "system_status": "active"
+            "system_status": "active",
+            "architecture": "three_table"
         }
 
-class SessionManager:
-    """
-    Główny manager sesji - pojedyncza instancja dla całego systemu
-    """
+    async def cleanup_old_sessions(self, max_age_hours: int = 24):
+        """Clean up old inactive sessions"""
+        cutoff_time = datetime.now().timestamp() - (max_age_hours * 3600)
+        sessions_to_remove = []
 
-    def __init__(self):
-        self.registry = GlobalSessionRegistry()
-        self.is_initialized = False
+        for session_id, session_manager in self.active_sessions.items():
+            if session_manager.last_activity.timestamp() < cutoff_time:
+                sessions_to_remove.append(session_id)
 
-    async def initialize(self):
-        """Inicjalizuje system sesji"""
-        self.is_initialized = True
-        print("🎯 Session Manager initialized")
-        return True
+        for session_id in sessions_to_remove:
+            await self.cleanup_session(session_id)
 
-    async def create_session(self, user_fingerprint: str, user_ulid: str = None, ttl_minutes: int = 30):
-        """Tworzy nową sesję"""
-        return await self.registry.get_session_manager(user_fingerprint)
+        if sessions_to_remove:
+            print(f"🧹 Cleaned up {len(sessions_to_remove)} old sessions")
 
-    async def get_session(self, session_id: str):
-        """Pobiera sesję"""
-        return await self.registry.get_session_manager(session_id)
-
-    async def cleanup_session(self, session_id: str):
-        """Czyści sesję"""
-        await self.registry.cleanup_session(session_id)
-
-# Globalne instancje
-global_session_registry = GlobalSessionRegistry()
-session_manager = SessionManager()
+        return len(sessions_to_remove)
