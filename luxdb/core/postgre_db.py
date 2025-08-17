@@ -208,6 +208,73 @@ class Postgre_db:
                     CREATE INDEX IF NOT EXISTS idx_relationships_created_at ON relationships (created_at);
                 """)
 
+                # Tabela relationships - prywatna tabela dla relacji między bytami
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS relationships (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        ulid CHAR(26) UNIQUE NOT NULL,
+                        source_ulid CHAR(26) NOT NULL,
+                        target_ulid CHAR(26) NOT NULL,
+                        relation_type VARCHAR(100) NOT NULL DEFAULT 'connection',
+                        strength FLOAT DEFAULT 1.0,
+                        metadata JSONB DEFAULT '{}',
+                        observer_context JSONB DEFAULT '{}',
+                        data JSONB DEFAULT '{}',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        expires_at TIMESTAMP,
+                        FOREIGN KEY (source_ulid) REFERENCES beings(ulid) ON DELETE CASCADE,
+                        FOREIGN KEY (target_ulid) REFERENCES beings(ulid) ON DELETE CASCADE
+                    );
+                """)
+
+                # Tabela tasks - prywatna tabela dla zadań i komunikacji
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS tasks (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        task_id CHAR(26) UNIQUE NOT NULL,
+                        task_type VARCHAR(100) NOT NULL,
+                        source_ulid CHAR(26),
+                        target_ulid CHAR(26),
+                        payload JSONB DEFAULT '{}',
+                        status VARCHAR(50) DEFAULT 'pending',
+                        priority INTEGER DEFAULT 5,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        scheduled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        started_at TIMESTAMP,
+                        completed_at TIMESTAMP,
+                        result JSONB,
+                        error_message TEXT,
+                        retry_count INTEGER DEFAULT 0,
+                        max_retries INTEGER DEFAULT 3,
+                        FOREIGN KEY (source_ulid) REFERENCES beings(ulid) ON DELETE SET NULL,
+                        FOREIGN KEY (target_ulid) REFERENCES beings(ulid) ON DELETE SET NULL
+                    );
+                """)
+
+                # Indeksy dla relationships
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_relationships_source ON relationships (source_ulid);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_target ON relationships (target_ulid);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_type ON relationships (relation_type);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_strength ON relationships (strength);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_created_at ON relationships (created_at);
+                    CREATE INDEX IF NOT EXISTS idx_relationships_expires ON relationships (expires_at);
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_relationship 
+                    ON relationships (source_ulid, target_ulid, relation_type);
+                """)
+
+                # Indeksy dla tasks
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks (task_type);
+                    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status);
+                    CREATE INDEX IF NOT EXISTS idx_tasks_source ON tasks (source_ulid);
+                    CREATE INDEX IF NOT EXISTS idx_tasks_target ON tasks (target_ulid);
+                    CREATE INDEX IF NOT EXISTS idx_tasks_scheduled ON tasks (scheduled_at);
+                    CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks (priority, status);
+                    CREATE INDEX IF NOT EXISTS idx_tasks_retry ON tasks (retry_count, max_retries);
+                """);
+
                 print("✅ Tabele PostgreSQL utworzone w podejściu JSONB")
         except Exception as e:
             print(f"❌ Błąd tworzenia tabel PostgreSQL: {e}")

@@ -129,30 +129,31 @@ class BeingCommunicationManager:
 
     @staticmethod
     async def _notify_dispenser(task: Dict[str, Any]):
-        """Powiadamia dispenser'a o nowym task'u budzenia"""
+        """Powiadamia dispenser'a o nowym task'u budzenia używając TasksManager"""
         try:
-            # Zapisz task do bazy danych dla dispenser'a
-            pool = await Postgre_db.get_db_pool()
-            async with pool.acquire() as conn:
-                query = """
-                    INSERT INTO communication_tasks 
-                    (task_id, task_type, source_ulid, target_ulid, task_data, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                """
-                await conn.execute(query,
-                    task["task_id"],
-                    task["task_type"], 
-                    task["source_ulid"],
-                    task["target_ulid"],
-                    task,
-                    datetime.now()
-                )
+            from .tasks_manager import TasksManager
+            
+            # Utwórz zadanie w prywatnej tabeli tasks
+            result = await TasksManager.create_task(
+                task_type=task["task_type"],
+                source_ulid=task["source_ulid"],
+                target_ulid=task["target_ulid"],
+                payload=task["intention"],
+                priority=1 if task.get("priority") == "high" else 5
+            )
+            
+            if result["success"]:
+                print(f"✅ Task {result['task']['task_id']} created for dispenser")
                 
                 # Wyślij notification przez PostgreSQL NOTIFY
-                await conn.execute(
-                    "NOTIFY communication_channel, $1", 
-                    task["task_id"]
-                )
+                pool = await Postgre_db.get_db_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "NOTIFY communication_channel, $1", 
+                        result['task']['task_id']
+                    )
+            else:
+                print(f"❌ Failed to create task: {result['error']}")
                 
         except Exception as e:
             print(f"❌ Failed to notify dispenser: {e}")
