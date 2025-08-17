@@ -104,7 +104,7 @@ class Being:
                 error_code="BEING_SET_ERROR"
             )
 
-    
+
 
     @classmethod
     async def _create_internal(cls, soul_or_hash=None, alias: str = None, attributes: Dict[str, Any] = None, **kwargs) -> 'Being':
@@ -161,7 +161,7 @@ class Being:
 
     @classmethod
     async def get_or_create(cls, soul_or_hash=None, attributes: Dict[str, Any] = None,
-                           unique_by: str = "soul_hash", soul: 'Soul' = None, soul_hash: str = None, 
+                           unique_by: str = "soul_hash", soul: 'Soul' = None, soul_hash: str = None,
                            max_instances: int = None) -> 'Being':
         """
         Pobiera istniejący Being lub tworzy nowy z obsługą poolingu.
@@ -199,13 +199,13 @@ class Being:
         if not target_soul:
             raise ValueError("Soul object or hash must be provided.")
 
-        
+
 
         # POOLING LOGIC - ograniczona liczba aktywnych instancji
         if max_instances is not None:
             beings_for_soul = await cls.get_by_soul_hash(target_soul.soul_hash)
             active_beings = [b for b in beings_for_soul if b.data.get('active', False)]
-            
+
             if len(active_beings) < max_instances:
                 # Sprawdź czy są nieaktywne do reaktywacji
                 inactive_beings = [b for b in beings_for_soul if not b.data.get('active', False)]
@@ -214,10 +214,10 @@ class Being:
                     existing_being = inactive_beings[0]
                     existing_being.data['active'] = True
                     existing_being.updated_at = datetime.now()
-                    
+
                     if attributes:
                         existing_being.data.update(attributes)
-                    
+
                     await existing_being.save()
                     print(f"🔄 Reactivated pooled Being: {existing_being.ulid[:8]} ({len(active_beings)+1}/{max_instances})")
                     return existing_being
@@ -247,13 +247,13 @@ class Being:
 
         # Jeśli nie istnieje - utwórz nowy
         new_being = await cls.create(target_soul, attributes=attributes)
-        
+
         # Ustaw active dla poolingu
         if max_instances is not None:
             new_being.data['active'] = True
             await new_being.save()
             print(f"🆕 Created new pooled Being: {new_being.ulid[:8]} (active)")
-        
+
         return new_being
 
     @classmethod
@@ -823,17 +823,13 @@ class Being:
         """Sprawdza czy Being jest trwałe (zapisywane w bazie)"""
         return self.data.get('_persistent', False)
 
-    def is_active(self) -> bool:
-        """Sprawdza czy Being jest aktywny w puli"""
-        return self.data.get('active', False)
-
     async def activate(self) -> Dict[str, Any]:
         """Aktywuje Being w puli"""
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         self.data['active'] = True
         self.updated_at = datetime.now()
-        
+
         save_result = await self.save()
         if save_result.get('success'):
             print(f"🟢 Activated Being: {self.alias or self.ulid[:8]}")
@@ -846,10 +842,10 @@ class Being:
     async def deactivate(self) -> Dict[str, Any]:
         """Deaktywuje Being w puli (zwraca do pool)"""
         from luxdb.utils.serializer import GeneticResponseFormat
-        
+
         self.data['active'] = False
         self.updated_at = datetime.now()
-        
+
         save_result = await self.save()
         if save_result.get('success'):
             print(f"🔴 Deactivated Being: {self.alias or self.ulid[:8]} (returned to pool)")
@@ -863,10 +859,10 @@ class Being:
     async def get_pool_status(cls, soul_hash: str) -> Dict[str, Any]:
         """Zwraca status puli dla danego Soul"""
         beings_for_soul = await cls.get_by_soul_hash(soul_hash)
-        
+
         active_beings = [b for b in beings_for_soul if b.data.get('active', False)]
         inactive_beings = [b for b in beings_for_soul if not b.data.get('active', False)]
-        
+
         return {
             'success': True,
             'soul_hash': soul_hash,
@@ -1714,3 +1710,50 @@ class Being:
     def __repr__(self):
         status = "EXPIRED" if self.is_expired() else "ACTIVE"
         return f"Being(ulid={self.ulid[:8]}..., zone={self.access_zone}, status={status})"
+
+    async def send_intention_to(self, target_ulid: str, intention_type: str, content: str, data: dict = None):
+        """Wysyła intencję do innego bytu po ULID"""
+        from ..core.being_communication_manager import BeingCommunicationManager
+        return await BeingCommunicationManager.send_intention_to_being(
+            source_ulid=self.ulid,
+            target_ulid=target_ulid,
+            intention_type=intention_type,
+            content=content,
+            data=data or {}
+        )
+
+    async def receive_intention(self, message: dict):
+        """Odbiera intencję od innego bytu"""
+        print(f"📨 Being {self.ulid} received intention: {message['intention_type']}")
+
+        # Dodaj message do historii komunikacji
+        if 'communication_history' not in self.data:
+            self.data['communication_history'] = []
+
+        self.data['communication_history'].append({
+            "received_at": message["timestamp"],
+            "from": message["source_ulid"],
+            "type": message["intention_type"],
+            "content": message["content"],
+            "data": message["data"]
+        })
+
+        await self.save()
+
+        return {
+            "success": True,
+            "response": f"Being {self.ulid} processed intention: {message['intention_type']}",
+            "timestamp": message["timestamp"]
+        }
+
+    async def activate(self):
+        """Aktywuje byt w systemie komunikacji"""
+        from ..core.being_communication_manager import BeingCommunicationManager
+        await BeingCommunicationManager.register_active_being(self.ulid, self)
+        print(f"🟢 Being {self.ulid} is now ACTIVE")
+
+    async def deactivate(self):
+        """Dezaktywuje byt w systemie komunikacji"""
+        from ..core.being_communication_manager import BeingCommunicationManager
+        await BeingCommunicationManager.unregister_being(self.ulid)
+        print(f"⚫ Being {self.ulid} is now SLEEPING")
