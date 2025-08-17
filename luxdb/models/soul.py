@@ -30,6 +30,9 @@ class Soul:
     Being są tworzone PRZEZ Soul jako instancje/fenotypy.
     """
     
+    # Rejestr globalny instancji Soul - zawsze aktualny
+    _registry: Dict[str, Dict[str, Any]] = {}
+    
     def __init__(self):
         # Soul jako główna klasa - wszystkie operacje zaczynają się tutaj
         self.ulid: Optional[_ulid.ULID] = None
@@ -37,6 +40,13 @@ class Soul:
         self._temp_alias: Optional[str] = None
         self._initialized_at: Optional[datetime] = None
         self.soul_hash: str = "some_default_hash" # Placeholder for soul_hash
+    
+    @property
+    def instances(self) -> Dict[str, Any]:
+        """Property zwracające aktualne instancje z rejestru"""
+        if self.soul_hash not in Soul._registry:
+            Soul._registry[self.soul_hash] = {}
+        return Soul._registry[self.soul_hash]
 
     def init(self, alias: str = None, data: Dict[str, Any] = None) -> 'Soul':
         """Inicjalizuje Soul z tymczasowymi polami ulid i data"""
