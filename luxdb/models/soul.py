@@ -365,32 +365,25 @@ class Soul:
         """Liczba instancji"""
         return len(self.instances)
 
-    async def execute_function(self, function_name: str, ulid: str = None, *args, **kwargs) -> Dict[str, Any]:
+    async def execute(self, intent, ulid: str = None, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Wykonuje funkcję Soul w kontekście instancji.
+        Uniwersalne wykonanie - główna funkcja komunikacji z Soul.
+        
+        Soul analizuje intencję i decyduje którą funkcję wykonać (jeśli w ogóle).
+        To umożliwia naturalne porozumiewanie się między bytami.
         
         Args:
-            function_name: Nazwa funkcji
+            intent: Intencja/prompt/dane - może być string, dict, lub cokolwiek
             ulid: ULID instancji (opcjonalny)
-            *args: Argumenty pozycyjne
-            **kwargs: Argumenty nazwane
+            context: Dodatkowy kontekst
             
         Returns:
-            Wynik wykonania funkcji
+            Wynik wykonania przez Soul
         """
         from luxdb.utils.serializer import GeneticResponseFormat
         
         try:
-            # Znajdź funkcję
-            if function_name not in self._function_registry:
-                return GeneticResponseFormat.error_response(
-                    error=f"Function '{function_name}' not found",
-                    error_code="FUNCTION_NOT_FOUND"
-                )
-            
-            func = self._function_registry[function_name]
-            
-            # Przygotuj kontekst
+            # Przygotuj kontekst wykonania
             instance_context = None
             if ulid:
                 instance_context = self.instances.get(ulid)
@@ -400,40 +393,111 @@ class Soul:
                         error_code="INSTANCE_NOT_FOUND"
                     )
             
-            # Dodaj kontekst do kwargs jeśli funkcja go oczekuje
-            if 'instance_context' not in kwargs and instance_context:
-                kwargs['instance_context'] = instance_context
+            execution_context = {
+                "intent": intent,
+                "context": context or {},
+                "instance_context": instance_context,
+                "ulid": ulid,
+                "soul_hash": self.soul_hash,
+                "execution_time": datetime.now().isoformat()
+            }
             
-            # Wykonaj funkcję
-            if asyncio.iscoroutinefunction(func):
-                result = await func(*args, **kwargs)
+            # Sprawdź czy Soul ma główną funkcję execute
+            if "execute" in self._function_registry:
+                main_func = self._function_registry["execute"]
+                
+                # Wykonaj główną funkcję execute
+                if asyncio.iscoroutinefunction(main_func):
+                    result = await main_func(intent, execution_context)
+                else:
+                    result = main_func(intent, execution_context)
+                
             else:
-                result = func(*args, **kwargs)
+                # Fallback - prosta analiza intencji jeśli brak głównej funkcji execute
+                result = await self._fallback_intent_analysis(intent, execution_context)
             
             # Aktualizuj statystyki instancji
             if ulid and instance_context:
                 instance_context["data"]["execution_count"] = instance_context["data"].get("execution_count", 0) + 1
                 instance_context["data"]["last_execution"] = datetime.now().isoformat()
+                instance_context["data"]["last_intent"] = str(intent)[:100]  # Pierwsze 100 znaków intencji
                 instance_context["updated_at"] = datetime.now().isoformat()
                 await self._persist_instance_to_database(instance_context)
             
             return GeneticResponseFormat.success_response(
                 data={
-                    "function_name": function_name,
+                    "intent_processed": True,
+                    "intent": intent,
                     "result": result,
                     "executed_at": datetime.now().isoformat(),
-                    "instance_ulid": ulid
+                    "instance_ulid": ulid,
+                    "processing_method": "execute_function" if "execute" in self._function_registry else "fallback_analysis"
                 }
             )
             
         except Exception as e:
             return GeneticResponseFormat.error_response(
-                error=f"Function execution failed: {str(e)}",
-                error_code="FUNCTION_EXECUTION_ERROR"
+                error=f"Intent execution failed: {str(e)}",
+                error_code="INTENT_EXECUTION_ERROR"
             )
 
-    async def execute_on_all_instances(self, function_name: str, *args, **kwargs) -> Dict[str, Any]:
-        """Wykonuje funkcję na wszystkich instancjach"""
+    async def _fallback_intent_analysis(self, intent, execution_context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prosta analiza intencji gdy Soul nie ma głównej funkcji execute.
+        
+        Soul może być rozbudowany z czasem o zaawansowaną analizę intencji,
+        embeddingi, i inteligentne mapowanie na funkcje.
+        """
+        intent_str = str(intent).lower() if intent else ""
+        
+        # Prosta analiza słów kluczowych
+        if any(keyword in intent_str for keyword in ["execute", "run", "call"]):
+            # Próba wyciągnięcia nazwy funkcji z intencji
+            words = intent_str.split()
+            for i, word in enumerate(words):
+                if word in ["execute", "run", "call"] and i + 1 < len(words):
+                    potential_function = words[i + 1]
+                    if potential_function in self._function_registry:
+                        return await self._execute_internal_function(potential_function, execution_context)
+        
+        # Sprawdź czy intencja bezpośrednio odpowiada nazwie funkcji
+        if intent_str in self._function_registry:
+            return await self._execute_internal_function(intent_str, execution_context)
+        
+        # Zwróć informacje o dostępnych funkcjach
+        return {
+            "intent_not_recognized": True,
+            "received_intent": intent,
+            "available_functions": list(self._function_registry.keys()),
+            "suggestion": "Try 'execute function_name' or use one of available function names directly"
+        }
+
+    async def _execute_internal_function(self, function_name: str, execution_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Wykonuje konkretną funkcję Soul z pełnym kontekstem"""
+        try:
+            func = self._function_registry[function_name]
+            
+            # Wykonaj funkcję
+            if asyncio.iscoroutinefunction(func):
+                result = await func(execution_context)
+            else:
+                result = func(execution_context)
+            
+            return {
+                "function_executed": function_name,
+                "result": result,
+                "success": True
+            }
+            
+        except Exception as e:
+            return {
+                "function_executed": function_name,
+                "error": str(e),
+                "success": False
+            }
+
+    async def execute_on_all_instances(self, intent, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Wykonuje intencję na wszystkich instancjach"""
         from luxdb.utils.serializer import GeneticResponseFormat
         
         results = {}
@@ -441,14 +505,14 @@ class Soul:
         
         for ulid in self.instances.keys():
             try:
-                result = await self.execute_function(function_name, ulid, *args, **kwargs)
+                result = await self.execute(intent, ulid, context)
                 results[ulid] = result
             except Exception as e:
                 errors[ulid] = str(e)
         
         return GeneticResponseFormat.success_response(
             data={
-                "function_name": function_name,
+                "intent": intent,
                 "instances_executed": len(results),
                 "instances_failed": len(errors),
                 "results": results,
@@ -548,16 +612,9 @@ class Soul:
         try:
             instance = self.instances[ulid]
             
-            # Kontekst dla funkcji init
-            init_context = {
-                "ulid": ulid,
-                "data": instance["data"].copy(),
-                "soul_hash": self.soul_hash,
-                "creation_time": instance["created_at"]
-            }
-            
-            # Wykonaj init
-            result = await self.execute_function("init", ulid, instance_context=init_context)
+            # Wykonaj init przez główną funkcję execute
+            init_intent = "initialize instance"
+            result = await self.execute(init_intent, ulid)
             
             if result.get("success"):
                 # Oznacz jako zainicjalizowaną
