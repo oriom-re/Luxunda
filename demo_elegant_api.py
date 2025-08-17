@@ -93,17 +93,34 @@ def _multiply(a, b):
     calculator_soul = await Soul.create(calculator_genotype, alias="enhanced_calculator")
     print(f"   ✅ Soul created with {calculator_soul.get_functions_count()} functions")
 
-    # 2. Soul.init() - Wirtualna instancja
-    print("\n2. 🧬 Soul.init() - Tworzy wirtualną instancję...")
-    init_result = await calculator_soul.init(data={"precision": 4, "mode": "scientific"})
-    instance_ulid = init_result['data']['instance_ulid']
-    print(f"   ✅ Virtual instance created: {instance_ulid[:8]}")
+    # 2. Nowe API - init() z tymczasowymi polami
+    print("\n2. Nowe API - Soul.init() z tymczasowymi polami...")
+
+    # Inicjalizacja z danymi
+    soul_initialized = calculator_soul.init(
+        alias="calculator_instance",
+        data={"initialized": True, "calculations": []}
+    )
+
+    print(f"💫 ULID wygenerowany: {soul_initialized.ulid}")
+    print(f"📊 Dane przygotowane: {soul_initialized.data}")
+
+    # Opcjonalna modyfikacja przed zapisem
+    soul_initialized.data["modified_before_save"] = True
+
+    # Zapisanie Being
+    being = await soul_initialized.set()
+
+    print(f"✅ Being zapisany: {being.ulid}")
+    print(f"📊 Finalne dane: {being.data}")
+    print(f"🔑 Soul hash: {being.soul_hash}")
+
 
     # 3. Soul.execute() - Pełna funkcjonalność
     print("\n3. 🧬 Soul.execute() - Wykonanie z wirtualną instancją...")
     exec_result = await calculator_soul.execute(
         data={"operation": "add", "a": 15, "b": 25},
-        instance_ulid=instance_ulid
+        instance_ulid=soul_initialized.ulid # Użycie ULID z zainicjalizowanej instancji
     )
     print(f"   ✅ Calculation result: {exec_result['data']['result']}")
 
@@ -116,7 +133,7 @@ def _multiply(a, b):
 
     # 5. Soul.set() - Zapis wirtualnej instancji jako Being
     print("\n5. 🧬 Soul.set() - Zapisz wirtualną instancję jako Being...")
-    instance_data = init_result['data']['instance_data']
+    instance_data = soul_initialized.data.copy() # Kopiowanie danych z zainicjalizowanej instancji
     instance_data.update({
         "calculations_performed": 1,
         "last_result": exec_result['data']['result']
@@ -124,7 +141,7 @@ def _multiply(a, b):
 
     save_result = await calculator_soul.set(
         instance_data=instance_data,
-        instance_ulid=instance_ulid
+        instance_ulid=soul_initialized.ulid
     )
     being_ulid = save_result['data']['being_ulid']
     print(f"   ✅ Virtual instance saved as Being: {being_ulid[:8]}")
@@ -139,7 +156,7 @@ def _multiply(a, b):
 
     print("\n🎯 PODSUMOWANIE NOWEJ FILOZOFII:")
     print("   ✅ Soul jest pełnoprawnym wykonawcą")
-    print("   ✅ Wirtualne instancje z ULID + data")  
+    print("   ✅ Wirtualne instancje z ULID + data")
     print("   ✅ Chwilowe wykonanie bez historii")
     print("   ✅ Being tylko kontener danych z historią")
     print("   ✅ Eleganckie API: init → execute → set")
