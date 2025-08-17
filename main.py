@@ -181,8 +181,9 @@ async def main():
             await system_manager.initialize_database()
             # Użycie zunifikowanego Kernel
             kernel_mode = "advanced" if args.kernel == "intelligent" else "simple"
-            kernel_id = await unified_kernel.initialize(mode=kernel_mode)
-            kernel = unified_kernel
+            # Initialize simple kernel
+            await simple_kernel.initialize()
+            print("🧠 Simple Kernel initialized")
 
             # 4. Initialize session manager for web interface
             from luxdb.core.session_data_manager import GlobalSessionRegistry

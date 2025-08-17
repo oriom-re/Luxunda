@@ -17,13 +17,16 @@ from luxdb.core.globals import Globals # Import Globals
 @dataclass
 class Being:
     """
-    Being reprezentuje instancję bytu - konkretny obiekt utworzony na podstawie Soul.
-
-    Każdy Being:
-    - Ma unikalny ULID
-    - Odwołuje się do Soul przez hash
-    - Zawiera dane w formacie JSONB
-    - Ma kontrolę dostępu i TTL
+    Being - INSTANCJA/FENOTYP utworzony przez Soul (genotyp)
+    
+    Being to żywa instancja Soul która:
+    - Ma unikalny ULID (tożsamość)
+    - Przechowuje dane zgodnie ze schematem Soul
+    - Wykonuje funkcje PRZEZ Soul (delegacja)
+    - Zarządza stanem i cyklem życia
+    
+    WAŻNE: Being nie może istnieć bez Soul!
+    Soul.create_being() -> Being
     """
 
     ulid: str = None

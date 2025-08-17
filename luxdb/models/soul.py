@@ -19,8 +19,19 @@ class BeingRepository:
         pass
 
 class Soul:
+    """
+    Soul - GŁÓWNA KLASA systemu LuxDB
+    
+    Soul jest genotypem - niezmiennym szablonem który definiuje:
+    - Funkcje (module_source)
+    - Schemat danych (attributes)
+    - Metadane (genesis)
+    
+    Being są tworzone PRZEZ Soul jako instancje/fenotypy.
+    """
+    
     def __init__(self):
-        # Initialize with default values or handle potential attribute errors if not using init
+        # Soul jako główna klasa - wszystkie operacje zaczynają się tutaj
         self.ulid: Optional[_ulid.ULID] = None
         self.data: Dict[str, Any] = {}
         self._temp_alias: Optional[str] = None
