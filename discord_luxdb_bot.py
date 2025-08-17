@@ -317,6 +317,9 @@ class LuxDBDiscordBot(commands.Bot):
             await message.reply("🤖 LuxDB Assistant is not available right now.")
             return
 
+        # Analyze user based on message content
+        user_analysis = await self.analyze_user(message)
+
         # Prepare context for LuxAssistant
         context = f"""
         You are LuxDB Discord Assistant. Analyze this message and determine the user's intent.
@@ -325,6 +328,7 @@ class LuxDBDiscordBot(commands.Bot):
         Server: {message.guild.name if message.guild else 'DM'}
         Author: {message.author.display_name}
         Bot mentioned: {self.user in message.mentions}
+        User Analysis: {user_analysis}
 
         Available functions you can call:
         - show_status: Show bot and project status
@@ -345,7 +349,7 @@ class LuxDBDiscordBot(commands.Bot):
             response = await self.lux_assistant.chat(context)
 
             # Detect function calls from the response
-            detected_functions = await self.detect_and_execute_functions(message, response)
+            detected_functions = await self.detect_and_execute_functions(message, response, user_analysis)
 
             # If no specific functions were called, send the response directly
             if not detected_functions:
@@ -361,46 +365,83 @@ class LuxDBDiscordBot(commands.Bot):
         except Exception as e:
             await message.reply("🔧 I'm experiencing some technical difficulties. Please try again later.")
 
+    async def analyze_user(self, message):
+        """Analyze the user based on message and bot's memory"""
+        user_id = str(message.author.id)
+        server_id = str(message.guild.id if message.guild else "DM")
+        user_data = {
+            "id": user_id,
+            "name": message.author.display_name,
+            "is_owner": user_id == str(self.owner_id),
+            "is_admin": False,  # Placeholder, needs actual admin check
+            "message_count": 0,
+            "activity_level": "new", # new, low, medium, high
+            "status": self.owner_status # Could potentially get user's status if available via intents
+        }
+
+        # Check if user is owner
+        if user_data["is_owner"]:
+            user_data["is_admin"] = True # Owner is also admin
+
+        # Count messages from this user in this server
+        if self.bot_being and server_id in self.bot_being.data.get("conversation_memory", {}):
+            user_messages = [
+                entry for entry in self.bot_being.data["conversation_memory"][server_id]
+                if entry["author"]["id"] == user_id and entry["type"] == "message"
+            ]
+            user_data["message_count"] = len(user_messages)
+
+            # Determine activity level
+            if user_data["message_count"] > 100:
+                user_data["activity_level"] = "high"
+            elif user_data["message_count"] > 20:
+                user_data["activity_level"] = "medium"
+            elif user_data["message_count"] > 0:
+                user_data["activity_level"] = "low"
+
+        return {"user": user_data}
+
+
     @commands.command(name='status')
     async def status_command(self, ctx):
         """Show bot and project status"""
+        user_analysis = await self.analyze_user(ctx.message)
+        await self.execute_status_function(ctx.message, user_analysis)
+
+    async def execute_status_function(self, message, user_analysis=None):
+        """Execute status function with user context"""
         embed = discord.Embed(
             title="🤖 LuxDB Bot Status",
             color=0x00ff88,
             timestamp=datetime.now()
         )
 
-        embed.add_field(
-            name="🔋 Bot Status",
-            value="Online & Active",
-            inline=True
-        )
+        embed.add_field(name="🔋 Bot Status", value="Online & Active", inline=True)
+        embed.add_field(name="👤 Owner Status", value=self.owner_status.title(), inline=True)
+        embed.add_field(name="🌐 Servers", value=len(self.guilds), inline=True)
 
-        embed.add_field(
-            name="👤 Owner Status",
-            value=self.owner_status.title(),
-            inline=True
-        )
+        if self.bot_being:
+            memory_count = len(self.bot_being.data.get("conversation_memory", {}))
+            embed.add_field(name="🧠 Memory", value=f"{memory_count} conversations stored", inline=False)
 
-        embed.add_field(
-            name="🌐 Servers",
-            value=len(self.guilds),
-            inline=True
-        )
+        embed.add_field(name="🚀 LuxDB Version", value="v1.0.0 - Genotypic Evolution System", inline=False)
 
-        embed.add_field(
-            name="🧠 Memory",
-            value=f"{len(self.bot_being.data.get('conversation_memory', {}))} conversations stored",
-            inline=False
-        )
+        # Dodaj spersonalizowane informacje dla użytkownika
+        if user_analysis:
+            user_info = user_analysis["user"]
+            if user_info["is_owner"]:
+                embed.add_field(name="👑 Owner Access", value="Full system access granted", inline=False)
+            elif user_info["is_admin"]:
+                embed.add_field(name="🛡️ Admin Access", value="Administrative privileges active", inline=False)
 
-        embed.add_field(
-            name="🚀 LuxDB Version",
-            value="v1.0.0 - Genotypic Evolution System",
-            inline=False
-        )
+            if user_info.get("message_count", 0) > 0:
+                embed.add_field(
+                    name="📊 Your Activity",
+                    value=f"Messages: {user_info['message_count']} | Level: {user_info['activity_level']}",
+                    inline=False
+                )
 
-        await ctx.send(embed=embed)
+        await message.reply(embed=embed)
 
     @commands.command(name='project')
     async def project_info(self, ctx):
@@ -438,14 +479,14 @@ class LuxDBDiscordBot(commands.Bot):
 
         await ctx.send(embed=embed)
 
-    async def detect_and_execute_functions(self, message, response):
+    async def detect_and_execute_functions(self, message, response, user_analysis=None):
         """Detect intent from message content and execute appropriate functions"""
         content_lower = message.content.lower()
         executed_functions = []
 
         # Intent detection patterns
         if any(word in content_lower for word in ['status', 'stan', 'jak się masz', 'how are you']):
-            await self.execute_status_function(message)
+            await self.execute_status_function(message, user_analysis)
             executed_functions.append('status')
 
         elif any(word in content_lower for word in ['projekt', 'project', 'luxdb', 'o projekcie', 'about']):
@@ -485,26 +526,6 @@ class LuxDBDiscordBot(commands.Bot):
             executed_functions.append('memory_search')
 
         return executed_functions
-
-    async def execute_status_function(self, message):
-        """Execute status function"""
-        embed = discord.Embed(
-            title="🤖 LuxDB Bot Status",
-            color=0x00ff88,
-            timestamp=datetime.now()
-        )
-
-        embed.add_field(name="🔋 Bot Status", value="Online & Active", inline=True)
-        embed.add_field(name="👤 Owner Status", value=self.owner_status.title(), inline=True)
-        embed.add_field(name="🌐 Servers", value=len(self.guilds), inline=True)
-
-        if self.bot_being:
-            memory_count = len(self.bot_being.data.get('conversation_memory', {}))
-            embed.add_field(name="🧠 Memory", value=f"{memory_count} conversations stored", inline=False)
-
-        embed.add_field(name="🚀 LuxDB Version", value="v1.0.0 - Genotypic Evolution System", inline=False)
-
-        await message.reply(embed=embed)
 
     async def execute_project_info_function(self, message):
         """Execute project info function"""
