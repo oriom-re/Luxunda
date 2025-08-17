@@ -5,167 +5,147 @@
 
 import asyncio
 from luxdb.models.soul import Soul
+from luxdb.models.being import Being
 from luxdb.core.postgre_db import Postgre_db
 from datetime import datetime
+from typing import List
 
-async def demo_elegant_soul_api():
-    """Demonstracja nowego eleganckiego API Soul"""
-    print("🧬 Demo Eleganckiego API Soul")
+async def demo_new_soul_philosophy():
+    """Demonstracja NOWEJ FILOZOFII Soul: Wzbogacony Soul + Wirtualne Being"""
+    print("🧬 Demo NOWEJ FILOZOFII Soul: Wzbogacony Soul + Wirtualne Being")
     print("=" * 50)
 
     # Inicjalizacja bazy danych
     await Postgre_db.initialize_db()
 
-    # 1. Tworzenie Soul z prostą funkcją dodawania
-    print("\n1. Tworzenie Soul 'dodawanie'...")
+    print("\n🎯 NOWA FILOZOFIA:")
+    print("   • Soul.create() = init + zapis + pełne przetwarzanie")
+    print("   • Soul.init() = wirtualna instancja z ULID + data")
+    print("   • Soul.execute() = pełna funkcjonalność")
+    print("   • Soul.set() = zapis wirtualnej instancji jako Being")
+    print("   • Being = tylko wirtualny kontener danych")
 
-    dodawanie_genotype = {
+    # 1. Tworzenie Soul z pełnym module_source
+    print("\n1. 🧬 Soul.create() - Pełnoprawny funkcjonalny Soul...")
+
+    calculator_genotype = {
         "genesis": {
-            "name": "dodawanie",
+            "name": "enhanced_calculator",
             "type": "calculator",
-            "version": "1.0.0",
-            "description": "Prosta funkcja dodawania"
+            "version": "2.0.0",
+            "description": "Wzbogacony kalkulator z init i execute"
         },
         "attributes": {
-            "result": {"py_type": "float", "description": "Wynik dodawania"}
+            "precision": {"py_type": "int", "default": 2},
+            "mode": {"py_type": "str", "default": "standard"},
+            "history": {"py_type": "List[dict]", "default": []}
         },
         "module_source": '''
-def execute(data=None, **kwargs):
-    """
-    Główna funkcja publiczna - tylko ona jest dostępna zewnętrznie.
-    Funkcje prywatne są ukryte.
-    """
-    if not data:
-        return {"error": "Brak danych do dodawania"}
-
-    a = data.get('a', 0)
-    b = data.get('b', 0)
-
-    # Wywołanie prywatnej funkcji
-    result = _private_add(a, b)
-
-    return {
-        "operation": "addition",
-        "a": a,
-        "b": b, 
-        "result": result,
-        "message": f"{a} + {b} = {result}"
-    }
-
-def _private_add(x, y):
-    """Prywatna funkcja dodawania - niedostępna zewnętrznie"""
-    return x + y
-
-def _private_multiply(x, y):  
-    """Kolejna prywatna funkcja - również ukryta"""
-    return x * y
-'''
-    }
-
-    # Utwórz Soul tradycyjnie
-    dodawanie_soul = await Soul.create(dodawanie_genotype, "dodawanie")
-    print(f"✅ Created Soul: {dodawanie_soul.alias}")
-
-    # 2. NOWE API: Eleganckie wykonanie
-    print("\n2. Nowe eleganckie API...")
-
-    # Styl 1: Bezpośrednie wykonanie
-    print("\n🎯 Styl 1: Soul(alias).execute(data)")
-    soul1 = Soul(alias="dodawanie")
-    result1 = await soul1.execute(data={"a": 15, "b": 25})
-    print(f"Result: {result1['data']['result']}")
-
-    # Styl 2: Wykonanie przez hash  
-    print("\n🎯 Styl 2: Soul().execute(hash=hash, data=data)")
-    soul2 = Soul()
-    result2 = await soul2.execute(hash=dodawanie_soul.soul_hash, data={"a": 100, "b": 200})
-    print(f"Result: {result2['data']['result']}")
-
-    # 3. Tworzenie Being z nowym API
-    print("\n3. Tworzenie Being z eleganckiej składni...")
-
-    message_genotype = {
-        "genesis": {
-            "name": "message",
-            "type": "data_container",
-            "version": "1.0.0"
-        },
-        "attributes": {
-            "title": {"py_type": "str"},
-            "content": {"py_type": "str"},
-            "author": {"py_type": "str"}
-        },
-        "module_source": '''
-def init(being_context=None, **kwargs):
-    """Inicjalizacja Being"""
-    return {
-        "initialized": True,
-        "being_ulid": being_context.get('ulid') if being_context else None,
-        "message": "Message Being ready"
-    }
-
-def execute(data=None, **kwargs):
-    """Execute dla Message Being"""
-    return {
-        "processed_message": data,
-        "timestamp": "2025-01-30",
-        "status": "processed"
-    }
-'''
-    }
-
-    message_soul = await Soul.create(message_genotype, "message")
-    print(f"✅ Created Message Soul: {message_soul.alias}")
-
-    # NOWE API: init().set()
-    print("\n🎯 Nowe API: Soul().init(alias, data).set()")
-
-    soul3 = Soul(alias="message") 
-    lazy_creator = await soul3.init(
-        alias="my_message_001",
-        data={
-            "title": "Test Message",
-            "content": "To jest testowa wiadomość",
-            "author": "LuxDB System"
+def init(instance_context=None):
+    """Inicjalizuje kalkulator z konfiguracją"""
+    if instance_context:
+        print(f"🔧 Initializing calculator instance: {instance_context.get('instance_ulid', 'unknown')[:8]}")
+        return {
+            "instance_updates": {
+                "initialized": True,
+                "calculation_count": 0,
+                "last_operation": None
+            }
         }
+    return {"status": "ready"}
+
+def execute(execution_context=None, operation=None, a=None, b=None):
+    """Główna funkcja execute kalkulatora"""
+    if not execution_context:
+        return {"error": "Execution context required"}
+
+    data = execution_context.get('data', {})
+    operation = operation or data.get('operation')
+    a = a or data.get('a')
+    b = b or data.get('b')
+
+    if operation == 'add':
+        result = _add(a, b)
+    elif operation == 'multiply':
+        result = _multiply(a, b)
+    else:
+        result = {"error": "Unknown operation"}
+
+    return {
+        "operation": operation,
+        "operands": [a, b],
+        "result": result,
+        "executed_at": execution_context.get('execution_timestamp'),
+        "instance_ulid": execution_context.get('instance_ulid')
+    }
+
+def _add(a, b):
+    """Prywatna funkcja dodawania"""
+    return a + b
+
+def _multiply(a, b):
+    """Prywatna funkcja mnożenia"""
+    return a * b
+'''
+    }
+
+    # Tworzenie Soul z pełnym przetwarzaniem
+    calculator_soul = await Soul.create(calculator_genotype, alias="enhanced_calculator")
+    print(f"   ✅ Soul created with {calculator_soul.get_functions_count()} functions")
+
+    # 2. Soul.init() - Wirtualna instancja
+    print("\n2. 🧬 Soul.init() - Tworzy wirtualną instancję...")
+    init_result = await calculator_soul.init(data={"precision": 4, "mode": "scientific"})
+    instance_ulid = init_result['data']['instance_ulid']
+    print(f"   ✅ Virtual instance created: {instance_ulid[:8]}")
+
+    # 3. Soul.execute() - Pełna funkcjonalność
+    print("\n3. 🧬 Soul.execute() - Wykonanie z wirtualną instancją...")
+    exec_result = await calculator_soul.execute(
+        data={"operation": "add", "a": 15, "b": 25},
+        instance_ulid=instance_ulid
     )
+    print(f"   ✅ Calculation result: {exec_result['data']['result']}")
 
-    creation_result = await lazy_creator.set()
-    print(f"Being created: {creation_result['success']}")
-    if creation_result['success']:
-        being_data = creation_result['data']['being']
-        print(f"Being ULID: {being_data['ulid']}")
-
-    print("\n🎯 Demonstracja funkcji publicznych vs prywatnych")
-    print("✅ Publiczne: execute() - dostępne zewnętrznie")
-    print("❌ Prywatne: _private_add(), _private_multiply() - tylko wewnętrzne")
-
-    # Sprawdź dostępne funkcje
-    functions_info = dodawanie_soul.get_available_functions_clear()
-    print(f"\nDostępne funkcje publiczne: {len([f for f in functions_info if not f.startswith('[')])}")
-    print(f"Funkcje prywatne (ukryte): {len([f for f in functions_info if f.startswith('[PRIVATE]')])}")
-
-    print("\n🧬 === NOWE ELEGANCKIE API ===")
-
-    # Soul(alias).get_or_create(data, max_instances=5).set() - pooling Beings
-    message_being = await Soul(alias="message").get_or_create(
-        data={
-            "text": "Hello World", 
-            "sender": "Alice",
-            "timestamp": datetime.now().isoformat()
-        },
-        max_instances=5  # Maksymalnie 5 aktywnych message beings
-    ).set()
-
-    print("📝 Message Being (pooled):", message_being)
-
-    # Soul(alias).execute(data) - wykonuje bezpośrednio
-    calc_result = await Soul(alias="dodawanie").execute(
-        data={"a": 5, "b": 3}
+    # 4. Soul.execute() - Bez instancji (chwilowe dane)
+    print("\n4. 🧬 Soul.execute() - Chwilowe wykonanie...")
+    temp_result = await calculator_soul.execute(
+        data={"operation": "multiply", "a": 6, "b": 7}
     )
+    print(f"   ✅ Temporary calculation: {temp_result['data']['result']}")
 
-    print("🔢 Calculator Result:", calc_result)
+    # 5. Soul.set() - Zapis wirtualnej instancji jako Being
+    print("\n5. 🧬 Soul.set() - Zapisz wirtualną instancję jako Being...")
+    instance_data = init_result['data']['instance_data']
+    instance_data.update({
+        "calculations_performed": 1,
+        "last_result": exec_result['data']['result']
+    })
 
+    save_result = await calculator_soul.set(
+        instance_data=instance_data,
+        instance_ulid=instance_ulid
+    )
+    being_ulid = save_result['data']['being_ulid']
+    print(f"   ✅ Virtual instance saved as Being: {being_ulid[:8]}")
+
+    # 6. Demonstracja Being jako kontener danych
+    print("\n6. 🧬 Being jako wirtualny kontener danych...")
+
+    saved_being = await Being.get(being_ulid)
+    print(f"   ✅ Being loaded: {saved_being.ulid[:8]}")
+    print(f"   📊 Being data: precision={saved_being.data.get('precision')}, mode={saved_being.data.get('mode')}")
+    print(f"   📈 Calculations: {saved_being.data.get('calculations_performed')}")
+
+    print("\n🎯 PODSUMOWANIE NOWEJ FILOZOFII:")
+    print("   ✅ Soul jest pełnoprawnym wykonawcą")
+    print("   ✅ Wirtualne instancje z ULID + data")  
+    print("   ✅ Chwilowe wykonanie bez historii")
+    print("   ✅ Being tylko kontener danych z historią")
+    print("   ✅ Eleganckie API: init → execute → set")
+
+async def main():
+    await demo_new_soul_philosophy()
 
 if __name__ == "__main__":
-    asyncio.run(demo_elegant_soul_api())
+    asyncio.run(main())
