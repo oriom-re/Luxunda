@@ -1,15 +1,32 @@
-"""
-LuxDB Core Module
-================
 
-Główne komponenty systemu LuxDB.
+"""
+🧬 LuxDB Core Package - Tylko Soul, bez Being
+
+Główne komponenty:
+- Soul: Kompletny model z instancjami 
+- Kernel: Zarządzanie systemem
+- Database: Persistence layer
 """
 
 from .luxdb import LuxDB
-from .simple_kernel import SimpleKernel
-from .intelligent_kernel import intelligent_kernel
-from .being_communication_manager import BeingCommunicationManager
-from .relationships_manager import RelationshipsManager
-from .tasks_manager import TasksManager
-from .access_control import access_controller
-from .being_ownership_manager import BeingOwnershipManager
+from .simple_kernel import SimpleKernel  
+from .intelligent_kernel import IntelligentKernel
+
+# Usuń import unified_kernel - nie istnieje
+# from .unified_kernel import unified_kernel
+
+from .postgre_db import Postgre_db
+from .access_control import AccessController, access_controller
+from .session_data_manager import SessionDataManager
+from .genotype_system import GenotypeSystem
+
+__all__ = [
+    'LuxDB',
+    'SimpleKernel', 
+    'IntelligentKernel',
+    'Postgre_db',
+    'AccessController',
+    'access_controller',
+    'SessionDataManager',
+    'GenotypeSystem'
+]
